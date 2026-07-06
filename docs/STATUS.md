@@ -2739,10 +2739,14 @@ Working evidence:
 				  primitive draw payload expansion now lives in `OrenAVMMetalGeometry`,
 				  reducing `OrenAVMMetalView.m` to 1033 lines while keeping full-frame
 				  clear-color policy, state stacks, and opcode routing in the view.
-				  Metal retained-image upload/remove/draw/sub-rect/batched image opcode
-				  handling now lives in `OrenAVMMetalResources`, reducing
-				  `OrenAVMMetalView.m` to 915 lines while keeping retained image budget
-				  configuration in the view.
+					  Metal retained-image upload/remove/draw/sub-rect/batched image opcode
+					  handling now lives in `OrenAVMMetalResources`, reducing
+					  `OrenAVMMetalView.m` to 915 lines while keeping retained image budget
+					  configuration in the view. Metal immediate and retained text
+					  upload/draw/batched/destroy opcode handling now lives in
+					  `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 833 lines
+					  while keeping the text cache, atlas, and attribute-cache ownership in
+					  the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

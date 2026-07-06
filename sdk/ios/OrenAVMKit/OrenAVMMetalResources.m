@@ -317,6 +317,155 @@ void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textI
     if (texts && textID != 0) CFDictionaryRemoveValue(texts, OrenAVMMetalRetainedTextKey(textID));
 }
 
+static void OrenAVMMetalAppendTextRun(NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+                                      NSUInteger runCapacity,
+                                      OrenAVMMetalTextRun* run,
+                                      BOOL hasScissor,
+                                      MTLScissorRect scissor) {
+    if (!run) return;
+    run.hasScissor = hasScissor;
+    run.scissor = scissor;
+    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
+}
+
+BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
+                                   id<MTLDevice> device,
+                                   UIScreen* screen,
+                                   uint8_t opcode,
+                                   const uint8_t* payload,
+                                   uint16_t payloadLen,
+                                   OrenAVMMetalTextAtlas** textAtlas,
+                                   NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* textCache,
+                                   NSMutableArray<OrenAVMMetalTextCacheKey*>* textCacheOrder,
+                                   OrenAVMMetalTextAttributeCache* textAttributes,
+                                   NSUInteger* textCachePixels,
+                                   NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+                                   NSUInteger runCapacity,
+                                   BOOL hasScissor,
+                                   MTLScissorRect scissor,
+                                   float tx,
+                                   float ty,
+                                   float logicalWidth,
+                                   float logicalHeight,
+                                   float opacity) {
+    if (!payload) return NO;
+    switch (opcode) {
+        case 2: {
+            if (payloadLen >= 16) {
+                uint32_t textLen = OrenAVMMetalReadU32LE(payload + 12);
+                if (textLen == (uint32_t)payloadLen - 16u) {
+                    NSString* text = [[NSString alloc] initWithBytes:payload + 16
+                                                              length:(NSUInteger)textLen
+                                                            encoding:NSUTF8StringEncoding];
+                    OrenAVMMetalAppendTextRun(textRuns,
+                                              runCapacity,
+                                              OrenAVMMetalCreateTextRun(device,
+                                                                        screen,
+                                                                        textAtlas,
+                                                                        textCache,
+                                                                        textCacheOrder,
+                                                                        textAttributes,
+                                                                        textCachePixels,
+                                                                        text,
+                                                                        (float)OrenAVMMetalReadU32LE(payload) + tx,
+                                                                        (float)OrenAVMMetalReadU32LE(payload + 4) + ty,
+                                                                        payload + 8,
+                                                                        opacity,
+                                                                        logicalWidth,
+                                                                        logicalHeight),
+                                              hasScissor,
+                                              scissor);
+                }
+            }
+            return YES;
+        }
+        case 68: {
+            if (payloadLen >= 12) {
+                uint32_t textLen = OrenAVMMetalReadU32LE(payload + 8);
+                if (textLen == (uint32_t)payloadLen - 12u) {
+                    NSString* text = [[NSString alloc] initWithBytes:payload + 12
+                                                              length:(NSUInteger)textLen
+                                                            encoding:NSUTF8StringEncoding];
+                    (void)OrenAVMMetalPutTextResource(texts,
+                                                      OrenAVMMetalReadU32LE(payload),
+                                                      OrenAVMMetalReadU32LE(payload + 4),
+                                                      text);
+                }
+            }
+            return YES;
+        }
+        case 69: {
+            if (payloadLen == 12) {
+                OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(texts ? *texts : NULL,
+                                                                                      OrenAVMMetalReadU32LE(payload));
+                if (resource.text) {
+                    uint8_t textRGBA[4];
+                    OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
+                    OrenAVMMetalAppendTextRun(textRuns,
+                                              runCapacity,
+                                              OrenAVMMetalCreateTextRun(device,
+                                                                        screen,
+                                                                        textAtlas,
+                                                                        textCache,
+                                                                        textCacheOrder,
+                                                                        textAttributes,
+                                                                        textCachePixels,
+                                                                        resource.text,
+                                                                        (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
+                                                                        (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
+                                                                        textRGBA,
+                                                                        opacity,
+                                                                        logicalWidth,
+                                                                        logicalHeight),
+                                              hasScissor,
+                                              scissor);
+                }
+            }
+            return YES;
+        }
+        case 70: {
+            if (payloadLen == 4) {
+                OrenAVMMetalRemoveTextResource(texts ? *texts : NULL, OrenAVMMetalReadU32LE(payload));
+            }
+            return YES;
+        }
+        case 72: {
+            if (payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
+                uint32_t textID = OrenAVMMetalReadU32LE(payload);
+                uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
+                OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(texts ? *texts : NULL, textID);
+                if (resource.text && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                    uint8_t textRGBA[4];
+                    OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
+                    OrenAVMMetalAppendTextRun(textRuns,
+                                              runCapacity,
+                                              OrenAVMMetalCreateTextBatchRun(device,
+                                                                             screen,
+                                                                             textAtlas,
+                                                                             textCache,
+                                                                             textCacheOrder,
+                                                                             textAttributes,
+                                                                             textCachePixels,
+                                                                             resource.text,
+                                                                             payload + 8,
+                                                                             posCount,
+                                                                             tx,
+                                                                             ty,
+                                                                             textRGBA,
+                                                                             opacity,
+                                                                             logicalWidth,
+                                                                             logicalHeight),
+                                              hasScissor,
+                                              scissor);
+                }
+            }
+            return YES;
+        }
+        default:
+            return NO;
+    }
+}
+
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID) {
     return OrenAVMMetalRetainedKey(meshID);
 }

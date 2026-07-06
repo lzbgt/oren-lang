@@ -120,6 +120,26 @@ BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
                                  uint32_t rgbaValue,
                                  NSString* text);
 void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID);
+BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
+                                   id<MTLDevice> device,
+                                   UIScreen* screen,
+                                   uint8_t opcode,
+                                   const uint8_t* payload,
+                                   uint16_t payloadLen,
+                                   OrenAVMMetalTextAtlas** textAtlas,
+                                   NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* textCache,
+                                   NSMutableArray<OrenAVMMetalTextCacheKey*>* textCacheOrder,
+                                   OrenAVMMetalTextAttributeCache* textAttributes,
+                                   NSUInteger* textCachePixels,
+                                   NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+                                   NSUInteger runCapacity,
+                                   BOOL hasScissor,
+                                   MTLScissorRect scissor,
+                                   float tx,
+                                   float ty,
+                                   float logicalWidth,
+                                   float logicalHeight,
+                                   float opacity);
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID);
 OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID);
 OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID);

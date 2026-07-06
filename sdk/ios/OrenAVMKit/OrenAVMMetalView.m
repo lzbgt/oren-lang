@@ -587,132 +587,50 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                      indexBytes,
                                                      indexCount);
             }
-        } else if (opcode == 2 && payloadLen >= 16) {
-            uint32_t x = OrenAVMMetalReadU32LE(payload);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t textLen = OrenAVMMetalReadU32LE(payload + 12);
-            if (textLen == (uint32_t)payloadLen - 16u) {
-                NSString* text = [[NSString alloc] initWithBytes:payload + 16
-                                                          length:(NSUInteger)textLen
-                                                        encoding:NSUTF8StringEncoding];
-                NSUInteger textCachePixels = self.orenTextCachePixels;
-                OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
-                OrenAVMMetalTextRun* run = OrenAVMMetalCreateTextRun(self.device,
-                                                                     self.window.screen,
-                                                                     &textAtlas,
-                                                                     self.orenTextCache,
-                                                                     self.orenTextCacheOrder,
-                                                                     self.orenTextAttributes,
-                                                                     &textCachePixels,
-                                                                     text,
-                                                                     (float)x + tx,
-                                                                     (float)y + ty,
-                                                                     payload + 8,
-                                                                     opacity,
-                                                                     (float)logicalW,
-                                                                     (float)logicalH);
+        } else {
+            NSUInteger textCachePixels = self.orenTextCachePixels;
+            OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
+            BOOL textHandled = OrenAVMMetalHandleTextCommand(&_orenTextResourcesByID,
+                                                             self.device,
+                                                             self.window.screen,
+                                                             opcode,
+                                                             payload,
+                                                             payloadLen,
+                                                             &textAtlas,
+                                                             self.orenTextCache,
+                                                             self.orenTextCacheOrder,
+                                                             self.orenTextAttributes,
+                                                             &textCachePixels,
+                                                             textRuns,
+                                                             runCapacity,
+                                                             clip.enabled,
+                                                             clip.rect,
+                                                             tx,
+                                                             ty,
+                                                             (float)logicalW,
+                                                             (float)logicalH,
+                                                             opacity);
+            if (textHandled) {
                 self.orenTextCachePixels = textCachePixels;
                 self.orenTextAtlas = textAtlas;
-                if (run) {
-                    run.hasScissor = clip.enabled;
-                    run.scissor = clip.rect;
-                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
-                }
+            } else if (OrenAVMMetalHandleImageCommand(&_orenImagesByID,
+                                                      self.device,
+                                                      opcode,
+                                                      payload,
+                                                      payloadLen,
+                                                      imageRuns,
+                                                      runCapacity,
+                                                      clip.enabled,
+                                                      clip.rect,
+                                                      tx,
+                                                      ty,
+                                                      (float)logicalW,
+                                                      (float)logicalH,
+                                                      opacity,
+                                                      self.retainedImageCountLimit,
+                                                      self.retainedImagePixelLimit,
+                                                      &_retainedImagePixelCount)) {
             }
-        } else if (opcode == 68 && payloadLen >= 12) {
-            uint32_t textID = OrenAVMMetalReadU32LE(payload);
-            uint32_t textLen = OrenAVMMetalReadU32LE(payload + 8);
-            if (textLen == (uint32_t)payloadLen - 12u) {
-                NSString* text = [[NSString alloc] initWithBytes:payload + 12
-                                                          length:(NSUInteger)textLen
-                                                        encoding:NSUTF8StringEncoding];
-                OrenAVMMetalPutTextResource(&_orenTextResourcesByID, textID, OrenAVMMetalReadU32LE(payload + 4), text);
-            }
-        } else if (opcode == 69 && payloadLen == 12) {
-            uint32_t textID = OrenAVMMetalReadU32LE(payload);
-            uint32_t x = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
-            OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(_orenTextResourcesByID, textID);
-            if (resource.text) {
-                uint8_t textRGBA[4];
-                OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
-                NSUInteger textCachePixels = self.orenTextCachePixels;
-                OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
-                OrenAVMMetalTextRun* run = OrenAVMMetalCreateTextRun(self.device,
-                                                                     self.window.screen,
-                                                                     &textAtlas,
-                                                                     self.orenTextCache,
-                                                                     self.orenTextCacheOrder,
-                                                                     self.orenTextAttributes,
-                                                                     &textCachePixels,
-                                                                     resource.text,
-                                                                     (float)x + tx,
-                                                                     (float)y + ty,
-                                                                     textRGBA,
-                                                                     opacity,
-                                                                     (float)logicalW,
-                                                                     (float)logicalH);
-                self.orenTextCachePixels = textCachePixels;
-                self.orenTextAtlas = textAtlas;
-                if (run) {
-                    run.hasScissor = clip.enabled;
-                    run.scissor = clip.rect;
-                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
-                }
-            }
-        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
-            uint32_t textID = OrenAVMMetalReadU32LE(payload);
-            uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
-            OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(_orenTextResourcesByID, textID);
-            if (resource.text && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-                uint8_t textRGBA[4];
-                OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
-                NSUInteger textCachePixels = self.orenTextCachePixels;
-                OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
-                OrenAVMMetalTextRun* run = OrenAVMMetalCreateTextBatchRun(self.device,
-                                                                          self.window.screen,
-                                                                          &textAtlas,
-                                                                          self.orenTextCache,
-                                                                          self.orenTextCacheOrder,
-                                                                          self.orenTextAttributes,
-                                                                          &textCachePixels,
-                                                                          resource.text,
-                                                                          payload + 8,
-                                                                          posCount,
-                                                                          tx,
-                                                                          ty,
-                                                                          textRGBA,
-                                                                          opacity,
-                                                                          (float)logicalW,
-                                                                          (float)logicalH);
-                self.orenTextCachePixels = textCachePixels;
-                self.orenTextAtlas = textAtlas;
-                if (run) {
-                    run.hasScissor = clip.enabled;
-                    run.scissor = clip.rect;
-                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
-                }
-            }
-        } else if (opcode == 70 && payloadLen == 4) {
-            uint32_t textID = OrenAVMMetalReadU32LE(payload);
-            OrenAVMMetalRemoveTextResource(_orenTextResourcesByID, textID);
-        } else if (OrenAVMMetalHandleImageCommand(&_orenImagesByID,
-                                                  self.device,
-                                                  opcode,
-                                                  payload,
-                                                  payloadLen,
-                                                  imageRuns,
-                                                  runCapacity,
-                                                  clip.enabled,
-                                                  clip.rect,
-                                                  tx,
-                                                  ty,
-                                                  (float)logicalW,
-                                                  (float)logicalH,
-                                                  opacity,
-                                                  self.retainedImageCountLimit,
-                                                  self.retainedImagePixelLimit,
-                                                  &_retainedImagePixelCount)) {
         }
         off += payloadLen;
     }

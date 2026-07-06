@@ -135,7 +135,7 @@ def main() -> int:
         fail("Metal text attribute cache must stay bounded")
     if "OrenAVMMetalTextAttributeCache* orenTextAttributes" not in text:
         fail("Metal text attributes must be cached through a typed view-owned cache")
-    if text.count("self.orenTextAttributes") < 4:
+    if "self.orenTextAttributes" not in text or "textAttributes" not in resource_text:
         fail("Metal text creation paths must share the view-owned attribute cache")
     if "@interface OrenAVMMetalTextAttributeCache : NSObject" not in text_header:
         fail("Metal text attributes must use a typed cache object")
@@ -258,12 +258,32 @@ def main() -> int:
         fail("retained Metal text lookups must avoid boxed NSNumber text IDs")
     if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:
         fail("retained Metal text resources must use a scalar-key CF dictionary")
-    if "OrenAVMMetalRetainedTextResource(_orenTextResourcesByID, textID)" not in text:
+    if "OrenAVMMetalHandleTextCommand(&_orenTextResourcesByID," not in text:
+        fail("retained Metal text opcodes must delegate to the resource-owned command helper")
+    if "BOOL OrenAVMMetalHandleTextCommand" not in resource_text:
+        fail("retained Metal text command helper must live in OrenAVMMetalResources")
+    if "OrenAVMMetalRetainedTextResource(texts ? *texts : NULL" not in resource_text:
         fail("retained Metal text draws must use the typed scalar-map resource helper")
-    if "OrenAVMMetalPutTextResource(&_orenTextResourcesByID, textID," not in text:
+    if "OrenAVMMetalPutTextResource(texts," not in resource_text:
         fail("retained Metal text uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalRemoveTextResource(_orenTextResourcesByID, textID)" not in text:
+    if "OrenAVMMetalRemoveTextResource(texts ? *texts : NULL" not in resource_text:
         fail("retained Metal text removals must use the resource-owned removal helper")
+    text_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleTextCommand") :]
+    for token in (
+        "case 2:",
+        "case 68:",
+        "case 69:",
+        "case 70:",
+        "case 72:",
+        "OrenAVMMetalCreateTextRun(device,",
+        "OrenAVMMetalCreateTextBatchRun(device,",
+        "OrenAVMMetalPutTextResource(texts,",
+        "OrenAVMMetalRetainedTextResource(texts ? *texts : NULL",
+    ):
+        if token in text:
+            fail("retained Metal text opcode expansion must not live in OrenAVMMetalView")
+        if token not in text_command:
+            fail(f"retained Metal text command helper missing expected path: {token}")
     if "CFDictionarySetValue(_orenTextResourcesByID" in text or "CFDictionaryRemoveValue(_orenTextResourcesByID" in text:
         fail("retained Metal text map mutation must live in OrenAVMMetalResources")
     if "@(textID)" in text:
@@ -439,11 +459,11 @@ def main() -> int:
         "NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
     ]
     for pattern in eager_run_arrays:
-        if pattern in text:
+        if pattern in metal_text:
             fail("geometry/text/image run arrays must be allocated lazily, not eagerly from runCapacity")
-    if "[NSMutableArray arrayWithCapacity:runCapacity]" in text:
+    if "[NSMutableArray arrayWithCapacity:runCapacity]" in metal_text:
         fail("Metal frame run arrays must use lazy OrenAVMMetalEnsureRunArray allocation")
-    if metal_text.count("OrenAVMMetalEnsureRunArray(") < 6:
+    if metal_text.count("OrenAVMMetalEnsureRunArray(") < 5:
         fail("expected lazy run-array helper calls for geometry/text/image add sites")
 
     in_helper = False
