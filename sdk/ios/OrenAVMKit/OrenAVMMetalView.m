@@ -238,7 +238,7 @@ static void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>* r
 
 static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                                           id<MTLDevice> device,
-                                          NSMutableArray<id<MTLBuffer>>* transientBuffers,
+                                          NSMutableArray<id<MTLBuffer>>** transientBuffers,
                                           const void* bytes,
                                           NSUInteger length) {
     if (!encoder || !bytes || length == 0) return NO;
@@ -250,7 +250,10 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                                                length:length
                                               options:MTLResourceStorageModeShared];
     if (!buffer) return NO;
-    [transientBuffers addObject:buffer];
+    if (!transientBuffers) return NO;
+    if (!*transientBuffers) *transientBuffers = [NSMutableArray array];
+    if (!*transientBuffers) return NO;
+    [*transientBuffers addObject:buffer];
     [encoder setVertexBuffer:buffer offset:0 atIndex:0];
     return YES;
 }
@@ -1709,7 +1712,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (!commandBuffer) return;
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
     if (!encoder) return;
-    NSMutableArray<id<MTLBuffer>>* transientVertexBuffers = [NSMutableArray array];
+    NSMutableArray<id<MTLBuffer>>* transientVertexBuffers = nil;
     MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawable.texture.width, (NSUInteger)drawable.texture.height};
     if (encoder && self.orenPipelineState) {
         [encoder setRenderPipelineState:self.orenPipelineState];
@@ -1718,7 +1721,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
                          vertexCount:run.vertices.length / sizeof(OrenAVMMetalVertex)];
@@ -1731,7 +1734,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
@@ -1744,7 +1747,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
