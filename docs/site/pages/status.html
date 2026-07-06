@@ -2458,7 +2458,7 @@
 <p>  and native WebSocket header slices plus unmasked frame payloads copy with</p>
 <p>  <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
-<p>	  Base64/Base64URL encode reads <code>u8_buf</code> inputs directly after one length</p>
+<p>		  Base64/Base64URL encode reads inputs through shared byte views after one length</p>
 <p>		  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
 <p>		  directly from shared byte views, OGE0 event headers and little-endian</p>
 <p>		  payload fields read from cached u8-buffer pointers, UI command validation</p>
@@ -2471,7 +2471,7 @@
 <p>	  exact-size buffer stores or direct u8-buffer access, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
 <p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and</p>
-<p>  read u8-buffer digest inputs directly during virtual padding expansion, SHA hex helpers and</p>
+<p>  read digest inputs through shared byte views during virtual padding expansion, SHA hex helpers and</p>
 <p>  Windows Schannel certificate-hash formatting use direct std bytes hex</p>
 <p>  emission, C/native runtime hex/string/slice/unpack/pack/endian-read/write helpers</p>
 <p>  read or write list/u8-buffer backing storage directly after one validation pass, and Windows</p>
@@ -2511,9 +2511,9 @@
 <p>	  <code>.xml_reader()</code>; AVM/OBC keeps the default bundle lean and composes through</p>
 <p>	  explicit codec imports such as <code>http.get(url).text().html_reader()</code> when a</p>
 <p>	  package opts into HTML/XML parsing.</p>
-<p>	  Pure Oren SHA-1/SHA-256 now validate bytes in place, expose canonical</p>
+<p>	  Pure Oren SHA-1/SHA-256 now validate bytes through shared byte views, expose canonical</p>
 <p>	  <code>digest</code> / <code>hex</code> / receiver-method APIs, and process virtual padding via</p>
-<p>	  direct u8-buffer reads or list fallback indexing instead of unpacking the whole message to a list, and</p>
+<p>	  byte-view reads instead of unpacking the whole message to a list, and</p>
 <p>	  write fixed-size digest <code>u8_buf</code> outputs directly instead of packing</p>
 <p>	  result byte lists. Native crypto RNG now fills its result <code>u8_buf</code></p>
 <p>	  directly. HPACK plain literal decode now slices the header block directly,</p>
@@ -2543,7 +2543,7 @@
 <p>			  <code>sha256.hex</code>, <code>ui_cmds.validate</code>, <code>ui_raster.rasterize</code>,</p>
 <p>			  <code>ppm.write_rgba_ppm</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
-<p>	  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now read <code>u8_buf</code> inputs directly and write exact-size <code>u8_buf</code> output instead of materializing an</p>
+<p>  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now read inputs through shared byte views and write exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>		  intermediate Oren list, and their decode paths reject malformed padding,</p>
 <p>		  third-character padding without fourth-character padding, and nonzero</p>
 <p>		  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. NET cleanup now covers native and AVM session</p>

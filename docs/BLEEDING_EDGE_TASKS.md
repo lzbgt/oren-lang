@@ -1406,7 +1406,7 @@ This file is the concise task view. Detailed implementation status lives in
      path on exact-size `u8_buf` output; plain UI `text` frame commands now also
      write string bytes directly into OGF0 payloads, and UI color parsing reads
      hex digits directly from ASCII string bytes. SHA-1/SHA-256 digest inputs now read
-     u8 buffers directly during virtual padding expansion, while digest outputs and native
+     through shared byte views during virtual padding expansion, while digest outputs and native
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      plain literal decode now slices the header block directly, while Huffman
      string encode/decode, decoded-string boundaries, and full header-block
@@ -1415,7 +1415,7 @@ This file is the concise task view. Detailed implementation status lives in
      continuation/header-block and DATA response buffering now uses amortized
      `u8_buf` accumulators, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
-     exact-size writes; Base64/Base64URL encode reads `u8_buf` inputs directly after one length check, and decode also rejects malformed padding and
+     exact-size writes; Base64/Base64URL encode reads inputs through shared byte views after one length check, and decode also rejects malformed padding and
 	     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
 	     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers.
 	     `std:strings` prefix/suffix/search/equality
@@ -1447,7 +1447,7 @@ This file is the concise task view. Detailed implementation status lives in
      through syscalls without a transient byte list, and SHA-1/SHA-256 string
      hashing now reads UTF-8 string bytes directly for WebSocket accept values,
      Windows Schannel passphrase cache keys, and callers that already hold text;
-     SHA-1/SHA-256 digest inputs read u8 buffers directly and digest buffers finalize through direct unchecked u8 stores
+     SHA-1/SHA-256 digest inputs read through shared byte views and digest buffers finalize through direct unchecked u8 stores
      after exact-size allocation, and native SHA-256 contiguous input remainders
      copy with `oren_memcpy`.
      Compiler source-policy
