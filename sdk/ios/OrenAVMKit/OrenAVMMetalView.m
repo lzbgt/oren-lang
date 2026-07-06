@@ -85,6 +85,18 @@ typedef struct {
 @implementation OrenAVMMetalMesh3DResource
 @end
 
+@interface OrenAVMMetalModelResource : NSObject
+@property(nonatomic) uint32_t meshID;
+@property(nonatomic) uint32_t materialID;
+@property(nonatomic) int32_t x;
+@property(nonatomic) int32_t y;
+@property(nonatomic) int32_t z;
+@property(nonatomic) uint32_t scaleMilli;
+@end
+
+@implementation OrenAVMMetalModelResource
+@end
+
 static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
 static const NSUInteger OrenAVMMetalInlineVertexBytesLimit = 4096u;
@@ -637,7 +649,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalModelResource*>* orenModels3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalImageResource*>* orenImages;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic) uint32_t orenFrameTickSequence;
@@ -1346,17 +1358,17 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             int32_t modelZ = 0;
             uint32_t scaleMilli = 1000u;
             if (opcode == 94) {
-                NSDictionary<NSString*, NSNumber*>* model = self.orenModels3D[@(meshID)];
+                OrenAVMMetalModelResource* model = self.orenModels3D[@(meshID)];
                 if (!model) {
                     off += payloadLen;
                     continue;
                 }
-                meshID = model[@"mesh_id"].unsignedIntValue;
-                materialID = model[@"material_id"].unsignedIntValue;
-                modelX = model[@"x"].intValue;
-                modelY = model[@"y"].intValue;
-                modelZ = model[@"z"].intValue;
-                scaleMilli = model[@"scale_milli"].unsignedIntValue;
+                meshID = model.meshID;
+                materialID = model.materialID;
+                modelX = model.x;
+                modelY = model.y;
+                modelZ = model.z;
+                scaleMilli = model.scaleMilli;
             }
             OrenAVMMetalMesh3DResource* mesh = self.orenMeshes3D[@(meshID)];
             NSNumber* materialRGBAValue = nil;
@@ -1463,14 +1475,14 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t meshID = OrenAVMMetalReadU32LE(payload + 4);
             uint32_t scaleMilli = OrenAVMMetalReadU32LE(payload + 24);
             if (modelID != 0 && meshID != 0 && scaleMilli != 0) {
-                self.orenModels3D[@(modelID)] = @{
-                    @"mesh_id": @(meshID),
-                    @"material_id": @(OrenAVMMetalReadU32LE(payload + 8)),
-                    @"x": @((int32_t)OrenAVMMetalReadU32LE(payload + 12)),
-                    @"y": @((int32_t)OrenAVMMetalReadU32LE(payload + 16)),
-                    @"z": @((int32_t)OrenAVMMetalReadU32LE(payload + 20)),
-                    @"scale_milli": @(scaleMilli)
-                };
+                OrenAVMMetalModelResource* model = [[OrenAVMMetalModelResource alloc] init];
+                model.meshID = meshID;
+                model.materialID = OrenAVMMetalReadU32LE(payload + 8);
+                model.x = (int32_t)OrenAVMMetalReadU32LE(payload + 12);
+                model.y = (int32_t)OrenAVMMetalReadU32LE(payload + 16);
+                model.z = (int32_t)OrenAVMMetalReadU32LE(payload + 20);
+                model.scaleMilli = scaleMilli;
+                self.orenModels3D[@(modelID)] = model;
             }
         } else if (opcode == 95 && payloadLen == 4) {
             [self.orenModels3D removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];

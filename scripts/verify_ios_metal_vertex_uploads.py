@@ -53,6 +53,12 @@ def main() -> int:
         fail("retained Metal image pixel accounting must not use a parallel dictionary")
     if "OrenAVMMetalSubrectInTexture" not in text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
+    if "@interface OrenAVMMetalModelResource" not in text:
+        fail("retained Metal models must use typed resource objects")
+    if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
+        fail("retained Metal models must not use dictionary payload records")
+    if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
+        fail("retained Metal model draws must not use string-key dictionary lookups")
     if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:

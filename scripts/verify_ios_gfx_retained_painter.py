@@ -52,6 +52,12 @@ def main() -> int:
         fail("CoreGraphics retained image pixel accounting must not use a parallel dictionary")
     if "OrenAVMGfxSubrectInImage" not in text:
         fail("CoreGraphics retained image sub-rect checks must use the overflow-safe helper")
+    if "@interface OrenAVMGfxModelResource" not in text:
+        fail("CoreGraphics retained models must use typed resource objects")
+    if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
+        fail("CoreGraphics retained models must not use dictionary payload records")
+    if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
+        fail("CoreGraphics retained model draws must not use string-key dictionary lookups")
     print("OK: CoreGraphics retained resources use compact typed records")
     return 0
 

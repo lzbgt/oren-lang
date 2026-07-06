@@ -43,6 +43,18 @@ typedef struct {
 @implementation OrenAVMGfxImageResource
 @end
 
+@interface OrenAVMGfxModelResource : NSObject
+@property(nonatomic) uint32_t meshID;
+@property(nonatomic) uint32_t materialID;
+@property(nonatomic) int32_t x;
+@property(nonatomic) int32_t y;
+@property(nonatomic) int32_t z;
+@property(nonatomic) uint32_t scaleMilli;
+@end
+
+@implementation OrenAVMGfxModelResource
+@end
+
 static BOOL OrenAVMGraphicsViewAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
         *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
@@ -226,7 +238,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxImageResource*>* orenImages;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
@@ -741,17 +753,17 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             int32_t modelZ = 0;
             uint32_t scaleMilli = 1000u;
             if (opcode == 94) {
-                NSDictionary<NSString*, NSNumber*>* model = self.orenModels3D[@(meshID)];
+                OrenAVMGfxModelResource* model = self.orenModels3D[@(meshID)];
                 if (!model) {
                     off += payloadLen;
                     continue;
                 }
-                meshID = model[@"mesh_id"].unsignedIntValue;
-                materialID = model[@"material_id"].unsignedIntValue;
-                modelX = model[@"x"].intValue;
-                modelY = model[@"y"].intValue;
-                modelZ = model[@"z"].intValue;
-                scaleMilli = model[@"scale_milli"].unsignedIntValue;
+                meshID = model.meshID;
+                materialID = model.materialID;
+                modelX = model.x;
+                modelY = model.y;
+                modelZ = model.z;
+                scaleMilli = model.scaleMilli;
             }
             OrenAVMGfxMeshResource* mesh = self.orenMeshes[@(meshID)];
             NSNumber* materialRGBAValue = nil;
@@ -862,14 +874,14 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t scaleMilli = OrenAVMGfxReadU32LE(payload + 24);
             if (modelID != 0 && meshID != 0 && scaleMilli != 0) {
-                self.orenModels3D[@(modelID)] = @{
-                    @"mesh_id": @(meshID),
-                    @"material_id": @(OrenAVMGfxReadU32LE(payload + 8)),
-                    @"x": @((int32_t)OrenAVMGfxReadU32LE(payload + 12)),
-                    @"y": @((int32_t)OrenAVMGfxReadU32LE(payload + 16)),
-                    @"z": @((int32_t)OrenAVMGfxReadU32LE(payload + 20)),
-                    @"scale_milli": @(scaleMilli)
-                };
+                OrenAVMGfxModelResource* model = [[OrenAVMGfxModelResource alloc] init];
+                model.meshID = meshID;
+                model.materialID = OrenAVMGfxReadU32LE(payload + 8);
+                model.x = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
+                model.y = (int32_t)OrenAVMGfxReadU32LE(payload + 16);
+                model.z = (int32_t)OrenAVMGfxReadU32LE(payload + 20);
+                model.scaleMilli = scaleMilli;
+                self.orenModels3D[@(modelID)] = model;
             }
         } else if (opcode == 95 && payloadLen == 4) {
             [self.orenModels3D removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];

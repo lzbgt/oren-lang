@@ -2565,6 +2565,8 @@ design evidence lives under `project-doc/`.
 - Retained Metal image resources now use typed texture/pixel records instead of
   parallel texture/pixel dictionaries, with overflow-safe upload accounting and
   sub-rect UV bounds checks.
+- CoreGraphics and Metal retained model resources now use typed resource records
+  instead of string-keyed dictionaries, removing per-draw model field lookups.
 - iOS SDK symbol verification now caches `nm` output once per archive and
   greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads
