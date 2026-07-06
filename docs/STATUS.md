@@ -2645,11 +2645,14 @@ Working evidence:
   checks tracked first-party source files against that limit while excluding
   generated site, archived web research, vendor, and build artifacts. The AVM
   dispatch loop now keeps deadline-backed scheduler wait scanning in
-  `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the AVM
-  VM helper definitions now live in `avm_vm_helpers.inc`, reducing
-  `avm_vm.c` to 1828 lines while keeping dispatch-loop control flow in place.
-  AVM native typed-buffer dot slice/strided cases now live in
-  `avm_native_buffer_cases_e.inc`, reducing `avm_native_buffer_cases_b.inc` to
+	  `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the AVM
+	  VM helper definitions now live in `avm_vm_helpers.inc`, reducing
+	  `avm_vm.c` to 1828 lines while keeping dispatch-loop control flow in place.
+	  AVM VM call, closure, spawn, indirect-call, and spread-construction opcode
+	  cases now live in `avm_vm_call_spread_cases.inc`, reducing `avm_vm.c` to
+	  1424 lines while preserving dispatch case order.
+	  AVM native typed-buffer dot slice/strided cases now live in
+	  `avm_native_buffer_cases_e.inc`, reducing `avm_native_buffer_cases_b.inc` to
   1583 lines while preserving native-op case order. AVM CLI argument parsing
   now lives in `avm_main_parse_args.inc`, reducing `main.c` to 1608 lines while
   preserving the existing parse/return flow. AVM native byte/iterator

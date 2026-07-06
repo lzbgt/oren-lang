@@ -3638,6 +3638,11 @@
 </ul>
 <p>  <code>avm_vm.c</code> to 1828 lines while keeping dispatch-loop control flow in place.</p>
 <ul>
+<li>AVM VM call, closure, spawn, indirect-call, and spread-construction opcode</li>
+</ul>
+<p>  cases now live in <code>avm_vm_call_spread_cases.inc</code>, reducing <code>avm_vm.c</code> to</p>
+<p>  1424 lines while preserving dispatch case order.</p>
+<ul>
 <li>AVM native typed-buffer dot slice/strided cases now live in</li>
 </ul>
 <p>  <code>avm_native_buffer_cases_e.inc</code>, reducing <code>avm_native_buffer_cases_b.inc</code> to</p>

@@ -2627,6 +2627,9 @@ design evidence lives under `project-doc/`.
   headers, reducing `verify_libavm_ios.sh` to 1923 lines.
 - AVM VM helper definitions now live in `avm_vm_helpers.inc`, reducing
   `avm_vm.c` to 1828 lines while keeping dispatch-loop control flow in place.
+- AVM VM call, closure, spawn, indirect-call, and spread-construction opcode
+  cases now live in `avm_vm_call_spread_cases.inc`, reducing `avm_vm.c` to
+  1424 lines while preserving dispatch case order.
 - AVM native typed-buffer dot slice/strided cases now live in
   `avm_native_buffer_cases_e.inc`, reducing `avm_native_buffer_cases_b.inc` to
   1583 lines while preserving native-op case order.
