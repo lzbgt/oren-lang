@@ -2299,7 +2299,9 @@ bounds checks. Retained Metal image resources now use typed texture/pixel
 records instead of parallel texture/pixel dictionaries, with overflow-safe
 upload accounting and sub-rect UV bounds checks. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
-dictionaries, removing per-draw model field lookups. The iOS SDK symbol verifier
+dictionaries, removing per-draw model field lookups. Single Metal image/text
+texture quads now append into caller-owned mutable vertex buffers instead of
+allocating tiny `NSData` wrappers from stack vertices. The iOS SDK symbol verifier
 now caches `nm` output once per archive and greps files instead of SIGPIPE-prone
 `nm | grep -q` pipelines. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host

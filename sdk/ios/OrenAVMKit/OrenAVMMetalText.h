@@ -61,17 +61,6 @@ void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
                                    float u1,
                                    float v1);
 
-NSData* OrenAVMMetalTextureQuad(float x,
-                                float y,
-                                float w,
-                                float h,
-                                float logicalWidth,
-                                float logicalHeight,
-                                float u0,
-                                float v0,
-                                float u1,
-                                float v1);
-
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                UIScreen* screen,
                                                OrenAVMMetalTextAtlas** atlas,

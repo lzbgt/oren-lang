@@ -3542,6 +3542,10 @@
 </ul>
 <p>  instead of string-keyed dictionaries, removing per-draw model field lookups.</p>
 <ul>
+<li>Single Metal image/text texture quads now append into caller-owned mutable</li>
+</ul>
+<p>  vertex buffers instead of allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
+<ul>
 <li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
 </ul>
 <p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>

@@ -1034,7 +1034,9 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)texture.height;
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
-    run.vertices = OrenAVMMetalTextureQuad(x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
+    NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
+    OrenAVMMetalAppendTextureQuad(vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
+    run.vertices = vertices;
     run.opacity = opacity;
     return run;
 }

@@ -266,44 +266,6 @@ void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
     [vertices appendBytes:out length:sizeof(out)];
 }
 
-NSData* OrenAVMMetalTextureQuad(float x,
-                                float y,
-                                float w,
-                                float h,
-                                float logicalWidth,
-                                float logicalHeight,
-                                float u0,
-                                float v0,
-                                float u1,
-                                float v1) {
-    OrenAVMMetalTextVertex out[6];
-    out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      u0,
-                                      v0};
-    out[1] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      u1,
-                                      v0};
-    out[2] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      u0,
-                                      v1};
-    out[3] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y, logicalHeight),
-                                      u1,
-                                      v0};
-    out[4] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x + w, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      u1,
-                                      v1};
-    out[5] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
-                                      OrenAVMMetalClipY(y + h, logicalHeight),
-                                      u0,
-                                      v1};
-    return [NSData dataWithBytes:out length:sizeof(out)];
-}
-
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                UIScreen* screen,
                                                OrenAVMMetalTextAtlas** atlas,
@@ -321,16 +283,19 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
     if (!entry) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
-    run.vertices = OrenAVMMetalTextureQuad(x,
-                                           y,
-                                           (float)entry.logicalSize.width,
-                                           (float)entry.logicalSize.height,
-                                           logicalWidth,
-                                           logicalHeight,
-                                           entry.u0,
-                                           entry.v0,
-                                           entry.u1,
-                                           entry.v1);
+    NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
+    OrenAVMMetalAppendTextureQuad(vertices,
+                                  x,
+                                  y,
+                                  (float)entry.logicalSize.width,
+                                  (float)entry.logicalSize.height,
+                                  logicalWidth,
+                                  logicalHeight,
+                                  entry.u0,
+                                  entry.v0,
+                                  entry.u1,
+                                  entry.v1);
+    run.vertices = vertices;
     run.opacity = opacity;
     return run;
 }

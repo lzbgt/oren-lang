@@ -39,6 +39,10 @@ def main() -> int:
         fail("missing text coalescing mutable-vertex reuse helper")
     if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source:
         fail("text coalescing must reuse mutable batched vertex buffers before falling back to copying")
+    if "OrenAVMMetalTextureQuad" in text_source or "OrenAVMMetalTextureQuad" in text_header:
+        fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
+    if "dataWithBytes:out length:sizeof(out)" in text_source:
+        fail("single Metal texture/text quads must not allocate NSData wrappers from stack vertices")
     if "dataWithBytes:payload + 4 length:4" in text:
         fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
     if "@property(nonatomic) uint32_t rgbaValue" not in text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
