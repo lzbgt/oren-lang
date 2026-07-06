@@ -2513,6 +2513,10 @@ design evidence lives under `project-doc/`.
   visible-triangle order buffer and sorts by depth with original-index ties,
   avoiding per-triangle Objective-C allocations and repeated full rescans in
   the frame path.
+- iOS `OrenAVMMetalView` live drawing and drawable-independent
+  `prepareFrameResourcesWithError:` now share one prepared-frame path for
+  vertex/image/text run construction, text-run coalescing, clear color, and
+  frame metric counts so verifier and live renderer behavior cannot drift.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

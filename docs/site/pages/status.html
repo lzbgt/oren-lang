@@ -2359,7 +2359,10 @@
 <p>  asset and raster-checks it through OBC. <code>OrenAVMMetalView</code> now exposes</p>
 <p>  drawable-independent <code>prepareFrameResourcesWithError:</code> so host apps and</p>
 <p>  headless verifiers can parse retained 3D/resource frames and inspect vertex,</p>
-<p>  text-run, and image-run metrics even when no <code>CAMetalDrawable</code> is available.</p>
+<p>  text-run, and image-run metrics even when no <code>CAMetalDrawable</code> is available;</p>
+<p>  drawable-independent preparation and live drawing now share the same</p>
+<p>  prepared-frame path for run construction, text coalescing, clear color, and</p>
+<p>  metric counts.</p>
 <p>  <code>make capture-ios-live-3d-performance</code> now builds a generated iPhoneOS app</p>
 <p>  harness that runs the 3D OBC program concurrently with <code>OrenAVMMetalView</code>,</p>
 <p>  republishes animated frames from host <code>frame_tick</code> events, records device</p>

@@ -1623,13 +1623,9 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     return vertexRuns;
 }
 
-- (BOOL)prepareFrameResourcesWithError:(NSError**)error {
-    if (!OrenAVMMetalFrameDataIsValid(self.frameData) && self.runtime && ![self reloadFrameWithError:error]) return NO;
-    if (!OrenAVMMetalFrameDataIsValid(self.frameData)) {
-        return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                       @"metal view has no frame data");
-    }
-    uint64_t cpuStartNs = OrenAVMMetalNowNs();
+- (NSArray<OrenAVMMetalVertexRun*>*)orenPrepareCurrentFrameWithClearColor:(MTLClearColor*)clearColorOut
+                                                                imageRuns:(NSArray<OrenAVMMetalImageRun*>**)imageRunsOut
+                                                                 textRuns:(NSArray<OrenAVMMetalTextRun*>**)textRunsOut {
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
     NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
     NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray array];
@@ -1645,6 +1641,20 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     self.lastFrameVertexCount = vertexCount;
     self.lastFrameTextRunCount = (uint32_t)coalescedTextRuns.count;
     self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
+    if (clearColorOut) *clearColorOut = clearColor;
+    if (imageRunsOut) *imageRunsOut = imageRuns;
+    if (textRunsOut) *textRunsOut = coalescedTextRuns;
+    return vertexRuns;
+}
+
+- (BOOL)prepareFrameResourcesWithError:(NSError**)error {
+    if (!OrenAVMMetalFrameDataIsValid(self.frameData) && self.runtime && ![self reloadFrameWithError:error]) return NO;
+    if (!OrenAVMMetalFrameDataIsValid(self.frameData)) {
+        return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                       @"metal view has no frame data");
+    }
+    uint64_t cpuStartNs = OrenAVMMetalNowNs();
+    (void)[self orenPrepareCurrentFrameWithClearColor:NULL imageRuns:NULL textRuns:NULL];
     self.lastFrameCPUNs = OrenAVMMetalNowNs() - cpuStartNs;
     self.lastFrameTargetBudgetNs = OrenAVMMetalTargetBudgetNs(self.targetHzMilli);
     return YES;
@@ -1666,20 +1676,11 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     }
 
     MTLClearColor clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
-    NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray array];
-    NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray array];
-    NSArray<OrenAVMMetalVertexRun*>* vertexRuns = [self orenVertexRunsForFrame:self.frameData
-                                                                    clearColor:&clearColor
-                                                                      textRuns:textRuns
-                                                                     imageRuns:imageRuns];
-    NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = OrenAVMMetalCoalesceTextRuns(textRuns);
-    uint32_t vertexCount = 0;
-    for (OrenAVMMetalVertexRun* run in vertexRuns) {
-        vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
-    }
-    self.lastFrameVertexCount = vertexCount;
-    self.lastFrameTextRunCount = (uint32_t)coalescedTextRuns.count;
-    self.lastFrameImageRunCount = (uint32_t)imageRuns.count;
+    NSArray<OrenAVMMetalImageRun*>* imageRuns = nil;
+    NSArray<OrenAVMMetalTextRun*>* textRuns = nil;
+    NSArray<OrenAVMMetalVertexRun*>* vertexRuns = [self orenPrepareCurrentFrameWithClearColor:&clearColor
+                                                                                   imageRuns:&imageRuns
+                                                                                    textRuns:&textRuns];
     pass.colorAttachments[0].clearColor = clearColor;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
@@ -1717,7 +1718,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                          vertexStart:0
                          vertexCount:run.vertices.length / sizeof(OrenAVMMetalTextVertex)];
         }
-        for (OrenAVMMetalTextRun* run in coalescedTextRuns) {
+        for (OrenAVMMetalTextRun* run in textRuns) {
             if (!run.texture || run.vertices.length == 0) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;

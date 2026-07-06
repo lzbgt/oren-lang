@@ -3452,6 +3452,12 @@
 <p>  avoiding per-triangle Objective-C allocations and repeated full rescans in</p>
 <p>  the frame path.</p>
 <ul>
+<li>iOS <code>OrenAVMMetalView</code> live drawing and drawable-independent</li>
+</ul>
+<p>  <code>prepareFrameResourcesWithError:</code> now share one prepared-frame path for</p>
+<p>  vertex/image/text run construction, text-run coalescing, clear color, and</p>
+<p>  frame metric counts so verifier and live renderer behavior cannot drift.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>
