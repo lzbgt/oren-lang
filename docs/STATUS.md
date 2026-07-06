@@ -2283,9 +2283,9 @@ coalescing now avoids copying every non-merged run into mutable vertex storage
 and only allocates mutable coalescing storage when an adjacent compatible run
 actually merges; adjacent batched text runs reuse the first run's existing
 mutable vertex buffer as the merge destination instead of cloning it first.
-Single texture-quad emission now fills the six text/image
-vertices directly in stack storage before returning immutable `NSData`, avoiding
-a temporary mutable-data append/copy pair for common single-run draws. Retained
+Single texture-quad emission now appends the six text/image vertices directly
+into caller-owned run buffers, avoiding tiny `NSData` wrappers and a temporary
+mutable-data append/copy pair for common single-run draws. Retained
 Metal mesh, material, and text resource colors now keep 4-byte RGBA values as
 scalars instead of allocating `NSData` wrappers for each color, and the
 CoreGraphics retained mesh/material fallback now stores typed mesh resource
@@ -2317,7 +2317,9 @@ instead of the legacy `oren_read_bytes` list bridge. The AVM VFS no-host-FS
 fixture also validates in-memory VFS binary reads through `oren_read_u8_buf`
 instead of the legacy list bridge. Native capsule FS read/mount fixtures now
 validate binary reads through `oren_read_u8_buf`, preserving FS policy coverage
-without boxing bytes. The iOS SDK now
+without boxing bytes. `std:fs` now exposes explicit `read_u8_buf` and
+`read_u8_buf_under` facades for new byte-buffer callers while keeping
+`read_byte_list` as the legacy list ABI. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

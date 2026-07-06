@@ -2381,9 +2381,9 @@
 <p>and only allocates mutable coalescing storage when an adjacent compatible run</p>
 <p>actually merges; adjacent batched text runs reuse the first run&#x27;s existing</p>
 <p>mutable vertex buffer as the merge destination instead of cloning it first.</p>
-<p>Single texture-quad emission now fills the six text/image</p>
-<p>vertices directly in stack storage before returning immutable <code>NSData</code>, avoiding</p>
-<p>a temporary mutable-data append/copy pair for common single-run draws. Retained</p>
+<p>Single texture-quad emission now appends the six text/image vertices directly</p>
+<p>into caller-owned run buffers, avoiding tiny <code>NSData</code> wrappers and a temporary</p>
+<p>mutable-data append/copy pair for common single-run draws. Retained</p>
 <p>Metal mesh, material, and text resource colors now keep 4-byte RGBA values as</p>
 <p>scalars instead of allocating <code>NSData</code> wrappers for each color, and the</p>
 <p>CoreGraphics retained mesh/material fallback now stores typed mesh resource</p>
@@ -2415,7 +2415,9 @@
 <p>fixture also validates in-memory VFS binary reads through <code>oren_read_u8_buf</code></p>
 <p>instead of the legacy list bridge. Native capsule FS read/mount fixtures now</p>
 <p>validate binary reads through <code>oren_read_u8_buf</code>, preserving FS policy coverage</p>
-<p>without boxing bytes. The iOS SDK now</p>
+<p>without boxing bytes. <code>std:fs</code> now exposes explicit <code>read_u8_buf</code> and</p>
+<p><code>read_u8_buf_under</code> facades for new byte-buffer callers while keeping</p>
+<p><code>read_byte_list</code> as the legacy list ABI. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>

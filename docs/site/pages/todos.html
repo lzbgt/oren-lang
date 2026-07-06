@@ -3580,6 +3580,10 @@
 </ul>
 <p>  <code>oren_read_u8_buf</code>, preserving FS policy coverage without boxing bytes.</p>
 <ul>
+<li><code>std:fs</code> now exposes explicit <code>read_u8_buf</code>/<code>read_u8_buf_under</code> facades for</li>
+</ul>
+<p>  new byte-buffer callers while keeping <code>read_byte_list</code> as the legacy list ABI.</p>
+<ul>
 <li>The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and</li>
 </ul>
 <p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>
@@ -3597,9 +3601,9 @@
 </ul>
 <p>  hot returned byte buffers do not regress to copy/free handoff.</p>
 <ul>
-<li>Metal single texture-quad emission now writes the six text/image vertices</li>
+<li>Metal single texture-quad emission now appends the six text/image vertices</li>
 </ul>
-<p>  directly into stack storage before returning immutable <code>NSData</code>, avoiding a</p>
+<p>  directly into caller-owned run buffers, avoiding tiny <code>NSData</code> wrappers and a</p>
 <p>  temporary mutable-data append/copy pair for common single-run draws.</p>
 <ul>
 <li>Bytecode final artifact writes now report the original <code>u8_buf</code></li>

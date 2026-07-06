@@ -2587,6 +2587,8 @@ design evidence lives under `project-doc/`.
   `oren_read_u8_buf` instead of the legacy list bridge.
 - Native capsule FS read/mount fixtures now validate binary reads through
   `oren_read_u8_buf`, preserving FS policy coverage without boxing bytes.
+- `std:fs` now exposes explicit `read_u8_buf`/`read_u8_buf_under` facades for
+  new byte-buffer callers while keeping `read_byte_list` as the legacy list ABI.
 - The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and
   permission-request byte buffers directly into `NSData` ownership instead of
   copying the bytes and then freeing the original buffer.
@@ -2596,8 +2598,8 @@ design evidence lives under `project-doc/`.
   from the release bundle during CRC/write instead of copying each stored entry.
 - `make verify-libavm-ios` now guards the SDK embed-byte ownership contract so
   hot returned byte buffers do not regress to copy/free handoff.
-- Metal single texture-quad emission now writes the six text/image vertices
-  directly into stack storage before returning immutable `NSData`, avoiding a
+- Metal single texture-quad emission now appends the six text/image vertices
+  directly into caller-owned run buffers, avoiding tiny `NSData` wrappers and a
   temporary mutable-data append/copy pair for common single-run draws.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated

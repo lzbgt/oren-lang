@@ -30,10 +30,20 @@ fn write_text_under(root, parts, content) {
     return write_text(p, content)
 }
 
+fn read_u8_buf(path) {
+    return oren_read_u8_buf(path)
+}
+
+fn read_u8_buf_under(root, parts) {
+    var p = _join_under(root, parts)
+    if oren_is_err(p) { return p }
+    return read_u8_buf(p)
+}
+
 fn read_bytes(path) {
     // Prefer byte-native output for new code. Use read_byte_list for the legacy
     // list<int 0..255> ABI when a caller explicitly needs it.
-    return oren_read_u8_buf(path)
+    return read_u8_buf(path)
 }
 
 fn read_bytes_under(root, parts) {

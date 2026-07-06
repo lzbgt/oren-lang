@@ -31,7 +31,7 @@ fn main() {
     var wb = fs.write_bytes("v/dir/data.bin", src)
     if oren_is_err(wb) { fail(11) }
 
-    var rb = fs.read_bytes("v/dir/data.bin")
+    var rb = fs.read_u8_buf("v/dir/data.bin")
     if oren_is_err(rb) { fail(12) }
     if bytes.len(rb) != 4 { fail(13) }
     if bytes.get_u8(rb, 0) != 7 { fail(14) }
@@ -57,7 +57,7 @@ fn main() {
 
     var wb2 = fs.write_bytes_under("v/dir", ["under.bin"], src)
     if oren_is_err(wb2) { fail(35) }
-    var rb2 = fs.read_bytes_under("v/dir", ["under.bin"])
+    var rb2 = fs.read_u8_buf_under("v/dir", ["under.bin"])
     if oren_is_err(rb2) { fail(36) }
     if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(37) }
     var legacy2 = fs.read_byte_list_under("v/dir", ["under.bin"])
