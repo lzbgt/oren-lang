@@ -592,7 +592,9 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     OrenAVMMetalAppendArcLines(vertices, x + r, y + h - r, r, pi * 0.5f, pi, lw, logicalWidth, logicalHeight, rgba);
 }
 
-@interface OrenAVMMetalView () <MTKViewDelegate>
+@interface OrenAVMMetalView () <MTKViewDelegate> {
+    CFMutableDictionaryRef _orenTouchIDs;
+}
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenTextPipelineState;
@@ -616,7 +618,6 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 @property(nonatomic, readwrite) uint32_t lastFrameVertexCount;
 @property(nonatomic, readwrite) uint32_t lastFrameTextRunCount;
 @property(nonatomic, readwrite) uint32_t lastFrameImageRunCount;
-@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
 @property(nonatomic) BOOL orenFrameReloadScheduled;
@@ -685,6 +686,10 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (_runtime && self.orenGraphicsFrameObserverToken) {
         [_runtime removeGraphicsFrameHandler:self.orenGraphicsFrameObserverToken];
     }
+    if (_orenTouchIDs) {
+        CFRelease(_orenTouchIDs);
+        _orenTouchIDs = NULL;
+    }
 }
 
 - (void)orenConfigureMetalView {
@@ -702,7 +707,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
     if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
-    if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
+    if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
     if (self.frameBudgetWarningPermille == 0) self.frameBudgetWarningPermille = 1000u;
@@ -1869,12 +1874,17 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 }
 
 - (uint32_t)orenPointerIDForTouch:(UITouch*)touch {
-    NSNumber* existing = [self.orenTouchIDs objectForKey:touch];
-    if (existing) return existing.unsignedIntValue;
+    const void* stored = NULL;
+    if (_orenTouchIDs && CFDictionaryGetValueIfPresent(_orenTouchIDs, (__bridge const void*)touch, &stored)) {
+        return (uint32_t)(uintptr_t)stored;
+    }
     uint32_t pointerID = self.orenNextTouchID == 0 ? 1u : self.orenNextTouchID;
     self.orenNextTouchID = pointerID + 1u;
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
-    [self.orenTouchIDs setObject:@(pointerID) forKey:touch];
+    if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    if (_orenTouchIDs) {
+        CFDictionarySetValue(_orenTouchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID);
+    }
     return pointerID;
 }
 
@@ -1887,7 +1897,9 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                        point:p
                                    pointerId:pointerID
                                        error:&error];
-        if (releaseAfterSend) [self.orenTouchIDs removeObjectForKey:touch];
+        if (releaseAfterSend && _orenTouchIDs) {
+            CFDictionaryRemoveValue(_orenTouchIDs, (__bridge const void*)touch);
+        }
     }
 }
 

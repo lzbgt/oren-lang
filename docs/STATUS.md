@@ -2214,7 +2214,9 @@ Facts from the 2026-05-28 implementation pass:
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
-  pointer events instead of dropping all but one touch. The `OGE0` stream also has
+  pointer events instead of dropping all but one touch. Metal touch tracking keeps
+  active pointer IDs as raw scalar values instead of per-touch `NSNumber` boxes.
+  The `OGE0` stream also has
   compact gamepad/controller state records, coalesced high-rate motion records,
   focus gained/lost records, and IME/composition update/commit/cancel records,
   with iOS SDK helpers for controller id, button bitmask, signed milli-normalized
@@ -2324,7 +2326,9 @@ immutable cache keys instead of formatted strings that copy the full label into
 every lookup key. iOS SDK typed GFX input helpers now build
 fixed-size `OGE0` events on stack and enqueue raw bytes directly; text and
 composition events use segmented stack-first construction with one heap event
-fallback only for large payloads. The iOS SDK symbol verifier
+fallback only for large payloads, and Metal touch tracking keeps active pointer
+IDs in a scalar pointer map instead of retaining per-touch `NSNumber` boxes. The
+iOS SDK symbol verifier
 now caches `nm` output once per archive and greps files instead of SIGPIPE-prone
 `nm | grep -q` pipelines. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host
