@@ -25,6 +25,10 @@ def main() -> int:
         fail("missing large vertex upload buffer retention path")
     if "[transientVertexBuffers copy]" in text:
         fail("large vertex upload completion path must retain the existing tracking array without copying it")
+    if "run.vertices = [vertices copy]" in text:
+        fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
+    if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
+        fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") < 3:

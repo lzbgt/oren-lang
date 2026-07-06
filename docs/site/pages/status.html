@@ -2368,7 +2368,9 @@
 <p>unbounded <code>setVertexBytes</code> payloads. The iOS SDK verifier now guards that</p>
 <p>direct <code>setVertexBytes</code> usage stays inside the bounded helper and large</p>
 <p>transient uploads stay retained through command completion without a post-encode</p>
-<p>tracking-array copy. Drawable-independent and live Metal frame preparation now</p>
+<p>tracking-array copy, and guards geometry vertex-run flushing against copying the</p>
+<p>completed mutable vertex buffer at every clip/transform/opacity/camera boundary.</p>
+<p>Drawable-independent and live Metal frame preparation now</p>
 <p>preallocates vertex/text/image run arrays from a byte-bounded OGF0 operation</p>
 <p>count instead of trusting malformed frame headers or growing default arrays. Metal text-run</p>
 <p>coalescing now avoids copying every non-merged run into mutable vertex storage</p>

@@ -3486,6 +3486,11 @@
 <p>  buffer tracking array through command completion instead of copying that array</p>
 <p>  after encoding.</p>
 <ul>
+<li>Metal geometry vertex-run flushing now transfers completed mutable vertex</li>
+</ul>
+<p>  buffers into immutable run ownership instead of copying their bytes at every</p>
+<p>  clip/transform/opacity/camera boundary.</p>
+<ul>
 <li>Metal text-run coalescing now keeps non-merged text runs on their existing</li>
 </ul>
 <p>  immutable vertex data and only allocates mutable vertex storage when a</p>

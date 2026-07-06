@@ -2535,6 +2535,9 @@ design evidence lives under `project-doc/`.
 - Metal large transient vertex uploads now retain their existing per-command
   buffer tracking array through command completion instead of copying that array
   after encoding.
+- Metal geometry vertex-run flushing now transfers completed mutable vertex
+  buffers into immutable run ownership instead of copying their bytes at every
+  clip/transform/opacity/camera boundary.
 - Metal text-run coalescing now keeps non-merged text runs on their existing
   immutable vertex data and only allocates mutable vertex storage when a
   same-texture/scissor/opacity run actually merges.

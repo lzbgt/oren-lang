@@ -236,15 +236,17 @@ static MTLScissorRect OrenAVMMetalIntersectScissor(MTLScissorRect a, MTLScissorR
 }
 
 static void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>* runs,
-                                       NSMutableData* vertices,
-                                       OrenAVMMetalScissorState scissor) {
+                                       NSMutableData** verticesRef,
+                                       OrenAVMMetalScissorState scissor,
+                                       BOOL continueBuilding) {
+    NSMutableData* vertices = verticesRef ? *verticesRef : nil;
     if (vertices.length == 0) return;
     OrenAVMMetalVertexRun* run = [[OrenAVMMetalVertexRun alloc] init];
-    run.vertices = [vertices copy];
+    run.vertices = vertices;
     run.hasScissor = scissor.enabled;
     run.scissor = scissor.rect;
     [runs addObject:run];
-    [vertices setLength:0];
+    *verticesRef = continueBuilding ? [NSMutableData dataWithCapacity:vertices.length] : nil;
 }
 
 static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
@@ -1039,7 +1041,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             OrenAVMMetalAppendRect(vertices, (float)x + tx, (float)y + ty, (float)w, (float)h,
                                    (float)logicalW, (float)logicalH, rgba);
         } else if (opcode == 16 && payloadLen == 16) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (clipDepth < 64) {
                 clipStack[clipDepth++] = clip;
                 int32_t cx = (int32_t)OrenAVMMetalReadU32LE(payload);
@@ -1056,10 +1058,10 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 clip.enabled = YES;
             }
         } else if (opcode == 17 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (clipDepth > 0) clip = clipStack[--clipDepth];
         } else if (opcode == 18 && payloadLen == 8) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (transformDepth < 64) {
                 txStack[transformDepth] = tx;
                 tyStack[transformDepth] = ty;
@@ -1068,23 +1070,23 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 ty += (float)(int32_t)OrenAVMMetalReadU32LE(payload + 4);
             }
         } else if (opcode == 19 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (transformDepth > 0) {
                 transformDepth--;
                 tx = txStack[transformDepth];
                 ty = tyStack[transformDepth];
             }
         } else if (opcode == 20 && payloadLen == 4) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (opacityDepth < 64) {
                 opacityStack[opacityDepth++] = opacity;
                 opacity *= (float)OrenAVMMetalReadU32LE(payload) / 1000.0f;
             }
         } else if (opcode == 21 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (opacityDepth > 0) opacity = opacityStack[--opacityDepth];
         } else if (opcode == 22 && payloadLen == 8) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (cameraDepth < 64) {
                 depthEnabledStack[cameraDepth] = depthEnabled;
                 nearZStack[cameraDepth] = nearZ;
@@ -1095,7 +1097,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 farZ = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
             }
         } else if (opcode == 23 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+            OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
             if (cameraDepth > 0) {
                 cameraDepth--;
                 depthEnabled = depthEnabledStack[cameraDepth];
@@ -1654,7 +1656,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
         }
         off += payloadLen;
     }
-    OrenAVMMetalFlushVertexRun(vertexRuns, vertices, clip);
+    OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO);
     return vertexRuns;
 }
 
