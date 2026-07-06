@@ -2272,7 +2272,9 @@ direct `setVertexBytes` usage stays inside the bounded helper and large
 transient uploads stay retained through command completion. Metal text-run
 coalescing now avoids copying every non-merged run into mutable vertex storage
 and only allocates mutable coalescing storage when an adjacent compatible run
-actually merges.
+actually merges. Single texture-quad emission now fills the six text/image
+vertices directly in stack storage before returning immutable `NSData`, avoiding
+a temporary mutable-data append/copy pair for common single-run draws.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
   harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
   republishes animated frames from host `frame_tick` events, records device

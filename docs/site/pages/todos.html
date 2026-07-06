@@ -3484,6 +3484,11 @@
 <p>  immutable vertex data and only allocates mutable vertex storage when a</p>
 <p>  same-texture/scissor/opacity run actually merges.</p>
 <ul>
+<li>Metal single texture-quad emission now writes the six text/image vertices</li>
+</ul>
+<p>  directly into stack storage before returning immutable <code>NSData</code>, avoiding a</p>
+<p>  temporary mutable-data append/copy pair for common single-run draws.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

@@ -2533,6 +2533,9 @@ design evidence lives under `project-doc/`.
 - Metal text-run coalescing now keeps non-merged text runs on their existing
   immutable vertex data and only allocates mutable vertex storage when a
   same-texture/scissor/opacity run actually merges.
+- Metal single texture-quad emission now writes the six text/image vertices
+  directly into stack storage before returning immutable `NSData`, avoiding a
+  temporary mutable-data append/copy pair for common single-run draws.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases
