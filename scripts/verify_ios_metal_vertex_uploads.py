@@ -35,6 +35,10 @@ def main() -> int:
         fail("large vertex upload completion path must retain the existing tracking array without copying it")
     if "run.vertices = [vertices copy]" in text:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
+    if "[NSMutableData dataWithCapacity:vertices.length]" in text:
+        fail("geometry flush must not allocate the next mutable vertex buffer eagerly")
+    if "NSMutableData* vertices = nil;" not in text or "OrenAVMMetalEnsureVertexBuilder(&vertices)" not in text:
+        fail("geometry vertex buffers must be allocated lazily on first append")
     if "run.vertices = [vertices copy]" in text_source:
         fail("batched text vertex runs must transfer completed buffers instead of copying them")
     if "[NSMutableData dataWithData:pending.vertices]" in text_source:
