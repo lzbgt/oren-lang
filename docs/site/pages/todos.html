@@ -3562,7 +3562,8 @@
 <li>CoreGraphics retained text fallback records now use typed resources with</li>
 </ul>
 <p>  cached attributed strings instead of dictionary payloads, separate resource</p>
-<p>  attribute dictionaries, or per-draw attributes dictionaries.</p>
+<p>  attribute dictionaries, per-draw attributes dictionaries, or boxed retained</p>
+<p>  text ID lookup.</p>
 <ul>
 <li>CoreGraphics immediate and retained text paths now cache UIKit text</li>
 </ul>
@@ -3596,7 +3597,8 @@
 <li>Metal text cache misses now share a typed view-owned UIKit attribute cache</li>
 </ul>
 <p>  with a scalar one-entry MRU before boxed dictionary-key lookup for repeated</p>
-<p>  same-color labels.</p>
+<p>  same-color labels, and CoreGraphics/Metal retained text resources use</p>
+<p>  scalar-key lookup for text IDs.</p>
 <ul>
 <li>Private Metal retained run/resource records and the raw payload-copy helper now</li>
 </ul>

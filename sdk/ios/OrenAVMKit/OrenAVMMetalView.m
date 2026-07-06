@@ -68,6 +68,15 @@ static OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionary
     return (__bridge OrenAVMMetalImageResource*)CFDictionaryGetValue(images, OrenAVMMetalRetainedImageKey(imageID));
 }
 
+static const void* OrenAVMMetalRetainedTextKey(uint32_t textID) {
+    return (const void*)(uintptr_t)((uint64_t)textID + 1ull);
+}
+
+static OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts, uint32_t textID) {
+    if (!texts || textID == 0) return nil;
+    return (__bridge OrenAVMMetalTextResource*)CFDictionaryGetValue(texts, OrenAVMMetalRetainedTextKey(textID));
+}
+
 static NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame) {
     if (frame.length < 40) return 0;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -277,6 +286,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 
 @interface OrenAVMMetalView () <MTKViewDelegate> {
     CFMutableDictionaryRef _orenTouchIDs;
+    CFMutableDictionaryRef _orenTextResourcesByID;
     CFMutableDictionaryRef _orenImagesByID;
 }
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
@@ -287,7 +297,6 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 @property(nonatomic, strong) OrenAVMMetalTextAttributeCache* orenTextAttributes;
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic, strong, nullable) OrenAVMMetalTextAtlas* orenTextAtlas;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
@@ -373,6 +382,10 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         CFRelease(_orenTouchIDs);
         _orenTouchIDs = NULL;
     }
+    if (_orenTextResourcesByID) {
+        CFRelease(_orenTextResourcesByID);
+        _orenTextResourcesByID = NULL;
+    }
     if (_orenImagesByID) {
         CFRelease(_orenImagesByID);
         _orenImagesByID = NULL;
@@ -388,7 +401,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
     if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
     if (!self.orenTextAttributes) self.orenTextAttributes = [[OrenAVMMetalTextAttributeCache alloc] init];
-    if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
+    if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
@@ -1247,14 +1260,17 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                     OrenAVMMetalTextResource* resource = [[OrenAVMMetalTextResource alloc] init];
                     resource.text = text;
                     resource.rgbaValue = OrenAVMMetalReadU32LE(payload + 4);
-                    self.orenTextResources[@(textID)] = resource;
+                    if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+                    if (_orenTextResourcesByID) {
+                        CFDictionarySetValue(_orenTextResourcesByID, OrenAVMMetalRetainedTextKey(textID), (__bridge const void*)resource);
+                    }
                 }
             }
         } else if (opcode == 69 && payloadLen == 12) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
             uint32_t x = OrenAVMMetalReadU32LE(payload + 4);
             uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
-            OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
+            OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(_orenTextResourcesByID, textID);
             if (resource.text) {
                 uint8_t textRGBA[4];
                 OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
@@ -1285,7 +1301,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
             uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
-            OrenAVMMetalTextResource* resource = self.orenTextResources[@(textID)];
+            OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(_orenTextResourcesByID, textID);
             if (resource.text && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
                 uint8_t textRGBA[4];
                 OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
@@ -1317,7 +1333,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
             }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
-            [self.orenTextResources removeObjectForKey:@(textID)];
+            if (_orenTextResourcesByID) CFDictionaryRemoveValue(_orenTextResourcesByID, OrenAVMMetalRetainedTextKey(textID));
         } else if (opcode == 64 && payloadLen >= 16) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t iw = OrenAVMMetalReadU32LE(payload + 4);

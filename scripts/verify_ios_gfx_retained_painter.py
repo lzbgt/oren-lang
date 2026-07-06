@@ -69,6 +69,14 @@ def main() -> int:
         fail("CoreGraphics retained text must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources' in text:
         fail("CoreGraphics retained text must not use dictionary payload records")
+    if 'NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources' in text:
+        fail("CoreGraphics retained text lookups must avoid boxed NSNumber text IDs")
+    if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:
+        fail("CoreGraphics retained text resources must use a scalar-key CF dictionary")
+    if "OrenAVMGfxRetainedTextResource(_orenTextResourcesByID, textID)" not in text:
+        fail("CoreGraphics retained text draws must use the typed scalar-map resource helper")
+    if "@(textID)" in text:
+        fail("CoreGraphics retained text upload/draw paths must not box text IDs")
     if 'self.orenTextResources[@(textID)] = @{@"text": text, @"color": color}' in text:
         fail("CoreGraphics retained text must cache typed attributed text")
     if "resource.attributes" in text or "@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* attributes" in text:
