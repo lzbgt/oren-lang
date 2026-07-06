@@ -17,15 +17,15 @@ fn main() {
     var bytes = [1, 2, 3, 4, 5, 255, 0]
     oren_write_bytes(path, bytes)
 
-    var out = oren_read_bytes(path)
-    if oren_list_len(out) != 7 { fail("length mismatch") }
-    if out[0] != 1 { fail("mismatch 0") }
-    if out[1] != 2 { fail("mismatch 1") }
-    if out[2] != 3 { fail("mismatch 2") }
-    if out[3] != 4 { fail("mismatch 3") }
-    if out[4] != 5 { fail("mismatch 4") }
-    if out[5] != 255 { fail("mismatch 5") }
-    if out[6] != 0 { fail("mismatch 6") }
+    var out = oren_read_u8_buf(path)
+    if oren_bytes_len(out) != 7 { fail("length mismatch") }
+    if oren_bytes_get_u8(out, 0) != 1 { fail("mismatch 0") }
+    if oren_bytes_get_u8(out, 1) != 2 { fail("mismatch 1") }
+    if oren_bytes_get_u8(out, 2) != 3 { fail("mismatch 2") }
+    if oren_bytes_get_u8(out, 3) != 4 { fail("mismatch 3") }
+    if oren_bytes_get_u8(out, 4) != 5 { fail("mismatch 4") }
+    if oren_bytes_get_u8(out, 5) != 255 { fail("mismatch 5") }
+    if oren_bytes_get_u8(out, 6) != 0 { fail("mismatch 6") }
 
     print("VFS demo OK (no host FS effects)")
     oren_exit(0)

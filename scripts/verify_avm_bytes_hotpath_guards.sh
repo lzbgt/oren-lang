@@ -49,6 +49,21 @@ if grep -q 'var data = oren_read_bytes(path)' lib/std/ui/scene3d.oren; then
   exit 1
 fi
 
+if grep -q 'oren_read_bytes("build/ex_multiverse_child_net.obc")\|oren_bytes_pack(child_' examples/avm_multiverse_net_demo.oren; then
+  echo "ERROR: AVM multiverse demo must load child OBC through byte-native oren_read_u8_buf" >&2
+  exit 1
+fi
+
+if grep -q 'oren_read_bytes(path)\|oren_list_len(out)' examples/avm_vfs_demo.oren; then
+  echo "ERROR: AVM VFS demo must validate byte-native read_u8_buf output directly" >&2
+  exit 1
+fi
+
+if grep -q 'oren_read_bytes("host/input.txt")\|oren_list_len(b)' tests/fixtures/ios_avm/host_fs_chain.oren; then
+  echo "ERROR: iOS host-FS chain fixture must read binary payloads through byte-native oren_read_u8_buf" >&2
+  exit 1
+fi
+
 if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/compiler/native_runtime_obj_cache.oren; then
   echo "ERROR: runtime-object metadata hot path must use shared compiler byte_view readers" >&2
   exit 1

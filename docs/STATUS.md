@@ -2289,7 +2289,9 @@ scalars instead of allocating `NSData` wrappers for each color. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host
 and VFS files directly into AVM byte buffers instead of bridging through a
 boxed `list<int>` byte array, and `std:ui/scene3d.commands_from_binary_file`
-uses that path for `.os3d` assets. The iOS SDK now
+uses that path for `.os3d` assets. AVM VFS and multiverse demos plus the iOS
+host-FS chain fixture also use that byte-native path for binary payload reads
+instead of legacy `read_bytes` list validation or repacking. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

@@ -3522,6 +3522,11 @@
 </ul>
 <p>  that byte-native read path instead of materializing a legacy <code>list&lt;int&gt;</code>.</p>
 <ul>
+<li>AVM VFS and multiverse demo paths plus the iOS host-FS chain fixture now use</li>
+</ul>
+<p>  <code>oren_read_u8_buf</code> directly for binary payload reads instead of</p>
+<p>  <code>oren_read_bytes</code> plus list-shaped validation or repacking.</p>
+<ul>
 <li>The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and</li>
 </ul>
 <p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>

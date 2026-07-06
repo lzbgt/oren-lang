@@ -2555,6 +2555,9 @@ design evidence lives under `project-doc/`.
   a boxed `list<int>` byte array.
 - `std:ui/scene3d.commands_from_binary_file` now loads `.os3d` assets through
   that byte-native read path instead of materializing a legacy `list<int>`.
+- AVM VFS and multiverse demo paths plus the iOS host-FS chain fixture now use
+  `oren_read_u8_buf` directly for binary payload reads instead of
+  `oren_read_bytes` plus list-shaped validation or repacking.
 - The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and
   permission-request byte buffers directly into `NSData` ownership instead of
   copying the bytes and then freeing the original buffer.

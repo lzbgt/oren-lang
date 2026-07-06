@@ -9,20 +9,11 @@ fn main() {
     // This is the “direct child run” model: the child runs as an in-process VM instance,
     // not via a relay protocol between universes.
 
-    // NOTE: In AVM today, `oren_read_bytes` returns the legacy `list<int 0..255>` shape.
-    // Nested-universe execution requires true BYTES, so pack the list into a bytes object.
-    var child_list = oren_read_bytes("build/ex_multiverse_child_net.obc")
-    if oren_is_err(child_list) {
-        print("FAIL: read child obc")
-        var em = oren_err_msg(child_list)
-        if em != nil { print(em) }
-        oren_exit(1)
-    }
-    var child_obc = oren_bytes_pack(child_list)
+    var child_obc = oren_read_u8_buf("build/ex_multiverse_child_net.obc")
     if oren_is_err(child_obc) {
-        print("FAIL: bytes_pack(child_obc)")
-        var em2 = oren_err_msg(child_obc)
-        if em2 != nil { print(em2) }
+        print("FAIL: read child obc")
+        var em = oren_err_msg(child_obc)
+        if em != nil { print(em) }
         oren_exit(1)
     }
 
