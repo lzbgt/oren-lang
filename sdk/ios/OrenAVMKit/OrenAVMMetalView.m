@@ -12,7 +12,6 @@
 #import <Metal/Metal.h>
 #import <dispatch/dispatch.h>
 #include <math.h>
-#include <stdlib.h>
 #include <string.h>
 
 _Static_assert(sizeof(OrenAVMMetalTextVertex) == 16, "OrenAVMMetalTextVertex must match shader packed_float2+packed_float2");
@@ -671,130 +670,20 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
                    (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
                    (opcode == 94 && payloadLen == 4)) {
-            uint32_t meshID = OrenAVMMetalReadU32LE(payload);
-            uint32_t materialID = 0;
-            int32_t modelX = 0;
-            int32_t modelY = 0;
-            int32_t modelZ = 0;
-            uint32_t scaleMilli = 1000u;
-            if (opcode == 94) {
-                OrenAVMMetalModelResource* model = OrenAVMMetalRetainedModelResource(_orenModels3DByID, meshID);
-                if (!model) {
-                    off += payloadLen;
-                    continue;
-                }
-                meshID = model.meshID;
-                materialID = model.materialID;
-                modelX = model.x;
-                modelY = model.y;
-                modelZ = model.z;
-                scaleMilli = model.scaleMilli;
-            }
-            OrenAVMMetalMesh3DResource* mesh = OrenAVMMetalRetainedMesh3DResource(_orenMeshes3DByID, meshID);
-            BOOL hasMaterialRGBA = NO;
-            uint32_t materialRGBAOverride = 0;
-            if (opcode == 90 || opcode == 91) {
-                materialID = OrenAVMMetalReadU32LE(payload + 4);
-            }
-            if (materialID != 0) {
-                hasMaterialRGBA = OrenAVMMetalRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride);
-                if (!hasMaterialRGBA) {
-                    off += payloadLen;
-                    continue;
-                }
-            }
-            uint32_t materialRGBA = hasMaterialRGBA ? materialRGBAOverride : mesh.rgbaValue;
-            const uint8_t* tris = mesh.triangles;
-            const uint8_t* verts = mesh.vertices;
-            const uint8_t* idx = mesh.indices;
-            uint32_t meshStride = mesh.stride == 0 ? 36u : mesh.stride;
-            if (opcode == 87) {
-                modelX = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
-                modelY = (int32_t)OrenAVMMetalReadU32LE(payload + 8);
-                modelZ = (int32_t)OrenAVMMetalReadU32LE(payload + 12);
-                scaleMilli = OrenAVMMetalReadU32LE(payload + 16);
-            } else if (opcode == 91) {
-                modelX = (int32_t)OrenAVMMetalReadU32LE(payload + 8);
-                modelY = (int32_t)OrenAVMMetalReadU32LE(payload + 12);
-                modelZ = (int32_t)OrenAVMMetalReadU32LE(payload + 16);
-                scaleMilli = OrenAVMMetalReadU32LE(payload + 20);
-            }
-            if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indexBytes / 4u) {
-                uint32_t triangleTotal = mesh.indexCount / 3u;
-                OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
-                OrenAVMMetalTriangleOrder* heapOrder = NULL;
-                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal,
-                                                                                   inlineOrder,
-                                                                                   OrenAVMMetalInlineTriangleOrderCapacity,
-                                                                                   &heapOrder);
-                if (triangleTotal != 0 && !order) continue;
-                uint32_t visibleTotal = 0;
-                for (uint32_t ti = 0; ti < triangleTotal; ti++) {
-                    int64_t z = OrenAVMMetalMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
-                    if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                    order[visibleTotal++] = (OrenAVMMetalTriangleOrder){ti, z};
-                }
-                OrenAVMMetalSortTriangleOrder(order, visibleTotal);
-                for (uint32_t di = 0; di < visibleTotal; di++) {
-                    uint32_t best = order[di].triangle;
-                    const uint8_t* tri = idx + ((size_t)best * 12u);
-                    const uint8_t* v1 = verts + ((size_t)OrenAVMMetalReadU32LE(tri) * 12u);
-                    const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
-                    const uint8_t* v3 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 8) * 12u);
-                    OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                               OrenAVMMetalMesh3DModelCoord(v1, modelX, scaleMilli) + tx,
-                                               OrenAVMMetalMesh3DModelCoord(v1 + 4, modelY, scaleMilli) + ty,
-                                               OrenAVMMetalMesh3DModelCoord(v2, modelX, scaleMilli) + tx,
-                                               OrenAVMMetalMesh3DModelCoord(v2 + 4, modelY, scaleMilli) + ty,
-                                               OrenAVMMetalMesh3DModelCoord(v3, modelX, scaleMilli) + tx,
-                                               OrenAVMMetalMesh3DModelCoord(v3 + 4, modelY, scaleMilli) + ty,
-                                               (float)logicalW,
-                                               (float)logicalH,
-                                               rgba);
-                }
-                free(heapOrder);
-            } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangleBytes / meshStride) {
-                uint32_t triangleTotal = mesh.triangleCount;
-                OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
-                OrenAVMMetalTriangleOrder* heapOrder = NULL;
-                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal,
-                                                                                   inlineOrder,
-                                                                                   OrenAVMMetalInlineTriangleOrderCapacity,
-                                                                                   &heapOrder);
-                if (triangleTotal != 0 && !order) continue;
-                uint32_t visibleTotal = 0;
-                for (uint32_t ti = 0; ti < triangleTotal; ti++) {
-                    int64_t z = OrenAVMMetalMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
-                    if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                    order[visibleTotal++] = (OrenAVMMetalTriangleOrder){ti, z};
-                }
-                OrenAVMMetalSortTriangleOrder(order, visibleTotal);
-                for (uint32_t di = 0; di < visibleTotal; di++) {
-                    uint32_t best = order[di].triangle;
-                    const uint8_t* tri = tris + ((size_t)best * meshStride);
-                    if (hasMaterialRGBA) {
-                        OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
-                    } else if (meshStride == 40u) {
-                        OrenAVMMetalRGBAWithOpacity(tri + 36, opacity, rgba);
-                    } else if (mesh.hasRGBA) {
-                        OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
-                    } else {
-                        continue;
-                    }
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
-                                               OrenAVMMetalMesh3DModelCoord(tri, modelX, scaleMilli) + tx,
-                                               OrenAVMMetalMesh3DModelCoord(tri + 4, modelY, scaleMilli) + ty,
-                                               OrenAVMMetalMesh3DModelCoord(tri + 12, modelX, scaleMilli) + tx,
-                                               OrenAVMMetalMesh3DModelCoord(tri + 16, modelY, scaleMilli) + ty,
-                                               OrenAVMMetalMesh3DModelCoord(tri + 24, modelX, scaleMilli) + tx,
-                                               OrenAVMMetalMesh3DModelCoord(tri + 28, modelY, scaleMilli) + ty,
-                                               (float)logicalW,
-                                               (float)logicalH,
-                                               rgba);
-                }
-                free(heapOrder);
-            }
+            OrenAVMMetalAppendMesh3DResource(_orenMeshes3DByID,
+                                             _orenMaterials3DByID,
+                                             _orenModels3DByID,
+                                             opcode,
+                                             payload,
+                                             &vertices,
+                                             tx,
+                                             ty,
+                                             (float)logicalW,
+                                             (float)logicalH,
+                                             opacity,
+                                             depthEnabled,
+                                             nearZ,
+                                             farZ);
         } else if (opcode == 85 && payloadLen == 4) {
             OrenAVMMetalRemoveMeshResource(_orenMeshes3DByID, OrenAVMMetalReadU32LE(payload));
         } else if (opcode == 89 && payloadLen == 8) {
