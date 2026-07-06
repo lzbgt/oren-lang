@@ -326,24 +326,9 @@ fn _emit_constant(out, c) {
     if c["type"] == "Bytes" {
         bytes_builder.bytes_push(out, 8)
         var b = c["value"]
-        var blen = 0
-        // `Bytes` constants are encoded as a length-prefixed byte list.
-        // Defensive: treat raw 0 (null pointer) and `nil` as empty.
-        if b != 0 {
-            var n_bytes = oren_bytes_len(b)
-            if !oren_is_err(n_bytes) { blen = n_bytes }
-            else {
-                if oren_type_tag(b) != 0 { blen = oren_list_len(b) }
-            }
-        }
+        var blen = bytes_builder.bytes_carrier_len(b)
         bytes_builder.bytes_push_u32_le(out, blen)
-        if blen > 0 {
-            if oren_is_u8_buf(b) == true {
-                bytes_builder.bytes_extend_u8_buf(out, b)
-            } else {
-                bytes_builder.bytes_extend_list(out, b)
-            }
-        }
+        bytes_builder.bytes_extend_carrier(out, b)
         return nil
     }
     // Unknown constant: encode as NIL (rolling best-effort).
@@ -370,11 +355,7 @@ fn obc_encode_bytes(obc) {
 
     var code = obc["code"]
     if code == nil { code = [] }
-    if oren_is_u8_buf(code) == true {
-        bytes_builder.bytes_extend_u8_buf(bytes, code)
-    } else {
-        bytes_builder.bytes_extend_list(bytes, code)
-    }
+    bytes_builder.bytes_extend_carrier(bytes, code)
     return bytes_builder.bytes_finalize(bytes)
 }
 

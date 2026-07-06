@@ -550,10 +550,7 @@ fn emit_u32_le(out, n) {
 }
 
 fn _byte_blob_len(b) {
-    if b == nil { return 0 }
-    var n = oren_buf_len(b)
-    if !oren_is_err(n) { return n }
-    return oren_list_len(b)
+    return bytes.bytes_carrier_len(b)
 }
 
 fn bytecode_emit_program(out_path, ctx) {
@@ -615,30 +612,17 @@ fn bytecode_emit_program(out_path, ctx) {
             // Type BYTES (rolling): u32 length + raw bytes
             bytes.bytes_push(out, 8)
             var b = c["value"]
-            var blen = oren_buf_len(b)
-            if oren_is_err(blen) { blen = oren_list_len(b) }
+            var blen = bytes.bytes_carrier_len(b)
             emit_u32_le(out, blen)
-            if oren_is_u8_buf(b) == true {
-                bytes.bytes_extend_u8_buf(out, b)
-            } else {
-                bytes.bytes_extend_list(out, b)
-            }
+            bytes.bytes_extend_carrier(out, b)
         }
         i = i + 1
     }
     
     // Code
     var code_buf = ctx["code_buf"]
-    if code_buf != nil && oren_is_u8_buf(code_buf) == true {
-        bytes.bytes_extend_u8_buf(out, code_buf)
-    } else {
-        var code = ctx["code"]
-        var i_code = 0
-        while i_code < oren_list_len(code) {
-            bytes.bytes_push(out, code[i_code])
-            i_code = i_code + 1
-        }
-    }
+    if code_buf != nil { bytes.bytes_extend_carrier(out, code_buf) }
+    else { bytes.bytes_extend_carrier(out, ctx["code"]) }
     
     var out_buf = bytes.bytes_finalize(out)
     var w = oren_write_bytes(out_path, out_buf)

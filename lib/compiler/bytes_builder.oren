@@ -166,6 +166,32 @@ fn bytes_extend_u8_buf(b, ubuf) {
     return nil
 }
 
+fn bytes_carrier_len(bs) {
+    if bs == nil || bs == 0 { return 0 }
+    var n = oren_bytes_len(bs)
+    if !oren_is_err(n) { return n }
+    return oren_list_len(bs)
+}
+
+fn bytes_extend_carrier(b, bs) {
+    // Extend from any validated compiler byte carrier: u8_buf fast path, with
+    // byte-list/LIST_INT fallback through the runtime byte API.
+    var n = bytes_carrier_len(bs)
+    if n <= 0 { return nil }
+    if oren_is_u8_buf(bs) == true { return bytes_extend_u8_buf(b, bs) }
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + n)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_extend_carrier: buf data ptr is nil") }
+    var i = 0
+    while i < n {
+        ptr_set_byte(iadd(dstp, used + i), oren_bytes_get_u8(bs, i) & 255)
+        i = i + 1
+    }
+    _bytes_set_len_raw(b, used + n)
+    return nil
+}
+
 fn bytes_extend_string(b, s) {
     // Extend a bytes builder from a string without materializing an intermediate list<int>.
     //

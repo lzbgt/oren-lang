@@ -3430,6 +3430,11 @@
 <p>  debug sidecars; <code>scripts/verify_arm64_macho_debug_table.py</code> verifies the</p>
 <p>  emitted Mach-O table shape for postmortem native-QI symbolication.</p>
 <ul>
+<li>Compiler byte builders now expose one <code>bytes_extend_carrier</code> path for u8</li>
+</ul>
+<p>  buffers, byte lists, and packed <code>LIST_INT</code> carriers; bytecode and OBC</p>
+<p>  emitters use it for length-prefixed <code>Bytes</code> constants and final code payloads.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>
