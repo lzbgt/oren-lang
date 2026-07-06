@@ -3279,9 +3279,10 @@
 </ul>
 <p>  bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.</p>
 <ul>
-<li><code>std:ui/avm</code> OGE0 event decoding now reads little-endian u32/u64 payload</li>
+<li><code>std:ui/avm</code> OGE0 event decoding now reads magic, opcode, payload length, and</li>
 </ul>
-<p>  fields from the cached u8 event-buffer pointer after payload length checks.</p>
+<p>  little-endian payload fields through shared <code>std:bytes</code> view readers after</p>
+<p>  event/header/payload length checks.</p>
 <ul>
 <li><code>std:buffer</code> slice/strided/matrix byte-copy fallbacks now cache u8 source</li>
 </ul>
@@ -3515,8 +3516,8 @@
 </ul>
 <p>  invariants, including the removed bytecode final-write list fallback and the</p>
 <p>  removed runtime-object per-byte checked metadata helper. It also prevents</p>
-<p>  <code>std:ui/commands</code> and <code>std:ui/raster</code> from reintroducing local byte-view/read</p>
-<p>  aliases instead of using shared <code>std:bytes</code> views directly.</p>
+<p>  <code>std:ui/commands</code>, <code>std:ui/raster</code>, and <code>std:ui/avm</code> from reintroducing local</p>
+<p>  byte-view/read aliases instead of using shared <code>std:bytes</code> views directly.</p>
 <ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>

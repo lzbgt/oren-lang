@@ -2374,7 +2374,7 @@ a temporary mutable-data append/copy pair for common single-run draws.
 		  Base64/Base64URL encode reads inputs through shared byte views after one length
 		  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
   directly from shared byte views, OGE0 event headers and little-endian
-  payload fields read from cached u8-buffer pointers, UI command validation
+  payload fields read through shared byte-view readers, UI command validation
   reads geometry/text-position/image-rect payload fields through shared
   byte views while software rasterization reads those payload
   fields through shared unchecked byte-view readers, PPM header/body output, Scene3D binary
@@ -2400,9 +2400,9 @@ a temporary mutable-data append/copy pair for common single-run draws.
 		  the old per-byte checked metadata helper removed,
   compiler-in-AVM VirtualFS fixture
   snapshots through exact-size AVMVFS01 `u8_buf` writes and byte-buffer body
-  slices, `std:ui/commands` strict byte validations and `std:ui/raster`
-  hot-loop byte reads now call shared `std:bytes` views directly instead
-  of retaining local byte-view/read aliases,
+  slices, `std:ui/commands` strict byte validations, `std:ui/raster`
+  hot-loop byte reads, and `std:ui/avm` event decoding now call shared
+  `std:bytes` views directly instead of retaining local byte-view/read aliases,
 		  compiler SHA digest hex routing through direct runtime bytes hex, OBC/OBX parse and link loops use shared compiler-local byte views with overflow-safe span checks and guarded unchecked readers for u8 carriers, parsed OBC code and byte constants kept as `u8_buf`, builder-patched linked code, linked OBC final emission as `u8_buf`, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw
 	  writes plus bounded u8 decode reads, native Mach-O/ELF object string payloads, runtime-object debug-name
 	  blobs, x64 native debug-table names, ARM64 native panic-message payloads,

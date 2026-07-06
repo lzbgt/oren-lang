@@ -2400,8 +2400,9 @@ design evidence lives under `project-doc/`.
   pointer while keeping list-compatible byte input fallback.
 - `std:ui/ppm` now reuses one cached u8 input pointer while emitting P6 RGB
   bodies, avoiding per-channel input pointer lookups for u8 RGBA sources.
-- `std:ui/avm` OGE0 event decoding now reads little-endian u32/u64 payload
-  fields from the cached u8 event-buffer pointer after payload length checks.
+- `std:ui/avm` OGE0 event decoding now reads magic, opcode, payload length, and
+  little-endian payload fields through shared `std:bytes` view readers after
+  event/header/payload length checks.
 - `std:buffer` slice/strided/matrix byte-copy fallbacks now cache u8 source
   pointers for non-contiguous destinations while retaining list-compatible byte
   fallback.
@@ -2553,8 +2554,8 @@ design evidence lives under `project-doc/`.
 - `make verify-avm-bytes-hotpath-guards` now centralizes byte-hotpath source
   invariants, including the removed bytecode final-write list fallback and the
   removed runtime-object per-byte checked metadata helper. It also prevents
-  `std:ui/commands` and `std:ui/raster` from reintroducing local byte-view/read
-  aliases instead of using shared `std:bytes` views directly.
+  `std:ui/commands`, `std:ui/raster`, and `std:ui/avm` from reintroducing local
+  byte-view/read aliases instead of using shared `std:bytes` views directly.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases
