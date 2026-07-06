@@ -9,12 +9,10 @@ TMP_DIR="build/tmp/libavm_ios_verify"
 LOG_DIR="build/logs"
 FIXTURE_DIR="tests/fixtures/ios_avm"
 mkdir -p "$TMP_DIR" "$LOG_DIR"
-
 OREN_COMPILER="${OREN_COMPILER:-./oren}"
 if [[ ! -x "$OREN_COMPILER" ]]; then
   make oren > "$LOG_DIR/make_oren_for_libavm_ios_verify.log" 2>&1
 fi
-
 reserve_tcp_port() {
   python3 - <<'PY'
 import socket
@@ -24,7 +22,6 @@ print(s.getsockname()[1])
 s.close()
 PY
 }
-
 reserve_udp_port() {
   python3 - <<'PY'
 import socket
@@ -34,7 +31,6 @@ print(s.getsockname()[1])
 s.close()
 PY
 }
-
 stop_pid() {
   local pid="${1:-}"
   if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
@@ -42,9 +38,7 @@ stop_pid() {
     wait "$pid" >/dev/null 2>&1 || true
   fi
 }
-
 ./scripts/build_libavm_ios.sh > "$LOG_DIR/build_libavm_ios.log" 2>&1
-
 test -f "$OUT_ROOT/iphoneos-arm64/libavm.a"
 test -f "$OUT_ROOT/iphonesimulator-arm64/libavm.a"
 test -f "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a"

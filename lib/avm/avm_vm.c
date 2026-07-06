@@ -12,13 +12,9 @@
 
 // --- Cooperative Tasks (rolling, AVM v1 direction) ---
 //
-// This implements a minimal, VM-internal cooperative concurrency model to support:
-// - Oren `spawn f(...)` / `oren_join(handle)` in the bytecode backend
-// - VM-internal channels: `oren_new_channel`, `oren_chan_send`, `oren_chan_recv`
-// - `oren_select_recv([ch1, ch2, ...])`
-//
-// Design constraints:
-// - single-threaded, deterministic, no host syscalls
+// Minimal VM-internal cooperative concurrency model for bytecode `spawn`/`join`,
+// channels, and select. Design constraints: single-threaded, deterministic, no
+// host syscalls.
 
 static AvmValue avm_err_map_key_unsupported_at(AvmVM* vm, AvmValue key, const char* op) {
     char msg[160];
@@ -27,11 +23,9 @@ static AvmValue avm_err_map_key_unsupported_at(AvmVM* vm, AvmValue key, const ch
     return avm_err(AVM_ERR_INVALID_ARG, msg);
 }
 
-// - shared heap + globals between tasks (like greenlets within one VM)
-// - blocking ops (`join`, `chan_recv`, `select_recv`) yield to other runnable tasks
-//
-// This is intentionally minimal and rolling: it is a foundation for later AVM v1
-// scheduling rules (gas/time slicing, deterministic select fairness, etc.).
+// Tasks share heap/globals; blocking ops yield to runnable tasks. This remains a
+// rolling foundation for AVM v1 scheduling rules such as gas/time slicing and
+// deterministic select fairness.
 
 enum {
     AVM_OP_SPAWN_CALL_LIST = 0x45,  // stack: [... fn args_list] -> [... handle_int]
