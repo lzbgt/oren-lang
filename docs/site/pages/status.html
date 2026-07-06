@@ -2388,7 +2388,9 @@
 <p>scalars instead of allocating <code>NSData</code> wrappers for each color, and the</p>
 <p>CoreGraphics retained mesh/material fallback now stores typed mesh resource</p>
 <p>records plus scalar RGBA material values instead of dictionary payloads and</p>
-<p>retained <code>UIColor</code> material objects; CoreGraphics retained text fallback records</p>
+<p>retained <code>UIColor</code> material objects; CoreGraphics immediate primitive draws now</p>
+<p>set fill/stroke colors from raw RGBA bytes instead of allocating per-draw</p>
+<p><code>UIColor</code> wrappers; CoreGraphics retained text fallback records</p>
 <p>now use typed resources with cached drawing attributes instead of dictionary</p>
 <p>payloads and per-draw attributes dictionaries; CoreGraphics retained image</p>
 <p>fallback records now use typed resources for image plus pixel accounting instead</p>

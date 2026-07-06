@@ -30,6 +30,12 @@ def main() -> int:
         fail("expected sorted order path for indexed and packed retained 3D meshes")
     if "@interface OrenAVMGfxMeshResource" not in text:
         fail("CoreGraphics retained meshes must use typed resource objects")
+    if "static UIColor* OrenAVMGfxColor(const uint8_t* rgba)" in text:
+        fail("CoreGraphics immediate primitive colors must not allocate UIColor wrappers")
+    if "CGContextSetFillColorWithColor(ctx, color.CGColor)" in text or "CGContextSetStrokeColorWithColor(ctx, color.CGColor)" in text:
+        fail("CoreGraphics immediate primitive colors must use direct byte/scalar setters")
+    if "OrenAVMGfxSetFillColorBytes(ctx, payload + 16)" not in text or "OrenAVMGfxSetStrokeColorBytes(ctx, payload + 20)" not in text:
+        fail("CoreGraphics immediate primitive color fast path is missing")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes' in text:
         fail("CoreGraphics retained meshes must not use dictionary payload records")
     if "NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D" in text:

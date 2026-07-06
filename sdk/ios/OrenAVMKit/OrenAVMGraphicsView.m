@@ -137,13 +137,6 @@ static CGFloat OrenAVMGfxMesh3DModelCoord(const uint8_t* p, int32_t offset, uint
     return (CGFloat)(((int64_t)v * (int64_t)scaleMilli) / 1000 + (int64_t)offset);
 }
 
-static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
-    return [UIColor colorWithRed:(CGFloat)rgba[0] / 255.0
-                           green:(CGFloat)rgba[1] / 255.0
-                            blue:(CGFloat)rgba[2] / 255.0
-                           alpha:(CGFloat)rgba[3] / 255.0];
-}
-
 static UIColor* OrenAVMGfxColorValue(uint32_t rgbaValue) {
     return [UIColor colorWithRed:(CGFloat)(rgbaValue & 255u) / 255.0
                            green:(CGFloat)((rgbaValue >> 8) & 255u) / 255.0
@@ -181,6 +174,14 @@ static void OrenAVMGfxSetFillColorBytes(CGContextRef ctx, const uint8_t* rgba) {
                              (CGFloat)rgba[1] / 255.0,
                              (CGFloat)rgba[2] / 255.0,
                              (CGFloat)rgba[3] / 255.0);
+}
+
+static void OrenAVMGfxSetStrokeColorBytes(CGContextRef ctx, const uint8_t* rgba) {
+    CGContextSetRGBStrokeColor(ctx,
+                               (CGFloat)rgba[0] / 255.0,
+                               (CGFloat)rgba[1] / 255.0,
+                               (CGFloat)rgba[2] / 255.0,
+                               (CGFloat)rgba[3] / 255.0);
 }
 
 static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributes(uint32_t rgbaValue) {
@@ -515,8 +516,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
             uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-            UIColor* color = OrenAVMGfxColor(payload + 16);
-            CGContextSetFillColorWithColor(ctx, color.CGColor);
+            OrenAVMGfxSetFillColorBytes(ctx, payload + 16);
             CGContextFillRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
         } else if (opcode == 16 && payloadLen == 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
@@ -584,8 +584,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t x2 = OrenAVMGfxReadU32LE(payload + 8);
             uint32_t y2 = OrenAVMGfxReadU32LE(payload + 12);
             uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
-            UIColor* color = OrenAVMGfxColor(payload + 20);
-            CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+            OrenAVMGfxSetStrokeColorBytes(ctx, payload + 20);
             CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
             CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
             CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
@@ -596,8 +595,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
             uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
             uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
-            UIColor* color = OrenAVMGfxColor(payload + 20);
-            CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+            OrenAVMGfxSetStrokeColorBytes(ctx, payload + 20);
             CGContextStrokeRectWithWidth(ctx,
                                          CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h),
                                          (CGFloat)(width == 0 ? 1 : width));
@@ -609,14 +607,13 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t radius = OrenAVMGfxReadU32LE(payload + 16);
             uint32_t width = OrenAVMGfxReadU32LE(payload + 20);
             uint32_t flags = OrenAVMGfxReadU32LE(payload + 24);
-            UIColor* color = OrenAVMGfxColor(payload + 28);
             UIBezierPath* path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)
                                                              cornerRadius:(CGFloat)radius];
             if ((flags & 1u) != 0) {
-                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetFillColorBytes(ctx, payload + 28);
                 [path fill];
             } else {
-                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 28);
                 path.lineWidth = (CGFloat)(width == 0 ? 1 : width);
                 [path stroke];
             }
@@ -625,7 +622,6 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t cy = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t radius = OrenAVMGfxReadU32LE(payload + 8);
             uint32_t flags = OrenAVMGfxReadU32LE(payload + 12);
-            UIColor* color = OrenAVMGfxColor(payload + 16);
             int32_t ox = (int32_t)cx - (int32_t)radius;
             int32_t oy = (int32_t)cy - (int32_t)radius;
             CGRect oval = CGRectMake((CGFloat)ox,
@@ -633,10 +629,10 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                                      (CGFloat)(radius * 2u),
                                      (CGFloat)(radius * 2u));
             if ((flags & 1u) != 0) {
-                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetFillColorBytes(ctx, payload + 16);
                 CGContextFillEllipseInRect(ctx, oval);
             } else {
-                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 16);
                 CGContextStrokeEllipseInRect(ctx, oval);
             }
         } else if (opcode == 7 && payloadLen == 28) {
@@ -646,13 +642,12 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
             uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
             uint32_t flags = OrenAVMGfxReadU32LE(payload + 20);
-            UIColor* color = OrenAVMGfxColor(payload + 24);
             CGRect oval = CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h);
             if ((flags & 1u) != 0) {
-                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetFillColorBytes(ctx, payload + 24);
                 CGContextFillEllipseInRect(ctx, oval);
             } else {
-                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 24);
                 CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
                 CGContextStrokeEllipseInRect(ctx, oval);
             }
@@ -660,8 +655,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t width = OrenAVMGfxReadU32LE(payload);
             uint32_t pointCount = OrenAVMGfxReadU32LE(payload + 4);
             if (pointCount == ((uint32_t)payloadLen - 12u) / 8u && pointCount >= 2) {
-                UIColor* color = OrenAVMGfxColor(payload + 8);
-                CGContextSetStrokeColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 8);
                 CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
                 const uint8_t* points = payload + 12;
                 CGContextBeginPath(ctx);
@@ -679,8 +673,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t y2 = OrenAVMGfxReadU32LE(payload + 12);
             uint32_t x3 = OrenAVMGfxReadU32LE(payload + 16);
             uint32_t y3 = OrenAVMGfxReadU32LE(payload + 20);
-            UIColor* color = OrenAVMGfxColor(payload + 24);
-            CGContextSetFillColorWithColor(ctx, color.CGColor);
+            OrenAVMGfxSetFillColorBytes(ctx, payload + 24);
             CGContextBeginPath(ctx);
             CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
             CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
@@ -689,10 +682,9 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             CGContextFillPath(ctx);
         } else if (opcode == 10 && payloadLen >= 32 && ((payloadLen - 8) % 24) == 0) {
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload);
-            UIColor* color = OrenAVMGfxColor(payload + 4);
             const uint8_t* tris = payload + 8;
             if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
-                CGContextSetFillColorWithColor(ctx, color.CGColor);
+                OrenAVMGfxSetFillColorBytes(ctx, payload + 4);
                 for (uint32_t ti = 0; ti < triangleCount; ti++) {
                     const uint8_t* tri = tris + ((size_t)ti * 24u);
                     CGContextBeginPath(ctx);

@@ -2290,7 +2290,9 @@ Metal mesh, material, and text resource colors now keep 4-byte RGBA values as
 scalars instead of allocating `NSData` wrappers for each color, and the
 CoreGraphics retained mesh/material fallback now stores typed mesh resource
 records plus scalar RGBA material values instead of dictionary payloads and
-retained `UIColor` material objects; CoreGraphics retained text fallback records
+retained `UIColor` material objects; CoreGraphics immediate primitive draws now
+set fill/stroke colors from raw RGBA bytes instead of allocating per-draw
+`UIColor` wrappers; CoreGraphics retained text fallback records
 now use typed resources with cached drawing attributes instead of dictionary
 payloads and per-draw attributes dictionaries; CoreGraphics retained image
 fallback records now use typed resources for image plus pixel accounting instead
