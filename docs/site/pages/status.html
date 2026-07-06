@@ -2828,7 +2828,10 @@
 <p>		  budgets and pixel accounting in the view. Metal retained-image</p>
 <p>		  upload/remove helpers now live in <code>OrenAVMMetalResources</code>, reducing</p>
 <p>		  <code>OrenAVMMetalView.m</code> to 1328 lines while keeping view-owned budget</p>
-<p>		  configuration and scalar-map lifetime ownership intact.</p>
+<p>		  configuration and scalar-map lifetime ownership intact. Metal retained</p>
+<p>		  text/material/model resource upload/remove helpers now live in</p>
+<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1307 lines</p>
+<p>		  while keeping per-frame retained draw decisions in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

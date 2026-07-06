@@ -97,14 +97,30 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
                                                  float logicalHeight);
 const void* OrenAVMMetalRetainedTextKey(uint32_t textID);
 OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
+BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
+                                 uint32_t textID,
+                                 uint32_t rgbaValue,
+                                 NSString* text);
+void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID);
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID);
 OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID);
 OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID);
 const void* OrenAVMMetalRetainedMaterialKey(uint32_t materialID);
 const void* OrenAVMMetalRetainedMaterialValue(uint32_t rgbaValue);
 BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);
+BOOL OrenAVMMetalPutMaterialResource(CFMutableDictionaryRef* materials, uint32_t materialID, uint32_t rgbaValue);
+void OrenAVMMetalRemoveMaterialResource(CFMutableDictionaryRef materials, uint32_t materialID);
 const void* OrenAVMMetalRetainedModelKey(uint32_t modelID);
 OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource(CFDictionaryRef models, uint32_t modelID);
+BOOL OrenAVMMetalPutModelResource(CFMutableDictionaryRef* models,
+                                  uint32_t modelID,
+                                  uint32_t meshID,
+                                  uint32_t materialID,
+                                  int32_t x,
+                                  int32_t y,
+                                  int32_t z,
+                                  uint32_t scaleMilli);
+void OrenAVMMetalRemoveModelResource(CFMutableDictionaryRef models, uint32_t modelID);
 
 int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli);
 BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ);

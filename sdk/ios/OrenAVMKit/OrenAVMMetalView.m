@@ -823,35 +823,22 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             if (_orenMeshes3DByID) CFDictionaryRemoveValue(_orenMeshes3DByID, OrenAVMMetalRetainedMeshKey(OrenAVMMetalReadU32LE(payload)));
         } else if (opcode == 89 && payloadLen == 8) {
             uint32_t materialID = OrenAVMMetalReadU32LE(payload);
-            if (materialID != 0) {
-                if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-                if (_orenMaterials3DByID) {
-                    CFDictionarySetValue(_orenMaterials3DByID,
-                                         OrenAVMMetalRetainedMaterialKey(materialID),
-                                         OrenAVMMetalRetainedMaterialValue(OrenAVMMetalReadU32LE(payload + 4)));
-                }
-            }
+            OrenAVMMetalPutMaterialResource(&_orenMaterials3DByID, materialID, OrenAVMMetalReadU32LE(payload + 4));
         } else if (opcode == 92 && payloadLen == 4) {
-            if (_orenMaterials3DByID) CFDictionaryRemoveValue(_orenMaterials3DByID, OrenAVMMetalRetainedMaterialKey(OrenAVMMetalReadU32LE(payload)));
+            OrenAVMMetalRemoveMaterialResource(_orenMaterials3DByID, OrenAVMMetalReadU32LE(payload));
         } else if (opcode == 93 && payloadLen == 28) {
             uint32_t modelID = OrenAVMMetalReadU32LE(payload);
             uint32_t meshID = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t scaleMilli = OrenAVMMetalReadU32LE(payload + 24);
-            if (modelID != 0 && meshID != 0 && scaleMilli != 0) {
-                OrenAVMMetalModelResource* model = [[OrenAVMMetalModelResource alloc] init];
-                model.meshID = meshID;
-                model.materialID = OrenAVMMetalReadU32LE(payload + 8);
-                model.x = (int32_t)OrenAVMMetalReadU32LE(payload + 12);
-                model.y = (int32_t)OrenAVMMetalReadU32LE(payload + 16);
-                model.z = (int32_t)OrenAVMMetalReadU32LE(payload + 20);
-                model.scaleMilli = scaleMilli;
-                if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-                if (_orenModels3DByID) {
-                    CFDictionarySetValue(_orenModels3DByID, OrenAVMMetalRetainedModelKey(modelID), (__bridge const void*)model);
-                }
-            }
+            OrenAVMMetalPutModelResource(&_orenModels3DByID,
+                                         modelID,
+                                         meshID,
+                                         OrenAVMMetalReadU32LE(payload + 8),
+                                         (int32_t)OrenAVMMetalReadU32LE(payload + 12),
+                                         (int32_t)OrenAVMMetalReadU32LE(payload + 16),
+                                         (int32_t)OrenAVMMetalReadU32LE(payload + 20),
+                                         OrenAVMMetalReadU32LE(payload + 24));
         } else if (opcode == 95 && payloadLen == 4) {
-            if (_orenModels3DByID) CFDictionaryRemoveValue(_orenModels3DByID, OrenAVMMetalRetainedModelKey(OrenAVMMetalReadU32LE(payload)));
+            OrenAVMMetalRemoveModelResource(_orenModels3DByID, OrenAVMMetalReadU32LE(payload));
         } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
             uint32_t meshID = OrenAVMMetalReadU32LE(payload);
             uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 4);
@@ -934,15 +921,7 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                 NSString* text = [[NSString alloc] initWithBytes:payload + 12
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
-                if (text) {
-                    OrenAVMMetalTextResource* resource = [[OrenAVMMetalTextResource alloc] init];
-                    resource.text = text;
-                    resource.rgbaValue = OrenAVMMetalReadU32LE(payload + 4);
-                    if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-                    if (_orenTextResourcesByID) {
-                        CFDictionarySetValue(_orenTextResourcesByID, OrenAVMMetalRetainedTextKey(textID), (__bridge const void*)resource);
-                    }
-                }
+                OrenAVMMetalPutTextResource(&_orenTextResourcesByID, textID, OrenAVMMetalReadU32LE(payload + 4), text);
             }
         } else if (opcode == 69 && payloadLen == 12) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
@@ -1011,7 +990,7 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
-            if (_orenTextResourcesByID) CFDictionaryRemoveValue(_orenTextResourcesByID, OrenAVMMetalRetainedTextKey(textID));
+            OrenAVMMetalRemoveTextResource(_orenTextResourcesByID, textID);
         } else if (opcode == 64 && payloadLen >= 16) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t iw = OrenAVMMetalReadU32LE(payload + 4);

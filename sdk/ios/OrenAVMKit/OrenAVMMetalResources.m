@@ -142,6 +142,24 @@ OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts
     return (__bridge OrenAVMMetalTextResource*)CFDictionaryGetValue(texts, OrenAVMMetalRetainedTextKey(textID));
 }
 
+BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
+                                 uint32_t textID,
+                                 uint32_t rgbaValue,
+                                 NSString* text) {
+    if (!texts || textID == 0 || !text) return NO;
+    OrenAVMMetalTextResource* resource = [[OrenAVMMetalTextResource alloc] init];
+    resource.text = text;
+    resource.rgbaValue = rgbaValue;
+    if (!*texts) *texts = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*texts) return NO;
+    CFDictionarySetValue(*texts, OrenAVMMetalRetainedTextKey(textID), (__bridge const void*)resource);
+    return YES;
+}
+
+void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID) {
+    if (texts && textID != 0) CFDictionaryRemoveValue(texts, OrenAVMMetalRetainedTextKey(textID));
+}
+
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID) {
     return OrenAVMMetalRetainedKey(meshID);
 }
@@ -173,6 +191,18 @@ BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materi
     return YES;
 }
 
+BOOL OrenAVMMetalPutMaterialResource(CFMutableDictionaryRef* materials, uint32_t materialID, uint32_t rgbaValue) {
+    if (!materials || materialID == 0) return NO;
+    if (!*materials) *materials = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    if (!*materials) return NO;
+    CFDictionarySetValue(*materials, OrenAVMMetalRetainedMaterialKey(materialID), OrenAVMMetalRetainedMaterialValue(rgbaValue));
+    return YES;
+}
+
+void OrenAVMMetalRemoveMaterialResource(CFMutableDictionaryRef materials, uint32_t materialID) {
+    if (materials && materialID != 0) CFDictionaryRemoveValue(materials, OrenAVMMetalRetainedMaterialKey(materialID));
+}
+
 const void* OrenAVMMetalRetainedModelKey(uint32_t modelID) {
     return OrenAVMMetalRetainedKey(modelID);
 }
@@ -180,6 +210,32 @@ const void* OrenAVMMetalRetainedModelKey(uint32_t modelID) {
 OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource(CFDictionaryRef models, uint32_t modelID) {
     if (!models || modelID == 0) return nil;
     return (__bridge OrenAVMMetalModelResource*)CFDictionaryGetValue(models, OrenAVMMetalRetainedModelKey(modelID));
+}
+
+BOOL OrenAVMMetalPutModelResource(CFMutableDictionaryRef* models,
+                                  uint32_t modelID,
+                                  uint32_t meshID,
+                                  uint32_t materialID,
+                                  int32_t x,
+                                  int32_t y,
+                                  int32_t z,
+                                  uint32_t scaleMilli) {
+    if (!models || modelID == 0 || meshID == 0 || scaleMilli == 0) return NO;
+    OrenAVMMetalModelResource* model = [[OrenAVMMetalModelResource alloc] init];
+    model.meshID = meshID;
+    model.materialID = materialID;
+    model.x = x;
+    model.y = y;
+    model.z = z;
+    model.scaleMilli = scaleMilli;
+    if (!*models) *models = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*models) return NO;
+    CFDictionarySetValue(*models, OrenAVMMetalRetainedModelKey(modelID), (__bridge const void*)model);
+    return YES;
+}
+
+void OrenAVMMetalRemoveModelResource(CFMutableDictionaryRef models, uint32_t modelID) {
+    if (models && modelID != 0) CFDictionaryRemoveValue(models, OrenAVMMetalRetainedModelKey(modelID));
 }
 
 static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {

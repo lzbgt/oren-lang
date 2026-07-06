@@ -3663,6 +3663,11 @@
 <p>  reducing <code>OrenAVMMetalView.m</code> to 1328 lines while keeping view-owned budget</p>
 <p>  configuration and scalar-map lifetime ownership intact.</p>
 <ul>
+<li>Metal retained text/material/model resource upload/remove helpers now live in</li>
+</ul>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1307 lines while</p>
+<p>  keeping per-frame retained draw decisions in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

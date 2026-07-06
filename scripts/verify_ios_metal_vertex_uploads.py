@@ -170,14 +170,20 @@ def main() -> int:
         "OrenAVMMetalImageRunCreate",
         "OrenAVMMetalRetainedTextKey",
         "OrenAVMMetalRetainedTextResource",
+        "OrenAVMMetalPutTextResource",
+        "OrenAVMMetalRemoveTextResource",
         "OrenAVMMetalRetainedMeshKey",
         "OrenAVMMetalRetainedMesh2DResource",
         "OrenAVMMetalRetainedMesh3DResource",
         "OrenAVMMetalRetainedMaterialKey",
         "OrenAVMMetalRetainedMaterialValue",
         "OrenAVMMetalRetainedMaterialRGBA",
+        "OrenAVMMetalPutMaterialResource",
+        "OrenAVMMetalRemoveMaterialResource",
         "OrenAVMMetalRetainedModelKey",
         "OrenAVMMetalRetainedModelResource",
+        "OrenAVMMetalPutModelResource",
+        "OrenAVMMetalRemoveModelResource",
     ):
         if helper not in resource_text:
             fail(f"retained Metal scalar resource helper must live in OrenAVMMetalResources: {helper}")
@@ -211,6 +217,12 @@ def main() -> int:
         fail("retained Metal text resources must use a scalar-key CF dictionary")
     if "OrenAVMMetalRetainedTextResource(_orenTextResourcesByID, textID)" not in text:
         fail("retained Metal text draws must use the typed scalar-map resource helper")
+    if "OrenAVMMetalPutTextResource(&_orenTextResourcesByID, textID," not in text:
+        fail("retained Metal text uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalRemoveTextResource(_orenTextResourcesByID, textID)" not in text:
+        fail("retained Metal text removals must use the resource-owned removal helper")
+    if "CFDictionarySetValue(_orenTextResourcesByID" in text or "CFDictionaryRemoveValue(_orenTextResourcesByID" in text:
+        fail("retained Metal text map mutation must live in OrenAVMMetalResources")
     if "@(textID)" in text:
         fail("retained Metal text upload/draw paths must not box text IDs")
     if "@property(nonatomic, strong) NSData* triangles" in metal_text or "@property(nonatomic, strong) NSData* indices" in metal_text:
@@ -264,6 +276,12 @@ def main() -> int:
         fail("retained Metal materials must use a scalar-key/scalar-value CF dictionary")
     if "OrenAVMMetalRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride)" not in text:
         fail("retained Metal material draws must use the scalar material lookup helper")
+    if "OrenAVMMetalPutMaterialResource(&_orenMaterials3DByID, materialID," not in text:
+        fail("retained Metal material uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalRemoveMaterialResource(_orenMaterials3DByID, OrenAVMMetalReadU32LE(payload))" not in text:
+        fail("retained Metal material removals must use the resource-owned removal helper")
+    if "CFDictionarySetValue(_orenMaterials3DByID" in text or "CFDictionaryRemoveValue(_orenMaterials3DByID" in text:
+        fail("retained Metal material map mutation must live in OrenAVMMetalResources")
     if "materialRGBAValue" in text or "@(materialID)" in text:
         fail("retained Metal material paths must not box material IDs or RGBA values")
     retained_3d_start = text.find("} else if ((opcode == 84")
@@ -336,6 +354,12 @@ def main() -> int:
         fail("retained Metal models must use a scalar-key CF dictionary")
     if "OrenAVMMetalRetainedModelResource(_orenModels3DByID, meshID)" not in text:
         fail("retained Metal model draws must use the typed scalar-map resource helper")
+    if "OrenAVMMetalPutModelResource(&_orenModels3DByID," not in text:
+        fail("retained Metal model uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalRemoveModelResource(_orenModels3DByID, OrenAVMMetalReadU32LE(payload))" not in text:
+        fail("retained Metal model removals must use the resource-owned removal helper")
+    if "CFDictionarySetValue(_orenModels3DByID" in text or "CFDictionaryRemoveValue(_orenModels3DByID" in text:
+        fail("retained Metal model map mutation must live in OrenAVMMetalResources")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("retained Metal model draws must not use string-key dictionary lookups")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO)" not in text:
