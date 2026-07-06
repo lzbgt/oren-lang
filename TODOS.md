@@ -37,7 +37,7 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - Legacy native `oren_read_bytes` remains as an explicit compatibility ABI, but it now stats the file once, preallocates a native `LIST_INT` result to observed size, rejects oversized list output, and fills slots directly from 1 MiB read chunks instead of growing from a zero-capacity list through 4 KiB syscalls or per-byte list pushes.
-- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; the matching list-input `oren_write_bytes` compatibility path validates first and then writes bounded stack chunks instead of allocating a full-size byte mirror.
+- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; C runtime and AVM host list-input `oren_write_bytes` compatibility paths validate first and then write bounded stack chunks instead of allocating full-size byte mirrors.
 - Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
 - Parallel module parsing now emits setup and per-module worker phase markers under
   `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
@@ -2720,6 +2720,9 @@ design evidence lives under `project-doc/`.
 - Legacy AVM host and VFS `oren_read_bytes` compatibility paths now also
   materialize pre-sized `LIST_INT` carriers directly instead of boxed `AvmValue`
   byte-list entries.
+- Legacy AVM host `oren_write_bytes` now keeps list-input compatibility but
+  validates list bytes before opening the destination and streams bounded
+  64 KiB stack chunks instead of allocating a full-size AVM heap byte mirror.
 - Legacy C runtime `oren_read_bytes` still returns a boxed compatibility byte
   list, but now fills that list from bounded 64 KiB read chunks instead of
   allocating a second full-file temporary byte buffer before list materialization.

@@ -419,7 +419,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 char* path = (char*)args[0].as.p;
                 uint8_t* buf = NULL;
                 int len = 0;
-                int owns_buf = 0;
+                AvmList* list = NULL;
 
                 if (args[1].type == AVM_VAL_BYTES) {
                     AvmBytes* b = args[1].as.b;
@@ -429,19 +429,18 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     buf = b->data;
                     len = b->len;
                 } else {
-                    AvmList* list = args[1].as.l;
+                    list = args[1].as.l;
                     if (!list) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: list is nil"); break; }
+                    if (list->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: invalid list length"); break; }
                     len = list->count;
-                    buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
-                    if (!buf && len > 0) {
-                        res = avm_alloc_fail_value();
-                        avm_abort(vm, res);
-                        break;
-                    }
-                    owns_buf = 1;
                     for (int i = 0; i < len; i++) {
-                        buf[i] = (uint8_t)list->items[i].as.i;
+                        AvmValue it = list->items[i];
+                        if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
+                            res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: expected list<int 0..255>");
+                            break;
+                        }
                     }
+                    if (avm_is_err_val(res)) break;
                 }
 
                 // Preflight: ensure record log can store this entry BEFORE performing any filesystem effects.
@@ -453,7 +452,6 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
                         avm_abort(vm, e);
                         res = e;
-                        if (owns_buf) avm_heap_free(buf);
                         break;
                     }
                 }
@@ -463,17 +461,29 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     int err = errno;
                     char msg[512];
                     snprintf(msg, sizeof(msg), "cannot open file for write: %s (errno=%d)", path, err);
-                    if (owns_buf) avm_heap_free(buf);
                     res = avm_err(avm_err_from_errno(err), msg);
                     break;
                 }
-                if (!avm_io_charge(vm, (uint64_t)len, 1, 2)) { fclose(f); if (owns_buf) avm_heap_free(buf); break; }
+                if (!avm_io_charge(vm, (uint64_t)len, 1, 2)) { fclose(f); break; }
                 size_t n = 0;
-                if (len > 0) {
+                if (len > 0 && args[1].type == AVM_VAL_BYTES) {
                     n = fwrite(buf, 1, (size_t)len, f);
+                } else if (len > 0) {
+                    uint8_t chunk[64 * 1024];
+                    int off = 0;
+                    while (off < len) {
+                        size_t want = (size_t)(len - off);
+                        if (want > sizeof(chunk)) want = sizeof(chunk);
+                        for (size_t i = 0; i < want; i++) {
+                            chunk[i] = (uint8_t)(list->items[off + (int)i].as.i & 255);
+                        }
+                        size_t nw = fwrite(chunk, 1, want, f);
+                        if (nw != want) { n = (size_t)off + nw; break; }
+                        off += (int)want;
+                    }
+                    if (off == len) n = (size_t)len;
                 }
                 fclose(f);
-                if (owns_buf) avm_heap_free(buf);
                 if (n != (size_t)len) {
                     res = avm_err(AVM_ERR_IO, "write_bytes: short write");
                     break;
