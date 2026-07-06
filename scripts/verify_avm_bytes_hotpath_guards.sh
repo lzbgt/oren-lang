@@ -29,4 +29,9 @@ if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands
   exit 1
 fi
 
+if grep -q 'fn _read_byte\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/raster.oren; then
+  echo "ERROR: std:ui/raster hot loops must use shared std:bytes view readers directly" >&2
+  exit 1
+fi
+
 echo "OK: AVM bytes hotpath source guards passed"

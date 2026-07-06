@@ -2391,9 +2391,10 @@ design evidence lives under `project-doc/`.
 - `std:ui/commands` validation now caches u8 payload pointers for geometry,
   indexed-mesh, text-position, and image-rect byte fields while retaining
   list-compatible byte input fallback.
-- `std:ui/raster` now caches u8 pointers for polyline, triangle, 3D mesh,
-  text-position, image RGBA, mesh RGBA, and image-rect byte reads, with explicit
-  image-data length guards before pointer-backed sampling.
+- `std:ui/raster` now caches byte views for polyline, triangle, 3D mesh,
+  text-position, image RGBA, mesh RGBA, and image-rect byte reads, calls shared
+  `std:bytes` unchecked view readers directly inside guarded hot loops, and keeps
+  explicit image-data length guards before pointer-backed sampling.
 - `std:ui/scene3d` binary `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length and optional u8
   pointer while keeping list-compatible byte input fallback.
@@ -2552,8 +2553,8 @@ design evidence lives under `project-doc/`.
 - `make verify-avm-bytes-hotpath-guards` now centralizes byte-hotpath source
   invariants, including the removed bytecode final-write list fallback and the
   removed runtime-object per-byte checked metadata helper. It also prevents
-  `std:ui/commands` from reintroducing local byte-view aliases instead of using
-  shared `std:bytes` views directly.
+  `std:ui/commands` and `std:ui/raster` from reintroducing local byte-view/read
+  aliases instead of using shared `std:bytes` views directly.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

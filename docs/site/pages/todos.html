@@ -3264,10 +3264,11 @@
 <p>  indexed-mesh, text-position, and image-rect byte fields while retaining</p>
 <p>  list-compatible byte input fallback.</p>
 <ul>
-<li><code>std:ui/raster</code> now caches u8 pointers for polyline, triangle, 3D mesh,</li>
+<li><code>std:ui/raster</code> now caches byte views for polyline, triangle, 3D mesh,</li>
 </ul>
-<p>  text-position, image RGBA, mesh RGBA, and image-rect byte reads, with explicit</p>
-<p>  image-data length guards before pointer-backed sampling.</p>
+<p>  text-position, image RGBA, mesh RGBA, and image-rect byte reads, calls shared</p>
+<p>  <code>std:bytes</code> unchecked view readers directly inside guarded hot loops, and keeps</p>
+<p>  explicit image-data length guards before pointer-backed sampling.</p>
 <ul>
 <li><code>std:ui/scene3d</code> binary <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>
@@ -3514,8 +3515,8 @@
 </ul>
 <p>  invariants, including the removed bytecode final-write list fallback and the</p>
 <p>  removed runtime-object per-byte checked metadata helper. It also prevents</p>
-<p>  <code>std:ui/commands</code> from reintroducing local byte-view aliases instead of using</p>
-<p>  shared <code>std:bytes</code> views directly.</p>
+<p>  <code>std:ui/commands</code> and <code>std:ui/raster</code> from reintroducing local byte-view/read</p>
+<p>  aliases instead of using shared <code>std:bytes</code> views directly.</p>
 <ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
