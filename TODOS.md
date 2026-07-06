@@ -2627,6 +2627,9 @@ design evidence lives under `project-doc/`.
 - Metal frame byte/scissor/run-array and bounded vertex-upload helpers now live
   in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 1522 lines while
   keeping command decoding in the view.
+- Metal retained-resource scalar key and lookup helpers now live in
+  `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1464 lines while
+  keeping resource lifetime callbacks with the resource model types.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

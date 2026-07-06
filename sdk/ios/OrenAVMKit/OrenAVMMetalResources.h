@@ -59,6 +59,19 @@
 @property(nonatomic) uint32_t scaleMilli;
 @end
 
+const void* OrenAVMMetalRetainedImageKey(uint32_t imageID);
+OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef images, uint32_t imageID);
+const void* OrenAVMMetalRetainedTextKey(uint32_t textID);
+OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
+const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID);
+OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID);
+OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID);
+const void* OrenAVMMetalRetainedMaterialKey(uint32_t materialID);
+const void* OrenAVMMetalRetainedMaterialValue(uint32_t rgbaValue);
+BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);
+const void* OrenAVMMetalRetainedModelKey(uint32_t modelID);
+OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource(CFDictionaryRef models, uint32_t modelID);
+
 uint8_t* OrenAVMMetalCopyPayloadBytes(const uint8_t* src, NSUInteger len);
 
 #endif

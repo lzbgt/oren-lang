@@ -2811,7 +2811,9 @@
 <p>		  draw submission in the view. Metal frame byte/scissor/run-array and bounded</p>
 <p>		  vertex-upload helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
 <p>		  <code>OrenAVMMetalView.m</code> to 1522 lines while keeping command decoding in the</p>
-<p>		  view.</p>
+<p>		  view. Metal retained-resource scalar key and lookup helpers now live in</p>
+<p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1464 lines while</p>
+<p>		  keeping resource lifetime callbacks with the resource model types.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

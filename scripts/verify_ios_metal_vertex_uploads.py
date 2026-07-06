@@ -158,6 +158,32 @@ def main() -> int:
         fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
     if "@property(nonatomic) uint32_t rgbaValue" not in metal_text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
         fail("missing scalar RGBA storage for retained Metal mesh/text resources")
+    for helper in (
+        "OrenAVMMetalRetainedImageKey",
+        "OrenAVMMetalRetainedImageResource",
+        "OrenAVMMetalRetainedTextKey",
+        "OrenAVMMetalRetainedTextResource",
+        "OrenAVMMetalRetainedMeshKey",
+        "OrenAVMMetalRetainedMesh2DResource",
+        "OrenAVMMetalRetainedMesh3DResource",
+        "OrenAVMMetalRetainedMaterialKey",
+        "OrenAVMMetalRetainedMaterialValue",
+        "OrenAVMMetalRetainedMaterialRGBA",
+        "OrenAVMMetalRetainedModelKey",
+        "OrenAVMMetalRetainedModelResource",
+    ):
+        if helper not in resource_text:
+            fail(f"retained Metal scalar resource helper must live in OrenAVMMetalResources: {helper}")
+    if "static const void* OrenAVMMetalRetainedImageKey" in text or "static OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource" in text:
+        fail("Metal view must not define retained image scalar-map helpers")
+    if "static const void* OrenAVMMetalRetainedTextKey" in text or "static OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource" in text:
+        fail("Metal view must not define retained text scalar-map helpers")
+    if "static const void* OrenAVMMetalRetainedMeshKey" in text or "static OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource" in text:
+        fail("Metal view must not define retained mesh scalar-map helpers")
+    if "static const void* OrenAVMMetalRetainedMaterialKey" in text or "static BOOL OrenAVMMetalRetainedMaterialRGBA" in text:
+        fail("Metal view must not define retained material scalar-map helpers")
+    if "static const void* OrenAVMMetalRetainedModelKey" in text or "static OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource" in text:
+        fail("Metal view must not define retained model scalar-map helpers")
     if "NSMutableDictionary<NSNumber*, OrenAVMMetalMesh2DResource*>* orenMeshes" in text:
         fail("retained Metal 2D mesh lookups must avoid boxed NSNumber mesh IDs")
     if "NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D" in text:

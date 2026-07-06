@@ -28,64 +28,6 @@ _Static_assert(sizeof(OrenAVMMetalTextVertex) == 16, "OrenAVMMetalTextVertex mus
 static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
 
-static const void* OrenAVMMetalRetainedImageKey(uint32_t imageID) {
-    return (const void*)(uintptr_t)((uint64_t)imageID + 1ull);
-}
-
-static OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef images, uint32_t imageID) {
-    if (!images || imageID == 0) return nil;
-    return (__bridge OrenAVMMetalImageResource*)CFDictionaryGetValue(images, OrenAVMMetalRetainedImageKey(imageID));
-}
-
-static const void* OrenAVMMetalRetainedTextKey(uint32_t textID) {
-    return (const void*)(uintptr_t)((uint64_t)textID + 1ull);
-}
-
-static OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts, uint32_t textID) {
-    if (!texts || textID == 0) return nil;
-    return (__bridge OrenAVMMetalTextResource*)CFDictionaryGetValue(texts, OrenAVMMetalRetainedTextKey(textID));
-}
-
-static const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID) {
-    return (const void*)(uintptr_t)((uint64_t)meshID + 1ull);
-}
-
-static OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource(CFDictionaryRef meshes, uint32_t meshID) {
-    if (!meshes || meshID == 0) return nil;
-    return (__bridge OrenAVMMetalMesh2DResource*)CFDictionaryGetValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
-}
-
-static OrenAVMMetalMesh3DResource* OrenAVMMetalRetainedMesh3DResource(CFDictionaryRef meshes, uint32_t meshID) {
-    if (!meshes || meshID == 0) return nil;
-    return (__bridge OrenAVMMetalMesh3DResource*)CFDictionaryGetValue(meshes, OrenAVMMetalRetainedMeshKey(meshID));
-}
-
-static const void* OrenAVMMetalRetainedMaterialKey(uint32_t materialID) {
-    return (const void*)(uintptr_t)((uint64_t)materialID + 1ull);
-}
-
-static const void* OrenAVMMetalRetainedMaterialValue(uint32_t rgbaValue) {
-    return (const void*)(uintptr_t)((uint64_t)rgbaValue + 1ull);
-}
-
-static BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut) {
-    const void* stored = NULL;
-    if (!materials || materialID == 0 || !CFDictionaryGetValueIfPresent(materials, OrenAVMMetalRetainedMaterialKey(materialID), &stored)) {
-        return NO;
-    }
-    if (rgbaOut) *rgbaOut = (uint32_t)((uintptr_t)stored - 1ull);
-    return YES;
-}
-
-static const void* OrenAVMMetalRetainedModelKey(uint32_t modelID) {
-    return (const void*)(uintptr_t)((uint64_t)modelID + 1ull);
-}
-
-static OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource(CFDictionaryRef models, uint32_t modelID) {
-    if (!models || modelID == 0) return nil;
-    return (__bridge OrenAVMMetalModelResource*)CFDictionaryGetValue(models, OrenAVMMetalRetainedModelKey(modelID));
-}
-
 static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {
     return (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 8) +
            (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 20) +
