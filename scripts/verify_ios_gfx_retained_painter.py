@@ -63,6 +63,14 @@ def main() -> int:
         fail("missing CoreGraphics retained mesh raw payload copy helper")
     if "NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D" in text:
         fail("CoreGraphics retained materials must store scalar RGBA values")
+    if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" in text:
+        fail("CoreGraphics retained materials must avoid boxed NSNumber IDs/RGBA values")
+    if "CFMutableDictionaryRef _orenMaterials3DByID" not in text:
+        fail("CoreGraphics retained materials must use a scalar-key/scalar-value CF dictionary")
+    if "OrenAVMGfxRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride)" not in text:
+        fail("CoreGraphics retained material draws must use the scalar material lookup helper")
+    if "materialRGBAValue" in text or "@(materialID)" in text:
+        fail("CoreGraphics retained material paths must not box material IDs or RGBA values")
     if '@"color": OrenAVMGfxColor' in text:
         fail("CoreGraphics retained mesh colors must stay scalar, not retained UIColor objects")
     if "@interface OrenAVMGfxTextResource" not in text:

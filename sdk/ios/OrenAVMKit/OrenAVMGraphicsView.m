@@ -302,9 +302,27 @@ static OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource(CFDictionaryRef te
     return (__bridge OrenAVMGfxTextResource*)CFDictionaryGetValue(texts, OrenAVMGfxRetainedTextKey(textID));
 }
 
+static const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID) {
+    return (const void*)(uintptr_t)((uint64_t)materialID + 1ull);
+}
+
+static const void* OrenAVMGfxRetainedMaterialValue(uint32_t rgbaValue) {
+    return (const void*)(uintptr_t)((uint64_t)rgbaValue + 1ull);
+}
+
+static BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut) {
+    const void* stored = NULL;
+    if (!materials || materialID == 0 || !CFDictionaryGetValueIfPresent(materials, OrenAVMGfxRetainedMaterialKey(materialID), &stored)) {
+        return NO;
+    }
+    if (rgbaOut) *rgbaOut = (uint32_t)((uintptr_t)stored - 1ull);
+    return YES;
+}
+
 @interface OrenAVMGraphicsView () {
     CFMutableDictionaryRef _orenTouchIDs;
     CFMutableDictionaryRef _orenTextResourcesByID;
+    CFMutableDictionaryRef _orenMaterials3DByID;
     CFMutableDictionaryRef _orenImagesByID;
 }
 @property(nonatomic) uint32_t orenNextTouchID;
@@ -312,7 +330,6 @@ static OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource(CFDictionaryRef te
 @property(nonatomic) uint32_t orenLastTextAttributesRGBA;
 @property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* orenLastTextAttributes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
@@ -344,7 +361,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!self.orenTextAttributes) self.orenTextAttributes = [NSMutableDictionary dictionary];
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
-    if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
+    if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
     if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
@@ -395,6 +412,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (_orenTextResourcesByID) {
         CFRelease(_orenTextResourcesByID);
         _orenTextResourcesByID = NULL;
+    }
+    if (_orenMaterials3DByID) {
+        CFRelease(_orenMaterials3DByID);
+        _orenMaterials3DByID = NULL;
     }
     if (_orenImagesByID) {
         CFRelease(_orenImagesByID);
@@ -871,13 +892,14 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
                 scaleMilli = model.scaleMilli;
             }
             OrenAVMGfxMeshResource* mesh = self.orenMeshes[@(meshID)];
-            NSNumber* materialRGBAValue = nil;
+            BOOL hasMaterialRGBA = NO;
+            uint32_t materialRGBAOverride = 0;
             if (opcode == 90 || opcode == 91) {
                 materialID = OrenAVMGfxReadU32LE(payload + 4);
             }
             if (materialID != 0) {
-                materialRGBAValue = self.orenMaterials3D[@(materialID)];
-                if (!materialRGBAValue) {
+                hasMaterialRGBA = OrenAVMGfxRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride);
+                if (!hasMaterialRGBA) {
                     off += payloadLen;
                     continue;
                 }
@@ -887,7 +909,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
             const uint8_t* idx = mesh.indices;
             uint32_t meshStride = mesh.stride;
             uint32_t triangleCount = mesh.triangleCount;
-            uint32_t rgbaValue = materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue;
+            uint32_t rgbaValue = hasMaterialRGBA ? materialRGBAOverride : mesh.rgbaValue;
             if (opcode == 87) {
                 modelX = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
                 modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
@@ -955,10 +977,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
                     order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
                 }
                 OrenAVMGfxSortTriangleOrder(order, visibleCount);
-                if (materialRGBAValue || !mesh.hasRGBA) OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
+                if (hasMaterialRGBA || !mesh.hasRGBA) OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
                 for (uint32_t oi = 0; oi < visibleCount; oi++) {
                     const uint8_t* tri = tris + ((size_t)order[oi].triangle * meshStride);
-                    if (!materialRGBAValue && mesh.hasRGBA) OrenAVMGfxSetFillColorBytes(ctx, tri + 36);
+                    if (!hasMaterialRGBA && mesh.hasRGBA) OrenAVMGfxSetFillColorBytes(ctx, tri + 36);
                     CGContextBeginPath(ctx);
                     CGContextMoveToPoint(ctx,
                                          OrenAVMGfxMesh3DModelCoord(tri, modelX, scaleMilli),
@@ -978,9 +1000,16 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
             [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
         } else if (opcode == 89 && payloadLen == 8) {
             uint32_t materialID = OrenAVMGfxReadU32LE(payload);
-            if (materialID != 0) self.orenMaterials3D[@(materialID)] = @(OrenAVMGfxRGBAValue(payload + 4));
+            if (materialID != 0) {
+                if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+                if (_orenMaterials3DByID) {
+                    CFDictionarySetValue(_orenMaterials3DByID,
+                                         OrenAVMGfxRetainedMaterialKey(materialID),
+                                         OrenAVMGfxRetainedMaterialValue(OrenAVMGfxRGBAValue(payload + 4)));
+                }
+            }
         } else if (opcode == 92 && payloadLen == 4) {
-            [self.orenMaterials3D removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
+            if (_orenMaterials3DByID) CFDictionaryRemoveValue(_orenMaterials3DByID, OrenAVMGfxRetainedMaterialKey(OrenAVMGfxReadU32LE(payload)));
         } else if (opcode == 93 && payloadLen == 28) {
             uint32_t modelID = OrenAVMGfxReadU32LE(payload);
             uint32_t meshID = OrenAVMGfxReadU32LE(payload + 4);

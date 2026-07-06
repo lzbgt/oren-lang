@@ -2598,6 +2598,8 @@ design evidence lives under `project-doc/`.
   dimensions for batched image rects.
 - CoreGraphics and Metal retained model resources now use typed resource records
   instead of string-keyed dictionaries, removing per-draw model field lookups.
+- CoreGraphics and Metal retained material resources now use scalar-key/scalar
+  value maps instead of boxed material ID and RGBA `NSNumber` objects.
 - Single Metal image texture quads now stay inline in fixed image-run storage,
   while text texture quads append into caller-owned run buffers instead of
   allocating tiny `NSData` wrappers from stack vertices.

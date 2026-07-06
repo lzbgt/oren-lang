@@ -167,17 +167,23 @@ def main() -> int:
         fail("retained Metal 3D triangle ordering must not use NSMutableData heap fallbacks")
     if "OrenAVMMetalTriangleOrder* heapOrder = NULL" not in text or "free(heapOrder)" not in text:
         fail("retained Metal 3D triangle ordering must free raw heap fallbacks")
-    if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
-        fail("retained Metal materials must store scalar RGBA NSNumber values")
+    if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" in text:
+        fail("retained Metal materials must avoid boxed NSNumber IDs/RGBA values")
+    if "CFMutableDictionaryRef _orenMaterials3DByID" not in text:
+        fail("retained Metal materials must use a scalar-key/scalar-value CF dictionary")
+    if "OrenAVMMetalRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride)" not in text:
+        fail("retained Metal material draws must use the scalar material lookup helper")
+    if "materialRGBAValue" in text or "@(materialID)" in text:
+        fail("retained Metal material paths must not box material IDs or RGBA values")
     retained_3d_start = text.find("} else if ((opcode == 84")
     retained_3d_end = text.find("} else if (opcode == 85", retained_3d_start)
     if retained_3d_start < 0 or retained_3d_end < 0:
         fail("missing retained Metal 3D draw block")
     retained_3d_block = text[retained_3d_start:retained_3d_end]
-    if "uint32_t materialRGBA = materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue;" not in retained_3d_block:
-        fail("retained Metal material overrides must be unboxed once per draw")
-    if retained_3d_block.count("unsignedIntValue") != 1:
-        fail("retained Metal material override must not send unsignedIntValue inside triangle loops")
+    if "uint32_t materialRGBA = hasMaterialRGBA ? materialRGBAOverride : mesh.rgbaValue;" not in retained_3d_block:
+        fail("retained Metal material overrides must resolve once per draw")
+    if "unsignedIntValue" in retained_3d_block:
+        fail("retained Metal material override must not unbox NSNumber values inside triangle loops")
     if "@interface OrenAVMMetalImageResource" not in metal_text:
         fail("retained Metal images must use typed resource objects")
     if "NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures" in text:
