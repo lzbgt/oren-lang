@@ -3513,6 +3513,10 @@
 </ul>
 <p>  objects, keeping repeated labels on the cached texture path.</p>
 <ul>
+<li>Metal text atlas creation now avoids a full zeroed atlas upload buffer and</li>
+</ul>
+<p>  clears only the transparent padding texels around packed glyph regions.</p>
+<ul>
 <li>Metal frame preparation now keeps vertex-run capacity byte-bounded while</li>
 </ul>
 <p>  allocating text/image run arrays lazily only when the frame actually contains</p>

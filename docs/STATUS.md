@@ -2198,9 +2198,10 @@ Facts from the 2026-05-28 implementation pass:
   ellipse/polyline/fill-triangle/fill-triangles geometry, retained 2D mesh resources, retained 3D mesh resources with orthographic XY default projection, per-triangle RGBA payloads, indexed shared-vertex meshes, retained material resources, retained model resources, deterministic painter-depth ordering, per-draw and retained model translation/uniform scale, material override draws, and explicit orthographic camera depth windows, retained RGBA image upload/draw/
   destroy/sub-rect and batched atlas records, and byte-native/retained text
   payloads through Metal pipelines. Its `targetHzMilli` setting
-  drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
-  SDK-side LRU texture cache for repeated labels, and host apps can clear that cache
-  on memory pressure. The UI input stream now also carries validated `frame_tick`
+	  drives `MTKView.preferredFramesPerSecond`. Current text rendering uses a bounded
+	  SDK-side LRU texture cache for repeated labels, clears only transparent glyph
+	  padding when creating packed atlas regions instead of uploading a full zeroed
+	  atlas buffer, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated `frame_tick`
 	  records so OBC game loops can receive host display timing through the same virtual
 	  event path instead of polling raw platform clocks. Frame ticks are coalesced so
 	  stale timing records cannot fill the input FIFO and starve real input, and SDK

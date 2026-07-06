@@ -61,6 +61,12 @@ def main() -> int:
         fail("Metal text cache must expose a typed immutable cache-key object")
     if "+ (instancetype)keyWithText:(NSString*)text rgba:(const uint8_t*)rgba scaleMilli:(uint32_t)scaleMilli" not in text_source:
         fail("Metal text cache must build compact typed cache keys")
+    if "OrenAVMMetalClearTextAtlasPadding" not in text_source:
+        fail("Metal text atlases must clear only sampled glyph padding")
+    if "dataWithLength:OrenAVMMetalTextAtlasSize * OrenAVMMetalTextAtlasSize * 4u" in text_source:
+        fail("Metal text atlas creation must not allocate a full zero buffer")
+    if "OrenAVMMetalClearTextAtlasPadding((*atlas).texture, atlasX, atlasY, pixelWidth, pixelHeight)" not in text_source:
+        fail("packed Metal text uploads must clear transparent atlas padding")
     if "OrenAVMMetalTextureQuad" in text_source or "OrenAVMMetalTextureQuad" in text_header:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:

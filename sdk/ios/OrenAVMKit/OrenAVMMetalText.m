@@ -113,11 +113,6 @@ static OrenAVMMetalTextAtlas* OrenAVMMetalCreateTextAtlas(id<MTLDevice> device) 
     descriptor.usage = MTLTextureUsageShaderRead;
     id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
     if (!texture) return nil;
-    NSMutableData* zero = [NSMutableData dataWithLength:OrenAVMMetalTextAtlasSize * OrenAVMMetalTextAtlasSize * 4u];
-    [texture replaceRegion:MTLRegionMake2D(0, 0, OrenAVMMetalTextAtlasSize, OrenAVMMetalTextAtlasSize)
-               mipmapLevel:0
-                 withBytes:zero.bytes
-               bytesPerRow:OrenAVMMetalTextAtlasSize * 4u];
     OrenAVMMetalTextAtlas* atlas = [[OrenAVMMetalTextAtlas alloc] init];
     atlas.texture = texture;
     atlas.width = OrenAVMMetalTextAtlasSize;
@@ -145,6 +140,29 @@ static BOOL OrenAVMMetalAtlasReserve(OrenAVMMetalTextAtlas* atlas,
     atlas.cursorX += paddedWidth;
     if (paddedHeight > atlas.rowHeight) atlas.rowHeight = paddedHeight;
     return YES;
+}
+
+static void OrenAVMMetalClearTextAtlasPadding(id<MTLTexture> texture,
+                                              NSUInteger x,
+                                              NSUInteger y,
+                                              NSUInteger pixelWidth,
+                                              NSUInteger pixelHeight) {
+    if (!texture || pixelWidth == 0 || pixelHeight == 0) return;
+    uint8_t zero[OrenAVMMetalTextAtlasSize * 4u] = {0};
+    if (x + pixelWidth < texture.width) {
+        [texture replaceRegion:MTLRegionMake2D(x + pixelWidth, y, OrenAVMMetalTextAtlasPadding, pixelHeight)
+                   mipmapLevel:0
+                     withBytes:zero
+                   bytesPerRow:OrenAVMMetalTextAtlasPadding * 4u];
+    }
+    if (y + pixelHeight < texture.height) {
+        NSUInteger bottomWidth = pixelWidth;
+        if (x + bottomWidth < texture.width) bottomWidth += OrenAVMMetalTextAtlasPadding;
+        [texture replaceRegion:MTLRegionMake2D(x, y + pixelHeight, bottomWidth, OrenAVMMetalTextAtlasPadding)
+                   mipmapLevel:0
+                     withBytes:zero
+                   bytesPerRow:bottomWidth * 4u];
+    }
 }
 
 void OrenAVMMetalClearTextTextureCache(NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
@@ -229,6 +247,7 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
                             mipmapLevel:0
                               withBytes:pixels.bytes
                             bytesPerRow:pixelWidth * 4u];
+        OrenAVMMetalClearTextAtlasPadding((*atlas).texture, atlasX, atlasY, pixelWidth, pixelHeight);
         entry.texture = (*atlas).texture;
         entry.u0 = (float)atlasX / (float)(*atlas).width;
         entry.v0 = (float)atlasY / (float)(*atlas).height;
