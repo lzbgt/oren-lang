@@ -2298,8 +2298,9 @@ wrappers, preserving lifetime safety while removing per-mesh payload objects
 from retained draw paths. CoreGraphics immediate primitive draws now set
 fill/stroke colors from raw RGBA bytes instead of allocating per-draw
 `UIColor` wrappers; CoreGraphics retained text fallback records
-now use typed resources with cached drawing attributes instead of dictionary
-payloads and per-draw attributes dictionaries; CoreGraphics retained image
+now use typed resources with cached attributed strings instead of dictionary
+payloads, separate resource attribute dictionaries, or per-draw attributes
+dictionaries; CoreGraphics retained image
 fallback records now use typed resources for image plus pixel accounting instead
 of parallel image/pixel dictionaries, with overflow-safe retained sub-rect
 bounds checks, shared checked sub-rect drawing, and cached image dimensions for

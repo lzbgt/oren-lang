@@ -36,8 +36,7 @@ typedef struct {
 @end
 
 @interface OrenAVMGfxTextResource : NSObject
-@property(nonatomic, copy) NSString* text;
-@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* attributes;
+@property(nonatomic, strong) NSAttributedString* attributedText;
 @end
 
 @implementation OrenAVMGfxTextResource
@@ -993,33 +992,32 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 NSString* text = [[NSString alloc] initWithBytes:payload + 12
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
-                if (text) {
-                    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
-                    resource.text = text;
-                    resource.attributes = OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 4));
-                    self.orenTextResources[@(textID)] = resource;
-                }
-            }
+	                if (text) {
+	                    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
+	                    resource.attributedText = [[NSAttributedString alloc] initWithString:text
+	                                                                               attributes:OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 4))];
+	                    self.orenTextResources[@(textID)] = resource;
+	                }
+	            }
         } else if (opcode == 69 && payloadLen == 12) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
-            uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
-            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
-            if (resource.text && resource.attributes) {
-                [resource.text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:resource.attributes];
-            }
-        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
-            uint32_t textID = OrenAVMGfxReadU32LE(payload);
-            uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
-            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
-            if (resource.text && resource.attributes && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-                for (uint32_t pi = 0; pi < posCount; pi++) {
-                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
-                    [resource.text drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
-                                                           (CGFloat)OrenAVMGfxReadU32LE(p + 4))
-                                withAttributes:resource.attributes];
-                }
-            }
+	            uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
+	            uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
+	            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
+	            if (resource.attributedText) {
+	                [resource.attributedText drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y)];
+	            }
+	        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
+	            uint32_t textID = OrenAVMGfxReadU32LE(payload);
+	            uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
+	            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
+	            if (resource.attributedText && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+	                for (uint32_t pi = 0; pi < posCount; pi++) {
+	                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
+	                    [resource.attributedText drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
+	                                                                    (CGFloat)OrenAVMGfxReadU32LE(p + 4))];
+	                }
+	            }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             [self.orenTextResources removeObjectForKey:@(textID)];

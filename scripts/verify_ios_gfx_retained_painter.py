@@ -60,7 +60,11 @@ def main() -> int:
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources' in text:
         fail("CoreGraphics retained text must not use dictionary payload records")
     if 'self.orenTextResources[@(textID)] = @{@"text": text, @"color": color}' in text:
-        fail("CoreGraphics retained text must cache typed text attributes")
+        fail("CoreGraphics retained text must cache typed attributed text")
+    if "resource.attributes" in text or "@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* attributes" in text:
+        fail("CoreGraphics retained text must cache attributed strings, not separate attributes dictionaries")
+    if "@property(nonatomic, strong) NSAttributedString* attributedText" not in text:
+        fail("CoreGraphics retained text must store cached attributed strings")
     if 'NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)]' in text:
         fail("CoreGraphics retained text draws must not use dictionary casts")
     if "@interface OrenAVMGfxImageResource" not in text:
