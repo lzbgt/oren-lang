@@ -319,10 +319,20 @@ static BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t m
     return YES;
 }
 
+static const void* OrenAVMGfxRetainedModelKey(uint32_t modelID) {
+    return (const void*)(uintptr_t)((uint64_t)modelID + 1ull);
+}
+
+static OrenAVMGfxModelResource* OrenAVMGfxRetainedModelResource(CFDictionaryRef models, uint32_t modelID) {
+    if (!models || modelID == 0) return nil;
+    return (__bridge OrenAVMGfxModelResource*)CFDictionaryGetValue(models, OrenAVMGfxRetainedModelKey(modelID));
+}
+
 @interface OrenAVMGraphicsView () {
     CFMutableDictionaryRef _orenTouchIDs;
     CFMutableDictionaryRef _orenTextResourcesByID;
     CFMutableDictionaryRef _orenMaterials3DByID;
+    CFMutableDictionaryRef _orenModels3DByID;
     CFMutableDictionaryRef _orenImagesByID;
 }
 @property(nonatomic) uint32_t orenNextTouchID;
@@ -330,7 +340,6 @@ static BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t m
 @property(nonatomic) uint32_t orenLastTextAttributesRGBA;
 @property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* orenLastTextAttributes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
 @property(nonatomic) BOOL orenFrameReloadScheduled;
@@ -362,7 +371,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (!self.orenTextAttributes) self.orenTextAttributes = [NSMutableDictionary dictionary];
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
+    if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
     if (self.retainedImageCountLimit == 0) self.retainedImageCountLimit = OrenAVMDefaultRetainedImageCountLimit;
@@ -416,6 +425,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (_orenMaterials3DByID) {
         CFRelease(_orenMaterials3DByID);
         _orenMaterials3DByID = NULL;
+    }
+    if (_orenModels3DByID) {
+        CFRelease(_orenModels3DByID);
+        _orenModels3DByID = NULL;
     }
     if (_orenImagesByID) {
         CFRelease(_orenImagesByID);
@@ -879,7 +892,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
             int32_t modelZ = 0;
             uint32_t scaleMilli = 1000u;
             if (opcode == 94) {
-                OrenAVMGfxModelResource* model = self.orenModels3D[@(meshID)];
+                OrenAVMGfxModelResource* model = OrenAVMGfxRetainedModelResource(_orenModels3DByID, meshID);
                 if (!model) {
                     off += payloadLen;
                     continue;
@@ -1022,10 +1035,13 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
                 model.y = (int32_t)OrenAVMGfxReadU32LE(payload + 16);
                 model.z = (int32_t)OrenAVMGfxReadU32LE(payload + 20);
                 model.scaleMilli = scaleMilli;
-                self.orenModels3D[@(modelID)] = model;
+                if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+                if (_orenModels3DByID) {
+                    CFDictionarySetValue(_orenModels3DByID, OrenAVMGfxRetainedModelKey(modelID), (__bridge const void*)model);
+                }
             }
         } else if (opcode == 95 && payloadLen == 4) {
-            [self.orenModels3D removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
+            if (_orenModels3DByID) CFDictionaryRemoveValue(_orenModels3DByID, OrenAVMGfxRetainedModelKey(OrenAVMGfxReadU32LE(payload)));
         } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 4);

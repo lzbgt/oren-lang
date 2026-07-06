@@ -2597,7 +2597,8 @@ design evidence lives under `project-doc/`.
   sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture
   dimensions for batched image rects.
 - CoreGraphics and Metal retained model resources now use typed resource records
-  instead of string-keyed dictionaries, removing per-draw model field lookups.
+  instead of string-keyed dictionaries, removing per-draw model field lookups and
+  boxed model ID lookups.
 - CoreGraphics and Metal retained material resources now use scalar-key/scalar
   value maps instead of boxed material ID and RGBA `NSNumber` objects.
 - Single Metal image texture quads now stay inline in fixed image-run storage,

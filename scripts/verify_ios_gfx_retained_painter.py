@@ -140,6 +140,12 @@ def main() -> int:
         fail("CoreGraphics retained models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
         fail("CoreGraphics retained models must not use dictionary payload records")
+    if 'NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D' in text:
+        fail("CoreGraphics retained model lookups must avoid boxed NSNumber model IDs")
+    if "CFMutableDictionaryRef _orenModels3DByID" not in text:
+        fail("CoreGraphics retained models must use a scalar-key CF dictionary")
+    if "OrenAVMGfxRetainedModelResource(_orenModels3DByID, meshID)" not in text:
+        fail("CoreGraphics retained model draws must use the typed scalar-map resource helper")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("CoreGraphics retained model draws must not use string-key dictionary lookups")
     print("OK: CoreGraphics retained resources use compact typed records")

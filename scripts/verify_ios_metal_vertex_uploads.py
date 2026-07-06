@@ -231,6 +231,12 @@ def main() -> int:
         fail("retained Metal models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
         fail("retained Metal models must not use dictionary payload records")
+    if 'NSMutableDictionary<NSNumber*, OrenAVMMetalModelResource*>* orenModels3D' in text:
+        fail("retained Metal model lookups must avoid boxed NSNumber model IDs")
+    if "CFMutableDictionaryRef _orenModels3DByID" not in text:
+        fail("retained Metal models must use a scalar-key CF dictionary")
+    if "OrenAVMMetalRetainedModelResource(_orenModels3DByID, meshID)" not in text:
+        fail("retained Metal model draws must use the typed scalar-map resource helper")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("retained Metal model draws must not use string-key dictionary lookups")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO)" not in text:
