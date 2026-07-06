@@ -3409,6 +3409,11 @@
 <p>  <code>LIST_INT</code> carriers; <code>tests/native/test_bytes_set_endian.oren</code> and native</p>
 <p>  quick integration cover direct and <code>pack_view</code>-generated paths.</p>
 <ul>
+<li>Native-runtime byte helper APIs now include packed <code>LIST_INT</code> carriers in</li>
+</ul>
+<p>  <code>bytes_len</code>, <code>bytes_pack</code>, <code>bytes_unpack</code>, hex, and slice conversions, with</p>
+<p>  overflow-safe slice range checks in the string/u8-buffer slice helpers.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

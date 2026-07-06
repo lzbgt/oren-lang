@@ -2486,6 +2486,9 @@ design evidence lives under `project-doc/`.
   predicate for boxed byte lists and u8 buffers, and endian reads accept packed
   `LIST_INT` carriers; `tests/native/test_bytes_set_endian.oren` and native
   quick integration cover direct and `pack_view`-generated paths.
+- Native-runtime byte helper APIs now include packed `LIST_INT` carriers in
+  `bytes_len`, `bytes_pack`, `bytes_unpack`, hex, and slice conversions, with
+  overflow-safe slice range checks in the string/u8-buffer slice helpers.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

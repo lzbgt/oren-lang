@@ -92,6 +92,18 @@ fn main() {
     assert_eq(oren_bytes_get_u32_le(li, 0), 67305985, 102)
     assert_eq(oren_bytes_get_u64_be(li, 0), 72623859790382856, 103)
     assert_eq(oren_is_err(oren_bytes_get_u16_be(li, 7)), true, 104)
+    assert_eq(oren_bytes_len(li), 8, 105)
+    var li_hex = oren_bytes_to_hex(li)
+    assert_eq(ptr_get_byte(li_hex + 0), 48, 106) // '0'
+    assert_eq(ptr_get_byte(li_hex + 15), 56, 107) // '8'
+    var li_unpacked = oren_bytes_unpack(li)
+    assert_eq(li_unpacked[7], 8, 108)
+    var li_packed = oren_bytes_pack(li)
+    assert_eq(oren_bytes_get_u8(li_packed, 7), 8, 109)
+    var li_slice = oren_string_from_bytes_slice(li, 1, 2)
+    assert_eq(ptr_get_byte(li_slice + 0) & 255, 2, 110)
+    assert_eq(ptr_get_byte(li_slice + 1) & 255, 3, 111)
+    assert_eq(oren_is_err(oren_u8_buf_from_bytes_slice(li, 7, 2)), true, 112)
 
     print("native bytes_set_endian OK")
     exit(0)

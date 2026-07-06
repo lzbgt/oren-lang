@@ -2,6 +2,7 @@
 //
 // In native mode we represent "bytes" as:
 // - `list<int 0..255>` (legacy; still supported)
+// - `LIST_INT` read carriers (packed int-list byte sources)
 // - `u8_buf` (preferred; zero-copy IO + pack_view compatible)
 //
 // These helpers unify the surface so higher-level libraries can be backend-agnostic.
@@ -9,11 +10,20 @@
 fn oren_bytes_len(bytes) {
     if bytes == 0 { return oren_err(4, "bytes_len: bytes is nil") }
     if native_bytes_is_list(bytes) == true { return ptr_get(bytes) }
+    if native_bytes_is_list_int(bytes) == true { return ptr_get(bytes) }
     if native_bytes_is_u8_buf(bytes) == true { return ptr_get(bytes + 0) }
-    return oren_err(4, "bytes_len expects list<int> or u8_buf")
+    return oren_err(4, "bytes_len expects list<int>, LIST_INT, or u8_buf")
 }
 
-// Build a string from a slice of a byte container (list<int 0..255> or u8_buf).
+fn native_bytes_range_ok(count, start, len) {
+    if count < 0 { return false }
+    if start < 0 { return false }
+    if len < 0 { return false }
+    if start > count { return false }
+    return len <= count - start
+}
+
+// Build a string from a slice of a byte container.
 // Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
 @oren.keep
 	fn oren_string_from_bytes_slice(bytes, start, len) {
@@ -21,8 +31,8 @@ fn oren_bytes_len(bytes) {
     if start < 0 || len < 0 { return oren_err(4, "string_from_bytes_slice: negative range") }
 
     var total = oren_bytes_len(bytes)
-    if oren_is_err(total) { return oren_err(4, "string_from_bytes_slice expects list<int> or u8_buf") }
-    if start > total || start + len > total { return oren_err(4, "string_from_bytes_slice: out of bounds") }
+    if oren_is_err(total) { return oren_err(4, "string_from_bytes_slice expects list<int>, LIST_INT, or u8_buf") }
+    if native_bytes_range_ok(total, start, len) != true { return oren_err(4, "string_from_bytes_slice: out of bounds") }
 
 	    // If tracking is enabled, allocate as a tracked STRING directly (single tracking call).
 	    // When untracked mode is enabled, we fall back to `malloc` and skip the extra tracking,
@@ -78,7 +88,7 @@ fn bytes_untracked_strings_enabled() {
     return g_untracked_strings
 }
 
-// Build a u8_buf from a slice of a byte container (list<int 0..255> or u8_buf).
+// Build a u8_buf from a slice of a byte container.
 // Used by tooling (astbin decode) to avoid per-byte `oren_bytes_get_u8`/`oren_buf_store_u8` loops.
 @oren.keep
 fn oren_u8_buf_from_bytes_slice(bytes, start, len) {
@@ -86,8 +96,8 @@ fn oren_u8_buf_from_bytes_slice(bytes, start, len) {
     if start < 0 || len < 0 { return oren_err(4, "u8_buf_from_bytes_slice: negative range") }
 
     var total = oren_bytes_len(bytes)
-    if oren_is_err(total) { return oren_err(4, "u8_buf_from_bytes_slice expects list<int> or u8_buf") }
-    if start > total || start + len > total { return oren_err(4, "u8_buf_from_bytes_slice: out of bounds") }
+    if oren_is_err(total) { return oren_err(4, "u8_buf_from_bytes_slice expects list<int>, LIST_INT, or u8_buf") }
+    if native_bytes_range_ok(total, start, len) != true { return oren_err(4, "u8_buf_from_bytes_slice: out of bounds") }
 
     var out = oren_u8_buf_new_uninit(len)
     if oren_is_err(out) { return out }
@@ -217,7 +227,7 @@ fn oren_bytes_unpack(bytes) {
 
 fn oren_bytes_pack(xs) {
     if xs == 0 { return oren_err(4, "bytes_pack: list is nil") }
-    if native_bytes_is_list(xs) != true { return oren_err(4, "bytes_pack expects list<int 0..255>") }
+    if native_bytes_is_list(xs) != true && native_bytes_is_list_int(xs) != true { return oren_err(4, "bytes_pack expects list<int 0..255> or LIST_INT") }
     var n = ptr_get(xs)
     var out = oren_u8_buf_new_uninit(n)
     if oren_is_err(out) { return out }
