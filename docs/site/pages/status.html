@@ -2412,9 +2412,10 @@
 <p>upload accounting, sub-rect UV bounds checks, and cached texture dimensions for</p>
 <p>batched image rects. CoreGraphics and Metal retained</p>
 <p>model resources now use typed resource records instead of string-keyed</p>
-<p>dictionaries, removing per-draw model field lookups. Single Metal image/text</p>
-<p>texture quads now append into caller-owned mutable vertex buffers instead of</p>
-<p>allocating tiny <code>NSData</code> wrappers from stack vertices. The iOS SDK symbol verifier</p>
+<p>dictionaries, removing per-draw model field lookups. Single Metal image texture</p>
+<p>quads now stay inline in fixed image-run storage, while text texture quads append</p>
+<p>into caller-owned mutable vertex buffers instead of allocating tiny <code>NSData</code></p>
+<p>wrappers from stack vertices. The iOS SDK symbol verifier</p>
 <p>now caches <code>nm</code> output once per archive and greps files instead of SIGPIPE-prone</p>
 <p><code>nm | grep -q</code> pipelines. AVM</p>
 <p><code>oren_read_u8_buf</code> now maps to a byte-native FS capability op that reads host</p>

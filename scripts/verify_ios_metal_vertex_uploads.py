@@ -76,6 +76,19 @@ def main() -> int:
         fail("retained Metal images must not store bare texture values")
     if "orenImagePixels" in text:
         fail("retained Metal image pixel accounting must not use a parallel dictionary")
+    image_run_start = resource_text.find("@interface OrenAVMMetalImageRun")
+    image_run_end = resource_text.find("@end", image_run_start)
+    if image_run_start < 0 or image_run_end < 0:
+        fail("missing Metal image run resource type")
+    image_run_block = resource_text[image_run_start:image_run_end]
+    if "@interface OrenAVMMetalImageRun : NSObject {\n@public\n    OrenAVMMetalTextVertex vertices[6];" not in image_run_block:
+        fail("Metal image runs must store fixed quad vertices inline")
+    if "@property(nonatomic, strong) NSData* vertices;" in image_run_block:
+        fail("Metal image runs must not allocate NSData wrappers for single quads")
+    if "OrenAVMMetalWriteTextureQuad(run->vertices" not in text:
+        fail("Metal image runs must write single-quad vertices directly into inline storage")
+    if "NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u]" in text:
+        fail("Metal image runs must not allocate mutable vertex data for one quad")
     if "OrenAVMMetalSubrectInTexture" not in text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
     if "orenImageRunWithID:" in text:

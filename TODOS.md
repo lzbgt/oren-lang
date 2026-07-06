@@ -2576,8 +2576,9 @@ design evidence lives under `project-doc/`.
   sub-rect UV bounds checks plus cached texture dimensions for batched image rects.
 - CoreGraphics and Metal retained model resources now use typed resource records
   instead of string-keyed dictionaries, removing per-draw model field lookups.
-- Single Metal image/text texture quads now append into caller-owned mutable
-  vertex buffers instead of allocating tiny `NSData` wrappers from stack vertices.
+- Single Metal image texture quads now stay inline in fixed image-run storage,
+  while text texture quads append into caller-owned mutable vertex buffers
+  instead of allocating tiny `NSData` wrappers from stack vertices.
 - Private Metal retained run/resource records and the raw payload-copy helper now
   live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1874 lines
   and preserving source-line guardrail headroom for continued renderer work.

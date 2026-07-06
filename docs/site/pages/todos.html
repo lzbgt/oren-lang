@@ -3557,9 +3557,10 @@
 </ul>
 <p>  instead of string-keyed dictionaries, removing per-draw model field lookups.</p>
 <ul>
-<li>Single Metal image/text texture quads now append into caller-owned mutable</li>
+<li>Single Metal image texture quads now stay inline in fixed image-run storage,</li>
 </ul>
-<p>  vertex buffers instead of allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
+<p>  while text texture quads append into caller-owned mutable vertex buffers</p>
+<p>  instead of allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
 <ul>
 <li>Private Metal retained run/resource records and the raw payload-copy helper now</li>
 </ul>

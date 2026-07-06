@@ -973,9 +973,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
-    NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
-    OrenAVMMetalAppendTextureQuad(vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
-    run.vertices = vertices;
+    OrenAVMMetalWriteTextureQuad(run->vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
     run.opacity = opacity;
     return run;
 }
@@ -1795,17 +1793,17 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (encoder && self.orenTextPipelineState) {
         [encoder setRenderPipelineState:self.orenTextPipelineState];
         for (OrenAVMMetalImageRun* run in imageRuns) {
-            if (!run.texture || run.vertices.length == 0) continue;
+            if (!run.texture) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run->vertices, sizeof(run->vertices))) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
-                         vertexCount:run.vertices.length / sizeof(OrenAVMMetalTextVertex)];
+                         vertexCount:6];
         }
         for (OrenAVMMetalTextRun* run in textRuns) {
             if (!run.texture || run.vertices.length == 0) continue;

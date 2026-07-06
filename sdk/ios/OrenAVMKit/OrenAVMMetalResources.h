@@ -4,6 +4,7 @@
 #if TARGET_OS_IPHONE
 
 #import <Metal/Metal.h>
+#import "OrenAVMMetalText.h"
 #include <stdint.h>
 
 @interface OrenAVMMetalVertexRun : NSObject
@@ -12,9 +13,11 @@
 @property(nonatomic) MTLScissorRect scissor;
 @end
 
-@interface OrenAVMMetalImageRun : NSObject
+@interface OrenAVMMetalImageRun : NSObject {
+@public
+    OrenAVMMetalTextVertex vertices[6];
+}
 @property(nonatomic, strong) id<MTLTexture> texture;
-@property(nonatomic, strong) NSData* vertices;
 @property(nonatomic) BOOL hasScissor;
 @property(nonatomic) MTLScissorRect scissor;
 @property(nonatomic) float opacity;

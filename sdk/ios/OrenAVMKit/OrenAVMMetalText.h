@@ -49,6 +49,18 @@ void OrenAVMMetalClearTextTextureCache(NSMutableDictionary<NSString*, OrenAVMMet
                                        NSMutableArray<NSString*>* order,
                                        NSUInteger* pixels);
 
+void OrenAVMMetalWriteTextureQuad(OrenAVMMetalTextVertex* out,
+                                  float x,
+                                  float y,
+                                  float w,
+                                  float h,
+                                  float logicalWidth,
+                                  float logicalHeight,
+                                  float u0,
+                                  float v0,
+                                  float u1,
+                                  float v1);
+
 void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
                                    float x,
                                    float y,

@@ -226,19 +226,18 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     return entry;
 }
 
-void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
-                                   float x,
-                                   float y,
-                                   float w,
-                                   float h,
-                                   float logicalWidth,
-                                   float logicalHeight,
-                                   float u0,
-                                   float v0,
-                                   float u1,
-                                   float v1) {
-    if (!vertices || w <= 0.0f || h <= 0.0f) return;
-    OrenAVMMetalTextVertex out[6];
+void OrenAVMMetalWriteTextureQuad(OrenAVMMetalTextVertex* out,
+                                  float x,
+                                  float y,
+                                  float w,
+                                  float h,
+                                  float logicalWidth,
+                                  float logicalHeight,
+                                  float u0,
+                                  float v0,
+                                  float u1,
+                                  float v1) {
+    if (!out) return;
     out[0] = (OrenAVMMetalTextVertex){OrenAVMMetalClipX(x, logicalWidth),
                                       OrenAVMMetalClipY(y, logicalHeight),
                                       u0,
@@ -263,6 +262,22 @@ void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
                                       OrenAVMMetalClipY(y + h, logicalHeight),
                                       u0,
                                       v1};
+}
+
+void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
+                                   float x,
+                                   float y,
+                                   float w,
+                                   float h,
+                                   float logicalWidth,
+                                   float logicalHeight,
+                                   float u0,
+                                   float v0,
+                                   float u1,
+                                   float v1) {
+    if (!vertices || w <= 0.0f || h <= 0.0f) return;
+    OrenAVMMetalTextVertex out[6];
+    OrenAVMMetalWriteTextureQuad(out, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
     [vertices appendBytes:out length:sizeof(out)];
 }
 
