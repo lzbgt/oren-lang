@@ -2443,9 +2443,9 @@
 <p>	  JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>		  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
 <p>		  now exposes shared checked byte views plus explicit unchecked hot-loop</p>
-<p>		  u8/u32/i32/u64 little-endian readers, CBOR canonical key ordering/text</p>
-<p>			  encoding writes growable <code>u8_buf</code> output while byte-string</p>
-<p>			  encoding plus recursive/sequence decode reuse those cached byte views,</p>
+<p>			  u8/u32/i32/u64 little-endian readers, CBOR canonical key ordering/text</p>
+<p>				  encoding writes growable <code>u8_buf</code> output while byte-string</p>
+<p>				  encoding plus recursive/sequence decode use shared <code>std:bytes</code> byte views,</p>
 <p>			  full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>
 <p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>

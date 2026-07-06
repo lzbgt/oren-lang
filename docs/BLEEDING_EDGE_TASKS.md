@@ -1418,10 +1418,10 @@ This file is the concise task view. Detailed implementation status lives in
      exact-size writes; Base64/Base64URL encode reads inputs through shared byte views after one length check, and decode also rejects malformed padding and
 	     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
 	     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers.
-	     `std:strings` prefix/suffix/search/equality
-		     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
-			     encoding through growable `u8_buf` output plus those cached byte views for byte-string encode and
-			     recursive/sequence decode, and full regex
+		     `std:strings` prefix/suffix/search/equality
+			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
+				     encoding through growable `u8_buf` output plus shared `std:bytes` byte views for byte-string encode and
+				     recursive/sequence decode, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers
