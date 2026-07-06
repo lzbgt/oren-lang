@@ -37,7 +37,7 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - Legacy native `oren_read_bytes` remains as an explicit compatibility ABI, but it now stats the file once, preallocates a native `LIST_INT` result to observed size, rejects oversized list output, and fills slots directly from 1 MiB read chunks instead of growing from a zero-capacity list through 4 KiB syscalls or per-byte list pushes.
-- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; AVM host `oren_read_bytes` also fills its returned `LIST_INT` from bounded chunks without a full-file byte mirror; C runtime and AVM host list-input `oren_write_bytes` compatibility paths validate first and then write bounded stack chunks instead of allocating full-size byte mirrors.
+- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; AVM host `oren_read_bytes` also fills its returned `LIST_INT` from bounded chunks without a full-file byte mirror; C runtime and AVM host list-input `oren_write_bytes` compatibility paths validate first and then write bounded stack chunks instead of allocating full-size byte mirrors; AVM VFS list-backed `write_bytes` now fills final VFS storage directly instead of building a duplicate byte mirror.
 - Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
 - Parallel module parsing now emits setup and per-module worker phase markers under
   `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
@@ -2725,6 +2725,9 @@ design evidence lives under `project-doc/`.
 - Legacy AVM host `oren_write_bytes` now keeps list-input compatibility but
   validates list bytes before opening the destination and streams bounded
   64 KiB stack chunks instead of allocating a full-size AVM heap byte mirror.
+- Legacy AVM VFS list-backed `write_bytes` now stores bytes directly into the
+  final VFS entry buffer instead of first building a full-size temporary byte
+  mirror and then copying it into VFS storage.
 - Legacy C runtime `oren_read_bytes` still returns a boxed compatibility byte
   list, but now fills that list from bounded 64 KiB read chunks instead of
   allocating a second full-file temporary byte buffer before list materialization.

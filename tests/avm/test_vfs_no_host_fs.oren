@@ -22,6 +22,20 @@ fn main() {
     if oren_bytes_get_u8(out, 5) != 255 { fail("mismatch 5") }
     if oren_bytes_get_u8(out, 6) != 0 { fail("mismatch 6") }
 
+    var large_path = "build/avm_vfs_large.bin"
+    var large = []
+    var i = 0
+    while i < 70000 {
+        oren_list_push(large, (i * 37) & 255)
+        i = i + 1
+    }
+    oren_write_bytes(large_path, large)
+    var large_out = oren_read_u8_buf(large_path)
+    if oren_bytes_len(large_out) != 70000 { fail("large length mismatch") }
+    if oren_bytes_get_u8(large_out, 0) != 0 { fail("large mismatch 0") }
+    if oren_bytes_get_u8(large_out, 65535) != ((65535 * 37) & 255) { fail("large mismatch 65535") }
+    if oren_bytes_get_u8(large_out, 69999) != ((69999 * 37) & 255) { fail("large mismatch 69999") }
+
     oren_exit(0)
 }
 

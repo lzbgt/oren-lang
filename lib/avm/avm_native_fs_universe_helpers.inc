@@ -538,21 +538,50 @@ static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
     if (!vm || !path) return 0;
     uint32_t len = 0;
     if (list && list->count > 0) len = (uint32_t)list->count;
-    // Build a temporary buffer, then store it as file bytes.
-    // This is bootstrap-simple and keeps VirtualFS data independent from list lifetime.
-    uint8_t* buf = NULL;
+    uint8_t* new_data = NULL;
     if (len > 0) {
-        buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
-        if (!buf) return 0;
+        new_data = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_VFS);
+        if (!new_data) return 0;
         for (uint32_t i = 0; i < len; i++) {
             int64_t v = 0;
             if (list && list->items && (int)i < list->count) v = list->items[i].as.i;
-            buf[i] = (uint8_t)(v & 0xFF);
+            new_data[i] = (uint8_t)(v & 0xFF);
         }
     }
-    int ok = avm_vfs_put(vm, path, buf, len);
-    if (buf) avm_heap_free(buf);
-    return ok;
+
+    AvmVfs* v = avm_vfs_get_or_create(vm);
+    if (!v) {
+        if (new_data) avm_heap_free(new_data);
+        return 0;
+    }
+
+    AvmVfsEntry* e = avm_vfs_find(v, path);
+    if (!e) {
+        if (!avm_vfs_ensure_cap(v, v->count + 1)) {
+            if (new_data) avm_heap_free(new_data);
+            return 0;
+        }
+        e = &v->entries[v->count];
+        e->path = NULL;
+        e->data = NULL;
+        e->len = 0;
+
+        size_t pl = strlen(path);
+        e->path = (char*)avm_heap_malloc_k(pl + 1, AVM_ALLOC_KIND_VFS);
+        if (!e->path) {
+            if (new_data) avm_heap_free(new_data);
+            return 0;
+        }
+        memcpy(e->path, path, pl);
+        e->path[pl] = 0;
+        v->count++;
+    } else if (e->data) {
+        avm_heap_free(e->data);
+    }
+
+    e->data = new_data;
+    e->len = len;
+    return 1;
 }
 
 static int avm_vfs_clone(AvmVM* dst, AvmVM* src) {

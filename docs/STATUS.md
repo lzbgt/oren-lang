@@ -2367,7 +2367,10 @@ returned `LIST_INT` directly from bounded 64 KiB file chunks instead of
 allocating a full-size AVM heap byte mirror first. Legacy AVM host
 `oren_write_bytes` now keeps list-input compatibility but validates list bytes
 before opening the destination and streams bounded 64 KiB stack chunks instead
-of allocating a full-size AVM heap byte mirror. Legacy C runtime
+of allocating a full-size AVM heap byte mirror. Legacy AVM VFS list-backed
+`write_bytes` now stores bytes directly into the final VFS entry buffer instead
+of first building a full-size temporary byte mirror and then copying it into VFS
+storage. Legacy C runtime
 `oren_read_bytes` still returns a boxed compatibility byte list, but now fills
 that list from bounded 64 KiB read chunks instead of allocating a second
 full-file temporary byte buffer before list materialization. Legacy C runtime
