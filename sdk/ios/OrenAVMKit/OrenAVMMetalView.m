@@ -63,18 +63,25 @@ typedef struct {
 @end
 
 @interface OrenAVMMetalMesh2DResource : NSObject
-@property(nonatomic, strong) NSData* triangles;
+@property(nonatomic) uint8_t* triangles;
+@property(nonatomic) NSUInteger triangleBytes;
 @property(nonatomic) uint32_t rgbaValue;
 @property(nonatomic) uint32_t triangleCount;
 @end
 
 @implementation OrenAVMMetalMesh2DResource
+- (void)dealloc {
+    free(_triangles);
+}
 @end
 
 @interface OrenAVMMetalMesh3DResource : NSObject
-@property(nonatomic, strong) NSData* triangles;
-@property(nonatomic, strong) NSData* vertices;
-@property(nonatomic, strong) NSData* indices;
+@property(nonatomic) uint8_t* triangles;
+@property(nonatomic) NSUInteger triangleBytes;
+@property(nonatomic) uint8_t* vertices;
+@property(nonatomic) NSUInteger vertexBytes;
+@property(nonatomic) uint8_t* indices;
+@property(nonatomic) NSUInteger indexBytes;
 @property(nonatomic) uint32_t rgbaValue;
 @property(nonatomic) BOOL hasRGBA;
 @property(nonatomic) uint32_t triangleCount;
@@ -83,6 +90,11 @@ typedef struct {
 @end
 
 @implementation OrenAVMMetalMesh3DResource
+- (void)dealloc {
+    free(_triangles);
+    free(_vertices);
+    free(_indices);
+}
 @end
 
 @interface OrenAVMMetalModelResource : NSObject
@@ -110,6 +122,14 @@ static uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
            ((uint32_t)p[3] << 24);
+}
+
+static uint8_t* OrenAVMMetalCopyPayloadBytes(const uint8_t* src, NSUInteger len) {
+    if (len == 0) return NULL;
+    uint8_t* out = (uint8_t*)malloc(len);
+    if (!out) return NULL;
+    memcpy(out, src, len);
+    return out;
 }
 
 static BOOL OrenAVMMetalSubrectInTexture(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, NSUInteger width, NSUInteger height) {
@@ -1313,14 +1333,19 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
                 OrenAVMMetalMesh2DResource* mesh = [[OrenAVMMetalMesh2DResource alloc] init];
                 mesh.rgbaValue = OrenAVMMetalReadU32LE(payload + 4);
-                mesh.triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                mesh.triangleBytes = (NSUInteger)payloadLen - 12u;
+                mesh.triangles = OrenAVMMetalCopyPayloadBytes(payload + 12, mesh.triangleBytes);
+                if (!mesh.triangles) {
+                    off += payloadLen;
+                    continue;
+                }
                 mesh.triangleCount = triangleCount;
                 self.orenMeshes[@(meshID)] = mesh;
             }
         } else if (opcode == 81 && payloadLen == 4) {
             OrenAVMMetalMesh2DResource* mesh = self.orenMeshes[@(OrenAVMMetalReadU32LE(payload))];
-            const uint8_t* tris = mesh.triangles.bytes;
-            if (tris && mesh.triangleCount == mesh.triangles.length / 24u) {
+            const uint8_t* tris = mesh.triangles;
+            if (tris && mesh.triangleCount == mesh.triangleBytes / 24u) {
                 OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
                 for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
                     const uint8_t* tri = tris + ((size_t)ti * 24u);
@@ -1345,7 +1370,12 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
                 mesh.rgbaValue = OrenAVMMetalReadU32LE(payload + 4);
                 mesh.hasRGBA = YES;
-                mesh.triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                mesh.triangleBytes = (NSUInteger)payloadLen - 12u;
+                mesh.triangles = OrenAVMMetalCopyPayloadBytes(payload + 12, mesh.triangleBytes);
+                if (!mesh.triangles) {
+                    off += payloadLen;
+                    continue;
+                }
                 mesh.triangleCount = triangleCount;
                 mesh.stride = 36u;
                 self.orenMeshes3D[@(meshID)] = mesh;
@@ -1384,9 +1414,9 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     continue;
                 }
             }
-            const uint8_t* tris = mesh.triangles.bytes;
-            const uint8_t* verts = mesh.vertices.bytes;
-            const uint8_t* idx = mesh.indices.bytes;
+            const uint8_t* tris = mesh.triangles;
+            const uint8_t* verts = mesh.vertices;
+            const uint8_t* idx = mesh.indices;
             uint32_t meshStride = mesh.stride == 0 ? 36u : mesh.stride;
             if (opcode == 87) {
                 modelX = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
@@ -1399,7 +1429,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 modelZ = (int32_t)OrenAVMMetalReadU32LE(payload + 16);
                 scaleMilli = OrenAVMMetalReadU32LE(payload + 20);
             }
-            if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indices.length / 4u) {
+            if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indexBytes / 4u) {
                 uint32_t triangleTotal = mesh.indexCount / 3u;
                 NSMutableData* orderData = nil;
                 OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal, &orderData);
@@ -1429,7 +1459,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                (float)logicalH,
                                                rgba);
                 }
-            } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
+            } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangleBytes / meshStride) {
                 uint32_t triangleTotal = mesh.triangleCount;
                 NSMutableData* orderData = nil;
                 OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal, &orderData);
@@ -1493,7 +1523,12 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t triangleCount = OrenAVMMetalReadU32LE(payload + 4);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
                 OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
-                mesh.triangles = [NSData dataWithBytes:payload + 8 length:(NSUInteger)payloadLen - 8u];
+                mesh.triangleBytes = (NSUInteger)payloadLen - 8u;
+                mesh.triangles = OrenAVMMetalCopyPayloadBytes(payload + 8, mesh.triangleBytes);
+                if (!mesh.triangles) {
+                    off += payloadLen;
+                    continue;
+                }
                 mesh.triangleCount = triangleCount;
                 mesh.stride = 40u;
                 self.orenMeshes3D[@(meshID)] = mesh;
@@ -1515,8 +1550,14 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
                 mesh.rgbaValue = OrenAVMMetalReadU32LE(payload + 4);
                 mesh.hasRGBA = YES;
-                mesh.vertices = [NSData dataWithBytes:payload + 16 length:vertexBytes];
-                mesh.indices = [NSData dataWithBytes:payload + 16 + vertexBytes length:indexBytes];
+                mesh.vertexBytes = vertexBytes;
+                mesh.indexBytes = indexBytes;
+                mesh.vertices = OrenAVMMetalCopyPayloadBytes(payload + 16, mesh.vertexBytes);
+                mesh.indices = OrenAVMMetalCopyPayloadBytes(payload + 16 + vertexBytes, mesh.indexBytes);
+                if (!mesh.vertices || !mesh.indices) {
+                    off += payloadLen;
+                    continue;
+                }
                 mesh.indexCount = indexCount;
                 self.orenMeshes3D[@(meshID)] = mesh;
             }

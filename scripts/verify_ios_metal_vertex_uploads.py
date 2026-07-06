@@ -47,6 +47,19 @@ def main() -> int:
         fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
     if "@property(nonatomic) uint32_t rgbaValue" not in text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
         fail("missing scalar RGBA storage for retained Metal mesh/text resources")
+    if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
+        fail("retained Metal mesh payloads must stay raw owned buffers, not NSData wrappers")
+    for pattern in (
+        "mesh.triangles = [NSData dataWithBytes:payload",
+        "mesh.vertices = [NSData dataWithBytes:payload",
+        "mesh.indices = [NSData dataWithBytes:payload",
+        "mesh.triangles.bytes",
+        "mesh.indices.length",
+    ):
+        if pattern in text:
+            fail("retained Metal mesh payload path regressed to NSData-backed access")
+    if "OrenAVMMetalCopyPayloadBytes" not in text:
+        fail("missing retained Metal mesh raw payload copy helper")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
         fail("retained Metal materials must store scalar RGBA NSNumber values")
     if "@interface OrenAVMMetalImageResource" not in text:

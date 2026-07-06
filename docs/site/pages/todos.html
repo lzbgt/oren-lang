@@ -3523,6 +3523,11 @@
 <p>  resources and scalar RGBA material values instead of dictionary payloads and</p>
 <p>  retained <code>UIColor</code> material objects.</p>
 <ul>
+<li>CoreGraphics and Metal retained mesh payloads now live in raw resource-owned</li>
+</ul>
+<p>  buffers instead of retained <code>NSData</code> wrappers, preserving lifetime safety while</p>
+<p>  removing per-mesh payload objects from retained draw paths.</p>
+<ul>
 <li>CoreGraphics immediate primitive draws now set fill/stroke colors from raw</li>
 </ul>
 <p>  RGBA bytes instead of allocating per-draw <code>UIColor</code> wrappers.</p>

@@ -38,6 +38,19 @@ def main() -> int:
         fail("CoreGraphics immediate primitive color fast path is missing")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes' in text:
         fail("CoreGraphics retained meshes must not use dictionary payload records")
+    if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
+        fail("CoreGraphics retained mesh payloads must stay raw owned buffers, not NSData wrappers")
+    for pattern in (
+        "mesh.triangles = [NSData dataWithBytes:payload",
+        "mesh.vertices = [NSData dataWithBytes:payload",
+        "mesh.indices = [NSData dataWithBytes:payload",
+        "mesh.triangles.bytes",
+        "mesh.indices.length",
+    ):
+        if pattern in text:
+            fail("CoreGraphics retained mesh payload path regressed to NSData-backed access")
+    if "OrenAVMGfxCopyPayloadBytes" not in text:
+        fail("missing CoreGraphics retained mesh raw payload copy helper")
     if "NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D" in text:
         fail("CoreGraphics retained materials must store scalar RGBA values")
     if '@"color": OrenAVMGfxColor' in text:
