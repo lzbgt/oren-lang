@@ -3541,6 +3541,11 @@
 <p>  cached attributed strings instead of dictionary payloads, separate resource</p>
 <p>  attribute dictionaries, or per-draw attributes dictionaries.</p>
 <ul>
+<li>CoreGraphics immediate and retained text paths now cache UIKit text</li>
+</ul>
+<p>  attributes by RGBA value instead of rebuilding <code>UIColor</code>/attribute</p>
+<p>  dictionaries for repeated text colors.</p>
+<ul>
 <li>CoreGraphics retained image fallback records now use typed resources for image</li>
 </ul>
 <p>  plus pixel accounting instead of parallel image/pixel dictionaries, with</p>

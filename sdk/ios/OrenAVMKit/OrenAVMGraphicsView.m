@@ -282,6 +282,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D;
@@ -290,6 +291,16 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
 @property(nonatomic) BOOL orenFrameReloadScheduled;
 @end
+
+static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(OrenAVMGraphicsView* view, uint32_t rgbaValue) {
+    if (!view.orenTextAttributes) view.orenTextAttributes = [NSMutableDictionary dictionary];
+    NSNumber* key = @(rgbaValue);
+    NSDictionary<NSAttributedStringKey, id>* attrs = view.orenTextAttributes[key];
+    if (attrs) return attrs;
+    attrs = OrenAVMGfxTextAttributes(rgbaValue);
+    view.orenTextAttributes[key] = attrs;
+    return attrs;
+}
 
 @implementation OrenAVMGraphicsView
 
@@ -300,6 +311,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
+    if (!self.orenTextAttributes) self.orenTextAttributes = [NSMutableDictionary dictionary];
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
@@ -981,7 +993,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
                 if (text) {
-                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 8));
+                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForView(self, OrenAVMGfxRGBAValue(payload + 8));
                     [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
                 }
             }
@@ -992,32 +1004,32 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 NSString* text = [[NSString alloc] initWithBytes:payload + 12
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
-	                if (text) {
-	                    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
-	                    resource.attributedText = [[NSAttributedString alloc] initWithString:text
-	                                                                               attributes:OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 4))];
-	                    self.orenTextResources[@(textID)] = resource;
-	                }
-	            }
+                if (text) {
+                    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
+                    resource.attributedText = [[NSAttributedString alloc] initWithString:text
+                                                                               attributes:OrenAVMGfxTextAttributesForView(self, OrenAVMGfxRGBAValue(payload + 4))];
+                    self.orenTextResources[@(textID)] = resource;
+                }
+            }
         } else if (opcode == 69 && payloadLen == 12) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
-	            uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
-	            uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
-	            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
-	            if (resource.attributedText) {
-	                [resource.attributedText drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y)];
-	            }
-	        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
-	            uint32_t textID = OrenAVMGfxReadU32LE(payload);
-	            uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
-	            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
-	            if (resource.attributedText && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-	                for (uint32_t pi = 0; pi < posCount; pi++) {
-	                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
-	                    [resource.attributedText drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
-	                                                                    (CGFloat)OrenAVMGfxReadU32LE(p + 4))];
-	                }
-	            }
+            uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
+            uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
+            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
+            if (resource.attributedText) {
+                [resource.attributedText drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y)];
+            }
+        } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
+            uint32_t textID = OrenAVMGfxReadU32LE(payload);
+            uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
+            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
+            if (resource.attributedText && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                for (uint32_t pi = 0; pi < posCount; pi++) {
+                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
+                    [resource.attributedText drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
+                                                                    (CGFloat)OrenAVMGfxReadU32LE(p + 4))];
+                }
+            }
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             [self.orenTextResources removeObjectForKey:@(textID)];

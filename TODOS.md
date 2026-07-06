@@ -2566,6 +2566,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained text fallback records now use typed resources with
   cached attributed strings instead of dictionary payloads, separate resource
   attribute dictionaries, or per-draw attributes dictionaries.
+- CoreGraphics immediate and retained text paths now cache UIKit text
+  attributes by RGBA value instead of rebuilding `UIColor`/attribute
+  dictionaries for repeated text colors.
 - CoreGraphics retained image fallback records now use typed resources for image
   plus pixel accounting instead of parallel image/pixel dictionaries, with
   overflow-safe retained sub-rect bounds checks, shared checked sub-rect drawing,

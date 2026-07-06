@@ -67,6 +67,14 @@ def main() -> int:
         fail("CoreGraphics retained text must store cached attributed strings")
     if 'NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)]' in text:
         fail("CoreGraphics retained text draws must not use dictionary casts")
+    if "NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes" not in text:
+        fail("CoreGraphics text draws must cache UIKit text attributes by RGBA")
+    if "OrenAVMGfxTextAttributesForView" not in text:
+        fail("CoreGraphics text draws must use the per-view text attribute cache")
+    if "OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 8))" in text:
+        fail("CoreGraphics immediate text draws must not rebuild text attributes per draw")
+    if "OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 4))" in text:
+        fail("CoreGraphics retained text resources must use cached text attributes")
     if "@interface OrenAVMGfxImageResource" not in text:
         fail("CoreGraphics retained images must use typed resource objects")
     if "NSMutableDictionary<NSNumber*, UIImage*>* orenImages" in text:
