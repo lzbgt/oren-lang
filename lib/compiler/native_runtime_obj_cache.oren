@@ -1441,10 +1441,15 @@ fn _rtobj_meta_check_verify(meta_bs, check_bs, trace, tag) {
         }
         return false
     }
-    if _rtobj_u8_at(check_bs, 0) != RUNTIME_OBJ_META_CHECK_MAGIC0 ||
-       _rtobj_u8_at(check_bs, 1) != RUNTIME_OBJ_META_CHECK_MAGIC1 ||
-       _rtobj_u8_at(check_bs, 2) != RUNTIME_OBJ_META_CHECK_MAGIC2 ||
-       _rtobj_u8_at(check_bs, 3) != RUNTIME_OBJ_META_CHECK_MAGIC3 {
+    var checkp = oren_buf_data_ptr_unchecked(check_bs)
+    if checkp == 0 {
+        if trace { print("[rtobj] " + tag + " miss: meta check ptr nil") }
+        return false
+    }
+    if (ptr_get_byte(iadd(checkp, 0)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC0 ||
+       (ptr_get_byte(iadd(checkp, 1)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC1 ||
+       (ptr_get_byte(iadd(checkp, 2)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC2 ||
+       (ptr_get_byte(iadd(checkp, 3)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC3 {
         if trace { print("[rtobj] " + tag + " miss: meta check magic mismatch") }
         return false
     }

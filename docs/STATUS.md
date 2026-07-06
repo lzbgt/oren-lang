@@ -2393,7 +2393,7 @@ a temporary mutable-data append/copy pair for common single-run draws.
 		  bytecode final artifact return as `u8_buf` with direct `oren_write_bytes`
 		  error reporting instead of legacy full-artifact `list<int>` retry,
 		  guarded by the bytecode-link smoke, runtime-object cache metadata check
-		  endian reads use one span check and cached u8 pointer per u32/u64 read,
+		  magic/endian reads use cached u8 pointers after upfront validation,
 		  compiler-in-AVM VirtualFS fixture
 			  snapshots through exact-size AVMVFS01 `u8_buf` writes and byte-buffer body
 			  slices, compiler SHA digest hex routing through direct runtime bytes hex, OBC/OBX parse and link loops use shared compiler-local byte views with overflow-safe span checks and guarded unchecked readers for u8 carriers, parsed OBC code and byte constants kept as `u8_buf`, builder-patched linked code, linked OBC final emission as `u8_buf`, plus malformed-OBC/OBX span guards, bytecode string constants, OBX string/prefix encoding through compact byte builders, AST binary v1 full-value raw
