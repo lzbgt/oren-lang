@@ -2210,7 +2210,7 @@ Facts from the 2026-05-28 implementation pass:
 	  publisher consumes the latest retained frame without building an unbounded UI
 	  task backlog. The Metal
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-		      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append and transfer raw buffers into vertex-run ownership, retained Metal material override draws unbox material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with a scalar one-entry MRU to reduce repeated same-color miss overhead. UIKit/CoreGraphics
+		      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append and transfer raw buffers into vertex-run ownership, retained Metal material override draws unbox material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained Metal image lookups use scalar image IDs instead of boxed dictionary keys; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with a scalar one-entry MRU to reduce repeated same-color miss overhead. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
@@ -2319,8 +2319,8 @@ batched atlas rects. CoreGraphics retained image uploads now transfer raw copied
 bytes to the CG data provider release callback instead of wrapping them in
 intermediate `NSData` objects. Retained Metal image resources now use typed texture/pixel
 records instead of parallel texture/pixel dictionaries, with overflow-safe
-upload accounting, sub-rect UV bounds checks, and cached texture dimensions for
-batched image rects. CoreGraphics and Metal retained
+upload accounting, sub-rect UV bounds checks, scalar-key retained image lookup,
+and cached texture dimensions for batched image rects. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
 dictionaries, removing per-draw model field lookups. Single Metal image texture
 quads now stay inline in fixed image-run storage, while text texture quads append

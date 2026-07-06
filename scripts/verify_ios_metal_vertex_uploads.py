@@ -176,6 +176,16 @@ def main() -> int:
         fail("retained Metal images must not store bare texture values")
     if "orenImagePixels" in text:
         fail("retained Metal image pixel accounting must not use a parallel dictionary")
+    if "NSMutableDictionary<NSNumber*, OrenAVMMetalImageResource*>* orenImages" in text:
+        fail("retained Metal image lookups must avoid boxed NSNumber image IDs")
+    if "CFMutableDictionaryRef _orenImagesByID" not in text:
+        fail("retained Metal images must use a scalar-key CF dictionary")
+    if "OrenAVMMetalRetainedImageKey(imageID)" not in text:
+        fail("retained Metal image access must use the scalar image-id key helper")
+    if "OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID)" not in text:
+        fail("retained Metal image draw paths must use the typed scalar-map resource helper")
+    if "@(imageID)" in text:
+        fail("retained Metal image draw/upload paths must not box image IDs")
     image_run_start = resource_text.find("@interface OrenAVMMetalImageRun")
     image_run_end = resource_text.find("@end", image_run_start)
     if image_run_start < 0 or image_run_end < 0:

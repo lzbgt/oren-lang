@@ -2592,7 +2592,8 @@ design evidence lives under `project-doc/`.
   bytes instead of intermediate `NSData` wrappers.
 - Retained Metal image resources now use typed texture/pixel records instead of
   parallel texture/pixel dictionaries, with overflow-safe upload accounting and
-  sub-rect UV bounds checks plus cached texture dimensions for batched image rects.
+  sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture
+  dimensions for batched image rects.
 - CoreGraphics and Metal retained model resources now use typed resource records
   instead of string-keyed dictionaries, removing per-draw model field lookups.
 - Single Metal image texture quads now stay inline in fixed image-run storage,

@@ -59,6 +59,15 @@ static BOOL OrenAVMMetalFrameDataIsValid(NSData* frame) {
     return OrenAVMMetalReadU32LE(data + 8) != 0 && OrenAVMMetalReadU32LE(data + 12) != 0;
 }
 
+static const void* OrenAVMMetalRetainedImageKey(uint32_t imageID) {
+    return (const void*)(uintptr_t)((uint64_t)imageID + 1ull);
+}
+
+static OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef images, uint32_t imageID) {
+    if (!images || imageID == 0) return nil;
+    return (__bridge OrenAVMMetalImageResource*)CFDictionaryGetValue(images, OrenAVMMetalRetainedImageKey(imageID));
+}
+
 static NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame) {
     if (frame.length < 40) return 0;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -268,6 +277,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 
 @interface OrenAVMMetalView () <MTKViewDelegate> {
     CFMutableDictionaryRef _orenTouchIDs;
+    CFMutableDictionaryRef _orenImagesByID;
 }
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
@@ -282,7 +292,6 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalModelResource*>* orenModels3D;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalImageResource*>* orenImages;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic) uint32_t orenFrameTickSequence;
 @property(nonatomic) uint64_t orenLastFrameTickNs;
@@ -364,6 +373,10 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         CFRelease(_orenTouchIDs);
         _orenTouchIDs = NULL;
     }
+    if (_orenImagesByID) {
+        CFRelease(_orenImagesByID);
+        _orenImagesByID = NULL;
+    }
 }
 
 - (void)orenConfigureMetalView {
@@ -380,7 +393,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
-    if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
+    if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
@@ -475,12 +488,12 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
 }
 
 - (void)clearImageTextureCache {
-    [self.orenImages removeAllObjects];
+    if (_orenImagesByID) CFDictionaryRemoveAllValues(_orenImagesByID);
     self.retainedImagePixelCount = 0;
 }
 
 - (NSUInteger)retainedImageCount {
-    return self.orenImages.count;
+    return _orenImagesByID ? (NSUInteger)CFDictionaryGetCount(_orenImagesByID) : 0;
 }
 
 - (BOOL)hasValidFrameData {
@@ -612,10 +625,11 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
     if (expected != (uint64_t)byteCount) return;
     NSUInteger pixels = (NSUInteger)width * (NSUInteger)height;
-    NSNumber* key = @(imageID);
-    OrenAVMMetalImageResource* oldResource = self.orenImages[key];
+    const void* key = OrenAVMMetalRetainedImageKey(imageID);
+    OrenAVMMetalImageResource* oldResource = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
     NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
-    NSUInteger countAfter = oldResource ? self.orenImages.count : self.orenImages.count + 1u;
+    NSUInteger imageCount = _orenImagesByID ? (NSUInteger)CFDictionaryGetCount(_orenImagesByID) : 0;
+    NSUInteger countAfter = oldResource ? imageCount : imageCount + 1u;
     NSUInteger retainedAfterOld = self.retainedImagePixelCount >= oldPixels ? self.retainedImagePixelCount - oldPixels : 0;
     if (pixels > NSUIntegerMax - retainedAfterOld) return;
     NSUInteger pixelAfter = retainedAfterOld + pixels;
@@ -635,18 +649,21 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
     resource.texture = texture;
     resource.pixels = pixels;
-    self.orenImages[key] = resource;
+    if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!_orenImagesByID) return;
+    CFDictionarySetValue(_orenImagesByID, key, (__bridge const void*)resource);
     self.retainedImagePixelCount = pixelAfter;
 }
 
 - (void)orenRemoveImageTextureWithID:(uint32_t)imageID {
-    NSNumber* key = @(imageID);
-    OrenAVMMetalImageResource* old = self.orenImages[key];
+    if (imageID == 0 || !_orenImagesByID) return;
+    const void* key = OrenAVMMetalRetainedImageKey(imageID);
+    OrenAVMMetalImageResource* old = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
     if (old) {
         NSUInteger pixels = old.pixels;
         self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
     }
-    [self.orenImages removeObjectForKey:key];
+    CFDictionaryRemoveValue(_orenImagesByID, key);
 }
 
 - (OrenAVMMetalImageRun*)orenImageRunWithTexture:(id<MTLTexture>)texture
@@ -1319,7 +1336,8 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
             uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
             uint32_t w = OrenAVMMetalReadU32LE(payload + 12);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 16);
-            id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
+            OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
+            id<MTLTexture> texture = image.texture;
             if (texture) {
                 NSUInteger textureWidth = texture.width;
                 NSUInteger textureHeight = texture.height;
@@ -1356,7 +1374,8 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
             uint32_t y = OrenAVMMetalReadU32LE(payload + 24);
             uint32_t w = OrenAVMMetalReadU32LE(payload + 28);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 32);
-            id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
+            OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
+            id<MTLTexture> texture = image.texture;
             if (texture) {
                 NSUInteger textureWidth = texture.width;
                 NSUInteger textureHeight = texture.height;
@@ -1384,7 +1403,8 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
             if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
-                id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
+                OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
+                id<MTLTexture> texture = image.texture;
                 if (texture) {
                     NSUInteger textureWidth = texture.width;
                     NSUInteger textureHeight = texture.height;
