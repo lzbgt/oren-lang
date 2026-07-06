@@ -284,8 +284,18 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     return OrenAVMGfxReadU32LE(data + 8) != 0 && OrenAVMGfxReadU32LE(data + 12) != 0;
 }
 
+static const void* OrenAVMGfxRetainedImageKey(uint32_t imageID) {
+    return (const void*)(uintptr_t)((uint64_t)imageID + 1ull);
+}
+
+static OrenAVMGfxImageResource* OrenAVMGfxRetainedImageResource(CFDictionaryRef images, uint32_t imageID) {
+    if (!images || imageID == 0) return nil;
+    return (__bridge OrenAVMGfxImageResource*)CFDictionaryGetValue(images, OrenAVMGfxRetainedImageKey(imageID));
+}
+
 @interface OrenAVMGraphicsView () {
     CFMutableDictionaryRef _orenTouchIDs;
+    CFMutableDictionaryRef _orenImagesByID;
 }
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources;
@@ -295,7 +305,6 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxModelResource*>* orenModels3D;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxImageResource*>* orenImages;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
 @property(nonatomic) BOOL orenFrameReloadScheduled;
@@ -328,7 +337,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (!self.orenMeshes) self.orenMeshes = [NSMutableDictionary dictionary];
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
-    if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
+    if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
     if (self.retainedImageCountLimit == 0) self.retainedImageCountLimit = OrenAVMDefaultRetainedImageCountLimit;
 }
@@ -374,10 +383,14 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
         CFRelease(_orenTouchIDs);
         _orenTouchIDs = NULL;
     }
+    if (_orenImagesByID) {
+        CFRelease(_orenImagesByID);
+        _orenImagesByID = NULL;
+    }
 }
 
 - (NSUInteger)retainedImageCount {
-    return self.orenImages.count;
+    return _orenImagesByID ? (NSUInteger)CFDictionaryGetCount(_orenImagesByID) : 0;
 }
 
 - (BOOL)hasValidFrameData {
@@ -385,26 +398,28 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
 }
 
 - (void)clearImageCache {
-    [self.orenImages removeAllObjects];
+    if (_orenImagesByID) CFDictionaryRemoveAllValues(_orenImagesByID);
     self.retainedImagePixelCount = 0;
 }
 
 - (void)orenRemoveImageWithID:(uint32_t)imageID {
-    NSNumber* key = @(imageID);
-    OrenAVMGfxImageResource* old = self.orenImages[key];
+    if (imageID == 0 || !_orenImagesByID) return;
+    const void* key = OrenAVMGfxRetainedImageKey(imageID);
+    OrenAVMGfxImageResource* old = OrenAVMGfxRetainedImageResource(_orenImagesByID, imageID);
     if (old) {
         NSUInteger pixels = old.pixels;
         self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
     }
-    [self.orenImages removeObjectForKey:key];
+    CFDictionaryRemoveValue(_orenImagesByID, key);
 }
 
 - (void)orenPutImage:(UIImage*)image imageID:(uint32_t)imageID pixels:(NSUInteger)pixels {
     if (!image || imageID == 0) return;
-    NSNumber* key = @(imageID);
-    OrenAVMGfxImageResource* oldResource = self.orenImages[key];
+    const void* key = OrenAVMGfxRetainedImageKey(imageID);
+    OrenAVMGfxImageResource* oldResource = OrenAVMGfxRetainedImageResource(_orenImagesByID, imageID);
     NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
-    NSUInteger countAfter = oldResource ? self.orenImages.count : self.orenImages.count + 1u;
+    NSUInteger imageCount = _orenImagesByID ? (NSUInteger)CFDictionaryGetCount(_orenImagesByID) : 0;
+    NSUInteger countAfter = oldResource ? imageCount : imageCount + 1u;
     NSUInteger retainedAfterOld = self.retainedImagePixelCount >= oldPixels ? self.retainedImagePixelCount - oldPixels : 0;
     if (pixels > NSUIntegerMax - retainedAfterOld) return;
     NSUInteger pixelAfter = retainedAfterOld + pixels;
@@ -413,7 +428,9 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     OrenAVMGfxImageResource* resource = [[OrenAVMGfxImageResource alloc] init];
     resource.image = image;
     resource.pixels = pixels;
-    self.orenImages[key] = resource;
+    if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!_orenImagesByID) return;
+    CFDictionarySetValue(_orenImagesByID, key, (__bridge const void*)resource);
     self.retainedImagePixelCount = pixelAfter;
 }
 
@@ -1075,7 +1092,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
             uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
             uint32_t w = OrenAVMGfxReadU32LE(payload + 12);
             uint32_t h = OrenAVMGfxReadU32LE(payload + 16);
-            UIImage* image = self.orenImages[@(imageID)].image;
+            UIImage* image = OrenAVMGfxRetainedImageResource(_orenImagesByID, imageID).image;
             if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
@@ -1090,7 +1107,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
             uint32_t y = OrenAVMGfxReadU32LE(payload + 24);
             uint32_t w = OrenAVMGfxReadU32LE(payload + 28);
             uint32_t h = OrenAVMGfxReadU32LE(payload + 32);
-            UIImage* image = self.orenImages[@(imageID)].image;
+            UIImage* image = OrenAVMGfxRetainedImageResource(_orenImagesByID, imageID).image;
             CGImageRef cgImage = image.CGImage;
             if (cgImage) {
                 OrenAVMGfxDrawImageSubrect(cgImage, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage),
@@ -1099,7 +1116,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
         } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
             uint32_t rectCount = OrenAVMGfxReadU32LE(payload + 4);
-            UIImage* image = self.orenImages[@(imageID)].image;
+            UIImage* image = OrenAVMGfxRetainedImageResource(_orenImagesByID, imageID).image;
             CGImageRef cgImage = image.CGImage;
             if (cgImage && rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
                 size_t imageWidth = CGImageGetWidth(cgImage);

@@ -2588,8 +2588,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained image fallback records now use typed resources for image
   plus pixel accounting instead of parallel image/pixel dictionaries, with
   overflow-safe retained sub-rect bounds checks, shared checked sub-rect drawing,
-  cached image dimensions for batched atlas rects, and provider-owned raw upload
-  bytes instead of intermediate `NSData` wrappers.
+  scalar-key retained image lookup, cached image dimensions for batched atlas
+  rects, and provider-owned raw upload bytes instead of intermediate `NSData`
+  wrappers.
 - Retained Metal image resources now use typed texture/pixel records instead of
   parallel texture/pixel dictionaries, with overflow-safe upload accounting and
   sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture

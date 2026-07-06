@@ -98,6 +98,14 @@ def main() -> int:
         fail("CoreGraphics retained images must use typed resource objects")
     if "NSMutableDictionary<NSNumber*, UIImage*>* orenImages" in text:
         fail("CoreGraphics retained images must not store bare UIImage values")
+    if "NSMutableDictionary<NSNumber*, OrenAVMGfxImageResource*>* orenImages" in text:
+        fail("CoreGraphics retained image lookups must avoid boxed NSNumber image IDs")
+    if "CFMutableDictionaryRef _orenImagesByID" not in text:
+        fail("CoreGraphics retained images must use a scalar-key CF dictionary")
+    if "OrenAVMGfxRetainedImageResource(_orenImagesByID, imageID)" not in text:
+        fail("CoreGraphics retained image draw paths must use the typed scalar-map resource helper")
+    if "@(imageID)" in text:
+        fail("CoreGraphics retained image draw/upload paths must not box image IDs")
     if "orenImagePixels" in text:
         fail("CoreGraphics retained image pixel accounting must not use a parallel dictionary")
     if "NSData* imageData = [NSData dataWithBytes:rgba" in text or "CGDataProviderCreateWithCFData" in text:
