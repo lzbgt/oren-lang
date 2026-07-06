@@ -21,6 +21,22 @@ fn run() {
         i = i + 1
     }
 
+    var large_path = "build/test_read_bytes_large.bin"
+    var large = []
+    var j = 0
+    while j < 70000 {
+        oren_list_push(large, (j * 37) & 255)
+        j = j + 1
+    }
+    oren_write_bytes(large_path, large)
+    var large_out = oren_read_bytes(large_path)
+    if oren_list_len(large_out) != 70000 {
+        fail("large length mismatch")
+    }
+    if large_out[0] != 0 || large_out[65535] != ((65535 * 37) & 255) || large_out[69999] != ((69999 * 37) & 255) {
+        fail("large byte mismatch")
+    }
+
     print("read_bytes OK")
 }
 

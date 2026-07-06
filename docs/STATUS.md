@@ -2365,7 +2365,10 @@ compatibility paths now also materialize pre-sized `LIST_INT` carriers directly
 instead of boxed `AvmValue` byte-list entries. Legacy C runtime
 `oren_read_bytes` still returns a boxed compatibility byte list, but now fills
 that list from bounded 64 KiB read chunks instead of allocating a second
-full-file temporary byte buffer before list materialization. The iOS SDK now
+full-file temporary byte buffer before list materialization. Legacy C runtime
+`oren_write_bytes` now keeps list-input compatibility but validates the full
+list before writing bounded 64 KiB stack chunks, avoiding the former full-size
+temporary byte mirror while preserving invalid-input behavior. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

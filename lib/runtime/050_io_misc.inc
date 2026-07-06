@@ -127,15 +127,9 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     // list<int 0..255>
     int nbytes = bytes.as.list_val ? bytes.as.list_val->count : 0;
     if (nbytes > 0) {
-        uint8_t* tmp = (uint8_t*)malloc((size_t)nbytes);
-        if (!tmp) {
-            fclose(f);
-            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("write_bytes: alloc failed"));
-        }
         for (int i = 0; i < nbytes; i++) {
             OrenValue v = bytes.as.list_val->items[i];
             if (v.type != OREN_TYPE_INT) {
-                free(tmp);
                 fclose(f);
                 char buf[160];
                 snprintf(buf, sizeof(buf), "write_bytes expects list<int>; element %d has type=%d", i, v.type);
@@ -143,19 +137,27 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
             }
             long long b = v.as.int_val;
             if (b < 0 || b > 255) {
-                free(tmp);
                 fclose(f);
                 char buf[160];
                 snprintf(buf, sizeof(buf), "write_bytes byte out of range: element %d has value=%lld", i, b);
                 return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
             }
-            tmp[i] = (uint8_t)b;
         }
-        size_t nw = fwrite(tmp, 1, (size_t)nbytes, f);
-        free(tmp);
-        if (nw != (size_t)nbytes) {
-            fclose(f);
-            return oren_err_from_errno("cannot write bytes", path.as.string_val, errno);
+
+        uint8_t chunk[64 * 1024];
+        int off = 0;
+        while (off < nbytes) {
+            size_t want = (size_t)(nbytes - off);
+            if (want > sizeof(chunk)) want = sizeof(chunk);
+            for (size_t i = 0; i < want; i++) {
+                chunk[i] = (uint8_t)(bytes.as.list_val->items[off + (int)i].as.int_val & 255);
+            }
+            size_t nw = fwrite(chunk, 1, want, f);
+            if (nw != want) {
+                fclose(f);
+                return oren_err_from_errno("cannot write bytes", path.as.string_val, errno);
+            }
+            off += (int)want;
         }
     }
     fclose(f);
