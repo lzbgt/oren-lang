@@ -2269,7 +2269,10 @@ large geometry/image/text runs to transient `MTLBuffer` objects retained
 through command completion, so retained meshes and batches do not rely on
 unbounded `setVertexBytes` payloads. The iOS SDK verifier now guards that
 direct `setVertexBytes` usage stays inside the bounded helper and large
-transient uploads stay retained through command completion.
+transient uploads stay retained through command completion. Metal text-run
+coalescing now avoids copying every non-merged run into mutable vertex storage
+and only allocates mutable coalescing storage when an adjacent compatible run
+actually merges.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
   harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
   republishes animated frames from host `frame_tick` events, records device

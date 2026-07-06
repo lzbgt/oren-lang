@@ -379,13 +379,16 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
             pending.hasScissor = run.hasScissor;
             pending.scissor = run.scissor;
             pending.opacity = run.opacity;
-            pendingVertices = [NSMutableData dataWithData:run.vertices];
-            pending.vertices = pendingVertices;
+            pending.vertices = run.vertices;
+            pendingVertices = nil;
             [out addObject:pending];
             continue;
         }
+        if (!pendingVertices) {
+            pendingVertices = [NSMutableData dataWithData:pending.vertices];
+            pending.vertices = pendingVertices;
+        }
         [pendingVertices appendData:run.vertices];
-        pending.vertices = pendingVertices;
     }
     return out;
 }

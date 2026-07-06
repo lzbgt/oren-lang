@@ -2530,6 +2530,9 @@ design evidence lives under `project-doc/`.
 - `make verify-libavm-ios` now guards that Metal vertex uploads keep direct
   `setVertexBytes` usage inside the bounded helper and retain large transient
   `MTLBuffer` uploads through command completion.
+- Metal text-run coalescing now keeps non-merged text runs on their existing
+  immutable vertex data and only allocates mutable vertex storage when a
+  same-texture/scissor/opacity run actually merges.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases
