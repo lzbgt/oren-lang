@@ -3464,6 +3464,11 @@
 <p>  retained through command completion, avoiding unbounded <code>setVertexBytes</code></p>
 <p>  usage for retained meshes and batches.</p>
 <ul>
+<li><code>make verify-libavm-ios</code> now guards that Metal vertex uploads keep direct</li>
+</ul>
+<p>  <code>setVertexBytes</code> usage inside the bounded helper and retain large transient</p>
+<p>  <code>MTLBuffer</code> uploads through command completion.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

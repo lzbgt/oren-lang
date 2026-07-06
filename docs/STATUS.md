@@ -2265,9 +2265,11 @@ Facts from the 2026-05-28 implementation pass:
   drawable-independent preparation and live drawing now share the same
   prepared-frame path for run construction, text coalescing, clear color, and
   metric counts. Live Metal draws keep small vertex uploads inline but promote
-  large geometry/image/text runs to transient `MTLBuffer` objects retained
-  through command completion, so retained meshes and batches do not rely on
-  unbounded `setVertexBytes` payloads.
+large geometry/image/text runs to transient `MTLBuffer` objects retained
+through command completion, so retained meshes and batches do not rely on
+unbounded `setVertexBytes` payloads. The iOS SDK verifier now guards that
+direct `setVertexBytes` usage stays inside the bounded helper and large
+transient uploads stay retained through command completion.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
   harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
   republishes animated frames from host `frame_tick` events, records device

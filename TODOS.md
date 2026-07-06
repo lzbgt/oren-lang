@@ -2521,6 +2521,9 @@ design evidence lives under `project-doc/`.
   large geometry/image/text vertex payloads to transient `MTLBuffer` objects
   retained through command completion, avoiding unbounded `setVertexBytes`
   usage for retained meshes and batches.
+- `make verify-libavm-ios` now guards that Metal vertex uploads keep direct
+  `setVertexBytes` usage inside the bounded helper and retain large transient
+  `MTLBuffer` uploads through command completion.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases
