@@ -107,9 +107,13 @@ def main() -> int:
         fail("missing Metal text attribute helper body")
     attr_helper = text_source[attr_helper_start:attr_helper_end]
     mru_pos = attr_helper.find("cache.lastAttributes && cache.lastRGBA == rgbaValue")
-    boxed_key_pos = attr_helper.find("NSNumber* key = @(rgbaValue)")
-    if mru_pos < 0 or boxed_key_pos < 0 or mru_pos > boxed_key_pos:
-        fail("Metal repeated-color text attributes must hit a scalar MRU before boxing NSNumber keys")
+    scalar_key_pos = attr_helper.find("const void* key = OrenAVMMetalTextAttributeKey(rgbaValue)")
+    if mru_pos < 0 or scalar_key_pos < 0 or mru_pos > scalar_key_pos:
+        fail("Metal repeated-color text attributes must hit a scalar MRU before scalar-map lookup")
+    if "NSNumber* key = @(rgbaValue)" in attr_helper or "NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* entries" in text_header:
+        fail("Metal text attribute cache must not box RGBA keys")
+    if "CFDictionaryGetValue(cache.entries, key)" not in attr_helper or "CFDictionarySetValue(cache.entries, key" not in attr_helper:
+        fail("Metal text attribute cache must use scalar-key CF dictionary lookup/storage")
     if "[NSString stringWithFormat:" in text_source:
         fail("Metal text cache keys must stay typed objects instead of formatted strings")
     if "@interface OrenAVMMetalTextCacheKey : NSObject <NSCopying>" not in text_header:

@@ -2585,7 +2585,7 @@ design evidence lives under `project-doc/`.
 - CoreGraphics immediate and retained text paths now cache UIKit text
   attributes by RGBA value instead of rebuilding `UIColor`/attribute
   dictionaries for repeated text colors, with a scalar one-entry MRU before
-  boxed dictionary-key lookup for repeated same-color draws.
+  scalar-key cache lookup and storage.
 - CoreGraphics retained image fallback records now use typed resources for image
   plus pixel accounting instead of parallel image/pixel dictionaries, with
   overflow-safe retained sub-rect bounds checks, shared checked sub-rect drawing,
@@ -2607,9 +2607,8 @@ design evidence lives under `project-doc/`.
   while text texture quads append into caller-owned run buffers instead of
   allocating tiny `NSData` wrappers from stack vertices.
 - Metal text cache misses now share a typed view-owned UIKit attribute cache
-  with a scalar one-entry MRU before boxed dictionary-key lookup for repeated
-  same-color labels, and CoreGraphics/Metal retained text resources use
-  scalar-key lookup for text IDs.
+  with a scalar one-entry MRU before scalar-key cache lookup and storage, and
+  CoreGraphics/Metal retained text resources use scalar-key lookup for text IDs.
 - Private Metal retained run/resource records and the raw payload-copy helper now
   live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1874 lines
   and preserving source-line guardrail headroom for continued renderer work.

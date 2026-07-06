@@ -55,7 +55,7 @@ typedef struct {
 @end
 
 @interface OrenAVMMetalTextAttributeCache : NSObject
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* entries;
+@property(nonatomic) CFMutableDictionaryRef entries;
 @property(nonatomic) uint32_t lastRGBA;
 @property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* lastAttributes;
 @end

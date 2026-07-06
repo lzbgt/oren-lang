@@ -3569,7 +3569,7 @@
 </ul>
 <p>  attributes by RGBA value instead of rebuilding <code>UIColor</code>/attribute</p>
 <p>  dictionaries for repeated text colors, with a scalar one-entry MRU before</p>
-<p>  boxed dictionary-key lookup for repeated same-color draws.</p>
+<p>  scalar-key cache lookup and storage.</p>
 <ul>
 <li>CoreGraphics retained image fallback records now use typed resources for image</li>
 </ul>
@@ -3605,9 +3605,8 @@
 <ul>
 <li>Metal text cache misses now share a typed view-owned UIKit attribute cache</li>
 </ul>
-<p>  with a scalar one-entry MRU before boxed dictionary-key lookup for repeated</p>
-<p>  same-color labels, and CoreGraphics/Metal retained text resources use</p>
-<p>  scalar-key lookup for text IDs.</p>
+<p>  with a scalar one-entry MRU before scalar-key cache lookup and storage, and</p>
+<p>  CoreGraphics/Metal retained text resources use scalar-key lookup for text IDs.</p>
 <ul>
 <li>Private Metal retained run/resource records and the raw payload-copy helper now</li>
 </ul>

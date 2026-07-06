@@ -337,8 +337,13 @@ static OrenAVMGfxModelResource* OrenAVMGfxRetainedModelResource(CFDictionaryRef 
     return (__bridge OrenAVMGfxModelResource*)CFDictionaryGetValue(models, OrenAVMGfxRetainedModelKey(modelID));
 }
 
+static const void* OrenAVMGfxTextAttributeKey(uint32_t rgbaValue) {
+    return (const void*)(uintptr_t)((uint64_t)rgbaValue + 1ull);
+}
+
 @interface OrenAVMGraphicsView () {
     CFMutableDictionaryRef _orenTouchIDs;
+    CFMutableDictionaryRef _orenTextAttributes;
     CFMutableDictionaryRef _orenTextResourcesByID;
     CFMutableDictionaryRef _orenMeshesByID;
     CFMutableDictionaryRef _orenMaterials3DByID;
@@ -346,7 +351,7 @@ static OrenAVMGfxModelResource* OrenAVMGfxRetainedModelResource(CFDictionaryRef 
     CFMutableDictionaryRef _orenImagesByID;
 }
 @property(nonatomic) uint32_t orenNextTouchID;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes;
+@property(nonatomic) CFMutableDictionaryRef orenTextAttributes;
 @property(nonatomic) uint32_t orenLastTextAttributesRGBA;
 @property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* orenLastTextAttributes;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
@@ -356,12 +361,13 @@ static OrenAVMGfxModelResource* OrenAVMGfxRetainedModelResource(CFDictionaryRef 
 
 static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(OrenAVMGraphicsView* view, uint32_t rgbaValue) {
     if (view.orenLastTextAttributes && view.orenLastTextAttributesRGBA == rgbaValue) return view.orenLastTextAttributes;
-    if (!view.orenTextAttributes) view.orenTextAttributes = [NSMutableDictionary dictionary];
-    NSNumber* key = @(rgbaValue);
-    NSDictionary<NSAttributedStringKey, id>* attrs = view.orenTextAttributes[key];
+    if (!view.orenTextAttributes) view.orenTextAttributes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    const void* key = OrenAVMGfxTextAttributeKey(rgbaValue);
+    NSDictionary<NSAttributedStringKey, id>* attrs = view.orenTextAttributes ?
+        (__bridge NSDictionary<NSAttributedStringKey, id>*)CFDictionaryGetValue(view.orenTextAttributes, key) : nil;
     if (!attrs) {
         attrs = OrenAVMGfxTextAttributes(rgbaValue);
-        view.orenTextAttributes[key] = attrs;
+        if (view.orenTextAttributes) CFDictionarySetValue(view.orenTextAttributes, key, (__bridge const void*)attrs);
     }
     view.orenLastTextAttributesRGBA = rgbaValue;
     view.orenLastTextAttributes = attrs;
@@ -377,7 +383,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!self.orenTextAttributes) self.orenTextAttributes = [NSMutableDictionary dictionary];
+    if (!_orenTextAttributes) _orenTextAttributes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!_orenMeshesByID) _orenMeshesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
@@ -426,6 +432,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     if (_orenTouchIDs) {
         CFRelease(_orenTouchIDs);
         _orenTouchIDs = NULL;
+    }
+    if (_orenTextAttributes) {
+        CFRelease(_orenTextAttributes);
+        _orenTextAttributes = NULL;
     }
     if (_orenTextResourcesByID) {
         CFRelease(_orenTextResourcesByID);

@@ -66,6 +66,12 @@
 @end
 
 @implementation OrenAVMMetalTextAttributeCache
+- (void)dealloc {
+    if (_entries) {
+        CFRelease(_entries);
+        _entries = NULL;
+    }
+}
 @end
 
 static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
@@ -79,6 +85,10 @@ static uint32_t OrenAVMMetalTextReadU32LE(const uint8_t* p) {
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
            ((uint32_t)p[3] << 24);
+}
+
+static const void* OrenAVMMetalTextAttributeKey(uint32_t rgbaValue) {
+    return (const void*)(uintptr_t)((uint64_t)rgbaValue + 1ull);
 }
 
 static float OrenAVMMetalClipX(float x, float logicalWidth) {
@@ -184,9 +194,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGB
         ((uint32_t)rgba[2] << 16) |
         ((uint32_t)rgba[3] << 24);
     if (cache.lastAttributes && cache.lastRGBA == rgbaValue) return cache.lastAttributes;
-    if (cache && !cache.entries) cache.entries = [NSMutableDictionary dictionary];
-    NSNumber* key = @(rgbaValue);
-    NSDictionary<NSAttributedStringKey, id>* cached = cache.entries[key];
+    if (cache && !cache.entries) cache.entries = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    const void* key = OrenAVMMetalTextAttributeKey(rgbaValue);
+    NSDictionary<NSAttributedStringKey, id>* cached = cache.entries ?
+        (__bridge NSDictionary<NSAttributedStringKey, id>*)CFDictionaryGetValue(cache.entries, key) : nil;
     if (cached) {
         cache.lastRGBA = rgbaValue;
         cache.lastAttributes = cached;
@@ -205,7 +216,9 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGB
         NSForegroundColorAttributeName: color,
         NSFontAttributeName: font
     };
-    if (cache && cache.entries.count < OrenAVMMetalTextAttributeCacheEntryLimit) cache.entries[key] = attrs;
+    if (cache && cache.entries && (NSUInteger)CFDictionaryGetCount(cache.entries) < OrenAVMMetalTextAttributeCacheEntryLimit) {
+        CFDictionarySetValue(cache.entries, key, (__bridge const void*)attrs);
+    }
     cache.lastRGBA = rgbaValue;
     cache.lastAttributes = attrs;
     return attrs;
