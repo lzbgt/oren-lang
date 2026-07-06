@@ -215,10 +215,32 @@ def main() -> int:
             fail("retained Metal mesh payload path regressed to NSData-backed access")
     if "OrenAVMMetalCopyPayloadBytes" not in metal_text:
         fail("missing retained Metal mesh raw payload copy helper")
-    if "OrenAVMMetalInlineTriangleOrderCapacity = 128" not in text:
+    if "OrenAVMMetalInlineTriangleOrderCapacity = 128" not in resource_text:
         fail("retained Metal 3D triangle ordering must have a small stack buffer")
-    if "OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,\n                                                                  OrenAVMMetalTriangleOrder* inlineOrder" not in text:
+    if "OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,\n                                                           OrenAVMMetalTriangleOrder* inlineOrder" not in resource_text:
         fail("retained Metal 3D triangle ordering must try inline storage before heap storage")
+    for helper in (
+        "static int64_t OrenAVMMetalMesh3DZSum",
+        "OrenAVMMetalMesh3DZSumModel",
+        "OrenAVMMetalMesh3DZVisible",
+        "static int OrenAVMMetalTriangleOrderCompare",
+        "OrenAVMMetalSortTriangleOrder",
+        "OrenAVMMetalMesh3DIndexedZSumModel",
+        "OrenAVMMetalMesh3DModelCoord",
+    ):
+        if helper not in resource_text:
+            fail(f"retained Metal 3D ordering helper must live in OrenAVMMetalResources: {helper}")
+    for helper in (
+        "static int64_t OrenAVMMetalMesh3DZSum",
+        "static BOOL OrenAVMMetalMesh3DZVisible",
+        "static int OrenAVMMetalTriangleOrderCompare",
+        "static OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer",
+        "static void OrenAVMMetalSortTriangleOrder",
+        "static int64_t OrenAVMMetalMesh3DIndexedZSumModel",
+        "static float OrenAVMMetalMesh3DModelCoord",
+    ):
+        if helper in text:
+            fail(f"Metal view must not define retained 3D ordering helper: {helper}")
     if text.count("OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity]") < 2:
         fail("retained Metal 3D draw paths must pass stack triangle-order buffers")
     if "NSMutableData* orderData" in text or "dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder)" in text:

@@ -3643,6 +3643,11 @@
 <p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1464 lines while</p>
 <p>  keeping resource lifetime callbacks with the resource model types.</p>
 <ul>
+<li>Metal retained-3D painter ordering, depth-window, and model-coordinate helpers</li>
+</ul>
+<p>  now live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to</p>
+<p>  1394 lines while keeping per-frame draw decisions in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

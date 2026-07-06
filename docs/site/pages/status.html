@@ -2813,7 +2813,10 @@
 <p>		  <code>OrenAVMMetalView.m</code> to 1522 lines while keeping command decoding in the</p>
 <p>		  view. Metal retained-resource scalar key and lookup helpers now live in</p>
 <p>		  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1464 lines while</p>
-<p>		  keeping resource lifetime callbacks with the resource model types.</p>
+<p>		  keeping resource lifetime callbacks with the resource model types. Metal</p>
+<p>		  retained-3D painter ordering, depth-window, and model-coordinate helpers now</p>
+<p>		  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1394</p>
+<p>		  lines while keeping per-frame draw decisions in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

@@ -2694,7 +2694,10 @@ Working evidence:
 		  `OrenAVMMetalView.m` to 1522 lines while keeping command decoding in the
 		  view. Metal retained-resource scalar key and lookup helpers now live in
 		  `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1464 lines while
-		  keeping resource lifetime callbacks with the resource model types.
+		  keeping resource lifetime callbacks with the resource model types. Metal
+		  retained-3D painter ordering, depth-window, and model-coordinate helpers now
+		  live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1394
+		  lines while keeping per-frame draw decisions in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

@@ -7,6 +7,13 @@
 #import "OrenAVMMetalText.h"
 #include <stdint.h>
 
+typedef struct {
+    uint32_t triangle;
+    int64_t zsum;
+} OrenAVMMetalTriangleOrder;
+
+enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
+
 @interface OrenAVMMetalVertexRun : NSObject
 @property(nonatomic) uint8_t* vertices;
 @property(nonatomic) NSUInteger vertexBytes;
@@ -71,6 +78,20 @@ const void* OrenAVMMetalRetainedMaterialValue(uint32_t rgbaValue);
 BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);
 const void* OrenAVMMetalRetainedModelKey(uint32_t modelID);
 OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource(CFDictionaryRef models, uint32_t modelID);
+
+int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli);
+BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ);
+OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,
+                                                           OrenAVMMetalTriangleOrder* inlineOrder,
+                                                           uint32_t inlineCapacity,
+                                                           OrenAVMMetalTriangleOrder** heapStorage);
+void OrenAVMMetalSortTriangleOrder(OrenAVMMetalTriangleOrder* order, uint32_t count);
+int64_t OrenAVMMetalMesh3DIndexedZSumModel(const uint8_t* vertices,
+                                           const uint8_t* indices,
+                                           uint32_t triangle,
+                                           int32_t offset,
+                                           uint32_t scaleMilli);
+float OrenAVMMetalMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli);
 
 uint8_t* OrenAVMMetalCopyPayloadBytes(const uint8_t* src, NSUInteger len);
 

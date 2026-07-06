@@ -1,4 +1,5 @@
 #import "OrenAVMMetalResources.h"
+#import "OrenAVMMetalFrame.h"
 
 #if TARGET_OS_IPHONE
 
@@ -94,6 +95,69 @@ const void* OrenAVMMetalRetainedModelKey(uint32_t modelID) {
 OrenAVMMetalModelResource* OrenAVMMetalRetainedModelResource(CFDictionaryRef models, uint32_t modelID) {
     if (!models || modelID == 0) return nil;
     return (__bridge OrenAVMMetalModelResource*)CFDictionaryGetValue(models, OrenAVMMetalRetainedModelKey(modelID));
+}
+
+static int64_t OrenAVMMetalMesh3DZSum(const uint8_t* tri) {
+    return (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 8) +
+           (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 20) +
+           (int64_t)(int32_t)OrenAVMMetalReadU32LE(tri + 32);
+}
+
+int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli) {
+    return (OrenAVMMetalMesh3DZSum(tri) * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
+}
+
+BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ) {
+    if (!depthEnabled) return YES;
+    return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
+}
+
+static int OrenAVMMetalTriangleOrderCompare(const void* left, const void* right) {
+    const OrenAVMMetalTriangleOrder* a = (const OrenAVMMetalTriangleOrder*)left;
+    const OrenAVMMetalTriangleOrder* b = (const OrenAVMMetalTriangleOrder*)right;
+    if (a->zsum > b->zsum) return -1;
+    if (a->zsum < b->zsum) return 1;
+    if (a->triangle < b->triangle) return -1;
+    if (a->triangle > b->triangle) return 1;
+    return 0;
+}
+
+OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,
+                                                           OrenAVMMetalTriangleOrder* inlineOrder,
+                                                           uint32_t inlineCapacity,
+                                                           OrenAVMMetalTriangleOrder** heapStorage) {
+    if (heapStorage) *heapStorage = NULL;
+    if (triangleCount == 0) return NULL;
+    if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder;
+    if (!heapStorage || (NSUInteger)triangleCount > NSUIntegerMax / sizeof(OrenAVMMetalTriangleOrder)) return NULL;
+    OrenAVMMetalTriangleOrder* bytes = (OrenAVMMetalTriangleOrder*)malloc((NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder));
+    if (!bytes) return NULL;
+    *heapStorage = bytes;
+    return bytes;
+}
+
+void OrenAVMMetalSortTriangleOrder(OrenAVMMetalTriangleOrder* order, uint32_t count) {
+    if (count > 1) qsort(order, count, sizeof(OrenAVMMetalTriangleOrder), OrenAVMMetalTriangleOrderCompare);
+}
+
+int64_t OrenAVMMetalMesh3DIndexedZSumModel(const uint8_t* vertices,
+                                           const uint8_t* indices,
+                                           uint32_t triangle,
+                                           int32_t offset,
+                                           uint32_t scaleMilli) {
+    const uint8_t* tri = indices + ((size_t)triangle * 12u);
+    uint32_t i1 = OrenAVMMetalReadU32LE(tri);
+    uint32_t i2 = OrenAVMMetalReadU32LE(tri + 4);
+    uint32_t i3 = OrenAVMMetalReadU32LE(tri + 8);
+    int64_t z = (int64_t)(int32_t)OrenAVMMetalReadU32LE(vertices + ((size_t)i1 * 12u) + 8) +
+                (int64_t)(int32_t)OrenAVMMetalReadU32LE(vertices + ((size_t)i2 * 12u) + 8) +
+                (int64_t)(int32_t)OrenAVMMetalReadU32LE(vertices + ((size_t)i3 * 12u) + 8);
+    return (z * (int64_t)scaleMilli) / 1000 + (int64_t)offset * 3;
+}
+
+float OrenAVMMetalMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t scaleMilli) {
+    int32_t v = (int32_t)OrenAVMMetalReadU32LE(p);
+    return (float)(((int64_t)v * (int64_t)scaleMilli) / 1000 + (int64_t)offset);
 }
 
 uint8_t* OrenAVMMetalCopyPayloadBytes(const uint8_t* src, NSUInteger len) {
