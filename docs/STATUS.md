@@ -2272,6 +2272,8 @@ direct `setVertexBytes` usage stays inside the bounded helper and large
 transient uploads stay retained through command completion without a post-encode
 tracking-array copy, and guards geometry vertex-run flushing against copying the
 completed mutable vertex buffer at every clip/transform/opacity/camera boundary.
+Metal batched text-run construction also transfers completed mutable vertex
+buffers into run ownership instead of copying positioned glyph quads.
 Drawable-independent and live Metal frame preparation now
 preallocates vertex/text/image run arrays from a byte-bounded OGF0 operation
 count instead of trusting malformed frame headers or growing default arrays. Metal text-run

@@ -371,7 +371,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
     if (vertices.length == 0) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
-    run.vertices = [vertices copy];
+    run.vertices = vertices;
     run.opacity = opacity;
     return run;
 }

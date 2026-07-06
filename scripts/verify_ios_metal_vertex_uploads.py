@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalView.m"
+TEXT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.m"
 HELPER = "static BOOL OrenAVMMetalBindVertexPayload"
 
 
@@ -17,6 +18,7 @@ def fail(message: str) -> None:
 
 def main() -> int:
     text = SOURCE.read_text()
+    text_source = TEXT_SOURCE.read_text()
     if "OrenAVMMetalInlineVertexBytesLimit" not in text:
         fail("missing inline vertex upload limit")
     if HELPER not in text:
@@ -27,6 +29,8 @@ def main() -> int:
         fail("large vertex upload completion path must retain the existing tracking array without copying it")
     if "run.vertices = [vertices copy]" in text:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
+    if "run.vertices = [vertices copy]" in text_source:
+        fail("batched text vertex runs must transfer completed buffers instead of copying them")
     if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
