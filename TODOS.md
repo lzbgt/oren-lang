@@ -2547,9 +2547,10 @@ design evidence lives under `project-doc/`.
   zero-capacity buffer.
 - Metal batched text-run construction now transfers the completed mutable vertex
   buffer into run ownership instead of copying all positioned glyph quad bytes.
-- Metal text-run coalescing now keeps non-merged text runs on their existing
-  immutable vertex data and only allocates mutable vertex storage when a
-  same-texture/scissor/opacity run actually merges.
+- Metal text-run coalescing now reuses prepared run objects for non-merged
+  groups, keeps their existing inline or immutable vertex data, and only
+  allocates mutable vertex storage when a same-texture/scissor/opacity run
+  actually merges.
 - Metal coalescing also reuses already mutable batched text-run vertex buffers
   as the merge destination, avoiding the first-run clone for adjacent batched
   text runs with matching texture/scissor/opacity.

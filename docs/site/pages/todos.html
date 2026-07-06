@@ -3506,10 +3506,11 @@
 </ul>
 <p>  buffer into run ownership instead of copying all positioned glyph quad bytes.</p>
 <ul>
-<li>Metal text-run coalescing now keeps non-merged text runs on their existing</li>
+<li>Metal text-run coalescing now reuses prepared run objects for non-merged</li>
 </ul>
-<p>  immutable vertex data and only allocates mutable vertex storage when a</p>
-<p>  same-texture/scissor/opacity run actually merges.</p>
+<p>  groups, keeps their existing inline or immutable vertex data, and only</p>
+<p>  allocates mutable vertex storage when a same-texture/scissor/opacity run</p>
+<p>  actually merges.</p>
 <ul>
 <li>Metal coalescing also reuses already mutable batched text-run vertex buffers</li>
 </ul>

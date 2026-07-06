@@ -533,18 +533,8 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
             pending.opacity == run.opacity &&
             OrenAVMMetalTextScissorEqual(pending, run);
         if (!same) {
-            pending = [[OrenAVMMetalTextRun alloc] init];
-            pending.texture = run.texture;
-            pending.hasScissor = run.hasScissor;
-            pending.scissor = run.scissor;
-            pending.opacity = run.opacity;
-            if (run.vertices.length != 0) {
-                pending.vertices = run.vertices;
-            } else {
-                memcpy(pending->inlineVertices, run->inlineVertices, vertexBytes);
-                pending.inlineVertexCount = run.inlineVertexCount;
-            }
-            pendingVertices = nil;
+            pending = run;
+            pendingVertices = [pending.vertices isKindOfClass:[NSMutableData class]] ? (NSMutableData*)pending.vertices : nil;
             [out addObject:pending];
             continue;
         }

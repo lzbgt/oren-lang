@@ -62,6 +62,15 @@ def main() -> int:
         fail("missing text coalescing mutable-vertex reuse helper")
     if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source or "dataWithBytes:pending->inlineVertices" not in text_source:
         fail("text coalescing must reuse mutable batches and materialize inline quads only when merging")
+    coalesce_start = text_source.find("NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns")
+    coalesce_end = text_source.find("#endif", coalesce_start)
+    if coalesce_start < 0 or coalesce_end < 0:
+        fail("missing Metal text run coalescing helper")
+    coalesce_body = text_source[coalesce_start:coalesce_end]
+    if "pending = [[OrenAVMMetalTextRun alloc] init]" in coalesce_body:
+        fail("text coalescing must reuse prepared run objects instead of cloning every run")
+    if "pending = run;" not in coalesce_body:
+        fail("text coalescing must keep the first run in each compatible group")
     cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
     attrs_lookup = text_source.find("OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba)")
     if cache_lookup < 0 or attrs_lookup < 0 or cache_lookup > attrs_lookup:
