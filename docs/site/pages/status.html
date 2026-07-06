@@ -2722,10 +2722,14 @@
 </ul>
 <p>  <code>OrenAVMRunResult</code> live in <code>OrenAVMRuntimeTypes.m</code>, while</p>
 <p>  <code>OrenAVMGraphicsView</code> lives in its own UIKit/CoreGraphics implementation file;</p>
-<p>  this keeps the core runtime file below the 2000-line source guardrail while</p>
-<p>  GUI/NET/FS providers continue to grow. <code>make verify-source-line-guard</code> now</p>
-<p>  checks tracked first-party source files against that limit while excluding</p>
-<p>  generated site, archived web research, vendor, and build artifacts.</p>
+<p>	  this keeps the core runtime file below the 2000-line source guardrail while</p>
+<p>	  GUI/NET/FS providers continue to grow. <code>make verify-source-line-guard</code> now</p>
+<p>	  checks tracked first-party source files against that limit while excluding</p>
+<p>	  generated site, archived web research, vendor, and build artifacts. The AVM</p>
+<p>	  dispatch loop now keeps deadline-backed scheduler wait scanning in</p>
+<p>	  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>
+<p>	  SDK verifier reuses <code>scripts/obc_to_c_header.py</code> for embedded OBC headers,</p>
+<p>	  reducing <code>verify_libavm_ios.sh</code> to 1923 lines.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

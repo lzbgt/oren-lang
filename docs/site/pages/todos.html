@@ -3566,6 +3566,12 @@
 <p>  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1874 lines</p>
 <p>  and preserving source-line guardrail headroom for continued renderer work.</p>
 <ul>
+<li>AVM deadline-backed scheduler wait scanning now lives in</li>
+</ul>
+<p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>
+<p>  verifier now shares <code>scripts/obc_to_c_header.py</code> for embedded OBC fixture</p>
+<p>  headers, reducing <code>verify_libavm_ios.sh</code> to 1923 lines.</p>
+<ul>
 <li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
 </ul>
 <p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>

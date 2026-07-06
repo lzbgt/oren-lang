@@ -90,81 +90,10 @@ cp "$FIXTURE_DIR/package_chain_v2.oren" "$PACKAGE_V2_SRC"
 cp "$FIXTURE_DIR/package_scene3d.oren" "$PACKAGE_SCENE_SRC"
 "$OREN_COMPILER" build "$PACKAGE_SCENE_SRC" --backend bytecode -o "$PACKAGE_SCENE_OBC_OUT" > "$LOG_DIR/libavm_ios_package_scene3d_obc_build.log" 2>&1
 
-python3 - "$OBC_OUT" "$OBC_HEADER" <<'PY'
-import pathlib
-import sys
-
-data = pathlib.Path(sys.argv[1]).read_bytes()
-out = pathlib.Path(sys.argv[2])
-chunks = []
-for i in range(0, len(data), 12):
-    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
-out.write_text(
-    "#include <stddef.h>\n"
-    "static const unsigned char kEmbedChainObc[] = {\n"
-    + ",\n".join("    " + chunk for chunk in chunks)
-    + "\n};\n"
-    + f"static const size_t kEmbedChainObcLen = {len(data)}u;\n",
-    encoding="utf-8",
-)
-PY
-
-python3 - "$CANCEL_OBC_OUT" "$CANCEL_OBC_HEADER" <<'PY'
-import pathlib
-import sys
-
-data = pathlib.Path(sys.argv[1]).read_bytes()
-out = pathlib.Path(sys.argv[2])
-chunks = []
-for i in range(0, len(data), 12):
-    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
-out.write_text(
-    "#include <stddef.h>\n"
-    "static const unsigned char kCancelSpinObc[] = {\n"
-    + ",\n".join("    " + chunk for chunk in chunks)
-    + "\n};\n"
-    + f"static const size_t kCancelSpinObcLen = {len(data)}u;\n",
-    encoding="utf-8",
-)
-PY
-
-python3 - "$CANCEL_WATCH_OBC_OUT" "$CANCEL_WATCH_OBC_HEADER" <<'PY'
-import pathlib
-import sys
-
-data = pathlib.Path(sys.argv[1]).read_bytes()
-out = pathlib.Path(sys.argv[2])
-chunks = []
-for i in range(0, len(data), 12):
-    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
-out.write_text(
-    "#include <stddef.h>\n"
-    "static const unsigned char kCancelWatchObc[] = {\n"
-    + ",\n".join("    " + chunk for chunk in chunks)
-    + "\n};\n"
-    + f"static const size_t kCancelWatchObcLen = {len(data)}u;\n",
-    encoding="utf-8",
-)
-PY
-
-python3 - "$HOST_FS_OBC_OUT" "$HOST_FS_OBC_HEADER" <<'PY'
-import pathlib
-import sys
-
-data = pathlib.Path(sys.argv[1]).read_bytes()
-out = pathlib.Path(sys.argv[2])
-chunks = []
-for i in range(0, len(data), 12):
-    chunks.append(", ".join(f"0x{b:02x}" for b in data[i:i + 12]))
-out.write_text(
-    "#include <stddef.h>\n"
-    "static const unsigned char kHostFSChainObc[] = {\n"
-    + ",\n".join("    " + chunk for chunk in chunks)
-    + "\n};\n"
-    + f"static const size_t kHostFSChainObcLen = {len(data)}u;\n",
-    encoding="utf-8",
-)
-PY
+python3 scripts/obc_to_c_header.py "$OBC_OUT" "$OBC_HEADER" kEmbedChainObc
+python3 scripts/obc_to_c_header.py "$CANCEL_OBC_OUT" "$CANCEL_OBC_HEADER" kCancelSpinObc
+python3 scripts/obc_to_c_header.py "$CANCEL_WATCH_OBC_OUT" "$CANCEL_WATCH_OBC_HEADER" kCancelWatchObc
+python3 scripts/obc_to_c_header.py "$HOST_FS_OBC_OUT" "$HOST_FS_OBC_HEADER" kHostFSChainObc
 
 cat > "$TMP_DIR/embed_smoke.c" <<'SMOKE'
 #include "avm_embed.h"

@@ -2581,6 +2581,10 @@ design evidence lives under `project-doc/`.
 - Private Metal retained run/resource records and the raw payload-copy helper now
   live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1874 lines
   and preserving source-line guardrail headroom for continued renderer work.
+- AVM deadline-backed scheduler wait scanning now lives in
+  `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
+  verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
+  headers, reducing `verify_libavm_ios.sh` to 1923 lines.
 - iOS SDK symbol verification now caches `nm` output once per archive and
   greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads
