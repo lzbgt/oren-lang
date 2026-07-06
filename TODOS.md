@@ -2509,6 +2509,9 @@ design evidence lives under `project-doc/`.
   buffers, boxed byte lists, and packed `LIST_INT` carriers; the tail native
   cases live in a separate include so `avm_native.inc` stays below the source
   guardrail.
+- iOS `OrenAVMMetalView` retained 3D painter ordering now tracks drawn indexed
+  and triangle meshes with compact byte bitmaps instead of per-triangle
+  `NSNumber`/`NSMutableSet` allocations in the frame path.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

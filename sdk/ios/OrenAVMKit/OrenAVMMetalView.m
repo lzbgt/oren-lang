@@ -110,6 +110,16 @@ static BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t 
     return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
 }
 
+static uint8_t* OrenAVMMetalDrawnBitmap(uint32_t triangleCount, NSMutableData** storage) {
+    if (storage) *storage = nil;
+    if (triangleCount == 0 || !storage) return NULL;
+    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount];
+    uint8_t* bytes = data.mutableBytes;
+    if (!bytes) return NULL;
+    *storage = data;
+    return bytes;
+}
+
 static int64_t OrenAVMMetalMesh3DIndexedZSumModel(const uint8_t* vertices,
                                                   const uint8_t* indices,
                                                   uint32_t triangle,
@@ -1269,14 +1279,16 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 scaleMilli = OrenAVMMetalReadU32LE(payload + 20);
             }
             if (verts && idx && mesh.rgba.length == 4 && scaleMilli != 0 && mesh.indexCount == mesh.indices.length / 4u) {
-                NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:mesh.indexCount / 3u];
-                for (uint32_t di = 0; di < mesh.indexCount / 3u; di++) {
+                uint32_t triangleTotal = mesh.indexCount / 3u;
+                NSMutableData* drawnData = nil;
+                uint8_t* drawn = OrenAVMMetalDrawnBitmap(triangleTotal, &drawnData);
+                if (triangleTotal != 0 && !drawn) continue;
+                for (uint32_t di = 0; di < triangleTotal; di++) {
                     uint32_t best = 0;
                     BOOL found = NO;
                     int64_t bestZ = -9223372036854775807LL;
-                    for (uint32_t ti = 0; ti < mesh.indexCount / 3u; ti++) {
-                        NSNumber* key = @(ti);
-                        if ([drawn containsObject:key]) continue;
+                    for (uint32_t ti = 0; ti < triangleTotal; ti++) {
+                        if (drawn[ti]) continue;
                         int64_t z = OrenAVMMetalMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
                         if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
                         if (!found || z > bestZ) {
@@ -1286,7 +1298,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                         }
                     }
                     if (!found) break;
-                    [drawn addObject:@(best)];
+                    drawn[best] = 1;
                     const uint8_t* tri = idx + ((size_t)best * 12u);
                     const uint8_t* v1 = verts + ((size_t)OrenAVMMetalReadU32LE(tri) * 12u);
                     const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
@@ -1304,14 +1316,16 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                rgba);
                 }
             } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
-                NSMutableSet<NSNumber*>* drawn = [NSMutableSet setWithCapacity:mesh.triangleCount];
-                for (uint32_t di = 0; di < mesh.triangleCount; di++) {
+                uint32_t triangleTotal = mesh.triangleCount;
+                NSMutableData* drawnData = nil;
+                uint8_t* drawn = OrenAVMMetalDrawnBitmap(triangleTotal, &drawnData);
+                if (triangleTotal != 0 && !drawn) continue;
+                for (uint32_t di = 0; di < triangleTotal; di++) {
                     uint32_t best = 0;
                     BOOL found = NO;
                     int64_t bestZ = -9223372036854775807LL;
-                    for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
-                        NSNumber* key = @(ti);
-                        if ([drawn containsObject:key]) continue;
+                    for (uint32_t ti = 0; ti < triangleTotal; ti++) {
+                        if (drawn[ti]) continue;
                         int64_t z = OrenAVMMetalMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
                         if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
                         if (!found || z > bestZ) {
@@ -1321,7 +1335,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                         }
                     }
                     if (!found) break;
-                    [drawn addObject:@(best)];
+                    drawn[best] = 1;
                     const uint8_t* tri = tris + ((size_t)best * meshStride);
                     const uint8_t* triRGBA = materialRGBA ? materialRGBA.bytes : (meshStride == 40u ? tri + 36 : mesh.rgba.bytes);
                     if (!triRGBA) continue;

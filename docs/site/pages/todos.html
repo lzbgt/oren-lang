@@ -3446,6 +3446,11 @@
 <p>  cases live in a separate include so <code>avm_native.inc</code> stays below the source</p>
 <p>  guardrail.</p>
 <ul>
+<li>iOS <code>OrenAVMMetalView</code> retained 3D painter ordering now tracks drawn indexed</li>
+</ul>
+<p>  and triangle meshes with compact byte bitmaps instead of per-triangle</p>
+<p>  <code>NSNumber</code>/<code>NSMutableSet</code> allocations in the frame path.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>
