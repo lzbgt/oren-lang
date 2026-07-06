@@ -2,7 +2,6 @@ fn main() {
     // Runtime capsule FS test (mount read):
     // - Under capsule mode, FS mounts can map a virtual path prefix to a host directory.
     // - This program reads via the virtual prefix "v/".
-    var b = oren_read_bytes("v/in.txt")
-    print(oren_int_to_string(oren_list_len(b)))
+    var b = oren_read_u8_buf("v/in.txt")
+    print(oren_int_to_string(oren_bytes_len(b)))
 }
-

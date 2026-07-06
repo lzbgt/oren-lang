@@ -74,6 +74,14 @@ if grep -q 'oren_read_bytes(path)\|oren_list_len(out)\|out\[[0-9]\]' tests/avm/t
   exit 1
 fi
 
+if grep -q 'oren_read_bytes(\|oren_list_len(b)' \
+  tests/native/fixtures/capsule_runtime_fs_read_prog.oren \
+  tests/native/fixtures/capsule_runtime_fs_mount_read_prog.oren \
+  tests/native/fixtures/capsule_runtime_fs_mount_longest_prog.oren; then
+  echo "ERROR: native capsule FS read fixtures must use byte-native oren_read_u8_buf output" >&2
+  exit 1
+fi
+
 if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/compiler/native_runtime_obj_cache.oren; then
   echo "ERROR: runtime-object metadata hot path must use shared compiler byte_view readers" >&2
   exit 1

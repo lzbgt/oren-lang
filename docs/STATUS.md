@@ -2313,7 +2313,9 @@ instead of legacy `read_bytes` list validation or repacking, and the PPM write
 roundtrip fixture reads generated binary image output through `oren_read_u8_buf`
 instead of the legacy `oren_read_bytes` list bridge. The AVM VFS no-host-FS
 fixture also validates in-memory VFS binary reads through `oren_read_u8_buf`
-instead of the legacy list bridge. The iOS SDK now
+instead of the legacy list bridge. Native capsule FS read/mount fixtures now
+validate binary reads through `oren_read_u8_buf`, preserving FS policy coverage
+without boxing bytes. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

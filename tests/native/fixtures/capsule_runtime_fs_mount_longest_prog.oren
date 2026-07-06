@@ -2,8 +2,8 @@ fn main() {
     // Runtime capsule FS test (mount longest-prefix semantics):
     // - With overlapping mounts, the LONGEST matching virt prefix must be selected.
     // - This must be order-independent in the CSV mount list.
-    var b = oren_read_bytes("v/inner/in.txt")
-    print(oren_int_to_string(oren_list_len(b)))
+    var b = oren_read_u8_buf("v/inner/in.txt")
+    print(oren_int_to_string(oren_bytes_len(b)))
 }
 
 // NOTE: `fn main()` is invoked automatically by the runtime entrypoint.
