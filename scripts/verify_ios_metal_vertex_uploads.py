@@ -41,12 +41,16 @@ def main() -> int:
         fail("geometry vertex buffers must be allocated lazily on first append")
     if "run.vertices = [vertices copy]" in text_source:
         fail("batched text vertex runs must transfer completed buffers instead of copying them")
+    if "NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u]" in text_source:
+        fail("single Metal text runs must store fixed quad vertices inline")
+    if "OrenAVMMetalWriteTextureQuad(run->inlineVertices" not in text_source or "NSUInteger inlineVertexCount" not in text_header:
+        fail("Metal text runs must expose inline single-quad storage")
     if "[NSMutableData dataWithData:pending.vertices]" in text_source:
         fail("text coalescing must use the mutable-vertex helper instead of unconditionally copying pending data")
     if "OrenAVMMetalMutableTextVerticesForCoalescing" not in text_source:
         fail("missing text coalescing mutable-vertex reuse helper")
-    if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source:
-        fail("text coalescing must reuse mutable batched vertex buffers before falling back to copying")
+    if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source or "dataWithBytes:pending->inlineVertices" not in text_source:
+        fail("text coalescing must reuse mutable batches and materialize inline quads only when merging")
     cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
     color_create = text_source.find("UIColor* color = [UIColor colorWithRed:")
     if cache_lookup < 0 or color_create < 0 or cache_lookup > color_create:

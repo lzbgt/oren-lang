@@ -13,9 +13,13 @@ typedef struct {
     float v;
 } OrenAVMMetalTextVertex;
 
-@interface OrenAVMMetalTextRun : NSObject
+@interface OrenAVMMetalTextRun : NSObject {
+@public
+    OrenAVMMetalTextVertex inlineVertices[6];
+}
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic, strong) NSData* vertices;
+@property(nonatomic) NSUInteger inlineVertexCount;
 @property(nonatomic) BOOL hasScissor;
 @property(nonatomic) MTLScissorRect scissor;
 @property(nonatomic) float opacity;
@@ -104,5 +108,8 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
                                                     float logicalHeight);
 
 NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetalTextRun*>* runs);
+const void* OrenAVMMetalTextRunVertexBytes(OrenAVMMetalTextRun* run);
+NSUInteger OrenAVMMetalTextRunVertexBytesLength(OrenAVMMetalTextRun* run);
+NSUInteger OrenAVMMetalTextRunVertexCount(OrenAVMMetalTextRun* run);
 
 #endif

@@ -1812,17 +1812,18 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                          vertexCount:6];
         }
         for (OrenAVMMetalTextRun* run in textRuns) {
-            if (!run.texture || run.vertices.length == 0) continue;
+            NSUInteger vertexBytes = OrenAVMMetalTextRunVertexBytesLength(run);
+            if (!run.texture || vertexBytes == 0) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, OrenAVMMetalTextRunVertexBytes(run), vertexBytes)) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
-                         vertexCount:run.vertices.length / sizeof(OrenAVMMetalTextVertex)];
+                         vertexCount:OrenAVMMetalTextRunVertexCount(run)];
         }
     }
     [encoder endEncoding];

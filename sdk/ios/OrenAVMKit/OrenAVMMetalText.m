@@ -3,6 +3,7 @@
 #if TARGET_OS_IPHONE
 
 #include <math.h>
+#include <string.h>
 
 @implementation OrenAVMMetalTextRun
 @end
@@ -298,19 +299,18 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
     if (!entry) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
-    NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
-    OrenAVMMetalAppendTextureQuad(vertices,
-                                  x,
-                                  y,
-                                  (float)entry.logicalSize.width,
-                                  (float)entry.logicalSize.height,
-                                  logicalWidth,
-                                  logicalHeight,
-                                  entry.u0,
-                                  entry.v0,
-                                  entry.u1,
-                                  entry.v1);
-    run.vertices = vertices;
+    OrenAVMMetalWriteTextureQuad(run->inlineVertices,
+                                 x,
+                                 y,
+                                 (float)entry.logicalSize.width,
+                                 (float)entry.logicalSize.height,
+                                 logicalWidth,
+                                 logicalHeight,
+                                 entry.u0,
+                                 entry.v0,
+                                 entry.u1,
+                                 entry.v1);
+    run.inlineVertexCount = 6u;
     run.opacity = opacity;
     return run;
 }
@@ -333,6 +333,25 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
     if (!positions || positionCount == 0) return nil;
     OrenAVMMetalTextCacheEntry* entry = OrenAVMMetalTextCacheEntryForText(device, screen, atlas, cache, order, cachePixels, text, rgba);
     if (!entry) return nil;
+    if (positionCount == 1) {
+        const uint8_t* p = positions;
+        OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
+        run.texture = entry.texture;
+        OrenAVMMetalWriteTextureQuad(run->inlineVertices,
+                                     (float)OrenAVMMetalTextReadU32LE(p) + translateX,
+                                     (float)OrenAVMMetalTextReadU32LE(p + 4) + translateY,
+                                     (float)entry.logicalSize.width,
+                                     (float)entry.logicalSize.height,
+                                     logicalWidth,
+                                     logicalHeight,
+                                     entry.u0,
+                                     entry.v0,
+                                     entry.u1,
+                                     entry.v1);
+        run.inlineVertexCount = 6u;
+        run.opacity = opacity;
+        return run;
+    }
     NSMutableData* vertices = [NSMutableData dataWithCapacity:(NSUInteger)positionCount * sizeof(OrenAVMMetalTextVertex) * 6u];
     for (uint32_t i = 0; i < positionCount; i++) {
         const uint8_t* p = positions + ((size_t)i * 8u);
@@ -356,6 +375,22 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
     return run;
 }
 
+const void* OrenAVMMetalTextRunVertexBytes(OrenAVMMetalTextRun* run) {
+    if (!run) return NULL;
+    if (run.vertices.length != 0) return run.vertices.bytes;
+    return run.inlineVertexCount == 0 ? NULL : run->inlineVertices;
+}
+
+NSUInteger OrenAVMMetalTextRunVertexBytesLength(OrenAVMMetalTextRun* run) {
+    if (!run) return 0;
+    if (run.vertices.length != 0) return run.vertices.length;
+    return run.inlineVertexCount * sizeof(OrenAVMMetalTextVertex);
+}
+
+NSUInteger OrenAVMMetalTextRunVertexCount(OrenAVMMetalTextRun* run) {
+    return OrenAVMMetalTextRunVertexBytesLength(run) / sizeof(OrenAVMMetalTextVertex);
+}
+
 static BOOL OrenAVMMetalTextScissorEqual(OrenAVMMetalTextRun* a, OrenAVMMetalTextRun* b) {
     if (a.hasScissor != b.hasScissor) return NO;
     if (!a.hasScissor) return YES;
@@ -368,8 +403,15 @@ static BOOL OrenAVMMetalTextScissorEqual(OrenAVMMetalTextRun* a, OrenAVMMetalTex
 static NSMutableData* OrenAVMMetalMutableTextVerticesForCoalescing(OrenAVMMetalTextRun* pending) {
     NSData* vertices = pending.vertices;
     if ([vertices isKindOfClass:[NSMutableData class]]) return (NSMutableData*)vertices;
-    NSMutableData* mutableVertices = [NSMutableData dataWithData:vertices];
+    NSMutableData* mutableVertices = nil;
+    if (vertices.length != 0) {
+        mutableVertices = [NSMutableData dataWithData:vertices];
+    } else {
+        mutableVertices = [NSMutableData dataWithBytes:pending->inlineVertices
+                                                length:pending.inlineVertexCount * sizeof(OrenAVMMetalTextVertex)];
+    }
     pending.vertices = mutableVertices;
+    pending.inlineVertexCount = 0;
     return mutableVertices;
 }
 
@@ -379,7 +421,9 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
     OrenAVMMetalTextRun* pending = nil;
     NSMutableData* pendingVertices = nil;
     for (OrenAVMMetalTextRun* run in runs) {
-        if (!run.texture || run.vertices.length == 0) continue;
+        NSUInteger vertexBytes = OrenAVMMetalTextRunVertexBytesLength(run);
+        const void* vertexData = OrenAVMMetalTextRunVertexBytes(run);
+        if (!run.texture || vertexBytes == 0 || !vertexData) continue;
         BOOL same = pending &&
             pending.texture == run.texture &&
             pending.opacity == run.opacity &&
@@ -390,7 +434,12 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
             pending.hasScissor = run.hasScissor;
             pending.scissor = run.scissor;
             pending.opacity = run.opacity;
-            pending.vertices = run.vertices;
+            if (run.vertices.length != 0) {
+                pending.vertices = run.vertices;
+            } else {
+                memcpy(pending->inlineVertices, run->inlineVertices, vertexBytes);
+                pending.inlineVertexCount = run.inlineVertexCount;
+            }
             pendingVertices = nil;
             [out addObject:pending];
             continue;
@@ -398,7 +447,7 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
         if (!pendingVertices) {
             pendingVertices = OrenAVMMetalMutableTextVerticesForCoalescing(pending);
         }
-        [pendingVertices appendData:run.vertices];
+        [pendingVertices appendBytes:vertexData length:vertexBytes];
     }
     return out;
 }
