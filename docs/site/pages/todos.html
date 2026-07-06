@@ -3489,6 +3489,12 @@
 <p>  directly into stack storage before returning immutable <code>NSData</code>, avoiding a</p>
 <p>  temporary mutable-data append/copy pair for common single-run draws.</p>
 <ul>
+<li>Bytecode final artifact writes now report the original <code>u8_buf</code></li>
+</ul>
+<p>  <code>oren_write_bytes</code> error directly instead of unpacking the entire generated</p>
+<p>  bytecode into a legacy <code>list&lt;int&gt;</code> fallback on any write failure; the</p>
+<p>  bytecode-link smoke now guards that the fallback stays removed.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

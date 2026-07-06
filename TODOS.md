@@ -2536,6 +2536,10 @@ design evidence lives under `project-doc/`.
 - Metal single texture-quad emission now writes the six text/image vertices
   directly into stack storage before returning immutable `NSData`, avoiding a
   temporary mutable-data append/copy pair for common single-run draws.
+- Bytecode final artifact writes now report the original `u8_buf`
+  `oren_write_bytes` error directly instead of unpacking the entire generated
+  bytecode into a legacy `list<int>` fallback on any write failure; the
+  bytecode-link smoke now guards that the fallback stays removed.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

@@ -19,6 +19,11 @@ need_bin() {
 need_bin bash
 need_bin grep
 
+if grep -q 'oren_bytes_unpack(out_buf)\|Fallback to list<int> for AVM runtimes without u8_buf write support' lib/compiler/codegen_bytecode/030_tail.oren; then
+  echo "ERROR: bytecode final write path must not unpack the u8_buf artifact into a legacy list<int> fallback" >&2
+  exit 1
+fi
+
 mkdir -p build/tmp build/logs
 
 COMPILER="${OREN_COMPILER:-./oren_stage2}"

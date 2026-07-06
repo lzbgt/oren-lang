@@ -627,11 +627,6 @@ fn bytecode_emit_program(out_path, ctx) {
     var out_buf = bytes.bytes_finalize(out)
     var w = oren_write_bytes(out_path, out_buf)
     if oren_is_err(w) {
-        // Fallback to list<int> for AVM runtimes without u8_buf write support.
-        var out_list = oren_bytes_unpack(out_buf)
-        if !oren_is_err(out_list) { w = oren_write_bytes(out_path, out_list) }
-    }
-    if oren_is_err(w) {
         var msg = oren_err_msg(w)
         var e = "Failed to write bytecode: " + out_path
         if msg != nil { e = e + ": " + msg }
