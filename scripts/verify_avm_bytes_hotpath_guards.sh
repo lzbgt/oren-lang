@@ -69,6 +69,11 @@ if grep -q 'oren_read_bytes(path)\|byte_len(roundtrip)\|byte_get(roundtrip' test
   exit 1
 fi
 
+if grep -q 'oren_read_bytes(path)\|oren_list_len(out)\|out\[[0-9]\]' tests/avm/test_vfs_no_host_fs.oren; then
+  echo "ERROR: AVM VFS no-host-FS fixture must use byte-native oren_read_u8_buf output" >&2
+  exit 1
+fi
+
 if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/compiler/native_runtime_obj_cache.oren; then
   echo "ERROR: runtime-object metadata hot path must use shared compiler byte_view readers" >&2
   exit 1
