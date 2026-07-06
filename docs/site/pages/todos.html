@@ -3720,6 +3720,11 @@
 <p>  byte counters through scalar-key CF dictionaries instead of boxed <code>NSNumber</code></p>
 <p>  session dictionaries.</p>
 <ul>
+<li>The iOS SDK host-backed WebSocket handshake path now generates keys, sends the</li>
+</ul>
+<p>  ASCII upgrade request, and accumulates the response header through raw</p>
+<p>  stack-first buffers instead of transient <code>NSData</code>/<code>NSMutableData</code> wrappers.</p>
+<ul>
 <li><code>OrenAVMRunResult</code> now preserves immutable no-copy stdout data without</li>
 </ul>
 <p>  recopying it, while still copying mutable inputs defensively.</p>

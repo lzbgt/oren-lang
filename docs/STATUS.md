@@ -2564,10 +2564,12 @@ contracts.
 			  `.write_from(...)`, `.send_to(...)`, `.recv_from_into(...)`,
 			  TLS certificate/ALPN methods, and `.close()`, native WebSocket records
 			  expose `.recv_text(...)` / `.send_text_client(...)`, and AVM virtual
-			  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness
+				  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness
 				  waits, accept, and close receiver methods. The iOS live VNET SDK maps session fds,
-			  kinds, and byte counts through scalar-key CF dictionaries instead of
-			  boxed `NSNumber` session state. Native HTTP/2 client state now
+				  kinds, and byte counts through scalar-key CF dictionaries instead of
+				  boxed `NSNumber` session state, and its host-backed WebSocket upgrade
+				  path uses raw stack-first key/request/response buffers instead of
+				  transient Objective-C data wrappers. Native HTTP/2 client state now
 				  uses a typed `Client` receiver with `client.request(...).text()` /
 				  `.bytes()` response methods. Public fallible NET APIs now use normal
 				  verbs returning `value | oren_err` or explicit `{ok,...}` records;

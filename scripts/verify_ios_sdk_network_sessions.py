@@ -28,6 +28,12 @@ def main() -> int:
         "NSNumber* key = @(sessionId)",
         "for (NSNumber* fdValue in _networkSockets.allValues)",
         "for (NSNumber* usedValue in _networkSessionByteCounts.allValues)",
+        "dataUsingEncoding:NSASCIIStringEncoding",
+        "NSMutableData* keyBytes",
+        "base64EncodedStringWithOptions:0",
+        "NSMutableData* response",
+        "appendBytes:tmp",
+        "initWithData:response",
     ]
     for needle in forbidden:
         if needle in text:
@@ -41,11 +47,17 @@ def main() -> int:
         "OrenAVMRuntimeNetworkSessionBytes(runtime->_networkSessionByteCounts, sessionId)",
         "CFDictionaryApplyFunction(_networkSockets, OrenAVMRuntimeCloseNetworkSocketValue, NULL)",
         "CFDictionaryApplyFunction(_networkSessionByteCounts, OrenAVMRuntimeCheckNetworkByteLimit, &check)",
+        "static NSString* OrenAVMRuntimeBase64String",
+        "OrenAVMRuntimeCopyASCIIBytes",
+        "OrenAVMRuntimeSendASCIIString(fd, request)",
+        "uint8_t keyBytes[16]",
+        "uint8_t response[8192]",
+        "[[NSString alloc] initWithBytes:response length:responseLen encoding:NSASCIIStringEncoding]",
     ]
     for needle in required:
         if needle not in text:
             fail(f"missing scalar iOS VNET session map evidence: `{needle}`")
-    print("OK: iOS VNET session maps use scalar CF storage")
+    print("OK: iOS VNET session maps use scalar CF storage and raw WebSocket handshake buffers")
     return 0
 
 

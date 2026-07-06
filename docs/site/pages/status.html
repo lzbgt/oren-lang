@@ -2670,10 +2670,12 @@
 <p>			  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
 <p>			  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
 <p>			  expose <code>.recv_text(...)</code> / <code>.send_text_client(...)</code>, and AVM virtual</p>
-<p>			  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
+<p>				  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
 <p>				  waits, accept, and close receiver methods. The iOS live VNET SDK maps session fds,</p>
-<p>			  kinds, and byte counts through scalar-key CF dictionaries instead of</p>
-<p>			  boxed <code>NSNumber</code> session state. Native HTTP/2 client state now</p>
+<p>				  kinds, and byte counts through scalar-key CF dictionaries instead of</p>
+<p>				  boxed <code>NSNumber</code> session state, and its host-backed WebSocket upgrade</p>
+<p>				  path uses raw stack-first key/request/response buffers instead of</p>
+<p>				  transient Objective-C data wrappers. Native HTTP/2 client state now</p>
 <p>				  uses a typed <code>Client</code> receiver with <code>client.request(...).text()</code> /</p>
 <p>				  <code>.bytes()</code> response methods. Public fallible NET APIs now use normal</p>
 <p>				  verbs returning <code>value | oren_err</code> or explicit <code>{ok,...}</code> records;</p>

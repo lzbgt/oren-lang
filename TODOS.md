@@ -2673,6 +2673,9 @@ design evidence lives under `project-doc/`.
 - The iOS SDK live VNET session maps now store socket fds, session kinds, and
   byte counters through scalar-key CF dictionaries instead of boxed `NSNumber`
   session dictionaries.
+- The iOS SDK host-backed WebSocket handshake path now generates keys, sends the
+  ASCII upgrade request, and accumulates the response header through raw
+  stack-first buffers instead of transient `NSData`/`NSMutableData` wrappers.
 - `OrenAVMRunResult` now preserves immutable no-copy stdout data without
   recopying it, while still copying mutable inputs defensively.
 - The iOS package installer now borrows stored ZIP entry byte slices directly

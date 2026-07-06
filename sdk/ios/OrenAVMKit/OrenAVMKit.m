@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -275,21 +276,105 @@ static NSData* OrenAVMKitDataTakingEmbedBytes(uint8_t* bytes, size_t len) {
     return [NSData dataWithBytesNoCopy:bytes length:len freeWhenDone:YES];
 }
 
+static NSString* OrenAVMRuntimeBase64String(const uint8_t* bytes, size_t len) {
+    static const char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    if (!bytes && len != 0) return nil;
+    if (len > SIZE_MAX - 2u) return nil;
+    size_t groups = (len + 2u) / 3u;
+    if (groups > SIZE_MAX / 4u) return nil;
+    size_t outputLen = groups * 4u;
+    char inlineOutput[64];
+    char* output = outputLen <= sizeof(inlineOutput) ? inlineOutput : (char*)malloc(outputLen);
+    if (!output && outputLen != 0) return nil;
+    size_t i = 0;
+    size_t o = 0;
+    while (i < len) {
+        size_t remaining = len - i;
+        uint32_t a = bytes[i++];
+        uint32_t b = remaining > 1u ? bytes[i++] : 0u;
+        uint32_t c = remaining > 2u ? bytes[i++] : 0u;
+        output[o++] = table[(a >> 2u) & 63u];
+        output[o++] = table[((a & 3u) << 4u) | ((b >> 4u) & 15u)];
+        output[o++] = remaining > 1u ? table[((b & 15u) << 2u) | ((c >> 6u) & 3u)] : '=';
+        output[o++] = remaining > 2u ? table[c & 63u] : '=';
+    }
+    NSString* result = [[NSString alloc] initWithBytes:output length:outputLen encoding:NSASCIIStringEncoding];
+    if (output != inlineOutput) free(output);
+    return result;
+}
+
+static BOOL OrenAVMRuntimeCopyASCIIBytes(NSString* string,
+                                         uint8_t* inlineBytes,
+                                         size_t inlineCap,
+                                         uint8_t** bytesOut,
+                                         size_t* lenOut) {
+    if (!string || !bytesOut || !lenOut) return NO;
+    NSUInteger byteLen = [string lengthOfBytesUsingEncoding:NSASCIIStringEncoding];
+    if (byteLen == 0 && string.length != 0) return NO;
+    uint8_t* bytes = byteLen <= inlineCap ? inlineBytes : (uint8_t*)malloc((size_t)byteLen);
+    if (!bytes && byteLen != 0) return NO;
+    NSUInteger used = 0;
+    BOOL ok = [string getBytes:bytes
+                     maxLength:byteLen
+                    usedLength:&used
+                      encoding:NSASCIIStringEncoding
+                       options:0
+                         range:NSMakeRange(0, string.length)
+                remainingRange:NULL];
+    if (!ok || used != byteLen) {
+        if (bytes != inlineBytes) free(bytes);
+        return NO;
+    }
+    *bytesOut = bytes;
+    *lenOut = (size_t)used;
+    return YES;
+}
+
+static void OrenAVMRuntimeFreeASCIIBytes(uint8_t* bytes, uint8_t* inlineBytes) {
+    if (bytes && bytes != inlineBytes) free(bytes);
+}
+
+static BOOL OrenAVMRuntimeSendASCIIString(int fd, NSString* string) {
+    uint8_t inlineBytes[2048];
+    uint8_t* bytes = NULL;
+    size_t len = 0;
+    if (!OrenAVMRuntimeCopyASCIIBytes(string, inlineBytes, sizeof(inlineBytes), &bytes, &len)) return NO;
+    int rc = OrenAVMRuntimeSendAll(fd, bytes, len);
+    OrenAVMRuntimeFreeASCIIBytes(bytes, inlineBytes);
+    return rc == 0;
+}
+
 static NSString* OrenAVMRuntimeWebSocketAccept(NSString* key) {
-    NSString* input = [key stringByAppendingString:@"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"];
-    NSData* data = [input dataUsingEncoding:NSASCIIStringEncoding];
-    if (!data) return nil;
+    static const char guid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    uint8_t inlineKey[128];
+    uint8_t* keyBytes = NULL;
+    size_t keyLen = 0;
+    if (!OrenAVMRuntimeCopyASCIIBytes(key, inlineKey, sizeof(inlineKey), &keyBytes, &keyLen)) return nil;
+    size_t guidLen = sizeof(guid) - 1u;
+    if (keyLen > SIZE_MAX - guidLen || keyLen + guidLen > UINT32_MAX) {
+        OrenAVMRuntimeFreeASCIIBytes(keyBytes, inlineKey);
+        return nil;
+    }
+    size_t inputLen = keyLen + guidLen;
+    uint8_t inlineInput[192];
+    uint8_t* inputBytes = inputLen <= sizeof(inlineInput) ? inlineInput : (uint8_t*)malloc(inputLen);
+    if (!inputBytes && inputLen != 0) {
+        OrenAVMRuntimeFreeASCIIBytes(keyBytes, inlineKey);
+        return nil;
+    }
+    memcpy(inputBytes, keyBytes, keyLen);
+    memcpy(inputBytes + keyLen, guid, guidLen);
+    OrenAVMRuntimeFreeASCIIBytes(keyBytes, inlineKey);
     uint8_t digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(data.bytes, (CC_LONG)data.length, digest);
-    NSData* digestData = [NSData dataWithBytes:digest length:sizeof(digest)];
-    return [digestData base64EncodedStringWithOptions:0];
+    CC_SHA1(inputBytes, (CC_LONG)inputLen, digest);
+    if (inputBytes != inlineInput) free(inputBytes);
+    return OrenAVMRuntimeBase64String(digest, sizeof(digest));
 }
 
 static BOOL OrenAVMRuntimeWebSocketHandshake(int fd, NSURL* url, uint32_t timeoutMs) {
-    NSMutableData* keyBytes = [NSMutableData dataWithLength:16];
-    if (!keyBytes) return NO;
-    arc4random_buf(keyBytes.mutableBytes, keyBytes.length);
-    NSString* key = [keyBytes base64EncodedStringWithOptions:0];
+    uint8_t keyBytes[16];
+    arc4random_buf(keyBytes, sizeof(keyBytes));
+    NSString* key = OrenAVMRuntimeBase64String(keyBytes, sizeof(keyBytes));
     NSString* accept = OrenAVMRuntimeWebSocketAccept(key);
     if (!key || !accept) return NO;
 
@@ -304,21 +389,21 @@ static BOOL OrenAVMRuntimeWebSocketHandshake(int fd, NSURL* url, uint32_t timeou
          "Sec-WebSocket-Key: %@\r\n"
          "Sec-WebSocket-Version: 13\r\n\r\n",
         path, hostHeader, key];
-    NSData* requestData = [request dataUsingEncoding:NSASCIIStringEncoding];
-    if (!requestData) return NO;
     OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
-    if (OrenAVMRuntimeSendAll(fd, requestData.bytes, requestData.length) != 0) return NO;
+    if (!OrenAVMRuntimeSendASCIIString(fd, request)) return NO;
 
-    NSMutableData* response = [NSMutableData data];
-    uint8_t tmp[512];
+    uint8_t response[8192];
+    size_t responseLen = 0;
     BOOL complete = NO;
-    while (response.length < 8192u) {
-        ssize_t n = recv(fd, tmp, sizeof(tmp), 0);
+    while (responseLen < sizeof(response)) {
+        size_t oldLen = responseLen;
+        ssize_t n = recv(fd, response + responseLen, sizeof(response) - responseLen, 0);
         if (n <= 0) return NO;
-        [response appendBytes:tmp length:(NSUInteger)n];
-        const uint8_t* p = response.bytes;
-        for (NSUInteger i = 3; i < response.length; i++) {
-            if (p[i - 3] == '\r' && p[i - 2] == '\n' && p[i - 1] == '\r' && p[i] == '\n') {
+        responseLen += (size_t)n;
+        size_t scanStart = oldLen > 3u ? oldLen : 3u;
+        for (size_t i = scanStart; i < responseLen; i++) {
+            if (response[i - 3u] == '\r' && response[i - 2u] == '\n' &&
+                response[i - 1u] == '\r' && response[i] == '\n') {
                 complete = YES;
                 break;
             }
@@ -326,7 +411,7 @@ static BOOL OrenAVMRuntimeWebSocketHandshake(int fd, NSURL* url, uint32_t timeou
         if (complete) break;
     }
     if (!complete) return NO;
-    NSString* header = [[NSString alloc] initWithData:response encoding:NSASCIIStringEncoding];
+    NSString* header = [[NSString alloc] initWithBytes:response length:responseLen encoding:NSASCIIStringEncoding];
     NSString* lower = header.lowercaseString;
     if (!header || ![header containsString:@" 101 "] || ![lower containsString:@"upgrade: websocket"]) return NO;
     if (![lower containsString:[accept lowercaseString]]) return NO;
