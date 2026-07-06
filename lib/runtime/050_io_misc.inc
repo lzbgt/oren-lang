@@ -732,31 +732,11 @@ OrenValue oren_read_bytes(OrenValue path) {
 
     int size = (int)size_long;
 
-    unsigned char* buf = NULL;
-    if (size > 0) {
-        buf = (unsigned char*)malloc((size_t)size);
-        if (!buf) {
-            fclose(f);
-            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
-        }
-        size_t nread = fread(buf, 1, (size_t)size, f);
-        if ((int)nread != size) {
-            free(buf);
-            fclose(f);
-            return oren_err_from_errno("read_bytes: short read", path.as.string_val, errno);
-        }
-    }
-
-    fclose(f);
-
-    lock_collections();
     OrenList* list = malloc(sizeof(OrenList));
     if (!list) {
-        unlock_collections();
-        free(buf);
+        fclose(f);
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
     }
-    oren_register_alloc(list, OREN_ALLOC_LIST);
 
     list->count = size;
     list->capacity = size;
@@ -765,17 +745,31 @@ OrenValue oren_read_bytes(OrenValue path) {
     if (size > 0) {
         list->items = malloc(sizeof(OrenValue) * (size_t)size);
         if (!list->items) {
-            unlock_collections();
-            free(buf);
+            free(list);
+            fclose(f);
             return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
         }
-        for (int i = 0; i < size; i++) {
-            list->items[i] = oren_int((unsigned char)buf[i]);
+        unsigned char chunk[64 * 1024];
+        int off = 0;
+        while (off < size) {
+            size_t want = (size_t)(size - off);
+            if (want > sizeof(chunk)) want = sizeof(chunk);
+            size_t nread = fread(chunk, 1, want, f);
+            if (nread != want) {
+                free(list->items);
+                free(list);
+                fclose(f);
+                return oren_err_from_errno("read_bytes: short read", path.as.string_val, errno);
+            }
+            for (size_t i = 0; i < nread; i++) {
+                list->items[off + (int)i] = oren_int((unsigned char)chunk[i]);
+            }
+            off += (int)nread;
         }
     }
 
-    unlock_collections();
-    free(buf);
+    fclose(f);
+    oren_register_alloc(list, OREN_ALLOC_LIST);
 
     OrenValue v;
     v.type = OREN_TYPE_LIST;

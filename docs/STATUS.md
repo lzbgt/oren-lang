@@ -2362,7 +2362,10 @@ exists for explicit compatibility callers, but it now fills a stat-sized native
 `LIST_INT` directly from 1 MiB read chunks instead of per-byte
 `oren_list_push` growth. Legacy AVM host and VFS `oren_read_bytes`
 compatibility paths now also materialize pre-sized `LIST_INT` carriers directly
-instead of boxed `AvmValue` byte-list entries. The iOS SDK now
+instead of boxed `AvmValue` byte-list entries. Legacy C runtime
+`oren_read_bytes` still returns a boxed compatibility byte list, but now fills
+that list from bounded 64 KiB read chunks instead of allocating a second
+full-file temporary byte buffer before list materialization. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while
