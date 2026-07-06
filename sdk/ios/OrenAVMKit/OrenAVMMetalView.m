@@ -1758,7 +1758,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     }
     [encoder endEncoding];
     if (transientVertexBuffers.count > 0) {
-        NSArray<id<MTLBuffer>>* retainedVertexBuffers = [transientVertexBuffers copy];
+        NSArray<id<MTLBuffer>>* retainedVertexBuffers = transientVertexBuffers;
         [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
             (void)completedBuffer;
             (void)retainedVertexBuffers.count;

@@ -2367,7 +2367,8 @@
 <p>through command completion, so retained meshes and batches do not rely on</p>
 <p>unbounded <code>setVertexBytes</code> payloads. The iOS SDK verifier now guards that</p>
 <p>direct <code>setVertexBytes</code> usage stays inside the bounded helper and large</p>
-<p>transient uploads stay retained through command completion. Metal text-run</p>
+<p>transient uploads stay retained through command completion without a post-encode</p>
+<p>tracking-array copy. Metal text-run</p>
 <p>coalescing now avoids copying every non-merged run into mutable vertex storage</p>
 <p>and only allocates mutable coalescing storage when an adjacent compatible run</p>
 <p>actually merges. Single texture-quad emission now fills the six text/image</p>

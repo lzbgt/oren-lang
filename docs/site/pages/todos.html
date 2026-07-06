@@ -3479,6 +3479,11 @@
 <p>  <code>setVertexBytes</code> usage inside the bounded helper and retain large transient</p>
 <p>  <code>MTLBuffer</code> uploads through command completion.</p>
 <ul>
+<li>Metal large transient vertex uploads now retain their existing per-command</li>
+</ul>
+<p>  buffer tracking array through command completion instead of copying that array</p>
+<p>  after encoding.</p>
+<ul>
 <li>Metal text-run coalescing now keeps non-merged text runs on their existing</li>
 </ul>
 <p>  immutable vertex data and only allocates mutable vertex storage when a</p>

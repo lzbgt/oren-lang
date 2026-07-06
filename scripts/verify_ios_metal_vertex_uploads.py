@@ -23,6 +23,8 @@ def main() -> int:
         fail("missing bounded vertex payload helper")
     if "newBufferWithBytes:" not in text or "addCompletedHandler:" not in text:
         fail("missing large vertex upload buffer retention path")
+    if "[transientVertexBuffers copy]" in text:
+        fail("large vertex upload completion path must retain the existing tracking array without copying it")
 
     in_helper = False
     saw_helper_body = False

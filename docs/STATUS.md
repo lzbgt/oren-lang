@@ -2269,7 +2269,8 @@ large geometry/image/text runs to transient `MTLBuffer` objects retained
 through command completion, so retained meshes and batches do not rely on
 unbounded `setVertexBytes` payloads. The iOS SDK verifier now guards that
 direct `setVertexBytes` usage stays inside the bounded helper and large
-transient uploads stay retained through command completion. Metal text-run
+transient uploads stay retained through command completion without a post-encode
+tracking-array copy. Metal text-run
 coalescing now avoids copying every non-merged run into mutable vertex storage
 and only allocates mutable coalescing storage when an adjacent compatible run
 actually merges. Single texture-quad emission now fills the six text/image
