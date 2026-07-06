@@ -118,7 +118,11 @@ require_literal "$native_capsule" "// @include \"runtime_native/270_avm_bridge.o
 
 # Native backend runtime selection.
 for profile_file in "$arm64_profile" "$x64_profile"; do
-  require_literal "$profile_file" "runtime_path = \"lib/runtime_native_capsule.oren\""
+  if [[ "$profile_file" == "$x64_profile" ]]; then
+    require_literal "$profile_file" "return \"lib/runtime_native_capsule.oren\""
+  else
+    require_literal "$profile_file" "runtime_path = \"lib/runtime_native_capsule.oren\""
+  fi
   require_literal "$profile_file" "OREN_NATIVE_RUNTIME_PROFILE"
   require_literal "$profile_file" "runtime_path = \"lib/runtime_native_core.oren\""
   require_literal "$profile_file" "runtime_path = \"lib/runtime_native.oren\""
@@ -365,6 +369,7 @@ require_literal "$avm_native_map" "if name == \"oren_time_now_ns\" { native_doma
 require_literal "$avm_native_map" "if name == \"oren_rand_u64\" { native_domain = AVM_DOMAIN_RNG; native_op = 0 }"
 require_literal "$avm_native_map" "if name == \"oren_net_get\" { native_domain = AVM_DOMAIN_NET; native_op = 0 }"
 require_literal "$avm_native_map" "if name == \"oren_read_file\" { native_domain = AVM_DOMAIN_FS; native_op = 0 }"
+require_literal "$avm_native_map" "if name == \"oren_read_u8_buf\" { native_domain = AVM_DOMAIN_FS; native_op = 8 }"
 require_literal "$avm_native_map" "if name == \"oren_avm_run_obc_bytes\" { native_domain = AVM_DOMAIN_AVM; native_op = 0 }"
 
 # Makefile verification hooks.

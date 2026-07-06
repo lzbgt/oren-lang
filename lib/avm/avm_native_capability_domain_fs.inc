@@ -163,6 +163,31 @@
                     if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                     return ret;
                 }
+                case 8: { // read_u8_buf -> BYTES
+                    AvmVfsEntry* e = avm_vfs_find(v, path ? path : "");
+                    if (!e) {
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "vfs: file not found: %s (entries=%u)", path ? path : "", v ? (unsigned)v->count : 0u);
+                        return avm_err_domop(AVM_ERR_NOT_FOUND, msg, domain, op);
+                    }
+                    if (e->len > 2147483647u) return avm_err_domop(AVM_ERR_INVALID_ARG, "read_u8_buf: file too large", domain, op);
+                    if (e->len > 0 && !e->data) return avm_err_domop(AVM_ERR_INTERNAL, "read_u8_buf: invalid vfs data", domain, op);
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        uint64_t need = 86ull + (uint64_t)e->len;
+                        if (!avm_log_can_fit(vm, need)) {
+                            AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, err);
+                            return err;
+                        }
+                    }
+                    if (!avm_io_charge(vm, (uint64_t)e->len, (int)domain, (int)op)) return vm->last_error;
+                    AvmValue ret = avm_bytes_new((int)e->len);
+                    if (ret.type != AVM_VAL_BYTES || !ret.as.b) { avm_abort(vm, ret); return ret; }
+                    if (e->len > 0) memcpy(ret.as.b->data, e->data, (size_t)e->len);
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
                 case 4: { // exists(path) -> BOOL
                     // VFS semantics:
                     // - true if the exact path exists as a file
@@ -365,6 +390,92 @@
                     use_args = tmp_args;
                 }
                 AvmValue ret = avm_call_native(vm, 18, use_args, nargs);
+                if (mapped) free(mapped);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            case 8: { // read_u8_buf
+                AvmValue* use_args = args;
+                AvmValue tmp_args[4];
+                char* mapped = NULL;
+                if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    int matched = 0;
+                    mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                    if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
+                    if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    tmp_args[0] = args[0];
+                    tmp_args[0].as.p = mapped;
+                    use_args = tmp_args;
+                }
+                if (nargs <= 0 || !use_args || use_args[0].type != AVM_VAL_STRING || !use_args[0].as.p) {
+                    if (mapped) free(mapped);
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "read_u8_buf expects string path", domain, op);
+                }
+                const char* path2 = (const char*)use_args[0].as.p;
+                FILE* f = fopen(path2, "rb");
+                if (!f) {
+                    int err = errno;
+                    char msg[512];
+                    snprintf(msg, sizeof(msg), "cannot open file: %s (errno=%d)", path2, err);
+                    if (mapped) free(mapped);
+                    return avm_err_domop(avm_err_from_errno(err), msg, domain, op);
+                }
+                if (fseek(f, 0, SEEK_END) != 0) {
+                    int err = errno;
+                    fclose(f);
+                    if (mapped) free(mapped);
+                    return avm_err_domop(avm_err_from_errno(err), "read_u8_buf: fseek failed", domain, op);
+                }
+                long len = ftell(f);
+                if (len < 0) {
+                    int err = errno;
+                    fclose(f);
+                    if (mapped) free(mapped);
+                    return avm_err_domop(avm_err_from_errno(err), "read_u8_buf: ftell failed", domain, op);
+                }
+                if (len > 2147483647L) {
+                    fclose(f);
+                    if (mapped) free(mapped);
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "read_u8_buf: file too large", domain, op);
+                }
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    uint64_t need = 86ull + (uint64_t)len;
+                    if (!avm_log_can_fit(vm, need)) {
+                        fclose(f);
+                        if (mapped) free(mapped);
+                        AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                        avm_abort(vm, err);
+                        return err;
+                    }
+                }
+                if (fseek(f, 0, SEEK_SET) != 0) {
+                    int err = errno;
+                    fclose(f);
+                    if (mapped) free(mapped);
+                    return avm_err_domop(avm_err_from_errno(err), "read_u8_buf: fseek failed", domain, op);
+                }
+                if (!avm_io_charge(vm, (uint64_t)len, (int)domain, (int)op)) {
+                    fclose(f);
+                    if (mapped) free(mapped);
+                    return vm->last_error;
+                }
+                AvmValue ret = avm_bytes_new((int)len);
+                if (ret.type != AVM_VAL_BYTES || !ret.as.b) {
+                    fclose(f);
+                    if (mapped) free(mapped);
+                    avm_abort(vm, ret);
+                    return ret;
+                }
+                if (len > 0) {
+                    size_t n = fread(ret.as.b->data, 1, (size_t)len, f);
+                    if (n != (size_t)len) {
+                        fclose(f);
+                        if (mapped) free(mapped);
+                        return avm_err_domop(AVM_ERR_IO, "read_u8_buf: short read", domain, op);
+                    }
+                }
+                fclose(f);
                 if (mapped) free(mapped);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);

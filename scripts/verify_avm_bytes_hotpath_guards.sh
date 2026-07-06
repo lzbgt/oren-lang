@@ -19,6 +19,31 @@ if grep -q 'oren_bytes_unpack(out_buf)\|Fallback to list<int> for AVM runtimes w
   exit 1
 fi
 
+if grep -q 'avm_call_native2(vm, 1, 3' lib/avm/avm_native_compiler_cases.inc; then
+  echo "ERROR: AVM read_u8_buf compiler shim must route to byte-native FS.read_u8_buf, not legacy read_bytes" >&2
+  exit 1
+fi
+
+if ! grep -q 'legacy_id == 217.*op = 8' lib/avm/avm.h; then
+  echo "ERROR: legacy oren_read_u8_buf must map to byte-native FS.read_u8_buf op 8" >&2
+  exit 1
+fi
+
+if ! grep -q 'if name == "oren_read_u8_buf" { native_domain = AVM_DOMAIN_FS; native_op = 8 }' lib/compiler/codegen_bytecode/010_codegen_a.oren; then
+  echo "ERROR: bytecode lowering must emit oren_read_u8_buf as FS.read_u8_buf op 8, not CORE legacy id 217" >&2
+  exit 1
+fi
+
+if grep -q 'if name == "oren_read_u8_buf" { native_id = 217 }' lib/compiler/codegen_bytecode/010_codegen_a.oren; then
+  echo "ERROR: bytecode lowering must not emit oren_read_u8_buf as CORE legacy id 217" >&2
+  exit 1
+fi
+
+if ! grep -q 'case 8:.*read_u8_buf' lib/avm/avm_native_capability_domain_fs.inc; then
+  echo "ERROR: FS capability domain must keep byte-native read_u8_buf op 8" >&2
+  exit 1
+fi
+
 if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/compiler/native_runtime_obj_cache.oren; then
   echo "ERROR: runtime-object metadata hot path must use shared compiler byte_view readers" >&2
   exit 1

@@ -230,20 +230,7 @@
             break;
         }
         case 217: { // oren_read_u8_buf(path) -> bytes
-            AvmValue r = avm_call_native2(vm, 1, 3, args, nargs);
-            if (r.type == AVM_VAL_LIST && r.as.l) {
-                AvmList* list = r.as.l;
-                AvmValue b = avm_bytes_new(list->count);
-                if (b.type != AVM_VAL_BYTES) { res = b; break; }
-                for (int i = 0; i < list->count; i++) {
-                    AvmValue it = list->items[i];
-                    if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "read_u8_buf: invalid byte list"); break; }
-                    b.as.b->data[i] = (uint8_t)it.as.i;
-                }
-                if (!avm_is_err_val(res)) res = b;
-            } else {
-                res = r;
-            }
+            res = avm_call_native2(vm, 1, 8, args, nargs);
             break;
         }
         case 218: { // oren_file_stat_size_mtime_ns(path) -> [size, mtime_ns]|err

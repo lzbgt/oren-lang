@@ -467,7 +467,7 @@ typedef struct {
 // known effectful legacy IDs into their capability domains.
 //
 // Mapping policy (bootstrap, rolling):
-// - FS: legacy {0,1,17,18,229} -> domain 1 ops {0..3,7}
+// - FS: legacy {0,1,17,18,217,229} -> domain 1 ops {0..3,8,7}
 // - PROC: legacy {2} -> domain 5 op {0}
 // - EXIT: legacy {5} -> domain 6 op {0}
 // - ENV: legacy {4} -> domain 7 op {0}
@@ -480,6 +480,7 @@ static inline void avm_legacy_native_to_domop(uint16_t legacy_id, uint8_t* domai
     if (legacy_id == 1) { domain = 1; op = 1; }   // FS.write_file
     if (legacy_id == 17) { domain = 1; op = 2; }  // FS.write_bytes
     if (legacy_id == 18) { domain = 1; op = 3; }  // FS.read_bytes
+    if (legacy_id == 217) { domain = 1; op = 8; } // FS.read_u8_buf
     if (legacy_id == 229) { domain = 1; op = 7; } // FS.append_file
 
     if (legacy_id == 2) { domain = 5; op = 0; }   // PROC.system

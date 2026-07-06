@@ -986,6 +986,7 @@ fn bytecode_compile_expr(ctx, expr) {
         // Effectful file metadata update (used by native backends to set executable bit).
         if name == "oren_chmod" { native_domain = AVM_DOMAIN_FS; native_op = 6 }
         if name == "oren_append_file" { native_domain = AVM_DOMAIN_FS; native_op = 7 }
+        if name == "oren_read_u8_buf" { native_domain = AVM_DOMAIN_FS; native_op = 8 }
         if name == "oren_avm_run_obc_bytes" { native_domain = AVM_DOMAIN_AVM; native_op = 0 }
         if name == "oren_avm_permission_request" { native_domain = AVM_DOMAIN_PERMISSION; native_op = 0 }
         if name == "oren_avm_event_select" { native_domain = AVM_DOMAIN_EVENT; native_op = 0 }
@@ -1106,7 +1107,6 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_map_push_entry_int_unchecked" { native_id = 214 }
         if name == "oren_map_build_finalize_unchecked" { native_id = 215 }
         if name == "oren_sha256_string" { native_id = 216 }
-        if name == "oren_read_u8_buf" { native_id = 217 }
         if name == "oren_file_stat_size_mtime_ns" { native_id = 218 }
         if name == "oren_rename" { native_id = 219 }
         if name == "oren_list_get" { native_id = 220 }

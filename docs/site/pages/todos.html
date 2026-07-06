@@ -3513,6 +3513,11 @@
 </ul>
 <p>  values as scalars instead of allocating <code>NSData</code> wrappers for each color.</p>
 <ul>
+<li>AVM <code>oren_read_u8_buf</code> now maps to a byte-native FS capability op that reads</li>
+</ul>
+<p>  host and VFS files directly into AVM byte buffers instead of bridging through</p>
+<p>  a boxed <code>list&lt;int&gt;</code> byte array.</p>
+<ul>
 <li>The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and</li>
 </ul>
 <p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>
