@@ -13,6 +13,8 @@ typedef struct {
     int64_t zsum;
 } OrenAVMGfxTriangleOrder;
 
+enum { OrenAVMGfxInlineTriangleOrderCapacity = 128 };
+
 @interface OrenAVMGfxMeshResource : NSObject
 @property(nonatomic) uint8_t* triangles;
 @property(nonatomic) NSUInteger triangleBytes;
@@ -118,9 +120,14 @@ static int OrenAVMGfxTriangleOrderCompare(const void* left, const void* right) {
     return 0;
 }
 
-static OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount, NSMutableData** storage) {
+static OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount,
+                                                              OrenAVMGfxTriangleOrder* inlineOrder,
+                                                              uint32_t inlineCapacity,
+                                                              NSMutableData** storage) {
     if (storage) *storage = nil;
-    if (triangleCount == 0 || !storage) return NULL;
+    if (triangleCount == 0) return NULL;
+    if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder;
+    if (!storage) return NULL;
     NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMGfxTriangleOrder)];
     OrenAVMGfxTriangleOrder* bytes = data.mutableBytes;
     if (!bytes) return NULL;
@@ -864,8 +871,12 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
                 scaleMilli = OrenAVMGfxReadU32LE(payload + 20);
             }
             if (verts && idx && scaleMilli != 0 && triangleCount == mesh.indexBytes / 12u && mesh.vertexBytes % 12u == 0) {
+                OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity];
                 NSMutableData* orderData = nil;
-                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount, &orderData);
+                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount,
+                                                                               inlineOrder,
+                                                                               OrenAVMGfxInlineTriangleOrderCapacity,
+                                                                               &orderData);
                 if (!order) {
                     off += payloadLen;
                     continue;
@@ -897,8 +908,12 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
                     CGContextFillPath(ctx);
                 }
             } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && triangleCount == mesh.triangleBytes / meshStride) {
+                OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity];
                 NSMutableData* orderData = nil;
-                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount, &orderData);
+                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount,
+                                                                               inlineOrder,
+                                                                               OrenAVMGfxInlineTriangleOrderCapacity,
+                                                                               &orderData);
                 if (!order) {
                     off += payloadLen;
                     continue;

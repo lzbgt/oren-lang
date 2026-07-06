@@ -3458,13 +3458,15 @@
 </ul>
 <p>  visible-triangle order buffer and sorts by depth with original-index ties,</p>
 <p>  avoiding per-triangle Objective-C allocations and repeated full rescans in</p>
-<p>  the frame path.</p>
+<p>  the frame path; small retained 3D draws use stack order storage with heap</p>
+<p>  fallback only beyond the inline order capacity.</p>
 <ul>
 <li>iOS <code>OrenAVMGraphicsView</code> retained 3D painter ordering now uses the same</li>
 </ul>
 <p>  compact visible-triangle order buffer for indexed and packed 3D meshes,</p>
 <p>  removing per-triangle <code>NSNumber</code>/<code>NSMutableSet</code> allocations and repeated</p>
-<p>  full rescans from the CoreGraphics fallback path.</p>
+<p>  full rescans from the CoreGraphics fallback path; it also uses stack order</p>
+<p>  storage for small retained 3D draws.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> now guards the CoreGraphics retained-3D fallback</li>
 </ul>

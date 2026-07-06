@@ -28,6 +28,12 @@ def main() -> int:
         fail("retained 3D painter path still uses boxed set tracking")
     if text.count("OrenAVMGfxSortTriangleOrder(order, visibleCount)") < 2:
         fail("expected sorted order path for indexed and packed retained 3D meshes")
+    if "OrenAVMGfxInlineTriangleOrderCapacity = 128" not in text:
+        fail("CoreGraphics retained 3D triangle ordering must have a small stack buffer")
+    if "OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount,\n                                                              OrenAVMGfxTriangleOrder* inlineOrder" not in text:
+        fail("CoreGraphics retained 3D triangle ordering must try inline storage before heap storage")
+    if text.count("OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity]") < 2:
+        fail("CoreGraphics retained 3D draw paths must pass stack triangle-order buffers")
     if "@interface OrenAVMGfxMeshResource" not in text:
         fail("CoreGraphics retained meshes must use typed resource objects")
     if "static UIColor* OrenAVMGfxColor(const uint8_t* rgba)" in text:

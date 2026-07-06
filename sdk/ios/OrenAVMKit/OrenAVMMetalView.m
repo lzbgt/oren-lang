@@ -19,6 +19,8 @@ typedef struct {
     int64_t zsum;
 } OrenAVMMetalTriangleOrder;
 
+enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
+
 _Static_assert(sizeof(OrenAVMMetalTextVertex) == 16, "OrenAVMMetalTextVertex must match shader packed_float2+packed_float2");
 
 typedef struct {
@@ -99,9 +101,14 @@ static int OrenAVMMetalTriangleOrderCompare(const void* left, const void* right)
     return 0;
 }
 
-static OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount, NSMutableData** storage) {
+static OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,
+                                                                  OrenAVMMetalTriangleOrder* inlineOrder,
+                                                                  uint32_t inlineCapacity,
+                                                                  NSMutableData** storage) {
     if (storage) *storage = nil;
-    if (triangleCount == 0 || !storage) return NULL;
+    if (triangleCount == 0) return NULL;
+    if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder;
+    if (!storage) return NULL;
     NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder)];
     OrenAVMMetalTriangleOrder* bytes = data.mutableBytes;
     if (!bytes) return NULL;
@@ -1029,8 +1036,12 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
             }
             if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indexBytes / 4u) {
                 uint32_t triangleTotal = mesh.indexCount / 3u;
+                OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
                 NSMutableData* orderData = nil;
-                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal, &orderData);
+                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal,
+                                                                                   inlineOrder,
+                                                                                   OrenAVMMetalInlineTriangleOrderCapacity,
+                                                                                   &orderData);
                 if (triangleTotal != 0 && !order) continue;
                 uint32_t visibleTotal = 0;
                 for (uint32_t ti = 0; ti < triangleTotal; ti++) {
@@ -1059,8 +1070,12 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                 }
             } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangleBytes / meshStride) {
                 uint32_t triangleTotal = mesh.triangleCount;
+                OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
                 NSMutableData* orderData = nil;
-                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal, &orderData);
+                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal,
+                                                                                   inlineOrder,
+                                                                                   OrenAVMMetalInlineTriangleOrderCapacity,
+                                                                                   &orderData);
                 if (triangleTotal != 0 && !order) continue;
                 uint32_t visibleTotal = 0;
                 for (uint32_t ti = 0; ti < triangleTotal; ti++) {
