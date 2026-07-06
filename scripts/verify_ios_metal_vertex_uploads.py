@@ -94,6 +94,15 @@ def main() -> int:
         fail("missing retained Metal mesh raw payload copy helper")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
         fail("retained Metal materials must store scalar RGBA NSNumber values")
+    retained_3d_start = text.find("} else if ((opcode == 84")
+    retained_3d_end = text.find("} else if (opcode == 85", retained_3d_start)
+    if retained_3d_start < 0 or retained_3d_end < 0:
+        fail("missing retained Metal 3D draw block")
+    retained_3d_block = text[retained_3d_start:retained_3d_end]
+    if "uint32_t materialRGBA = materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue;" not in retained_3d_block:
+        fail("retained Metal material overrides must be unboxed once per draw")
+    if retained_3d_block.count("unsignedIntValue") != 1:
+        fail("retained Metal material override must not send unsignedIntValue inside triangle loops")
     if "@interface OrenAVMMetalImageResource" not in metal_text:
         fail("retained Metal images must use typed resource objects")
     if "NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures" in text:

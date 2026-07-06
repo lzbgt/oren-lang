@@ -1345,6 +1345,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     continue;
                 }
             }
+            uint32_t materialRGBA = materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue;
             const uint8_t* tris = mesh.triangles;
             const uint8_t* verts = mesh.vertices;
             const uint8_t* idx = mesh.indices;
@@ -1378,7 +1379,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     const uint8_t* v1 = verts + ((size_t)OrenAVMMetalReadU32LE(tri) * 12u);
                     const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
                     const uint8_t* v3 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 8) * 12u);
-                    OrenAVMMetalRGBAValueWithOpacity(materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue, opacity, rgba);
+                    OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
                     OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                                OrenAVMMetalMesh3DModelCoord(v1, modelX, scaleMilli) + tx,
                                                OrenAVMMetalMesh3DModelCoord(v1 + 4, modelY, scaleMilli) + ty,
@@ -1406,7 +1407,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     uint32_t best = order[di].triangle;
                     const uint8_t* tri = tris + ((size_t)best * meshStride);
                     if (materialRGBAValue) {
-                        OrenAVMMetalRGBAValueWithOpacity(materialRGBAValue.unsignedIntValue, opacity, rgba);
+                        OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
                     } else if (meshStride == 40u) {
                         OrenAVMMetalRGBAWithOpacity(tri + 36, opacity, rgba);
                     } else if (mesh.hasRGBA) {

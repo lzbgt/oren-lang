@@ -3531,6 +3531,10 @@
 </ul>
 <p>  values as scalars instead of allocating <code>NSData</code> wrappers for each color.</p>
 <ul>
+<li>Retained Metal 3D material override draws now unbox the material RGBA once per</li>
+</ul>
+<p>  draw instead of sending <code>NSNumber.unsignedIntValue</code> inside triangle loops.</p>
+<ul>
 <li>CoreGraphics retained mesh/material fallback records now use typed mesh</li>
 </ul>
 <p>  resources and scalar RGBA material values instead of dictionary payloads and</p>

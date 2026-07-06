@@ -2560,6 +2560,8 @@ design evidence lives under `project-doc/`.
   those records.
 - Retained Metal mesh, material, and text resource colors now store 4-byte RGBA
   values as scalars instead of allocating `NSData` wrappers for each color.
+- Retained Metal 3D material override draws now unbox the material RGBA once per
+  draw instead of sending `NSNumber.unsignedIntValue` inside triangle loops.
 - CoreGraphics retained mesh/material fallback records now use typed mesh
   resources and scalar RGBA material values instead of dictionary payloads and
   retained `UIColor` material objects.
