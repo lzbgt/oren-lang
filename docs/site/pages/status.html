@@ -2753,7 +2753,10 @@
 <p>  <code>avm_native_buffer_cases_e.inc</code>, reducing <code>avm_native_buffer_cases_b.inc</code> to</p>
 <p>  1583 lines while preserving native-op case order. AVM CLI argument parsing</p>
 <p>  now lives in <code>avm_main_parse_args.inc</code>, reducing <code>main.c</code> to 1608 lines while</p>
-<p>  preserving the existing parse/return flow. The iOS SDK verifier reuses</p>
+<p>  preserving the existing parse/return flow. AVM native byte/iterator</p>
+<p>  conversion cases now live in <code>avm_native_byte_iter_cases.inc</code>, reducing</p>
+<p>  <code>avm_native.inc</code> to 1434 lines and keeping byte-hotpath compatibility cases</p>
+<p>  in one review boundary. The iOS SDK verifier reuses</p>
 <p>  <code>scripts/obc_to_c_header.py</code> for embedded OBC</p>
 <p>  headers, reducing <code>verify_libavm_ios.sh</code> to 1923 lines. Its local</p>
 <p>  NET/TCP/UDP/WebSocket/static-package helper servers now live in</p>
