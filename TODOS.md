@@ -2618,6 +2618,8 @@ design evidence lives under `project-doc/`.
 - Runtime GC marking and spawn-entry helpers now live in
   `010_prelude_gc_mark_spawn.inc`, reducing `010_prelude.inc` to 1805 lines and
   restoring headroom for prelude changes.
+- Runtime SHA-256 helpers now live in `050_io_misc_sha256.inc`, reducing
+  `050_io_misc.inc` to 1705 lines while preserving IO/misc include order.
 - Example build and cross-compile smoke targets now live in `mk/examples.mk`,
   reducing the top-level `Makefile` to 1883 lines and preserving source-line
   guardrail headroom as verification targets continue to grow.
