@@ -1637,7 +1637,7 @@ fn commands_from_file_at(path, time_milli) {
 }
 
 fn commands_from_binary_file(path) {
-    var data = oren_read_bytes(path)
+    var data = oren_read_u8_buf(path)
     if oren_is_err(data) { return data }
     return commands_from_binary(data)
 }

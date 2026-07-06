@@ -2288,7 +2288,8 @@ Metal mesh, material, and text resource colors now keep 4-byte RGBA values as
 scalars instead of allocating `NSData` wrappers for each color. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host
 and VFS files directly into AVM byte buffers instead of bridging through a
-boxed `list<int>` byte array. The iOS SDK now
+boxed `list<int>` byte array, and `std:ui/scene3d.commands_from_binary_file`
+uses that path for `.os3d` assets. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

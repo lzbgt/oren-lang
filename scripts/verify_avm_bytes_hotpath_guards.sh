@@ -44,6 +44,11 @@ if ! grep -q 'case 8:.*read_u8_buf' lib/avm/avm_native_capability_domain_fs.inc;
   exit 1
 fi
 
+if grep -q 'var data = oren_read_bytes(path)' lib/std/ui/scene3d.oren; then
+  echo "ERROR: std:ui/scene3d binary file loading must use byte-native oren_read_u8_buf" >&2
+  exit 1
+fi
+
 if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/compiler/native_runtime_obj_cache.oren; then
   echo "ERROR: runtime-object metadata hot path must use shared compiler byte_view readers" >&2
   exit 1
