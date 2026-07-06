@@ -2637,7 +2637,10 @@ Working evidence:
   preserving the existing parse/return flow. AVM native byte/iterator
   conversion cases now live in `avm_native_byte_iter_cases.inc`, reducing
   `avm_native.inc` to 1434 lines and keeping byte-hotpath compatibility cases
-  in one review boundary. The iOS SDK verifier reuses
+  in one review boundary. Scene3D PLY/STL source lowering now lives in
+  `scripts/scene3d_ply_stl.py`, reducing `make_scene3d_bin_v0.py` to 1521 lines
+  while preserving byte-identical `.os3d` output for the package demo asset. The
+  iOS SDK verifier reuses
   `scripts/obc_to_c_header.py` for embedded OBC
   headers, reducing `verify_libavm_ios.sh` to 1923 lines. Its local
   NET/TCP/UDP/WebSocket/static-package helper servers now live in

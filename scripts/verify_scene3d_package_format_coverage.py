@@ -18,6 +18,7 @@ BUILDER_FILES = [
     ROOT / "scripts/scene3d_flat_curves.py",
     ROOT / "scripts/scene3d_gltf.py",
     ROOT / "scripts/scene3d_grid.py",
+    ROOT / "scripts/scene3d_ply_stl.py",
 ]
 
 # Raw ABI payload escape hatches are intentionally not human-readable package formats.
