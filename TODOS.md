@@ -2559,6 +2559,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained text fallback records now use typed resources with
   cached drawing attributes instead of dictionary payloads and per-draw
   attributes dictionaries.
+- CoreGraphics retained image fallback records now use typed resources for image
+  plus pixel accounting instead of parallel image/pixel dictionaries, with
+  overflow-safe retained sub-rect bounds checks.
 - iOS SDK symbol verification now caches `nm` output once per archive and
   greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads

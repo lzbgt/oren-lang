@@ -35,6 +35,14 @@ typedef struct {
 @implementation OrenAVMGfxTextResource
 @end
 
+@interface OrenAVMGfxImageResource : NSObject
+@property(nonatomic, strong) UIImage* image;
+@property(nonatomic) NSUInteger pixels;
+@end
+
+@implementation OrenAVMGfxImageResource
+@end
+
 static BOOL OrenAVMGraphicsViewAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
         *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
@@ -196,6 +204,11 @@ static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_
     return out;
 }
 
+static BOOL OrenAVMGfxSubrectInImage(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, size_t width, size_t height) {
+    return (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
+        (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
+}
+
 static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (frame.length < 24) return NO;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -214,8 +227,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxImageResource*>* orenImages;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
 @property(nonatomic) BOOL orenFrameReloadScheduled;
@@ -234,7 +246,6 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
     if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
-    if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
     if (self.retainedImagePixelLimit == 0) self.retainedImagePixelLimit = OrenAVMDefaultRetainedImagePixelLimit;
     if (self.retainedImageCountLimit == 0) self.retainedImageCountLimit = OrenAVMDefaultRetainedImageCountLimit;
 }
@@ -288,17 +299,15 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 
 - (void)clearImageCache {
     [self.orenImages removeAllObjects];
-    [self.orenImagePixels removeAllObjects];
     self.retainedImagePixelCount = 0;
 }
 
 - (void)orenRemoveImageWithID:(uint32_t)imageID {
     NSNumber* key = @(imageID);
-    NSNumber* oldPixels = self.orenImagePixels[key];
-    if (oldPixels) {
-        NSUInteger pixels = oldPixels.unsignedIntegerValue;
+    OrenAVMGfxImageResource* old = self.orenImages[key];
+    if (old) {
+        NSUInteger pixels = old.pixels;
         self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
-        [self.orenImagePixels removeObjectForKey:key];
     }
     [self.orenImages removeObjectForKey:key];
 }
@@ -306,14 +315,18 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 - (void)orenPutImage:(UIImage*)image imageID:(uint32_t)imageID pixels:(NSUInteger)pixels {
     if (!image || imageID == 0) return;
     NSNumber* key = @(imageID);
-    NSNumber* oldPixels = self.orenImagePixels[key];
-    NSUInteger old = oldPixels ? oldPixels.unsignedIntegerValue : 0;
-    NSUInteger countAfter = self.orenImages[key] ? self.orenImages.count : self.orenImages.count + 1u;
-    NSUInteger pixelAfter = self.retainedImagePixelCount >= old ? self.retainedImagePixelCount - old + pixels : pixels;
+    OrenAVMGfxImageResource* oldResource = self.orenImages[key];
+    NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
+    NSUInteger countAfter = oldResource ? self.orenImages.count : self.orenImages.count + 1u;
+    NSUInteger retainedAfterOld = self.retainedImagePixelCount >= oldPixels ? self.retainedImagePixelCount - oldPixels : 0;
+    if (pixels > NSUIntegerMax - retainedAfterOld) return;
+    NSUInteger pixelAfter = retainedAfterOld + pixels;
     if (self.retainedImageCountLimit == 0 || countAfter > self.retainedImageCountLimit) return;
     if (self.retainedImagePixelLimit == 0 || pixels > self.retainedImagePixelLimit || pixelAfter > self.retainedImagePixelLimit) return;
-    self.orenImages[key] = image;
-    self.orenImagePixels[key] = @(pixels);
+    OrenAVMGfxImageResource* resource = [[OrenAVMGfxImageResource alloc] init];
+    resource.image = image;
+    resource.pixels = pixels;
+    self.orenImages[key] = resource;
     self.retainedImagePixelCount = pixelAfter;
 }
 
@@ -958,7 +971,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
             uint32_t w = OrenAVMGfxReadU32LE(payload + 12);
             uint32_t h = OrenAVMGfxReadU32LE(payload + 16);
-            UIImage* image = self.orenImages[@(imageID)];
+            UIImage* image = self.orenImages[@(imageID)].image;
             if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
@@ -973,9 +986,9 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t y = OrenAVMGfxReadU32LE(payload + 24);
             uint32_t w = OrenAVMGfxReadU32LE(payload + 28);
             uint32_t h = OrenAVMGfxReadU32LE(payload + 32);
-            UIImage* image = self.orenImages[@(imageID)];
+            UIImage* image = self.orenImages[@(imageID)].image;
             CGImageRef cgImage = image.CGImage;
-            if (cgImage && sx + sw <= CGImageGetWidth(cgImage) && sy + sh <= CGImageGetHeight(cgImage)) {
+            if (cgImage && OrenAVMGfxSubrectInImage(sx, sy, sw, sh, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))) {
                 CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
                 if (subImage) {
                     UIImage* cropped = [UIImage imageWithCGImage:subImage];
@@ -986,7 +999,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
         } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
             uint32_t rectCount = OrenAVMGfxReadU32LE(payload + 4);
-            UIImage* image = self.orenImages[@(imageID)];
+            UIImage* image = self.orenImages[@(imageID)].image;
             CGImageRef cgImage = image.CGImage;
             if (cgImage && rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
                 for (uint32_t ri = 0; ri < rectCount; ri++) {
@@ -999,7 +1012,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                     uint32_t y = OrenAVMGfxReadU32LE(r + 20);
                     uint32_t w = OrenAVMGfxReadU32LE(r + 24);
                     uint32_t h = OrenAVMGfxReadU32LE(r + 28);
-                    if (sx + sw <= CGImageGetWidth(cgImage) && sy + sh <= CGImageGetHeight(cgImage)) {
+                    if (OrenAVMGfxSubrectInImage(sx, sy, sw, sh, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))) {
                         CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
                         if (subImage) {
                             UIImage* cropped = [UIImage imageWithCGImage:subImage];

@@ -44,6 +44,14 @@ def main() -> int:
         fail("CoreGraphics retained text must cache typed text attributes")
     if 'NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)]' in text:
         fail("CoreGraphics retained text draws must not use dictionary casts")
+    if "@interface OrenAVMGfxImageResource" not in text:
+        fail("CoreGraphics retained images must use typed resource objects")
+    if "NSMutableDictionary<NSNumber*, UIImage*>* orenImages" in text:
+        fail("CoreGraphics retained images must not store bare UIImage values")
+    if "orenImagePixels" in text:
+        fail("CoreGraphics retained image pixel accounting must not use a parallel dictionary")
+    if "OrenAVMGfxSubrectInImage" not in text:
+        fail("CoreGraphics retained image sub-rect checks must use the overflow-safe helper")
     print("OK: CoreGraphics retained resources use compact typed records")
     return 0
 

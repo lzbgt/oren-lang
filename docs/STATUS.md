@@ -2292,9 +2292,11 @@ CoreGraphics retained mesh/material fallback now stores typed mesh resource
 records plus scalar RGBA material values instead of dictionary payloads and
 retained `UIColor` material objects; CoreGraphics retained text fallback records
 now use typed resources with cached drawing attributes instead of dictionary
-payloads and per-draw attributes dictionaries. The iOS SDK symbol verifier now
-caches `nm` output once per archive and greps files instead of SIGPIPE-prone
-`nm | grep -q` pipelines. AVM
+payloads and per-draw attributes dictionaries; CoreGraphics retained image
+fallback records now use typed resources for image plus pixel accounting instead
+of parallel image/pixel dictionaries, with overflow-safe retained sub-rect
+bounds checks. The iOS SDK symbol verifier now caches `nm` output once per
+archive and greps files instead of SIGPIPE-prone `nm | grep -q` pipelines. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host
 and VFS files directly into AVM byte buffers instead of bridging through a
 boxed `list<int>` byte array, and `std:ui/scene3d.commands_from_binary_file`
