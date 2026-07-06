@@ -4,6 +4,8 @@
 #import <Security/Security.h>
 #import <dispatch/dispatch.h>
 #import <limits.h>
+#include <stdlib.h>
+#include <string.h>
 #import <zlib.h>
 
 static BOOL OrenAVMPackageAssignError(NSError** error, NSInteger code, NSString* message) {
@@ -25,18 +27,29 @@ static NSNumber* OrenAVMPackageNumber(NSDictionary<NSString*, id>* manifest, NSS
     return [v isKindOfClass:[NSNumber class]] ? (NSNumber*)v : nil;
 }
 
+static int OrenAVMPackageHexNibble(unichar ch) {
+    if (ch >= '0' && ch <= '9') return (int)(ch - '0');
+    if (ch >= 'a' && ch <= 'f') return (int)(ch - 'a') + 10;
+    if (ch >= 'A' && ch <= 'F') return (int)(ch - 'A') + 10;
+    return -1;
+}
+
 static NSData* OrenAVMPackageDecodeHex(NSString* hex) {
     if ((hex.length & 1u) != 0) return nil;
-    NSMutableData* out = [NSMutableData dataWithLength:hex.length / 2u];
-    uint8_t* bytes = out.mutableBytes;
+    NSUInteger byteLen = hex.length / 2u;
+    if (byteLen == 0) return [NSData data];
+    uint8_t* bytes = (uint8_t*)malloc((size_t)byteLen);
+    if (!bytes) return nil;
     for (NSUInteger i = 0; i < hex.length; i += 2u) {
-        unsigned int v = 0;
-        NSString* part = [hex substringWithRange:NSMakeRange(i, 2u)];
-        NSScanner* scanner = [NSScanner scannerWithString:part];
-        if (![scanner scanHexInt:&v] || !scanner.isAtEnd || v > 255u) return nil;
-        bytes[i / 2u] = (uint8_t)v;
+        int hi = OrenAVMPackageHexNibble([hex characterAtIndex:i]);
+        int lo = OrenAVMPackageHexNibble([hex characterAtIndex:i + 1u]);
+        if (hi < 0 || lo < 0) {
+            free(bytes);
+            return nil;
+        }
+        bytes[i / 2u] = (uint8_t)((hi << 4) | lo);
     }
-    return out;
+    return [NSData dataWithBytesNoCopy:bytes length:byteLen freeWhenDone:YES];
 }
 
 static NSData* OrenAVMPackageDecodeP256PublicKey(NSString* b64) {
@@ -255,18 +268,28 @@ static uint32_t OrenAVMPackageReadLE32(const uint8_t* bytes, NSUInteger length, 
 }
 
 static NSData* OrenAVMPackageInflateRawDeflate(const uint8_t* input, NSUInteger inputLen, NSUInteger outputLen) {
-    NSMutableData* out = [NSMutableData dataWithLength:outputLen];
+    if (inputLen > UINT_MAX || outputLen > UINT_MAX) return nil;
+    uint8_t* output = outputLen > 0 ? (uint8_t*)malloc((size_t)outputLen) : NULL;
+    if (!output && outputLen != 0) return nil;
+    uint8_t zeroOutput = 0;
     z_stream stream;
     memset(&stream, 0, sizeof(stream));
     stream.next_in = (Bytef*)input;
     stream.avail_in = (uInt)inputLen;
-    stream.next_out = out.mutableBytes;
+    stream.next_out = output ? output : &zeroOutput;
     stream.avail_out = (uInt)outputLen;
-    if (inputLen > UINT_MAX || outputLen > UINT_MAX || inflateInit2(&stream, -MAX_WBITS) != Z_OK) return nil;
+    if (inflateInit2(&stream, -MAX_WBITS) != Z_OK) {
+        free(output);
+        return nil;
+    }
     int rc = inflate(&stream, Z_FINISH);
     inflateEnd(&stream);
-    if (rc != Z_STREAM_END || stream.total_out != outputLen) return nil;
-    return out;
+    if (rc != Z_STREAM_END || stream.total_out != outputLen) {
+        free(output);
+        return nil;
+    }
+    if (outputLen == 0) return [NSData data];
+    return [NSData dataWithBytesNoCopy:output length:outputLen freeWhenDone:YES];
 }
 
 static BOOL OrenAVMPackageWriteZIPEntry(NSData* zipData,
@@ -1026,7 +1049,19 @@ static BOOL OrenAVMPackageWriteLastUpdateStatus(NSURL* packageRoot,
         NSString* signatureAlg = OrenAVMPackageString(entry, @"signature_alg");
         NSString* signatureHex = OrenAVMPackageString(entry, @"signature_p256_sha256_der_hex");
         NSData* signature = OrenAVMPackageDecodeHex(signatureHex);
-        NSData* signedMessage = [manifestHash.lowercaseString dataUsingEncoding:NSUTF8StringEncoding];
+        NSString* lowerManifestHash = manifestHash.lowercaseString;
+        uint8_t signedMessageBytes[64];
+        NSUInteger signedMessageLen = 0;
+        BOOL signedMessageOK = [lowerManifestHash getBytes:signedMessageBytes
+                                                 maxLength:sizeof(signedMessageBytes)
+                                                usedLength:&signedMessageLen
+                                                  encoding:NSASCIIStringEncoding
+                                                   options:0
+                                                     range:NSMakeRange(0, lowerManifestHash.length)
+                                            remainingRange:NULL];
+        NSData* signedMessage = signedMessageOK && signedMessageLen == sizeof(signedMessageBytes)
+            ? [NSData dataWithBytesNoCopy:signedMessageBytes length:signedMessageLen freeWhenDone:NO]
+            : nil;
         if (!publisherKey || ![signatureAlg isEqualToString:@"p256-sha256-der"] || !signature ||
             !OrenAVMPackageVerifyP256Signature(publisherKey, signedMessage, signature)) {
             OrenAVMPackageAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"OBC package signature verification failed");

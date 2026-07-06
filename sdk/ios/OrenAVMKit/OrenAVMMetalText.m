@@ -77,8 +77,10 @@
 static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalTextCacheEntryLimit = 256u;
 static const NSUInteger OrenAVMMetalTextAttributeCacheEntryLimit = 256u;
-static const NSUInteger OrenAVMMetalTextAtlasSize = 1024u;
-static const NSUInteger OrenAVMMetalTextAtlasPadding = 1u;
+enum {
+    OrenAVMMetalTextAtlasSize = 1024u,
+    OrenAVMMetalTextAtlasPadding = 1u,
+};
 
 static uint32_t OrenAVMMetalTextReadU32LE(const uint8_t* p) {
     return (uint32_t)p[0] |
@@ -479,11 +481,12 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
         run.opacity = opacity;
         return run;
     }
-    if (positionCount > NSUIntegerMax / 6u) return nil;
+    NSUInteger vertexCount = (NSUInteger)positionCount * 6u;
+    if (positionCount != 0 && vertexCount / 6u != (NSUInteger)positionCount) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
     run.opacity = opacity;
-    if (!OrenAVMMetalTextRunReserveHeapVertices(run, (NSUInteger)positionCount * 6u)) return nil;
+    if (!OrenAVMMetalTextRunReserveHeapVertices(run, vertexCount)) return nil;
     for (uint32_t i = 0; i < positionCount; i++) {
         const uint8_t* p = positions + ((size_t)i * 8u);
         OrenAVMMetalWriteTextureQuad(run->heapVertices + run->heapVertexCount,

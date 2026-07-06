@@ -2680,6 +2680,9 @@ design evidence lives under `project-doc/`.
   recopying it, while still copying mutable inputs defensively.
 - The iOS package installer now borrows stored ZIP entry byte slices directly
   from the release bundle during CRC/write instead of copying each stored entry.
+- iOS package-store hex decode, raw-deflate inflation, and publisher signature
+  message wrapping now use raw/no-copy buffers instead of `NSMutableData` or
+  string-to-`NSData` copy helpers.
 - `make verify-libavm-ios` now guards the SDK embed-byte ownership contract so
   hot returned byte buffers do not regress to copy/free handoff.
 - Metal single texture-quad emission now appends the six text/image vertices

@@ -3733,6 +3733,11 @@
 </ul>
 <p>  from the release bundle during CRC/write instead of copying each stored entry.</p>
 <ul>
+<li>iOS package-store hex decode, raw-deflate inflation, and publisher signature</li>
+</ul>
+<p>  message wrapping now use raw/no-copy buffers instead of <code>NSMutableData</code> or</p>
+<p>  string-to-<code>NSData</code> copy helpers.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> now guards the SDK embed-byte ownership contract so</li>
 </ul>
 <p>  hot returned byte buffers do not regress to copy/free handoff.</p>
