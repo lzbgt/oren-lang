@@ -3523,6 +3523,15 @@
 <p>  resources and scalar RGBA material values instead of dictionary payloads and</p>
 <p>  retained <code>UIColor</code> material objects.</p>
 <ul>
+<li>CoreGraphics retained text fallback records now use typed resources with</li>
+</ul>
+<p>  cached drawing attributes instead of dictionary payloads and per-draw</p>
+<p>  attributes dictionaries.</p>
+<ul>
+<li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
+</ul>
+<p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>
+<ul>
 <li>AVM <code>oren_read_u8_buf</code> now maps to a byte-native FS capability op that reads</li>
 </ul>
 <p>  host and VFS files directly into AVM byte buffers instead of bridging through</p>

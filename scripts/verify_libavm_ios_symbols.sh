@@ -3,8 +3,22 @@ set -euo pipefail
 
 OUT_ROOT="${1:?usage: verify_libavm_ios_symbols.sh OUT_ROOT}"
 
-nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q '_avm_embed_open'
-nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q '_avm_embed_open'
+TMP_DIR="${TMPDIR:-/tmp}/oren-ios-symbols.$$"
+mkdir -p "$TMP_DIR"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+AVM_DEVICE="$TMP_DIR/libavm-iphoneos-arm64.nm"
+AVM_SIM="$TMP_DIR/libavm-iphonesimulator-arm64.nm"
+KIT_DEVICE="$TMP_DIR/libOrenAVMKit-iphoneos-arm64.nm"
+KIT_SIM="$TMP_DIR/libOrenAVMKit-iphonesimulator-arm64.nm"
+
+nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" > "$AVM_DEVICE"
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" > "$AVM_SIM"
+nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" > "$KIT_DEVICE"
+nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" > "$KIT_SIM"
+
+grep -q -- '_avm_embed_open' "$AVM_DEVICE"
+grep -q -- '_avm_embed_open' "$AVM_SIM"
 for sym in \
   _avm_embed_set_argv \
   _avm_embed_config_interactive_default \
@@ -40,8 +54,8 @@ for sym in \
   _avm_runner_result_clear \
   _avm_runner_result_free \
   _avm_runner_run_obc_bytes; do
-  nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
-  nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
+  grep -q -- "$sym" "$AVM_DEVICE"
+  grep -q -- "$sym" "$AVM_SIM"
 done
 
 for cls in \
@@ -51,6 +65,6 @@ for cls in \
   OrenAVMPermissionGrantStore \
   OrenAVMGraphicsView \
   OrenAVMMetalView; do
-  nm -gU "$OUT_ROOT/iphoneos-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_'"$cls"
-  nm -gU "$OUT_ROOT/iphonesimulator-arm64/libOrenAVMKit.a" | grep -q '_OBJC_CLASS_$_'"$cls"
+  grep -q -- '_OBJC_CLASS_$_'"$cls" "$KIT_DEVICE"
+  grep -q -- '_OBJC_CLASS_$_'"$cls" "$KIT_SIM"
 done

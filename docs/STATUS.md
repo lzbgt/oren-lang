@@ -2290,7 +2290,11 @@ Metal mesh, material, and text resource colors now keep 4-byte RGBA values as
 scalars instead of allocating `NSData` wrappers for each color, and the
 CoreGraphics retained mesh/material fallback now stores typed mesh resource
 records plus scalar RGBA material values instead of dictionary payloads and
-retained `UIColor` material objects. AVM
+retained `UIColor` material objects; CoreGraphics retained text fallback records
+now use typed resources with cached drawing attributes instead of dictionary
+payloads and per-draw attributes dictionaries. The iOS SDK symbol verifier now
+caches `nm` output once per archive and greps files instead of SIGPIPE-prone
+`nm | grep -q` pipelines. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host
 and VFS files directly into AVM byte buffers instead of bridging through a
 boxed `list<int>` byte array, and `std:ui/scene3d.commands_from_binary_file`

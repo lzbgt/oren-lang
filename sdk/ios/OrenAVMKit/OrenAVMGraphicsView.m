@@ -27,6 +27,14 @@ typedef struct {
 @implementation OrenAVMGfxMeshResource
 @end
 
+@interface OrenAVMGfxTextResource : NSObject
+@property(nonatomic, copy) NSString* text;
+@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* attributes;
+@end
+
+@implementation OrenAVMGfxTextResource
+@end
+
 static BOOL OrenAVMGraphicsViewAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
         *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
@@ -116,6 +124,22 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                            alpha:(CGFloat)rgba[3] / 255.0];
 }
 
+static UIColor* OrenAVMGfxColorValue(uint32_t rgbaValue) {
+    return [UIColor colorWithRed:(CGFloat)(rgbaValue & 255u) / 255.0
+                           green:(CGFloat)((rgbaValue >> 8) & 255u) / 255.0
+                            blue:(CGFloat)((rgbaValue >> 16) & 255u) / 255.0
+                           alpha:(CGFloat)((rgbaValue >> 24) & 255u) / 255.0];
+}
+
+static UIFont* OrenAVMGfxTextFont(void) {
+    static UIFont* font;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        font = [UIFont systemFontOfSize:14.0];
+    });
+    return font;
+}
+
 static uint32_t OrenAVMGfxRGBAValue(const uint8_t* rgba) {
     return (uint32_t)rgba[0] |
         ((uint32_t)rgba[1] << 8) |
@@ -137,6 +161,13 @@ static void OrenAVMGfxSetFillColorBytes(CGContextRef ctx, const uint8_t* rgba) {
                              (CGFloat)rgba[1] / 255.0,
                              (CGFloat)rgba[2] / 255.0,
                              (CGFloat)rgba[3] / 255.0);
+}
+
+static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributes(uint32_t rgbaValue) {
+    return @{
+        NSForegroundColorAttributeName: OrenAVMGfxColorValue(rgbaValue),
+        NSFontAttributeName: OrenAVMGfxTextFont()
+    };
 }
 
 static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount) {
@@ -179,7 +210,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @interface OrenAVMGraphicsView ()
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
@@ -865,60 +896,48 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
-            UIColor* color = OrenAVMGfxColor(payload + 8);
             uint32_t textLen = OrenAVMGfxReadU32LE(payload + 12);
             if (textLen <= (uint32_t)payloadLen - 16u) {
                 NSString* text = [[NSString alloc] initWithBytes:payload + 16
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
                 if (text) {
-                    NSDictionary<NSAttributedStringKey, id>* attrs = @{
-                        NSForegroundColorAttributeName: color,
-                        NSFontAttributeName: [UIFont systemFontOfSize:14.0]
-                    };
+                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 8));
                     [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
                 }
             }
         } else if (opcode == 68 && payloadLen >= 12) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
-            UIColor* color = OrenAVMGfxColor(payload + 4);
             uint32_t textLen = OrenAVMGfxReadU32LE(payload + 8);
             if (textLen == (uint32_t)payloadLen - 12u) {
                 NSString* text = [[NSString alloc] initWithBytes:payload + 12
                                                           length:(NSUInteger)textLen
                                                         encoding:NSUTF8StringEncoding];
-                if (text) self.orenTextResources[@(textID)] = @{@"text": text, @"color": color};
+                if (text) {
+                    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
+                    resource.text = text;
+                    resource.attributes = OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 4));
+                    self.orenTextResources[@(textID)] = resource;
+                }
             }
         } else if (opcode == 69 && payloadLen == 12) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
-            NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)];
-            NSString* text = resource[@"text"];
-            UIColor* color = resource[@"color"];
-            if (text && color) {
-                NSDictionary<NSAttributedStringKey, id>* attrs = @{
-                    NSForegroundColorAttributeName: color,
-                    NSFontAttributeName: [UIFont systemFontOfSize:14.0]
-                };
-                [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
+            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
+            if (resource.text && resource.attributes) {
+                [resource.text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:resource.attributes];
             }
         } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
-            NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)];
-            NSString* text = resource[@"text"];
-            UIColor* color = resource[@"color"];
-            if (text && color && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-                NSDictionary<NSAttributedStringKey, id>* attrs = @{
-                    NSForegroundColorAttributeName: color,
-                    NSFontAttributeName: [UIFont systemFontOfSize:14.0]
-                };
+            OrenAVMGfxTextResource* resource = self.orenTextResources[@(textID)];
+            if (resource.text && resource.attributes && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
                 for (uint32_t pi = 0; pi < posCount; pi++) {
                     const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
-                    [text drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
-                                                  (CGFloat)OrenAVMGfxReadU32LE(p + 4))
-                        withAttributes:attrs];
+                    [resource.text drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
+                                                           (CGFloat)OrenAVMGfxReadU32LE(p + 4))
+                                withAttributes:resource.attributes];
                 }
             }
         } else if (opcode == 70 && payloadLen == 4) {

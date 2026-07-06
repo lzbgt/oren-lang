@@ -36,7 +36,15 @@ def main() -> int:
         fail("CoreGraphics retained materials must store scalar RGBA values")
     if '@"color": OrenAVMGfxColor' in text:
         fail("CoreGraphics retained mesh colors must stay scalar, not retained UIColor objects")
-    print("OK: CoreGraphics retained 3D painter uses compact order buffers")
+    if "@interface OrenAVMGfxTextResource" not in text:
+        fail("CoreGraphics retained text must use typed resource objects")
+    if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources' in text:
+        fail("CoreGraphics retained text must not use dictionary payload records")
+    if 'self.orenTextResources[@(textID)] = @{@"text": text, @"color": color}' in text:
+        fail("CoreGraphics retained text must cache typed text attributes")
+    if 'NSDictionary<NSString*, id>* resource = self.orenTextResources[@(textID)]' in text:
+        fail("CoreGraphics retained text draws must not use dictionary casts")
+    print("OK: CoreGraphics retained resources use compact typed records")
     return 0
 
 

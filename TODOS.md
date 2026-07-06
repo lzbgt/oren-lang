@@ -2556,6 +2556,11 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained mesh/material fallback records now use typed mesh
   resources and scalar RGBA material values instead of dictionary payloads and
   retained `UIColor` material objects.
+- CoreGraphics retained text fallback records now use typed resources with
+  cached drawing attributes instead of dictionary payloads and per-draw
+  attributes dictionaries.
+- iOS SDK symbol verification now caches `nm` output once per archive and
+  greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads
   host and VFS files directly into AVM byte buffers instead of bridging through
   a boxed `list<int>` byte array.
