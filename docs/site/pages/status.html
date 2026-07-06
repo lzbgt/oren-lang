@@ -2441,10 +2441,12 @@
 <p>  source pointers for non-contiguous view/matrix fallbacks, while contiguous</p>
 <p>  slice/dense-matrix byte and text exports use direct byte-slice conversion,</p>
 <p>	  JSON full decode, scalar parse, tag equality, and escape paths</p>
-<p>	  use direct source-string byte reads or exact-size <code>u8_buf</code> output, CBOR canonical</p>
-<p>		  key ordering/text encoding writes growable <code>u8_buf</code> output while byte-string</p>
-<p>		  encoding plus recursive/sequence decode reuse cached byte views with length</p>
-<p>		  and optional u8 carrier pointers, full regex</p>
+<p>		  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
+<p>		  now exposes shared checked byte views plus explicit unchecked hot-loop</p>
+<p>		  u8/u32/i32/u64 little-endian readers, CBOR canonical key ordering/text</p>
+<p>			  encoding writes growable <code>u8_buf</code> output while byte-string</p>
+<p>			  encoding plus recursive/sequence decode reuse those cached byte views,</p>
+<p>			  full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>
 <p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>
 <p>  slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key</p>
@@ -2526,8 +2528,8 @@
 <p>	  exact-size <code>u8_buf</code> writes instead of a byte list. JSON, YAML, CBOR,</p>
 <p>		  Base64/Base64URL, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing, native string</p>
 <p>	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,</p>
-<p>	  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>
-<p>	  <code>std:bytes</code> helpers, public <code>std:buffer</code> facade plus importable</p>
+<p>		  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>
+<p>		  <code>std:bytes</code> byte-view helpers, public <code>std:buffer</code> facade plus importable</p>
 <p>	  <code>std:buffer</code> raw/view/core/numeric/u8-matrix helpers including u8 view</p>
 <p>	  stores, public <code>std:buffer</code> root/view/matrix helpers including matrix</p>
 <p>	  projection helpers, public <code>std:strings</code> / <code>std:list</code> helpers, public</p>

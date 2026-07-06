@@ -39,26 +39,16 @@ fn _hex_ok(s) {
 }
 
 fn _bytes_ptr_or_nil(bs) {
-    if oren_is_u8_buf(bs) == true { return oren_buf_data_ptr_unchecked(bs) }
-    return nil
-}
-
-fn _u32_le_from_ptr(p, off) {
-    return (ptr_get_byte(p + off) & 255) |
-        ((ptr_get_byte(p + off + 1) & 255) << 8) |
-        ((ptr_get_byte(p + off + 2) & 255) << 16) |
-        ((ptr_get_byte(p + off + 3) & 255) << 24)
+    return bytes.view(bs, "ui.validate")
 }
 
 fn _read_u32_le(bs, data, off) {
-    if data != nil { return _u32_le_from_ptr(data, off) }
-    return bytes.get_u32_le(bs, off)
+    return bytes.view_get_u32_le_unchecked(data, off)
 }
 
 fn _read_i32_le(bs, data, off) {
-    var v = _read_u32_le(bs, data, off)
+    var v = bytes.view_get_i32_le_unchecked(data, off)
     if oren_is_err(v) { return v }
-    if v >= 2147483648 { return v - 4294967296 }
     return v
 }
 

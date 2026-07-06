@@ -86,6 +86,86 @@ fn _load_u8(bytes, idx) {
     return oren_bytes_get_u8(bytes, idx)
 }
 
+fn _u32_le_from_ptr(p, off) {
+    return (ptr_get_byte(p + off) & 255) |
+        ((ptr_get_byte(p + off + 1) & 255) << 8) |
+        ((ptr_get_byte(p + off + 2) & 255) << 16) |
+        ((ptr_get_byte(p + off + 3) & 255) << 24)
+}
+
+fn view(bs, ctx) {
+    var n = _len_or_err(bs, ctx)
+    if oren_is_err(n) { return n }
+    var p = nil
+    if oren_is_u8_buf(bs) == true { p = oren_buf_data_ptr_unchecked(bs) }
+    return [bs, n, p, ctx]
+}
+
+fn view_bytes(v) { return v[0] }
+fn view_len(v) { return v[1] }
+fn view_ptr(v) { return v[2] }
+fn view_ctx(v) { return v[3] }
+
+fn _view_check(v, idx, width, label) {
+    if idx < 0 || idx + width > view_len(v) {
+        return oren_err(4, view_ctx(v) + ": " + label + " out of bounds")
+    }
+    return 0
+}
+
+fn view_get_u8_unchecked(v, idx) {
+    var p = view_ptr(v)
+    if p != nil { return ptr_get_byte(p + idx) & 255 }
+    return oren_bytes_get_u8(view_bytes(v), idx)
+}
+
+fn view_get_u8(v, idx) {
+    var ok = _view_check(v, idx, 1, "u8 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u8_unchecked(v, idx)
+}
+
+fn view_get_u32_le_unchecked(v, idx) {
+    var p = view_ptr(v)
+    if p != nil { return _u32_le_from_ptr(p, idx) }
+    return get_u32_le(view_bytes(v), idx)
+}
+
+fn view_get_u32_le(v, idx) {
+    var ok = _view_check(v, idx, 4, "u32 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u32_le_unchecked(v, idx)
+}
+
+fn view_get_i32_le_unchecked(v, idx) {
+    var x = view_get_u32_le_unchecked(v, idx)
+    if oren_is_err(x) { return x }
+    if x >= 2147483648 { return x - 4294967296 }
+    return x
+}
+
+fn view_get_i32_le(v, idx) {
+    var ok = _view_check(v, idx, 4, "i32 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_i32_le_unchecked(v, idx)
+}
+
+fn view_get_u64_le_unchecked(v, idx) {
+    var p = view_ptr(v)
+    if p != nil {
+        var lo = _u32_le_from_ptr(p, idx)
+        var hi = _u32_le_from_ptr(p, idx + 4)
+        return lo | (hi << 32)
+    }
+    return get_u64_le(view_bytes(v), idx)
+}
+
+fn view_get_u64_le(v, idx) {
+    var ok = _view_check(v, idx, 8, "u64 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u64_le_unchecked(v, idx)
+}
+
 fn _store_u16_be(bytes, idx, v) {
     if oren_is_u8_buf(bytes) == true {
         var p = oren_buf_data_ptr_unchecked(bytes) + idx

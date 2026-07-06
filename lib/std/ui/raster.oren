@@ -80,31 +80,20 @@ var _opacity_milli = 1000
 var _out_ptr = 0
 
 fn _byte_ptr_or_nil(bs) {
-    if oren_is_u8_buf(bs) == true { return oren_buf_data_ptr_unchecked(bs) }
-    return nil
+    return bytes.view(bs, "rasterize")
 }
 
 fn _read_byte(bs, p, off) {
-    if p != nil { return ptr_get_byte(p + off) & 255 }
-    return bytes.get_u8(bs, off)
-}
-
-fn _u32_le_from_ptr(p, off) {
-    return (ptr_get_byte(p + off) & 255) |
-        ((ptr_get_byte(p + off + 1) & 255) << 8) |
-        ((ptr_get_byte(p + off + 2) & 255) << 16) |
-        ((ptr_get_byte(p + off + 3) & 255) << 24)
+    return bytes.view_get_u8_unchecked(p, off)
 }
 
 fn _read_u32_le(bs, p, off) {
-    if p != nil { return _u32_le_from_ptr(p, off) }
-    return bytes.get_u32_le(bs, off)
+    return bytes.view_get_u32_le_unchecked(p, off)
 }
 
 fn _read_i32_le(bs, p, off) {
-    var v = _read_u32_le(bs, p, off)
+    var v = bytes.view_get_i32_le_unchecked(p, off)
     if oren_is_err(v) { return v }
-    if v >= 2147483648 { return v - 4294967296 }
     return v
 }
 

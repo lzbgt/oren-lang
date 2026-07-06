@@ -1,4 +1,5 @@
 import buffer "../../lib/std/buffer.oren"
+import bytes "../../lib/std/bytes.oren"
 
 fn fail(code) {
     print("module u8_buf_bytes_helpers FAIL " + oren_int_to_string(code))
@@ -41,6 +42,18 @@ assert_eq(oren_buf_load_u8(b, 1), 0x33, 42)
 assert_eq(oren_buf_load_u8(b, 2), 0x22, 43)
 assert_eq(oren_buf_load_u8(b, 3), 0x11, 44)
 
+var bv = bytes.view(b, "test.u8_buf")
+assert_true(!oren_is_err(bv), 50)
+assert_eq(bytes.view_len(bv), 8, 51)
+assert_eq(bytes.view_get_u8(bv, 0), 0x44, 52)
+assert_eq(bytes.view_get_u32_le(bv, 0), 0x11223344, 53)
+
+var lv = bytes.view([0x44, 0x33, 0x22, 0x11], "test.list")
+assert_true(!oren_is_err(lv), 60)
+assert_eq(bytes.view_len(lv), 4, 61)
+assert_eq(bytes.view_get_u8(lv, 1), 0x33, 62)
+assert_eq(bytes.view_get_u32_le(lv, 0), 0x11223344, 63)
+assert_true(oren_is_err(bytes.view_get_u32_le(lv, 1)) == true, 64)
+
 print("module u8_buf_bytes_helpers OK")
 exit(0)
-

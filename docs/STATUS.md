@@ -2335,10 +2335,12 @@ Facts from the 2026-05-28 implementation pass:
   source pointers for non-contiguous view/matrix fallbacks, while contiguous
   slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
-	  use direct source-string byte reads or exact-size `u8_buf` output, CBOR canonical
-		  key ordering/text encoding writes growable `u8_buf` output while byte-string
-		  encoding plus recursive/sequence decode reuse cached byte views with length
-		  and optional u8 carrier pointers, full regex
+		  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
+		  now exposes shared checked byte views plus explicit unchecked hot-loop
+		  u8/u32/i32/u64 little-endian readers, CBOR canonical key ordering/text
+			  encoding writes growable `u8_buf` output while byte-string
+			  encoding plus recursive/sequence decode reuse those cached byte views,
+			  full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
   slices, YAML comment stripping, quoted-scalar parse/escape, line/trim/key
@@ -2420,8 +2422,8 @@ Facts from the 2026-05-28 implementation pass:
 	  exact-size `u8_buf` writes instead of a byte list. JSON, YAML, CBOR,
 		  Base64/Base64URL, regex, PEM/X509, `std:time` ISO-8601 UTC parsing, native string
 	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,
-	  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
-	  `std:bytes` helpers, public `std:buffer` facade plus importable
+		  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
+		  `std:bytes` byte-view helpers, public `std:buffer` facade plus importable
 	  `std:buffer` raw/view/core/numeric/u8-matrix helpers including u8 view
 	  stores, public `std:buffer` root/view/matrix helpers including matrix
 	  projection helpers, public `std:strings` / `std:list` helpers, public

@@ -705,43 +705,26 @@ fn screen_available(id) {
     return screen(id) != nil
 }
 
-fn _event_ptr_or_nil(bs) {
-    if oren_is_u8_buf(bs) == true { return oren_buf_data_ptr_unchecked(bs) }
-    return nil
+fn _read_event_u8(ev_view, off) {
+    return bytes.view_get_u8_unchecked(ev_view, off)
 }
 
-fn _read_event_u8(bs, data_ptr, off) {
-    if data_ptr != nil { return ptr_get_byte(data_ptr + off) & 255 }
-    return bytes.get_u8(bs, off)
-}
-
-fn _read_u16_le(bs, data_ptr, off, ctx) {
-    var b0 = _read_event_u8(bs, data_ptr, off)
+fn _read_u16_le(ev_view, off, ctx) {
+    var b0 = _read_event_u8(ev_view, off)
     if oren_is_err(b0) { return oren_err(4, ctx + ": truncated u16") }
-    var b1 = _read_event_u8(bs, data_ptr, off + 1)
+    var b1 = _read_event_u8(ev_view, off + 1)
     if oren_is_err(b1) { return oren_err(4, ctx + ": truncated u16") }
     return b0 | (b1 << 8)
 }
 
-fn _read_u32_le(bs, data_ptr, off, ctx) {
-    if data_ptr != nil {
-        return (ptr_get_byte(data_ptr + off) & 255) |
-            ((ptr_get_byte(data_ptr + off + 1) & 255) << 8) |
-            ((ptr_get_byte(data_ptr + off + 2) & 255) << 16) |
-            ((ptr_get_byte(data_ptr + off + 3) & 255) << 24)
-    }
-    var v = oren_bytes_get_u32_le(bs, off)
+fn _read_u32_le(ev_view, off, ctx) {
+    var v = bytes.view_get_u32_le_unchecked(ev_view, off)
     if oren_is_err(v) { return oren_err(4, ctx + ": truncated u32") }
     return v
 }
 
-fn _read_u64_le(bs, data_ptr, off, ctx) {
-    if data_ptr != nil {
-        var lo = _read_u32_le(bs, data_ptr, off, ctx)
-        var hi = _read_u32_le(bs, data_ptr, off + 4, ctx)
-        return lo | (hi << 32)
-    }
-    var v = oren_bytes_get_u64_le(bs, off)
+fn _read_u64_le(ev_view, off, ctx) {
+    var v = bytes.view_get_u64_le_unchecked(ev_view, off)
     if oren_is_err(v) { return oren_err(4, ctx + ": truncated u64") }
     return v
 }
@@ -783,21 +766,22 @@ fn decode_event_bytes(ev) {
     var n = bytes.len(ev)
     if oren_is_err(n) { return n }
     if n < 12 { return oren_err(4, "ui.avm.decode_event_bytes: short event") }
-    var evp = _event_ptr_or_nil(ev)
-    if _read_event_u8(ev, evp, 0) != 79 || _read_event_u8(ev, evp, 1) != 71 || _read_event_u8(ev, evp, 2) != 69 || _read_event_u8(ev, evp, 3) != 48 {
+    var ev_view = bytes.view(ev, "ui.avm.decode_event_bytes")
+    if oren_is_err(ev_view) { return ev_view }
+    if _read_event_u8(ev_view, 0) != 79 || _read_event_u8(ev_view, 1) != 71 || _read_event_u8(ev_view, 2) != 69 || _read_event_u8(ev_view, 3) != 48 {
         return oren_err(4, "ui.avm.decode_event_bytes: bad OGE0 magic")
     }
-    var opcode = _read_event_u8(ev, evp, 8)
+    var opcode = _read_event_u8(ev_view, 8)
     if oren_is_err(opcode) { return opcode }
-    var payload_len = _read_u16_le(ev, evp, 10, "ui.avm.decode_event_bytes")
+    var payload_len = _read_u16_le(ev_view, 10, "ui.avm.decode_event_bytes")
     if oren_is_err(payload_len) { return payload_len }
     if n < 12 + payload_len { return oren_err(4, "ui.avm.decode_event_bytes: truncated payload") }
 
     if opcode >= 1 && opcode <= 4 {
         if payload_len != 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad pointer payload") }
-        var x = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var y = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var pid = _read_u32_le(ev, evp, 20, "ui.avm.decode_event_bytes")
+        var x = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var y = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var pid = _read_u32_le(ev_view, 20, "ui.avm.decode_event_bytes")
         if oren_is_err(x) { return x }
         if oren_is_err(y) { return y }
         if oren_is_err(pid) { return pid }
@@ -806,9 +790,9 @@ fn decode_event_bytes(ev) {
 
     if opcode == 16 {
         if payload_len != 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad resize payload") }
-        var w = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var h = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var scale = _read_u32_le(ev, evp, 20, "ui.avm.decode_event_bytes")
+        var w = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var h = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var scale = _read_u32_le(ev_view, 20, "ui.avm.decode_event_bytes")
         if oren_is_err(w) { return w }
         if oren_is_err(h) { return h }
         if oren_is_err(scale) { return scale }
@@ -817,13 +801,13 @@ fn decode_event_bytes(ev) {
 
     if opcode == 17 {
         if payload_len != 28 { return oren_err(4, "ui.avm.decode_event_bytes: bad media payload") }
-        var mw = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var mh = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var mscale = _read_u32_le(ev, evp, 20, "ui.avm.decode_event_bytes")
-        var drawable_w = _read_u32_le(ev, evp, 24, "ui.avm.decode_event_bytes")
-        var drawable_h = _read_u32_le(ev, evp, 28, "ui.avm.decode_event_bytes")
-        var target_hz = _read_u32_le(ev, evp, 32, "ui.avm.decode_event_bytes")
-        var flags = _read_u32_le(ev, evp, 36, "ui.avm.decode_event_bytes")
+        var mw = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var mh = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var mscale = _read_u32_le(ev_view, 20, "ui.avm.decode_event_bytes")
+        var drawable_w = _read_u32_le(ev_view, 24, "ui.avm.decode_event_bytes")
+        var drawable_h = _read_u32_le(ev_view, 28, "ui.avm.decode_event_bytes")
+        var target_hz = _read_u32_le(ev_view, 32, "ui.avm.decode_event_bytes")
+        var flags = _read_u32_le(ev_view, 36, "ui.avm.decode_event_bytes")
         if oren_is_err(mw) { return mw }
         if oren_is_err(mh) { return mh }
         if oren_is_err(mscale) { return mscale }
@@ -846,11 +830,11 @@ fn decode_event_bytes(ev) {
 
     if opcode == 18 {
         if payload_len != 28 { return oren_err(4, "ui.avm.decode_event_bytes: bad frame_tick payload") }
-        var seq = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var now_ns = _read_u64_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var delta_ns = _read_u64_le(ev, evp, 24, "ui.avm.decode_event_bytes")
-        var tick_hz = _read_u32_le(ev, evp, 32, "ui.avm.decode_event_bytes")
-        var tick_flags = _read_u32_le(ev, evp, 36, "ui.avm.decode_event_bytes")
+        var seq = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var now_ns = _read_u64_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var delta_ns = _read_u64_le(ev_view, 24, "ui.avm.decode_event_bytes")
+        var tick_hz = _read_u32_le(ev_view, 32, "ui.avm.decode_event_bytes")
+        var tick_flags = _read_u32_le(ev_view, 36, "ui.avm.decode_event_bytes")
         if oren_is_err(seq) { return seq }
         if oren_is_err(now_ns) { return now_ns }
         if oren_is_err(delta_ns) { return delta_ns }
@@ -869,8 +853,8 @@ fn decode_event_bytes(ev) {
 
     if opcode == 32 || opcode == 33 {
         if payload_len != 8 { return oren_err(4, "ui.avm.decode_event_bytes: bad key payload") }
-        var key_code = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var mods = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
+        var key_code = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var mods = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
         if oren_is_err(key_code) { return key_code }
         if oren_is_err(mods) { return mods }
         return {"kind": "key", "phase": _key_phase(opcode), "opcode": opcode, "key_code": key_code, "modifiers": mods}
@@ -878,7 +862,7 @@ fn decode_event_bytes(ev) {
 
     if opcode == 48 {
         if payload_len < 4 { return oren_err(4, "ui.avm.decode_event_bytes: bad text payload") }
-        var text_len = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
+        var text_len = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
         if oren_is_err(text_len) { return text_len }
         if text_len != payload_len - 4 { return oren_err(4, "ui.avm.decode_event_bytes: text length mismatch") }
         var text = bytes.to_string_slice(ev, 16, text_len)
@@ -888,12 +872,12 @@ fn decode_event_bytes(ev) {
 
     if opcode == 64 {
         if payload_len != 24 { return oren_err(4, "ui.avm.decode_event_bytes: bad gamepad payload") }
-        var controller_id = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var buttons = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var lx = _read_u32_le(ev, evp, 20, "ui.avm.decode_event_bytes")
-        var ly = _read_u32_le(ev, evp, 24, "ui.avm.decode_event_bytes")
-        var rx = _read_u32_le(ev, evp, 28, "ui.avm.decode_event_bytes")
-        var ry = _read_u32_le(ev, evp, 32, "ui.avm.decode_event_bytes")
+        var controller_id = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var buttons = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var lx = _read_u32_le(ev_view, 20, "ui.avm.decode_event_bytes")
+        var ly = _read_u32_le(ev_view, 24, "ui.avm.decode_event_bytes")
+        var rx = _read_u32_le(ev_view, 28, "ui.avm.decode_event_bytes")
+        var ry = _read_u32_le(ev_view, 32, "ui.avm.decode_event_bytes")
         if oren_is_err(controller_id) { return controller_id }
         if oren_is_err(buttons) { return buttons }
         if oren_is_err(lx) { return lx }
@@ -914,15 +898,15 @@ fn decode_event_bytes(ev) {
 
     if opcode == 96 {
         if payload_len != 40 { return oren_err(4, "ui.avm.decode_event_bytes: bad motion payload") }
-        var source_id = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var motion_seq = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var ts_ns = _read_u64_le(ev, evp, 20, "ui.avm.decode_event_bytes")
-        var ax = _read_u32_le(ev, evp, 28, "ui.avm.decode_event_bytes")
-        var ay = _read_u32_le(ev, evp, 32, "ui.avm.decode_event_bytes")
-        var az = _read_u32_le(ev, evp, 36, "ui.avm.decode_event_bytes")
-        var gx = _read_u32_le(ev, evp, 40, "ui.avm.decode_event_bytes")
-        var gy = _read_u32_le(ev, evp, 44, "ui.avm.decode_event_bytes")
-        var gz = _read_u32_le(ev, evp, 48, "ui.avm.decode_event_bytes")
+        var source_id = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var motion_seq = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var ts_ns = _read_u64_le(ev_view, 20, "ui.avm.decode_event_bytes")
+        var ax = _read_u32_le(ev_view, 28, "ui.avm.decode_event_bytes")
+        var ay = _read_u32_le(ev_view, 32, "ui.avm.decode_event_bytes")
+        var az = _read_u32_le(ev_view, 36, "ui.avm.decode_event_bytes")
+        var gx = _read_u32_le(ev_view, 40, "ui.avm.decode_event_bytes")
+        var gy = _read_u32_le(ev_view, 44, "ui.avm.decode_event_bytes")
+        var gz = _read_u32_le(ev_view, 48, "ui.avm.decode_event_bytes")
         if oren_is_err(source_id) { return source_id }
         if oren_is_err(motion_seq) { return motion_seq }
         if oren_is_err(ts_ns) { return ts_ns }
@@ -949,8 +933,8 @@ fn decode_event_bytes(ev) {
 
     if opcode == 112 || opcode == 113 {
         if payload_len != 8 { return oren_err(4, "ui.avm.decode_event_bytes: bad focus payload") }
-        var focus_id = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var focus_flags = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
+        var focus_id = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var focus_flags = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
         if oren_is_err(focus_id) { return focus_id }
         if oren_is_err(focus_flags) { return focus_flags }
         return {"kind": "focus", "phase": _focus_phase(opcode), "opcode": opcode, "focus_id": focus_id, "flags": focus_flags}
@@ -958,9 +942,9 @@ fn decode_event_bytes(ev) {
 
     if opcode >= 128 && opcode <= 130 {
         if payload_len < 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad composition payload") }
-        var comp_len = _read_u32_le(ev, evp, 12, "ui.avm.decode_event_bytes")
-        var sel_start = _read_u32_le(ev, evp, 16, "ui.avm.decode_event_bytes")
-        var sel_end = _read_u32_le(ev, evp, 20, "ui.avm.decode_event_bytes")
+        var comp_len = _read_u32_le(ev_view, 12, "ui.avm.decode_event_bytes")
+        var sel_start = _read_u32_le(ev_view, 16, "ui.avm.decode_event_bytes")
+        var sel_end = _read_u32_le(ev_view, 20, "ui.avm.decode_event_bytes")
         if oren_is_err(comp_len) { return comp_len }
         if oren_is_err(sel_start) { return sel_start }
         if oren_is_err(sel_end) { return sel_end }

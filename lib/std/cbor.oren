@@ -23,6 +23,7 @@
 //     sort keys by (byte length, then bytewise lexicographic)
 
 import list "std:list"
+import bytem "std:bytes"
 
 struct CborValue {
     t,
@@ -120,28 +121,22 @@ fn _writer_finish(w) {
 }
 
 fn _bytes_len(bs) {
-    var n = oren_bytes_len(bs)
-    if n == nil || oren_is_err(n) { return -1 }
-    return n
-}
-
-fn _bytes_ptr_or_nil(bs) {
-    if oren_is_u8_buf(bs) == true { return oren_buf_data_ptr_unchecked(bs) }
-    return nil
+    var v = bytem.view(bs, "cbor.bytes")
+    if oren_is_err(v) { return -1 }
+    return bytem.view_len(v)
 }
 
 fn _bytes_view(bs) {
-    return [bs, _bytes_len(bs), _bytes_ptr_or_nil(bs)]
+    var v = bytem.view(bs, "cbor.bytes")
+    if oren_is_err(v) { return [bs, -1, nil] }
+    return v
 }
 
-fn _view_bytes(v) { return v[0] }
-fn _view_len(v) { return v[1] }
-fn _view_data(v) { return v[2] }
+fn _view_bytes(v) { return bytem.view_bytes(v) }
+fn _view_len(v) { return bytem.view_len(v) }
 
 fn _view_get(v, i) {
-    var data = _view_data(v)
-    if data != nil { return ptr_get_byte(data + i) & 255 }
-    return oren_bytes_get_u8(_view_bytes(v), i) & 255
+    return bytem.view_get_u8_unchecked(v, i) & 255
 }
 
 fn _push_u16be(out, n) {
