@@ -23,7 +23,7 @@ typedef struct {
 
 @interface OrenAVMMetalTextResource : NSObject
 @property(nonatomic, copy) NSString* text;
-@property(nonatomic, copy) NSData* rgba;
+@property(nonatomic) uint32_t rgbaValue;
 @end
 
 @interface OrenAVMMetalTextCacheEntry : NSObject

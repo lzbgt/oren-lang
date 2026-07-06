@@ -2548,6 +2548,8 @@ design evidence lives under `project-doc/`.
 - Metal coalescing also reuses already mutable batched text-run vertex buffers
   as the merge destination, avoiding the first-run clone for adjacent batched
   text runs with matching texture/scissor/opacity.
+- Retained Metal mesh, material, and text resource colors now store 4-byte RGBA
+  values as scalars instead of allocating `NSData` wrappers for each color.
 - The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and
   permission-request byte buffers directly into `NSData` ownership instead of
   copying the bytes and then freeing the original buffer.

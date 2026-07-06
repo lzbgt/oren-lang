@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalView.m"
 TEXT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.m"
+TEXT_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.h"
 HELPER = "static BOOL OrenAVMMetalBindVertexPayload"
 
 
@@ -19,6 +20,7 @@ def fail(message: str) -> None:
 def main() -> int:
     text = SOURCE.read_text()
     text_source = TEXT_SOURCE.read_text()
+    text_header = TEXT_HEADER.read_text()
     if "OrenAVMMetalInlineVertexBytesLimit" not in text:
         fail("missing inline vertex upload limit")
     if HELPER not in text:
@@ -37,6 +39,12 @@ def main() -> int:
         fail("missing text coalescing mutable-vertex reuse helper")
     if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source:
         fail("text coalescing must reuse mutable batched vertex buffers before falling back to copying")
+    if "dataWithBytes:payload + 4 length:4" in text:
+        fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
+    if "@property(nonatomic) uint32_t rgbaValue" not in text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
+        fail("missing scalar RGBA storage for retained Metal mesh/text resources")
+    if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
+        fail("retained Metal materials must store scalar RGBA NSNumber values")
     if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
