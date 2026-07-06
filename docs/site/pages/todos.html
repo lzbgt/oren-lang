@@ -3738,6 +3738,11 @@
 <p>  message wrapping now use raw/no-copy buffers instead of <code>NSMutableData</code> or</p>
 <p>  string-to-<code>NSData</code> copy helpers.</p>
 <ul>
+<li>CompilerKit <code>compileSource</code> now encodes source strings into stack-first raw</li>
+</ul>
+<p>  UTF-8 buffers before the synchronous VFS copy instead of using</p>
+<p>  <code>dataUsingEncoding</code>.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> now guards the SDK embed-byte ownership contract so</li>
 </ul>
 <p>  hot returned byte buffers do not regress to copy/free handoff.</p>

@@ -1,5 +1,7 @@
 #import "OrenAVMKit.h"
 
+#include <stdlib.h>
+
 static NSString* const OrenAVMCompilerKitErrorDomain = @"org.oren.avmkit";
 static const uint64_t OrenAVMCompilerKitDefaultGasLimit = 500000000ull;
 static const uint64_t OrenAVMCompilerKitDefaultHeapLimitBytes = 384ull * 1024ull * 1024ull;
@@ -86,12 +88,44 @@ static BOOL OrenAVMCompilerKitSafeVFSPath(NSString* path) {
 - (OrenAVMCompileResult*)compileSource:(NSString*)source
                               platform:(NSString*)platform
                                  error:(NSError**)error {
-    NSData* data = [source dataUsingEncoding:NSUTF8StringEncoding];
-    if (!data) {
+    if (!source) {
         OrenAVMCompilerKitAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"source must be UTF-8 encodable");
         return nil;
     }
-    return [self compileSourceData:data sourcePath:@"src.oren" outputPath:@"out.obc" platform:platform error:error];
+    NSUInteger byteLen = [source lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (byteLen == 0 && source.length != 0) {
+        OrenAVMCompilerKitAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"source must be UTF-8 encodable");
+        return nil;
+    }
+    enum { inlineSourceCap = 8192 };
+    uint8_t inlineSource[inlineSourceCap];
+    uint8_t* sourceBytes = byteLen <= inlineSourceCap ? inlineSource : (uint8_t*)malloc((size_t)byteLen);
+    if (!sourceBytes && byteLen != 0) {
+        OrenAVMCompilerKitAssignError(error, AVM_EMBED_ERR_VM, @"failed to allocate CompilerKit source bytes");
+        return nil;
+    }
+    NSUInteger usedLen = 0;
+    NSRange remaining = NSMakeRange(0, 0);
+    BOOL ok = [source getBytes:sourceBytes
+                     maxLength:byteLen
+                    usedLength:&usedLen
+                      encoding:NSUTF8StringEncoding
+                       options:0
+                         range:NSMakeRange(0, source.length)
+                remainingRange:&remaining];
+    if (!ok || usedLen != byteLen || remaining.length != 0) {
+        if (sourceBytes != inlineSource) free(sourceBytes);
+        OrenAVMCompilerKitAssignError(error, AVM_EMBED_ERR_INVALID_ARG, @"source must be UTF-8 encodable");
+        return nil;
+    }
+    NSData* data = [NSData dataWithBytesNoCopy:sourceBytes length:byteLen freeWhenDone:NO];
+    OrenAVMCompileResult* result = data ?
+        [self compileSourceData:data sourcePath:@"src.oren" outputPath:@"out.obc" platform:platform error:error] : nil;
+    if (sourceBytes != inlineSource) free(sourceBytes);
+    if (!data && !result) {
+        OrenAVMCompilerKitAssignError(error, AVM_EMBED_ERR_VM, @"failed to wrap CompilerKit source bytes");
+    }
+    return result;
 }
 
 - (OrenAVMCompileResult*)compileSourceData:(NSData*)sourceData

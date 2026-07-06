@@ -2368,8 +2368,10 @@ still copying mutable inputs defensively, and the package installer borrows
 stored ZIP entry slices from the release bundle during CRC/write instead of
 copying each stored entry. Package-store hex decode, raw-deflate inflation, and
 publisher signature message wrapping use raw/no-copy buffers instead of
-`NSMutableData` or string-to-`NSData` copy helpers. `make verify-libavm-ios`
-guards these byte ownership contracts.
+`NSMutableData` or string-to-`NSData` copy helpers, and CompilerKit
+`compileSource` encodes source strings into stack-first raw UTF-8 buffers before
+the synchronous VFS copy. `make verify-libavm-ios` guards these byte ownership
+contracts.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
   harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
   republishes animated frames from host `frame_tick` events, records device

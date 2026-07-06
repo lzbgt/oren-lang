@@ -1850,6 +1850,7 @@ verify-libavm-windows-x64: oren avm ; @./scripts/verify_libavm_windows_x64.sh
 verify-libavm-ios: oren avm
 	@./scripts/verify_libavm_ios.sh
 	@python3 ./scripts/verify_ios_sdk_embed_byte_ownership.py
+	@python3 ./scripts/verify_ios_compilerkit_source_bytes.py
 	@python3 ./scripts/verify_ios_package_store_bytes.py
 	@python3 ./scripts/verify_ios_sdk_network_sessions.py
 	@python3 ./scripts/verify_ios_gfx_input_events.py
