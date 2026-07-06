@@ -348,9 +348,13 @@ def main() -> int:
         fail("retained Metal image lookups must avoid boxed NSNumber image IDs")
     if "CFMutableDictionaryRef _orenImagesByID" not in text:
         fail("retained Metal images must use a scalar-key CF dictionary")
-    if "OrenAVMMetalPutImageResource(&_orenImagesByID," not in text:
+    if "OrenAVMMetalHandleImageCommand(&_orenImagesByID," not in text:
+        fail("retained Metal image opcodes must delegate to the resource-owned command helper")
+    if "BOOL OrenAVMMetalHandleImageCommand" not in resource_text:
+        fail("retained Metal image command helper must live in OrenAVMMetalResources")
+    if "OrenAVMMetalPutImageResource(imagesByID," not in resource_text:
         fail("retained Metal image uploads must use the resource-owned upload helper")
-    if "OrenAVMMetalRemoveImageResource(_orenImagesByID, imageID, &_retainedImagePixelCount)" not in text:
+    if "OrenAVMMetalRemoveImageResource(imagesByID ? *imagesByID : NULL," not in resource_text:
         fail("retained Metal image removal must use the resource-owned removal helper")
     if "texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm" in text or "CFDictionarySetValue(_orenImagesByID" in text:
         fail("retained Metal image texture creation and map writes must live in OrenAVMMetalResources")
@@ -358,7 +362,7 @@ def main() -> int:
         fail("retained Metal image removals must live in OrenAVMMetalResources")
     if "OrenAVMMetalRetainedImageKey(imageID)" not in resource_text:
         fail("retained Metal image access must use the scalar image-id key helper")
-    if "OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID)" not in text:
+    if "OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL" not in resource_text:
         fail("retained Metal image draw paths must use the typed scalar-map resource helper")
     if "@(imageID)" in text:
         fail("retained Metal image draw/upload paths must not box image IDs")
@@ -379,12 +383,26 @@ def main() -> int:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
     if "orenImageRunWithID:" in text:
         fail("Metal image runs must be built from cached texture/dimensions, not ID lookups")
-    if "OrenAVMMetalImageRunCreate(texture," not in text:
+    if "OrenAVMMetalImageRunCreate(texture," not in resource_text:
         fail("missing cached-texture Metal image-run helper")
-    batched_images = text.find("} else if (opcode == 71")
+    image_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleImageCommand") :]
+    for token in (
+        "case 64:",
+        "case 65:",
+        "case 66:",
+        "case 67:",
+        "case 71:",
+        "OrenAVMMetalImageRunCreate(texture,",
+        "OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL",
+    ):
+        if token in text:
+            fail("retained Metal image opcode expansion must not live in OrenAVMMetalView")
+        if token not in image_command:
+            fail(f"retained Metal image command helper missing expected path: {token}")
+    batched_images = image_command.find("case 71:")
     if batched_images < 0:
         fail("missing batched Metal image-rect path")
-    batched_block = text[batched_images:text.find("} else if", batched_images + 1)]
+    batched_block = image_command[batched_images:image_command.find("default:", batched_images)]
     if "NSUInteger textureWidth = texture.width;" not in batched_block or "NSUInteger textureHeight = texture.height;" not in batched_block:
         fail("batched Metal image-rect draws must cache texture dimensions once")
     if batched_block.find("NSUInteger textureWidth = texture.width;") > batched_block.find("for (uint32_t ri"):
@@ -425,7 +443,7 @@ def main() -> int:
             fail("geometry/text/image run arrays must be allocated lazily, not eagerly from runCapacity")
     if "[NSMutableArray arrayWithCapacity:runCapacity]" in text:
         fail("Metal frame run arrays must use lazy OrenAVMMetalEnsureRunArray allocation")
-    if text.count("OrenAVMMetalEnsureRunArray(") < 6:
+    if metal_text.count("OrenAVMMetalEnsureRunArray(") < 6:
         fail("expected lazy run-array helper calls for geometry/text/image add sites")
 
     in_helper = False

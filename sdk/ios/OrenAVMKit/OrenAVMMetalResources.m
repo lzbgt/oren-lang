@@ -133,6 +133,163 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
     return run;
 }
 
+static void OrenAVMMetalAppendImageRun(NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
+                                       NSUInteger runCapacity,
+                                       OrenAVMMetalImageRun* run,
+                                       BOOL hasScissor,
+                                       MTLScissorRect scissor) {
+    if (!run) return;
+    run.hasScissor = hasScissor;
+    run.scissor = scissor;
+    [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+}
+
+BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
+                                    id<MTLDevice> device,
+                                    uint8_t opcode,
+                                    const uint8_t* payload,
+                                    uint16_t payloadLen,
+                                    NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
+                                    NSUInteger runCapacity,
+                                    BOOL hasScissor,
+                                    MTLScissorRect scissor,
+                                    float tx,
+                                    float ty,
+                                    float logicalWidth,
+                                    float logicalHeight,
+                                    float opacity,
+                                    NSUInteger retainedImageCountLimit,
+                                    NSUInteger retainedImagePixelLimit,
+                                    NSUInteger* retainedImagePixelCount) {
+    if (!payload) return NO;
+    switch (opcode) {
+        case 64: {
+            if (payloadLen >= 16) {
+                uint32_t imageLen = OrenAVMMetalReadU32LE(payload + 12);
+                if (imageLen == (uint32_t)payloadLen - 16u) {
+                    (void)OrenAVMMetalPutImageResource(imagesByID,
+                                                       device,
+                                                       OrenAVMMetalReadU32LE(payload),
+                                                       OrenAVMMetalReadU32LE(payload + 4),
+                                                       OrenAVMMetalReadU32LE(payload + 8),
+                                                       payload + 16,
+                                                       imageLen,
+                                                       retainedImageCountLimit,
+                                                       retainedImagePixelLimit,
+                                                       retainedImagePixelCount);
+                }
+            }
+            return YES;
+        }
+        case 65: {
+            if (payloadLen == 20) {
+                OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
+                                                                                     OrenAVMMetalReadU32LE(payload));
+                id<MTLTexture> texture = image.texture;
+                if (texture) {
+                    NSUInteger textureWidth = texture.width;
+                    NSUInteger textureHeight = texture.height;
+                    OrenAVMMetalAppendImageRun(imageRuns,
+                                               runCapacity,
+                                               OrenAVMMetalImageRunCreate(texture,
+                                                                          textureWidth,
+                                                                          textureHeight,
+                                                                          0,
+                                                                          0,
+                                                                          (uint32_t)textureWidth,
+                                                                          (uint32_t)textureHeight,
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 12),
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 16),
+                                                                          opacity,
+                                                                          logicalWidth,
+                                                                          logicalHeight),
+                                               hasScissor,
+                                               scissor);
+                }
+            }
+            return YES;
+        }
+        case 66: {
+            if (payloadLen == 4) {
+                OrenAVMMetalRemoveImageResource(imagesByID ? *imagesByID : NULL,
+                                                OrenAVMMetalReadU32LE(payload),
+                                                retainedImagePixelCount);
+            }
+            return YES;
+        }
+        case 67: {
+            if (payloadLen == 36) {
+                OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
+                                                                                     OrenAVMMetalReadU32LE(payload));
+                id<MTLTexture> texture = image.texture;
+                if (texture) {
+                    NSUInteger textureWidth = texture.width;
+                    NSUInteger textureHeight = texture.height;
+                    OrenAVMMetalAppendImageRun(imageRuns,
+                                               runCapacity,
+                                               OrenAVMMetalImageRunCreate(texture,
+                                                                          textureWidth,
+                                                                          textureHeight,
+                                                                          OrenAVMMetalReadU32LE(payload + 4),
+                                                                          OrenAVMMetalReadU32LE(payload + 8),
+                                                                          OrenAVMMetalReadU32LE(payload + 12),
+                                                                          OrenAVMMetalReadU32LE(payload + 16),
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 20) + tx,
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 24) + ty,
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 28),
+                                                                          (float)OrenAVMMetalReadU32LE(payload + 32),
+                                                                          opacity,
+                                                                          logicalWidth,
+                                                                          logicalHeight),
+                                               hasScissor,
+                                               scissor);
+                }
+            }
+            return YES;
+        }
+        case 71: {
+            if (payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
+                uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
+                if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                    OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
+                                                                                         OrenAVMMetalReadU32LE(payload));
+                    id<MTLTexture> texture = image.texture;
+                    if (texture) {
+                        NSUInteger textureWidth = texture.width;
+                        NSUInteger textureHeight = texture.height;
+                        for (uint32_t ri = 0; ri < rectCount; ri++) {
+                            const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
+                            OrenAVMMetalAppendImageRun(imageRuns,
+                                                       runCapacity,
+                                                       OrenAVMMetalImageRunCreate(texture,
+                                                                                  textureWidth,
+                                                                                  textureHeight,
+                                                                                  OrenAVMMetalReadU32LE(r),
+                                                                                  OrenAVMMetalReadU32LE(r + 4),
+                                                                                  OrenAVMMetalReadU32LE(r + 8),
+                                                                                  OrenAVMMetalReadU32LE(r + 12),
+                                                                                  (float)OrenAVMMetalReadU32LE(r + 16) + tx,
+                                                                                  (float)OrenAVMMetalReadU32LE(r + 20) + ty,
+                                                                                  (float)OrenAVMMetalReadU32LE(r + 24),
+                                                                                  (float)OrenAVMMetalReadU32LE(r + 28),
+                                                                                  opacity,
+                                                                                  logicalWidth,
+                                                                                  logicalHeight),
+                                                       hasScissor,
+                                                       scissor);
+                        }
+                    }
+                }
+            }
+            return YES;
+        }
+        default:
+            return NO;
+    }
+}
+
 const void* OrenAVMMetalRetainedTextKey(uint32_t textID) {
     return OrenAVMMetalRetainedKey(textID);
 }

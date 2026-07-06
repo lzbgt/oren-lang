@@ -96,6 +96,23 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
                                                  float opacity,
                                                  float logicalWidth,
                                                  float logicalHeight);
+BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
+                                    id<MTLDevice> device,
+                                    uint8_t opcode,
+                                    const uint8_t* payload,
+                                    uint16_t payloadLen,
+                                    NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
+                                    NSUInteger runCapacity,
+                                    BOOL hasScissor,
+                                    MTLScissorRect scissor,
+                                    float tx,
+                                    float ty,
+                                    float logicalWidth,
+                                    float logicalHeight,
+                                    float opacity,
+                                    NSUInteger retainedImageCountLimit,
+                                    NSUInteger retainedImagePixelLimit,
+                                    NSUInteger* retainedImagePixelCount);
 const void* OrenAVMMetalRetainedTextKey(uint32_t textID);
 OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
 BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,

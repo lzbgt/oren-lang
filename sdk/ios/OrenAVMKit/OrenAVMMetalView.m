@@ -351,27 +351,6 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                   error:error];
 }
 
-- (void)orenPutImageTextureWithID:(uint32_t)imageID
-                            width:(uint32_t)width
-                           height:(uint32_t)height
-                             rgba:(const uint8_t*)rgba
-                        byteCount:(uint32_t)byteCount {
-    OrenAVMMetalPutImageResource(&_orenImagesByID,
-                                 self.device,
-                                 imageID,
-                                 width,
-                                 height,
-                                 rgba,
-                                 byteCount,
-                                 self.retainedImageCountLimit,
-                                 self.retainedImagePixelLimit,
-                                 &_retainedImagePixelCount);
-}
-
-- (void)orenRemoveImageTextureWithID:(uint32_t)imageID {
-    OrenAVMMetalRemoveImageResource(_orenImagesByID, imageID, &_retainedImagePixelCount);
-}
-
 - (NSArray<OrenAVMMetalVertexRun*>*)orenVertexRunsForFrame:(NSData*)frame
                                                  clearColor:(MTLClearColor*)clearColor
                                                   textRuns:(NSMutableArray<OrenAVMMetalTextRun*>**)textRuns
@@ -717,120 +696,23 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMMetalReadU32LE(payload);
             OrenAVMMetalRemoveTextResource(_orenTextResourcesByID, textID);
-        } else if (opcode == 64 && payloadLen >= 16) {
-            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            uint32_t iw = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t ih = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t imageLen = OrenAVMMetalReadU32LE(payload + 12);
-            if (imageLen == (uint32_t)payloadLen - 16u) {
-                [self orenPutImageTextureWithID:imageID
-                                          width:iw
-                                         height:ih
-                                           rgba:payload + 16
-                                      byteCount:imageLen];
-            }
-        } else if (opcode == 65 && payloadLen == 20) {
-            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            uint32_t x = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t w = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t h = OrenAVMMetalReadU32LE(payload + 16);
-            OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
-            id<MTLTexture> texture = image.texture;
-            if (texture) {
-                NSUInteger textureWidth = texture.width;
-                NSUInteger textureHeight = texture.height;
-                OrenAVMMetalImageRun* run = OrenAVMMetalImageRunCreate(texture,
-                                                                        textureWidth,
-                                                                        textureHeight,
-                                                                        0,
-                                                                        0,
-                                                                        (uint32_t)textureWidth,
-                                                                        (uint32_t)textureHeight,
-                                                                        (float)x + tx,
-                                                                        (float)y + ty,
-                                                                        (float)w,
-                                                                        (float)h,
-                                                                        opacity,
-                                                                        (float)logicalW,
-                                                                        (float)logicalH);
-                if (run) {
-                    run.hasScissor = clip.enabled;
-                    run.scissor = clip.rect;
-                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
-                }
-            }
-        } else if (opcode == 66 && payloadLen == 4) {
-            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            [self orenRemoveImageTextureWithID:imageID];
-        } else if (opcode == 67 && payloadLen == 36) {
-            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            uint32_t sx = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t sy = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t sw = OrenAVMMetalReadU32LE(payload + 12);
-            uint32_t sh = OrenAVMMetalReadU32LE(payload + 16);
-            uint32_t x = OrenAVMMetalReadU32LE(payload + 20);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 24);
-            uint32_t w = OrenAVMMetalReadU32LE(payload + 28);
-            uint32_t h = OrenAVMMetalReadU32LE(payload + 32);
-            OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
-            id<MTLTexture> texture = image.texture;
-            if (texture) {
-                NSUInteger textureWidth = texture.width;
-                NSUInteger textureHeight = texture.height;
-                OrenAVMMetalImageRun* run = OrenAVMMetalImageRunCreate(texture,
-                                                                        textureWidth,
-                                                                        textureHeight,
-                                                                        sx,
-                                                                        sy,
-                                                                        sw,
-                                                                        sh,
-                                                                        (float)x + tx,
-                                                                        (float)y + ty,
-                                                                        (float)w,
-                                                                        (float)h,
-                                                                        opacity,
-                                                                        (float)logicalW,
-                                                                        (float)logicalH);
-                if (run) {
-                    run.hasScissor = clip.enabled;
-                    run.scissor = clip.rect;
-                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
-                }
-            }
-        } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
-            uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
-            if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
-                OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
-                id<MTLTexture> texture = image.texture;
-                if (texture) {
-                    NSUInteger textureWidth = texture.width;
-                    NSUInteger textureHeight = texture.height;
-                    for (uint32_t ri = 0; ri < rectCount; ri++) {
-                        const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
-                        OrenAVMMetalImageRun* run = OrenAVMMetalImageRunCreate(texture,
-                                                                                textureWidth,
-                                                                                textureHeight,
-                                                                                OrenAVMMetalReadU32LE(r),
-                                                                                OrenAVMMetalReadU32LE(r + 4),
-                                                                                OrenAVMMetalReadU32LE(r + 8),
-                                                                                OrenAVMMetalReadU32LE(r + 12),
-                                                                                (float)OrenAVMMetalReadU32LE(r + 16) + tx,
-                                                                                (float)OrenAVMMetalReadU32LE(r + 20) + ty,
-                                                                                (float)OrenAVMMetalReadU32LE(r + 24),
-                                                                                (float)OrenAVMMetalReadU32LE(r + 28),
-                                                                                opacity,
-                                                                                (float)logicalW,
-                                                                                (float)logicalH);
-                        if (run) {
-                            run.hasScissor = clip.enabled;
-                            run.scissor = clip.rect;
-                            [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
-                        }
-                    }
-                }
-            }
+        } else if (OrenAVMMetalHandleImageCommand(&_orenImagesByID,
+                                                  self.device,
+                                                  opcode,
+                                                  payload,
+                                                  payloadLen,
+                                                  imageRuns,
+                                                  runCapacity,
+                                                  clip.enabled,
+                                                  clip.rect,
+                                                  tx,
+                                                  ty,
+                                                  (float)logicalW,
+                                                  (float)logicalH,
+                                                  opacity,
+                                                  self.retainedImageCountLimit,
+                                                  self.retainedImagePixelLimit,
+                                                  &_retainedImagePixelCount)) {
         }
         off += payloadLen;
     }
