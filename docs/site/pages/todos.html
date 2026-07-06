@@ -3414,6 +3414,16 @@
 <p>  <code>bytes_len</code>, <code>bytes_pack</code>, <code>bytes_unpack</code>, hex, and slice conversions, with</p>
 <p>  overflow-safe slice range checks in the string/u8-buffer slice helpers.</p>
 <ul>
+<li>C-runtime byte slice helpers now share the same overflow-safe range predicate,</li>
+</ul>
+<p>  with module coverage proving list-int byte carriers across length, endian</p>
+<p>  reads, pack/unpack, hex, string slices, and u8-buffer slices.</p>
+<ul>
+<li>AVM byte helper intrinsics now match that list-int carrier surface for hex and</li>
+</ul>
+<p>  slice conversion, keeping the module fixture green across native, C, and</p>
+<p>  bytecode backends.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

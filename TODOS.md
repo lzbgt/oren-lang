@@ -2489,6 +2489,12 @@ design evidence lives under `project-doc/`.
 - Native-runtime byte helper APIs now include packed `LIST_INT` carriers in
   `bytes_len`, `bytes_pack`, `bytes_unpack`, hex, and slice conversions, with
   overflow-safe slice range checks in the string/u8-buffer slice helpers.
+- C-runtime byte slice helpers now share the same overflow-safe range predicate,
+  with module coverage proving list-int byte carriers across length, endian
+  reads, pack/unpack, hex, string slices, and u8-buffer slices.
+- AVM byte helper intrinsics now match that list-int carrier surface for hex and
+  slice conversion, keeping the module fixture green across native, C, and
+  bytecode backends.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

@@ -914,6 +914,11 @@ OrenValue oren_string_from_bytes(OrenValue bytes) {
     return v;
 }
 
+static int oren_bytes_range_ok_size(size_t total, size_t start, size_t len) {
+    if (start > total) return 0;
+    return len <= total - start;
+}
+
 OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len) {
     if (start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice expects (bytes, int start, int len)"));
@@ -937,7 +942,7 @@ OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
             return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: invalid u8_buf"));
         }
         size_t bn = (size_t)b->len;
-        if (s > bn || n > bn || s + n > bn) {
+        if (!oren_bytes_range_ok_size(bn, s, n)) {
             return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: out of bounds"));
         }
         char* out = (char*)malloc(n + 1u);
@@ -964,7 +969,7 @@ OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: invalid list"));
     }
     size_t bn2 = (size_t)list->count;
-    if (s > bn2 || n > bn2 || s + n > bn2) {
+    if (!oren_bytes_range_ok_size(bn2, s, n)) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: out of bounds"));
     }
     char* out2 = (char*)malloc(n + 1u);
@@ -1023,7 +1028,7 @@ OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice expects list<int 0..255> or u8_buf"));
     }
 
-    if (s > total || n > total || s + n > total) {
+    if (!oren_bytes_range_ok_size(total, s, n)) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: out of bounds"));
     }
 

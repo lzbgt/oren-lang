@@ -50,5 +50,25 @@ if oren_is_err(oren_bytes_get_u16_be([0, 256], 0)) == false { exit(29) }
 if oren_is_err(oren_bytes_get_u16_be([0], 0)) == false { exit(30) }
 if oren_is_err(oren_bytes_set_u16_be([0], 0, 1)) == false { exit(31) }
 
+var li = oren_new_list_int(0)
+oren_list_int_push(li, 65)
+oren_list_int_push(li, 66)
+oren_list_int_push(li, 67)
+oren_list_int_push(li, 68)
+if oren_bytes_len(li) != 4 { exit(32) }
+if oren_bytes_get_u16_be(li, 1) != 16963 { exit(33) }
+if oren_bytes_get_u32_le(li, 0) != 1145258561 { exit(34) }
+if oren_bytes_to_hex(li) != "41424344" { exit(35) }
+var li_packed = oren_bytes_pack(li)
+if oren_is_err(li_packed) { exit(36) }
+if oren_bytes_get_u8(li_packed, 3) != 68 { exit(37) }
+var li_xs = oren_bytes_unpack(li)
+if oren_is_err(li_xs) { exit(38) }
+if li_xs[2] != 67 { exit(39) }
+var li_s = oren_string_from_bytes_slice(li, 1, 2)
+if oren_is_err(li_s) { exit(40) }
+if li_s != "BC" { exit(41) }
+if oren_is_err(oren_u8_buf_from_bytes_slice(li, 3, 2)) == false { exit(42) }
+
 print("module bytes_set_endian OK")
 exit(0)
