@@ -507,9 +507,14 @@ fn obc_opcode_len(code, i) {
 }
 
 fn _append_code_span_view(out, cv, start, n) {
+    var srcp = byte_view.ptr(cv)
+    if srcp != nil && srcp != 0 {
+        bytes_builder.bytes_extend_ptr(out, srcp + start, n)
+        return nil
+    }
     var i = 0
     while i < n {
-        bytes_builder.bytes_push(out, byte_view.u8_at(cv, start + i))
+        bytes_builder.bytes_push(out, byte_view.u8_at_unchecked(cv, start + i))
         i = i + 1
     }
     return nil

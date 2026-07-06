@@ -166,6 +166,20 @@ fn bytes_extend_u8_buf(b, ubuf) {
     return nil
 }
 
+fn bytes_extend_ptr(b, srcp, n) {
+    // Extend from a raw byte pointer that has already been range-checked by
+    // the caller. This keeps linker span copies off per-byte runtime helpers.
+    if n <= 0 { return nil }
+    if srcp == nil || srcp == 0 { oren_fail(1, "bytes_extend_ptr: source ptr is nil") }
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + n)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_extend_ptr: buf data ptr is nil") }
+    _memcpy8(iadd(dstp, used), srcp, n)
+    _bytes_set_len_raw(b, used + n)
+    return nil
+}
+
 fn bytes_carrier_len(bs) {
     if bs == nil || bs == 0 { return 0 }
     var n = oren_bytes_len(bs)

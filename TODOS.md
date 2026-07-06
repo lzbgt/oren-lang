@@ -2502,6 +2502,9 @@ design evidence lives under `project-doc/`.
 - Compiler byte builders now expose one `bytes_extend_carrier` path for u8
   buffers, byte lists, and packed `LIST_INT` carriers; bytecode and OBC
   emitters use it for length-prefixed `Bytes` constants and final code payloads.
+- OBC linker unpatched code-span copies now append directly from cached u8
+  pointers through `bytes_extend_ptr`, preserving byte-list fallback for legacy
+  carriers while avoiding per-byte runtime helper calls on parsed OBC code.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

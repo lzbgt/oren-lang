@@ -3435,6 +3435,11 @@
 <p>  buffers, byte lists, and packed <code>LIST_INT</code> carriers; bytecode and OBC</p>
 <p>  emitters use it for length-prefixed <code>Bytes</code> constants and final code payloads.</p>
 <ul>
+<li>OBC linker unpatched code-span copies now append directly from cached u8</li>
+</ul>
+<p>  pointers through <code>bytes_extend_ptr</code>, preserving byte-list fallback for legacy</p>
+<p>  carriers while avoiding per-byte runtime helper calls on parsed OBC code.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>
