@@ -78,6 +78,18 @@ def main() -> int:
         fail("retained Metal image pixel accounting must not use a parallel dictionary")
     if "OrenAVMMetalSubrectInTexture" not in text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
+    if "orenImageRunWithID:" in text:
+        fail("Metal image runs must be built from cached texture/dimensions, not ID lookups")
+    if "orenImageRunWithTexture:" not in text:
+        fail("missing cached-texture Metal image-run helper")
+    batched_images = text.find("} else if (opcode == 71")
+    if batched_images < 0:
+        fail("missing batched Metal image-rect path")
+    batched_block = text[batched_images:text.find("} else if", batched_images + 1)]
+    if "NSUInteger textureWidth = texture.width;" not in batched_block or "NSUInteger textureHeight = texture.height;" not in batched_block:
+        fail("batched Metal image-rect draws must cache texture dimensions once")
+    if batched_block.find("NSUInteger textureWidth = texture.width;") > batched_block.find("for (uint32_t ri"):
+        fail("batched Metal image-rect dimension cache must happen before the rect loop")
     if "@interface OrenAVMMetalModelResource" not in metal_text:
         fail("retained Metal models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:

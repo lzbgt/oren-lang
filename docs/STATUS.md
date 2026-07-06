@@ -2311,7 +2311,8 @@ batched atlas rects. CoreGraphics retained image uploads now transfer raw copied
 bytes to the CG data provider release callback instead of wrapping them in
 intermediate `NSData` objects. Retained Metal image resources now use typed texture/pixel
 records instead of parallel texture/pixel dictionaries, with overflow-safe
-upload accounting and sub-rect UV bounds checks. CoreGraphics and Metal retained
+upload accounting, sub-rect UV bounds checks, and cached texture dimensions for
+batched image rects. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
 dictionaries, removing per-draw model field lookups. Single Metal image/text
 texture quads now append into caller-owned mutable vertex buffers instead of

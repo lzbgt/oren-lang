@@ -951,25 +951,26 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     [self.orenImages removeObjectForKey:key];
 }
 
-- (OrenAVMMetalImageRun*)orenImageRunWithID:(uint32_t)imageID
-                                         sx:(uint32_t)sx
-                                         sy:(uint32_t)sy
-                                         sw:(uint32_t)sw
-                                         sh:(uint32_t)sh
-                                          x:(float)x
-                                          y:(float)y
-                                          w:(float)w
-                                          h:(float)h
-                                    opacity:(float)opacity
-                               logicalWidth:(float)logicalWidth
-                              logicalHeight:(float)logicalHeight {
-    id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
+- (OrenAVMMetalImageRun*)orenImageRunWithTexture:(id<MTLTexture>)texture
+                                    textureWidth:(NSUInteger)textureWidth
+                                   textureHeight:(NSUInteger)textureHeight
+                                              sx:(uint32_t)sx
+                                              sy:(uint32_t)sy
+                                              sw:(uint32_t)sw
+                                              sh:(uint32_t)sh
+                                               x:(float)x
+                                               y:(float)y
+                                               w:(float)w
+                                               h:(float)h
+                                         opacity:(float)opacity
+                                    logicalWidth:(float)logicalWidth
+                                   logicalHeight:(float)logicalHeight {
     if (!texture || w <= 0.0f || h <= 0.0f || sw == 0 || sh == 0) return nil;
-    if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, texture.width, texture.height)) return nil;
-    float u0 = (float)sx / (float)texture.width;
-    float v0 = (float)sy / (float)texture.height;
-    float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)texture.width;
-    float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)texture.height;
+    if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
+    float u0 = (float)sx / (float)textureWidth;
+    float v0 = (float)sy / (float)textureHeight;
+    float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
+    float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
     NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u];
@@ -1609,22 +1610,28 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t w = OrenAVMMetalReadU32LE(payload + 12);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 16);
             id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
-            OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
-                                                              sx:0
-                                                              sy:0
-                                                              sw:(uint32_t)texture.width
-                                                              sh:(uint32_t)texture.height
-                                                               x:(float)x + tx
-                                                               y:(float)y + ty
-                                                               w:(float)w
-                                                               h:(float)h
-                                                         opacity:opacity
-                                                    logicalWidth:(float)logicalW
-                                                   logicalHeight:(float)logicalH];
-            if (run) {
-                run.hasScissor = clip.enabled;
-                run.scissor = clip.rect;
-                [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+            if (texture) {
+                NSUInteger textureWidth = texture.width;
+                NSUInteger textureHeight = texture.height;
+                OrenAVMMetalImageRun* run = [self orenImageRunWithTexture:texture
+                                                              textureWidth:textureWidth
+                                                             textureHeight:textureHeight
+                                                                        sx:0
+                                                                        sy:0
+                                                                        sw:(uint32_t)textureWidth
+                                                                        sh:(uint32_t)textureHeight
+                                                                         x:(float)x + tx
+                                                                         y:(float)y + ty
+                                                                         w:(float)w
+                                                                         h:(float)h
+                                                                   opacity:opacity
+                                                              logicalWidth:(float)logicalW
+                                                             logicalHeight:(float)logicalH];
+                if (run) {
+                    run.hasScissor = clip.enabled;
+                    run.scissor = clip.rect;
+                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+                }
             }
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
@@ -1639,45 +1646,59 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t y = OrenAVMMetalReadU32LE(payload + 24);
             uint32_t w = OrenAVMMetalReadU32LE(payload + 28);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 32);
-            OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
-                                                              sx:sx
-                                                              sy:sy
-                                                              sw:sw
-                                                              sh:sh
-                                                               x:(float)x + tx
-                                                               y:(float)y + ty
-                                                               w:(float)w
-                                                               h:(float)h
-                                                         opacity:opacity
-                                                    logicalWidth:(float)logicalW
-                                                   logicalHeight:(float)logicalH];
-            if (run) {
-                run.hasScissor = clip.enabled;
-                run.scissor = clip.rect;
-                [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+            id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
+            if (texture) {
+                NSUInteger textureWidth = texture.width;
+                NSUInteger textureHeight = texture.height;
+                OrenAVMMetalImageRun* run = [self orenImageRunWithTexture:texture
+                                                              textureWidth:textureWidth
+                                                             textureHeight:textureHeight
+                                                                        sx:sx
+                                                                        sy:sy
+                                                                        sw:sw
+                                                                        sh:sh
+                                                                         x:(float)x + tx
+                                                                         y:(float)y + ty
+                                                                         w:(float)w
+                                                                         h:(float)h
+                                                                   opacity:opacity
+                                                              logicalWidth:(float)logicalW
+                                                             logicalHeight:(float)logicalH];
+                if (run) {
+                    run.hasScissor = clip.enabled;
+                    run.scissor = clip.rect;
+                    [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+                }
             }
         } else if (opcode == 71 && payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
             if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
-                for (uint32_t ri = 0; ri < rectCount; ri++) {
-                    const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
-                    OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
-                                                                      sx:OrenAVMMetalReadU32LE(r)
-                                                                      sy:OrenAVMMetalReadU32LE(r + 4)
-                                                                      sw:OrenAVMMetalReadU32LE(r + 8)
-                                                                      sh:OrenAVMMetalReadU32LE(r + 12)
-                                                                       x:(float)OrenAVMMetalReadU32LE(r + 16) + tx
-                                                                       y:(float)OrenAVMMetalReadU32LE(r + 20) + ty
-                                                                       w:(float)OrenAVMMetalReadU32LE(r + 24)
-                                                                       h:(float)OrenAVMMetalReadU32LE(r + 28)
-                                                                 opacity:opacity
-                                                            logicalWidth:(float)logicalW
-                                                           logicalHeight:(float)logicalH];
-                    if (run) {
-                        run.hasScissor = clip.enabled;
-                        run.scissor = clip.rect;
-                        [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+                id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
+                if (texture) {
+                    NSUInteger textureWidth = texture.width;
+                    NSUInteger textureHeight = texture.height;
+                    for (uint32_t ri = 0; ri < rectCount; ri++) {
+                        const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
+                        OrenAVMMetalImageRun* run = [self orenImageRunWithTexture:texture
+                                                                      textureWidth:textureWidth
+                                                                     textureHeight:textureHeight
+                                                                                sx:OrenAVMMetalReadU32LE(r)
+                                                                                sy:OrenAVMMetalReadU32LE(r + 4)
+                                                                                sw:OrenAVMMetalReadU32LE(r + 8)
+                                                                                sh:OrenAVMMetalReadU32LE(r + 12)
+                                                                                 x:(float)OrenAVMMetalReadU32LE(r + 16) + tx
+                                                                                 y:(float)OrenAVMMetalReadU32LE(r + 20) + ty
+                                                                                 w:(float)OrenAVMMetalReadU32LE(r + 24)
+                                                                                 h:(float)OrenAVMMetalReadU32LE(r + 28)
+                                                                           opacity:opacity
+                                                                      logicalWidth:(float)logicalW
+                                                                     logicalHeight:(float)logicalH];
+                        if (run) {
+                            run.hasScissor = clip.enabled;
+                            run.scissor = clip.rect;
+                            [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+                        }
                     }
                 }
             }
