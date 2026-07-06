@@ -2,6 +2,8 @@
 
 #if TARGET_OS_IPHONE
 
+#import <QuartzCore/QuartzCore.h>
+#include <math.h>
 #include <string.h>
 
 BOOL OrenAVMMetalFrameDataIsValid(NSData* frame) {
@@ -30,6 +32,15 @@ NSMutableArray* OrenAVMMetalEnsureRunArray(NSMutableArray** runs, NSUInteger cap
     if (!runs) return nil;
     if (!*runs) *runs = [NSMutableArray arrayWithCapacity:capacity];
     return *runs;
+}
+
+uint64_t OrenAVMMetalNowNs(void) {
+    return (uint64_t)llround(CACurrentMediaTime() * 1000000000.0);
+}
+
+uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli) {
+    uint64_t effectiveHzMilli = hzMilli == 0 ? 60000ull : (uint64_t)hzMilli;
+    return 1000000000000ull / effectiveHzMilli;
 }
 
 MTLScissorRect OrenAVMMetalClipRectToScissor(int64_t x,

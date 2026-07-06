@@ -10,7 +10,6 @@
 #if TARGET_OS_IPHONE
 
 #import <Metal/Metal.h>
-#import <QuartzCore/QuartzCore.h>
 #import <dispatch/dispatch.h>
 #include <math.h>
 #include <stdlib.h>
@@ -20,15 +19,6 @@ _Static_assert(sizeof(OrenAVMMetalTextVertex) == 16, "OrenAVMMetalTextVertex mus
 
 static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
-
-static uint64_t OrenAVMMetalNowNs(void) {
-    return (uint64_t)llround(CACurrentMediaTime() * 1000000000.0);
-}
-
-static uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli) {
-    uint64_t effectiveHzMilli = hzMilli == 0 ? 60000ull : (uint64_t)hzMilli;
-    return 1000000000000ull / effectiveHzMilli;
-}
 
 static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {

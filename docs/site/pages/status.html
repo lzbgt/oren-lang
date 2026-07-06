@@ -2816,7 +2816,10 @@
 <p>		  keeping resource lifetime callbacks with the resource model types. Metal</p>
 <p>		  retained-3D painter ordering, depth-window, and model-coordinate helpers now</p>
 <p>		  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1394</p>
-<p>		  lines while keeping per-frame draw decisions in the view.</p>
+<p>		  lines while keeping per-frame draw decisions in the view. Metal frame timing</p>
+<p>		  and target-budget helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
+<p>		  <code>OrenAVMMetalView.m</code> to 1384 lines while keeping lifecycle, input, and draw</p>
+<p>		  decisions in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

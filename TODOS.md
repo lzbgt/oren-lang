@@ -2633,6 +2633,9 @@ design evidence lives under `project-doc/`.
 - Metal retained-3D painter ordering, depth-window, and model-coordinate helpers
   now live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to
   1394 lines while keeping per-frame draw decisions in the view.
+- Metal frame timing and target-budget helpers now live in
+  `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 1384 lines while
+  keeping lifecycle, input, and draw decisions in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

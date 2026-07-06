@@ -40,6 +40,10 @@ def main() -> int:
         fail("Metal frame/run helpers must be imported through OrenAVMMetalFrame")
     if "OrenAVMMetalInlineVertexBytesLimit" not in frame_text:
         fail("missing inline vertex upload limit")
+    if "uint64_t OrenAVMMetalNowNs(void)" not in frame_text or "uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli)" not in frame_text:
+        fail("Metal frame timing helpers must live in OrenAVMMetalFrame")
+    if "static uint64_t OrenAVMMetalNowNs" in text or "static uint64_t OrenAVMMetalTargetBudgetNs" in text:
+        fail("Metal view must not define frame timing helpers")
     if '"OrenAVMMetalPipeline.h"' not in text or "OrenAVMMetalBuildPipelineStates(" not in pipeline_text:
         fail("Metal shader/pipeline setup must live in OrenAVMMetalPipeline")
     if "newLibraryWithSource:" in text or "newRenderPipelineStateWithDescriptor:" in text:

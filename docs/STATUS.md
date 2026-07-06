@@ -2697,7 +2697,10 @@ Working evidence:
 		  keeping resource lifetime callbacks with the resource model types. Metal
 		  retained-3D painter ordering, depth-window, and model-coordinate helpers now
 		  live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1394
-		  lines while keeping per-frame draw decisions in the view.
+		  lines while keeping per-frame draw decisions in the view. Metal frame timing
+		  and target-budget helpers now live in `OrenAVMMetalFrame`, reducing
+		  `OrenAVMMetalView.m` to 1384 lines while keeping lifecycle, input, and draw
+		  decisions in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
