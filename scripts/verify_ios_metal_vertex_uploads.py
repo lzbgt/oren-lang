@@ -45,6 +45,14 @@ def main() -> int:
         fail("missing scalar RGBA storage for retained Metal mesh/text resources")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
         fail("retained Metal materials must store scalar RGBA NSNumber values")
+    if "@interface OrenAVMMetalImageResource" not in text:
+        fail("retained Metal images must use typed resource objects")
+    if "NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures" in text:
+        fail("retained Metal images must not store bare texture values")
+    if "orenImagePixels" in text:
+        fail("retained Metal image pixel accounting must not use a parallel dictionary")
+    if "OrenAVMMetalSubrectInTexture" not in text:
+        fail("retained Metal image sub-rect checks must use the overflow-safe helper")
     if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:

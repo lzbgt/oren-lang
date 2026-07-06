@@ -2562,6 +2562,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained image fallback records now use typed resources for image
   plus pixel accounting instead of parallel image/pixel dictionaries, with
   overflow-safe retained sub-rect bounds checks.
+- Retained Metal image resources now use typed texture/pixel records instead of
+  parallel texture/pixel dictionaries, with overflow-safe upload accounting and
+  sub-rect UV bounds checks.
 - iOS SDK symbol verification now caches `nm` output once per archive and
   greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads

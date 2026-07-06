@@ -54,6 +54,14 @@ typedef struct {
 @implementation OrenAVMMetalImageRun
 @end
 
+@interface OrenAVMMetalImageResource : NSObject
+@property(nonatomic, strong) id<MTLTexture> texture;
+@property(nonatomic) NSUInteger pixels;
+@end
+
+@implementation OrenAVMMetalImageResource
+@end
+
 @interface OrenAVMMetalMesh2DResource : NSObject
 @property(nonatomic, strong) NSData* triangles;
 @property(nonatomic) uint32_t rgbaValue;
@@ -90,6 +98,11 @@ static uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
            ((uint32_t)p[3] << 24);
+}
+
+static BOOL OrenAVMMetalSubrectInTexture(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, NSUInteger width, NSUInteger height) {
+    return (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
+        (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
 }
 
 static BOOL OrenAVMMetalFrameDataIsValid(NSData* frame) {
@@ -625,8 +638,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalMesh3DResource*>* orenMeshes3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalImageResource*>* orenImages;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic) uint32_t orenFrameTickSequence;
 @property(nonatomic) uint64_t orenLastFrameTickNs;
@@ -720,8 +732,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (!self.orenMeshes3D) self.orenMeshes3D = [NSMutableDictionary dictionary];
     if (!self.orenMaterials3D) self.orenMaterials3D = [NSMutableDictionary dictionary];
     if (!self.orenModels3D) self.orenModels3D = [NSMutableDictionary dictionary];
-    if (!self.orenImageTextures) self.orenImageTextures = [NSMutableDictionary dictionary];
-    if (!self.orenImagePixels) self.orenImagePixels = [NSMutableDictionary dictionary];
+    if (!self.orenImages) self.orenImages = [NSMutableDictionary dictionary];
     if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
@@ -816,13 +827,12 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 }
 
 - (void)clearImageTextureCache {
-    [self.orenImageTextures removeAllObjects];
-    [self.orenImagePixels removeAllObjects];
+    [self.orenImages removeAllObjects];
     self.retainedImagePixelCount = 0;
 }
 
 - (NSUInteger)retainedImageCount {
-    return self.orenImageTextures.count;
+    return self.orenImages.count;
 }
 
 - (BOOL)hasValidFrameData {
@@ -955,10 +965,12 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (expected != (uint64_t)byteCount) return;
     NSUInteger pixels = (NSUInteger)width * (NSUInteger)height;
     NSNumber* key = @(imageID);
-    NSNumber* oldPixels = self.orenImagePixels[key];
-    NSUInteger old = oldPixels ? oldPixels.unsignedIntegerValue : 0;
-    NSUInteger countAfter = self.orenImageTextures[key] ? self.orenImageTextures.count : self.orenImageTextures.count + 1u;
-    NSUInteger pixelAfter = self.retainedImagePixelCount >= old ? self.retainedImagePixelCount - old + pixels : pixels;
+    OrenAVMMetalImageResource* oldResource = self.orenImages[key];
+    NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
+    NSUInteger countAfter = oldResource ? self.orenImages.count : self.orenImages.count + 1u;
+    NSUInteger retainedAfterOld = self.retainedImagePixelCount >= oldPixels ? self.retainedImagePixelCount - oldPixels : 0;
+    if (pixels > NSUIntegerMax - retainedAfterOld) return;
+    NSUInteger pixelAfter = retainedAfterOld + pixels;
     if (self.retainedImageCountLimit == 0 || countAfter > self.retainedImageCountLimit) return;
     if (self.retainedImagePixelLimit == 0 || pixels > self.retainedImagePixelLimit || pixelAfter > self.retainedImagePixelLimit) return;
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
@@ -972,9 +984,21 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                mipmapLevel:0
                  withBytes:rgba
                bytesPerRow:(NSUInteger)width * 4u];
-    self.orenImageTextures[key] = texture;
-    self.orenImagePixels[key] = @(pixels);
+    OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
+    resource.texture = texture;
+    resource.pixels = pixels;
+    self.orenImages[key] = resource;
     self.retainedImagePixelCount = pixelAfter;
+}
+
+- (void)orenRemoveImageTextureWithID:(uint32_t)imageID {
+    NSNumber* key = @(imageID);
+    OrenAVMMetalImageResource* old = self.orenImages[key];
+    if (old) {
+        NSUInteger pixels = old.pixels;
+        self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
+    }
+    [self.orenImages removeObjectForKey:key];
 }
 
 - (OrenAVMMetalImageRun*)orenImageRunWithID:(uint32_t)imageID
@@ -989,13 +1013,13 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                     opacity:(float)opacity
                                logicalWidth:(float)logicalWidth
                               logicalHeight:(float)logicalHeight {
-    id<MTLTexture> texture = self.orenImageTextures[@(imageID)];
+    id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
     if (!texture || w <= 0.0f || h <= 0.0f || sw == 0 || sh == 0) return nil;
-    if ((NSUInteger)sx + (NSUInteger)sw > texture.width || (NSUInteger)sy + (NSUInteger)sh > texture.height) return nil;
+    if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, texture.width, texture.height)) return nil;
     float u0 = (float)sx / (float)texture.width;
     float v0 = (float)sy / (float)texture.height;
-    float u1 = (float)(sx + sw) / (float)texture.width;
-    float v1 = (float)(sy + sh) / (float)texture.height;
+    float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)texture.width;
+    float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)texture.height;
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
     run.vertices = OrenAVMMetalTextureQuad(x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
@@ -1611,11 +1635,12 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t y = OrenAVMMetalReadU32LE(payload + 8);
             uint32_t w = OrenAVMMetalReadU32LE(payload + 12);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 16);
+            id<MTLTexture> texture = self.orenImages[@(imageID)].texture;
             OrenAVMMetalImageRun* run = [self orenImageRunWithID:imageID
                                                               sx:0
                                                               sy:0
-                                                              sw:(uint32_t)self.orenImageTextures[@(imageID)].width
-                                                              sh:(uint32_t)self.orenImageTextures[@(imageID)].height
+                                                              sw:(uint32_t)texture.width
+                                                              sh:(uint32_t)texture.height
                                                                x:(float)x + tx
                                                                y:(float)y + ty
                                                                w:(float)w
@@ -1630,14 +1655,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             }
         } else if (opcode == 66 && payloadLen == 4) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
-            NSNumber* key = @(imageID);
-            NSNumber* oldPixels = self.orenImagePixels[key];
-            if (oldPixels) {
-                NSUInteger pixels = oldPixels.unsignedIntegerValue;
-                self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
-                [self.orenImagePixels removeObjectForKey:key];
-            }
-            [self.orenImageTextures removeObjectForKey:key];
+            [self orenRemoveImageTextureWithID:imageID];
         } else if (opcode == 67 && payloadLen == 36) {
             uint32_t imageID = OrenAVMMetalReadU32LE(payload);
             uint32_t sx = OrenAVMMetalReadU32LE(payload + 4);
