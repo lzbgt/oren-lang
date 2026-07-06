@@ -3440,6 +3440,12 @@
 <p>  pointers through <code>bytes_extend_ptr</code>, preserving byte-list fallback for legacy</p>
 <p>  carriers while avoiding per-byte runtime helper calls on parsed OBC code.</p>
 <ul>
+<li>AVM <code>oren_sha256_range</code> now matches native/C byte-carrier parity for u8</li>
+</ul>
+<p>  buffers, boxed byte lists, and packed <code>LIST_INT</code> carriers; the tail native</p>
+<p>  cases live in a separate include so <code>avm_native.inc</code> stays below the source</p>
+<p>  guardrail.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

@@ -2505,6 +2505,10 @@ design evidence lives under `project-doc/`.
 - OBC linker unpatched code-span copies now append directly from cached u8
   pointers through `bytes_extend_ptr`, preserving byte-list fallback for legacy
   carriers while avoiding per-byte runtime helper calls on parsed OBC code.
+- AVM `oren_sha256_range` now matches native/C byte-carrier parity for u8
+  buffers, boxed byte lists, and packed `LIST_INT` carriers; the tail native
+  cases live in a separate include so `avm_native.inc` stays below the source
+  guardrail.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

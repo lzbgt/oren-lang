@@ -2,6 +2,7 @@ import sha256 "std:crypto/sha256"
 import sha1 "std:crypto/sha1"
 import x509 "std:crypto/x509"
 import bytes "std:bytes"
+import list "std:list"
 
 fn fail(msg) {
     print("FAIL: " + msg)
@@ -52,6 +53,13 @@ fn main() {
     assert_eq(sha256.sha256_hex_string("abc"), got1, "sha256 string hex")
     assert_eq(sha256.hex_string("abc"), got1, "sha256 string hex alias")
     assert_eq(bytes.to_hex(sha256.sha256_string("abc")), got1, "sha256 string digest")
+    assert_eq(oren_bytes_to_hex(oren_sha256_range(abc, 0, 3)), got1, "sha256 native u8 range")
+    assert_eq(oren_bytes_to_hex(oren_sha256_range([97, 98, 99], 0, 3)), got1, "sha256 native list range")
+    var abc_li = list.int_new(0)
+    list.int_push(abc_li, 97)
+    list.int_push(abc_li, 98)
+    list.int_push(abc_li, 99)
+    assert_eq(oren_bytes_to_hex(oren_sha256_range(abc_li, 0, 3)), got1, "sha256 native list_int range")
     var got1_repeat = sha256.sha256_hex(abc)
     assert_eq(got1_repeat, got1, "abc repeat")
     var multiblock = oren_bytes_from_string("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
