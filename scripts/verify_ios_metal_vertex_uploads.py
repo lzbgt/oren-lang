@@ -31,6 +31,12 @@ def main() -> int:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
     if "run.vertices = [vertices copy]" in text_source:
         fail("batched text vertex runs must transfer completed buffers instead of copying them")
+    if "[NSMutableData dataWithData:pending.vertices]" in text_source:
+        fail("text coalescing must use the mutable-vertex helper instead of unconditionally copying pending data")
+    if "OrenAVMMetalMutableTextVerticesForCoalescing" not in text_source:
+        fail("missing text coalescing mutable-vertex reuse helper")
+    if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source:
+        fail("text coalescing must reuse mutable batched vertex buffers before falling back to copying")
     if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:

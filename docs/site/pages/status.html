@@ -2377,7 +2377,9 @@
 <p>count instead of trusting malformed frame headers or growing default arrays. Metal text-run</p>
 <p>coalescing now avoids copying every non-merged run into mutable vertex storage</p>
 <p>and only allocates mutable coalescing storage when an adjacent compatible run</p>
-<p>actually merges. Single texture-quad emission now fills the six text/image</p>
+<p>actually merges; adjacent batched text runs reuse the first run&#x27;s existing</p>
+<p>mutable vertex buffer as the merge destination instead of cloning it first.</p>
+<p>Single texture-quad emission now fills the six text/image</p>
 <p>vertices directly in stack storage before returning immutable <code>NSData</code>, avoiding</p>
 <p>a temporary mutable-data append/copy pair for common single-run draws.</p>
 <p>  <code>make capture-ios-live-3d-performance</code> now builds a generated iPhoneOS app</p>

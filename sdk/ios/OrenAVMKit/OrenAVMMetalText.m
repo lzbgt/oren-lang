@@ -385,6 +385,14 @@ static BOOL OrenAVMMetalTextScissorEqual(OrenAVMMetalTextRun* a, OrenAVMMetalTex
            a.scissor.height == b.scissor.height;
 }
 
+static NSMutableData* OrenAVMMetalMutableTextVerticesForCoalescing(OrenAVMMetalTextRun* pending) {
+    NSData* vertices = pending.vertices;
+    if ([vertices isKindOfClass:[NSMutableData class]]) return (NSMutableData*)vertices;
+    NSMutableData* mutableVertices = [NSMutableData dataWithData:vertices];
+    pending.vertices = mutableVertices;
+    return mutableVertices;
+}
+
 NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetalTextRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalTextRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
@@ -408,8 +416,7 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
             continue;
         }
         if (!pendingVertices) {
-            pendingVertices = [NSMutableData dataWithData:pending.vertices];
-            pending.vertices = pendingVertices;
+            pendingVertices = OrenAVMMetalMutableTextVerticesForCoalescing(pending);
         }
         [pendingVertices appendData:run.vertices];
     }
