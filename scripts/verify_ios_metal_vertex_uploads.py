@@ -165,6 +165,7 @@ def main() -> int:
     for helper in (
         "OrenAVMMetalRetainedImageKey",
         "OrenAVMMetalRetainedImageResource",
+        "OrenAVMMetalImageRunCreate",
         "OrenAVMMetalRetainedTextKey",
         "OrenAVMMetalRetainedTextResource",
         "OrenAVMMetalRetainedMeshKey",
@@ -180,6 +181,10 @@ def main() -> int:
             fail(f"retained Metal scalar resource helper must live in OrenAVMMetalResources: {helper}")
     if "static const void* OrenAVMMetalRetainedImageKey" in text or "static OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource" in text:
         fail("Metal view must not define retained image scalar-map helpers")
+    if "- (OrenAVMMetalImageRun*)orenImageRunWithTexture:" in text:
+        fail("Metal view must not define image texture-run construction helpers")
+    if "OrenAVMMetalWriteTextureQuad(run->vertices" in text:
+        fail("Metal image run quad construction must live with Metal image-run resources")
     if "static const void* OrenAVMMetalRetainedTextKey" in text or "static OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource" in text:
         fail("Metal view must not define retained text scalar-map helpers")
     if "static const void* OrenAVMMetalRetainedMeshKey" in text or "static OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource" in text:
@@ -293,15 +298,15 @@ def main() -> int:
         fail("Metal image runs must store fixed quad vertices inline")
     if "@property(nonatomic, strong) NSData* vertices;" in image_run_block:
         fail("Metal image runs must not allocate NSData wrappers for single quads")
-    if "OrenAVMMetalWriteTextureQuad(run->vertices" not in text:
+    if "OrenAVMMetalWriteTextureQuad(run->vertices" not in resource_text:
         fail("Metal image runs must write single-quad vertices directly into inline storage")
     if "NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u]" in text:
         fail("Metal image runs must not allocate mutable vertex data for one quad")
-    if "OrenAVMMetalSubrectInTexture" not in frame_text or "OrenAVMMetalSubrectInTexture" not in text:
+    if "OrenAVMMetalSubrectInTexture" not in frame_text or "OrenAVMMetalSubrectInTexture" not in resource_text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
     if "orenImageRunWithID:" in text:
         fail("Metal image runs must be built from cached texture/dimensions, not ID lookups")
-    if "orenImageRunWithTexture:" not in text:
+    if "OrenAVMMetalImageRunCreate(texture," not in text:
         fail("missing cached-texture Metal image-run helper")
     batched_images = text.find("} else if (opcode == 71")
     if batched_images < 0:

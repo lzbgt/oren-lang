@@ -2700,7 +2700,10 @@ Working evidence:
 		  lines while keeping per-frame draw decisions in the view. Metal frame timing
 		  and target-budget helpers now live in `OrenAVMMetalFrame`, reducing
 		  `OrenAVMMetalView.m` to 1384 lines while keeping lifecycle, input, and draw
-		  decisions in the view.
+		  decisions in the view. Metal image-run sub-rect validation and quad
+		  construction now lives in `OrenAVMMetalResources`, reducing
+		  `OrenAVMMetalView.m` to 1357 lines while keeping retained image upload
+		  budgets and pixel accounting in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

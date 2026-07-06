@@ -3653,6 +3653,11 @@
 <p>  <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 1384 lines while</p>
 <p>  keeping lifecycle, input, and draw decisions in the view.</p>
 <ul>
+<li>Metal image-run sub-rect validation and quad construction now lives in</li>
+</ul>
+<p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1357 lines while</p>
+<p>  keeping retained image upload budgets and pixel accounting in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

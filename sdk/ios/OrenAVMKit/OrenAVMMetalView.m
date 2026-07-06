@@ -402,33 +402,6 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
     CFDictionaryRemoveValue(_orenImagesByID, key);
 }
 
-- (OrenAVMMetalImageRun*)orenImageRunWithTexture:(id<MTLTexture>)texture
-                                    textureWidth:(NSUInteger)textureWidth
-                                   textureHeight:(NSUInteger)textureHeight
-                                              sx:(uint32_t)sx
-                                              sy:(uint32_t)sy
-                                              sw:(uint32_t)sw
-                                              sh:(uint32_t)sh
-                                               x:(float)x
-                                               y:(float)y
-                                               w:(float)w
-                                               h:(float)h
-                                         opacity:(float)opacity
-                                    logicalWidth:(float)logicalWidth
-                                   logicalHeight:(float)logicalHeight {
-    if (!texture || w <= 0.0f || h <= 0.0f || sw == 0 || sh == 0) return nil;
-    if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
-    float u0 = (float)sx / (float)textureWidth;
-    float v0 = (float)sy / (float)textureHeight;
-    float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
-    float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
-    OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
-    run.texture = texture;
-    OrenAVMMetalWriteTextureQuad(run->vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
-    run.opacity = opacity;
-    return run;
-}
-
 - (NSArray<OrenAVMMetalVertexRun*>*)orenVertexRunsForFrame:(NSData*)frame
                                                  clearColor:(MTLClearColor*)clearColor
                                                   textRuns:(NSMutableArray<OrenAVMMetalTextRun*>**)textRuns
@@ -1091,20 +1064,20 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             if (texture) {
                 NSUInteger textureWidth = texture.width;
                 NSUInteger textureHeight = texture.height;
-                OrenAVMMetalImageRun* run = [self orenImageRunWithTexture:texture
-                                                              textureWidth:textureWidth
-                                                             textureHeight:textureHeight
-                                                                        sx:0
-                                                                        sy:0
-                                                                        sw:(uint32_t)textureWidth
-                                                                        sh:(uint32_t)textureHeight
-                                                                         x:(float)x + tx
-                                                                         y:(float)y + ty
-                                                                         w:(float)w
-                                                                         h:(float)h
-                                                                   opacity:opacity
-                                                              logicalWidth:(float)logicalW
-                                                             logicalHeight:(float)logicalH];
+                OrenAVMMetalImageRun* run = OrenAVMMetalImageRunCreate(texture,
+                                                                        textureWidth,
+                                                                        textureHeight,
+                                                                        0,
+                                                                        0,
+                                                                        (uint32_t)textureWidth,
+                                                                        (uint32_t)textureHeight,
+                                                                        (float)x + tx,
+                                                                        (float)y + ty,
+                                                                        (float)w,
+                                                                        (float)h,
+                                                                        opacity,
+                                                                        (float)logicalW,
+                                                                        (float)logicalH);
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
@@ -1129,20 +1102,20 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             if (texture) {
                 NSUInteger textureWidth = texture.width;
                 NSUInteger textureHeight = texture.height;
-                OrenAVMMetalImageRun* run = [self orenImageRunWithTexture:texture
-                                                              textureWidth:textureWidth
-                                                             textureHeight:textureHeight
-                                                                        sx:sx
-                                                                        sy:sy
-                                                                        sw:sw
-                                                                        sh:sh
-                                                                         x:(float)x + tx
-                                                                         y:(float)y + ty
-                                                                         w:(float)w
-                                                                         h:(float)h
-                                                                   opacity:opacity
-                                                              logicalWidth:(float)logicalW
-                                                             logicalHeight:(float)logicalH];
+                OrenAVMMetalImageRun* run = OrenAVMMetalImageRunCreate(texture,
+                                                                        textureWidth,
+                                                                        textureHeight,
+                                                                        sx,
+                                                                        sy,
+                                                                        sw,
+                                                                        sh,
+                                                                        (float)x + tx,
+                                                                        (float)y + ty,
+                                                                        (float)w,
+                                                                        (float)h,
+                                                                        opacity,
+                                                                        (float)logicalW,
+                                                                        (float)logicalH);
                 if (run) {
                     run.hasScissor = clip.enabled;
                     run.scissor = clip.rect;
@@ -1160,20 +1133,20 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                     NSUInteger textureHeight = texture.height;
                     for (uint32_t ri = 0; ri < rectCount; ri++) {
                         const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
-                        OrenAVMMetalImageRun* run = [self orenImageRunWithTexture:texture
-                                                                      textureWidth:textureWidth
-                                                                     textureHeight:textureHeight
-                                                                                sx:OrenAVMMetalReadU32LE(r)
-                                                                                sy:OrenAVMMetalReadU32LE(r + 4)
-                                                                                sw:OrenAVMMetalReadU32LE(r + 8)
-                                                                                sh:OrenAVMMetalReadU32LE(r + 12)
-                                                                                 x:(float)OrenAVMMetalReadU32LE(r + 16) + tx
-                                                                                 y:(float)OrenAVMMetalReadU32LE(r + 20) + ty
-                                                                                 w:(float)OrenAVMMetalReadU32LE(r + 24)
-                                                                                 h:(float)OrenAVMMetalReadU32LE(r + 28)
-                                                                           opacity:opacity
-                                                                      logicalWidth:(float)logicalW
-                                                                     logicalHeight:(float)logicalH];
+                        OrenAVMMetalImageRun* run = OrenAVMMetalImageRunCreate(texture,
+                                                                                textureWidth,
+                                                                                textureHeight,
+                                                                                OrenAVMMetalReadU32LE(r),
+                                                                                OrenAVMMetalReadU32LE(r + 4),
+                                                                                OrenAVMMetalReadU32LE(r + 8),
+                                                                                OrenAVMMetalReadU32LE(r + 12),
+                                                                                (float)OrenAVMMetalReadU32LE(r + 16) + tx,
+                                                                                (float)OrenAVMMetalReadU32LE(r + 20) + ty,
+                                                                                (float)OrenAVMMetalReadU32LE(r + 24),
+                                                                                (float)OrenAVMMetalReadU32LE(r + 28),
+                                                                                opacity,
+                                                                                (float)logicalW,
+                                                                                (float)logicalH);
                         if (run) {
                             run.hasScissor = clip.enabled;
                             run.scissor = clip.rect;

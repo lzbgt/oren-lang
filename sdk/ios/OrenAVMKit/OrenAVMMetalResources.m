@@ -48,6 +48,33 @@ OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef ima
     return (__bridge OrenAVMMetalImageResource*)CFDictionaryGetValue(images, OrenAVMMetalRetainedImageKey(imageID));
 }
 
+OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
+                                                 NSUInteger textureWidth,
+                                                 NSUInteger textureHeight,
+                                                 uint32_t sx,
+                                                 uint32_t sy,
+                                                 uint32_t sw,
+                                                 uint32_t sh,
+                                                 float x,
+                                                 float y,
+                                                 float w,
+                                                 float h,
+                                                 float opacity,
+                                                 float logicalWidth,
+                                                 float logicalHeight) {
+    if (!texture || w <= 0.0f || h <= 0.0f || sw == 0 || sh == 0) return nil;
+    if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
+    float u0 = (float)sx / (float)textureWidth;
+    float v0 = (float)sy / (float)textureHeight;
+    float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
+    float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
+    OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
+    run.texture = texture;
+    OrenAVMMetalWriteTextureQuad(run->vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
+    run.opacity = opacity;
+    return run;
+}
+
 const void* OrenAVMMetalRetainedTextKey(uint32_t textID) {
     return OrenAVMMetalRetainedKey(textID);
 }

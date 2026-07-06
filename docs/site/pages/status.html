@@ -2819,7 +2819,10 @@
 <p>		  lines while keeping per-frame draw decisions in the view. Metal frame timing</p>
 <p>		  and target-budget helpers now live in <code>OrenAVMMetalFrame</code>, reducing</p>
 <p>		  <code>OrenAVMMetalView.m</code> to 1384 lines while keeping lifecycle, input, and draw</p>
-<p>		  decisions in the view.</p>
+<p>		  decisions in the view. Metal image-run sub-rect validation and quad</p>
+<p>		  construction now lives in <code>OrenAVMMetalResources</code>, reducing</p>
+<p>		  <code>OrenAVMMetalView.m</code> to 1357 lines while keeping retained image upload</p>
+<p>		  budgets and pixel accounting in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

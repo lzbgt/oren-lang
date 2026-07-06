@@ -68,6 +68,20 @@ enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
 
 const void* OrenAVMMetalRetainedImageKey(uint32_t imageID);
 OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef images, uint32_t imageID);
+OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
+                                                 NSUInteger textureWidth,
+                                                 NSUInteger textureHeight,
+                                                 uint32_t sx,
+                                                 uint32_t sy,
+                                                 uint32_t sw,
+                                                 uint32_t sh,
+                                                 float x,
+                                                 float y,
+                                                 float w,
+                                                 float h,
+                                                 float opacity,
+                                                 float logicalWidth,
+                                                 float logicalHeight);
 const void* OrenAVMMetalRetainedTextKey(uint32_t textID);
 OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
 const void* OrenAVMMetalRetainedMeshKey(uint32_t meshID);
