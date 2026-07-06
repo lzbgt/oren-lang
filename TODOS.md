@@ -2638,8 +2638,8 @@ design evidence lives under `project-doc/`.
 - iOS SDK typed GFX input helpers now build fixed-size `OGE0` events on stack
   and enqueue raw bytes directly; text/composition events use segmented
   stack-first construction with one heap event fallback only for large payloads.
-- Metal touch tracking now stores active touch pointer IDs as raw scalar values
-  instead of retaining per-touch `NSNumber` boxes.
+- CoreGraphics and Metal touch tracking now store active touch pointer IDs as
+  raw scalar values instead of retaining per-touch `NSNumber` boxes.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the

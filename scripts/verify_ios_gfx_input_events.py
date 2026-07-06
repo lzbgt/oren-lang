@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 INPUT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGFXInput.m"
 SDK_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMKit.m"
+GRAPHICS_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m"
 METAL_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalView.m"
 
 
@@ -19,7 +20,9 @@ def fail(message: str) -> None:
 def main() -> int:
     input_text = INPUT_SOURCE.read_text()
     sdk_text = SDK_SOURCE.read_text()
+    graphics_text = GRAPHICS_SOURCE.read_text()
     metal_text = METAL_SOURCE.read_text()
+    renderer_text = graphics_text + "\n" + metal_text
 
     if "orenPutGraphicsInputEventBytes:(const void*)bytes" not in sdk_text:
         fail("missing internal raw-byte GFX input enqueue helper")
@@ -44,12 +47,12 @@ def main() -> int:
         fail("text and composition events must use segmented event construction")
     if "dataWithLength:4u + utf8.length" in input_text or "dataWithLength:12u + utf8.length" in input_text:
         fail("text/composition GFX input helpers regressed to payload allocation")
-    if "@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs" in metal_text:
-        fail("Metal touch tracking must not retain per-touch NSNumber IDs")
-    if "setObject:@(pointerID) forKey:touch" in metal_text or "NSNumber* existing = [self.orenTouchIDs objectForKey:touch]" in metal_text:
-        fail("Metal touch tracking must keep pointer IDs as raw scalars")
-    if "CFDictionarySetValue(_orenTouchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID)" not in metal_text:
-        fail("Metal touch tracking must use a pointer-keyed scalar map")
+    if "@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs" in renderer_text:
+        fail("iOS renderer touch tracking must not retain per-touch NSNumber IDs")
+    if "setObject:@(pointerID) forKey:touch" in renderer_text or "NSNumber* existing = [self.orenTouchIDs objectForKey:touch]" in renderer_text:
+        fail("iOS renderer touch tracking must keep pointer IDs as raw scalars")
+    if renderer_text.count("CFDictionarySetValue(_orenTouchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID)") != 2:
+        fail("CoreGraphics and Metal touch tracking must use pointer-keyed scalar maps")
 
     print("OK: iOS GFX input events use stack-first byte enqueue")
     return 0

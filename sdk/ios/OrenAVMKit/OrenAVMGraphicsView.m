@@ -278,8 +278,9 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     return OrenAVMGfxReadU32LE(data + 8) != 0 && OrenAVMGfxReadU32LE(data + 12) != 0;
 }
 
-@interface OrenAVMGraphicsView ()
-@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
+@interface OrenAVMGraphicsView () {
+    CFMutableDictionaryRef _orenTouchIDs;
+}
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxTextResource*>* orenTextResources;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes;
@@ -308,7 +309,7 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     self.opaque = NO;
     self.contentMode = UIViewContentModeRedraw;
     self.multipleTouchEnabled = YES;
-    if (!self.orenTouchIDs) self.orenTouchIDs = [NSMapTable strongToStrongObjectsMapTable];
+    if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (!self.orenTextResources) self.orenTextResources = [NSMutableDictionary dictionary];
     if (!self.orenTextAttributes) self.orenTextAttributes = [NSMutableDictionary dictionary];
@@ -356,6 +357,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
 - (void)dealloc {
     if (_runtime && self.orenGraphicsFrameObserverToken) {
         [_runtime removeGraphicsFrameHandler:self.orenGraphicsFrameObserverToken];
+    }
+    if (_orenTouchIDs) {
+        CFRelease(_orenTouchIDs);
+        _orenTouchIDs = NULL;
     }
 }
 
@@ -1101,12 +1106,17 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
 }
 
 - (uint32_t)orenPointerIDForTouch:(UITouch*)touch {
-    NSNumber* existing = [self.orenTouchIDs objectForKey:touch];
-    if (existing) return existing.unsignedIntValue;
+    const void* stored = NULL;
+    if (_orenTouchIDs && CFDictionaryGetValueIfPresent(_orenTouchIDs, (__bridge const void*)touch, &stored)) {
+        return (uint32_t)(uintptr_t)stored;
+    }
     uint32_t pointerID = self.orenNextTouchID == 0 ? 1u : self.orenNextTouchID;
     self.orenNextTouchID = pointerID + 1u;
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
-    [self.orenTouchIDs setObject:@(pointerID) forKey:touch];
+    if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    if (_orenTouchIDs) {
+        CFDictionarySetValue(_orenTouchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID);
+    }
     return pointerID;
 }
 
@@ -1119,7 +1129,9 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
                                        point:p
                                    pointerId:pointerID
                                        error:&error];
-        if (releaseAfterSend) [self.orenTouchIDs removeObjectForKey:touch];
+        if (releaseAfterSend && _orenTouchIDs) {
+            CFDictionaryRemoveValue(_orenTouchIDs, (__bridge const void*)touch);
+        }
     }
 }
 
