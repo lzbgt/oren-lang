@@ -2541,9 +2541,9 @@ design evidence lives under `project-doc/`.
 - Metal large transient vertex uploads now retain their existing per-command
   buffer tracking array through command completion instead of copying that array
   after encoding.
-- Metal geometry vertex-run flushing now transfers completed mutable vertex
-  buffers into immutable run ownership instead of copying their bytes at every
-  clip/transform/opacity/camera boundary.
+- Metal geometry vertex-run flushing now transfers raw growable vertex buffers
+  into run ownership instead of retaining `NSMutableData` wrappers at
+  clip/transform/opacity/camera boundaries.
 - Metal geometry vertex builders now stay lazy but reserve a small
   op-count-bounded initial capacity on first append instead of growing from a
   zero-capacity buffer.
@@ -2594,8 +2594,8 @@ design evidence lives under `project-doc/`.
 - CoreGraphics and Metal retained model resources now use typed resource records
   instead of string-keyed dictionaries, removing per-draw model field lookups.
 - Single Metal image texture quads now stay inline in fixed image-run storage,
-  while text texture quads append into caller-owned mutable vertex buffers
-  instead of allocating tiny `NSData` wrappers from stack vertices.
+  while text texture quads append into caller-owned run buffers instead of
+  allocating tiny `NSData` wrappers from stack vertices.
 - Metal text cache misses now share a typed view-owned UIKit attribute cache
   with a scalar one-entry MRU before boxed dictionary-key lookup for repeated
   same-color labels.

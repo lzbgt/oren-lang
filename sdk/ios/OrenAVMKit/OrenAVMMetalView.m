@@ -211,27 +211,38 @@ static NSUInteger OrenAVMMetalInitialVertexBuilderCapacity(NSUInteger runCapacit
     return runCapacity * bytesPerSimpleRun;
 }
 
-static NSMutableData* OrenAVMMetalEnsureVertexBuilder(NSMutableData** verticesRef, NSUInteger runCapacity) {
-    if (!*verticesRef) *verticesRef = [NSMutableData dataWithCapacity:OrenAVMMetalInitialVertexBuilderCapacity(runCapacity)];
-    return *verticesRef;
+static OrenAVMMetalVertexBuffer* OrenAVMMetalEnsureVertexBuilder(OrenAVMMetalVertexBuffer* vertices, NSUInteger runCapacity) {
+    if (vertices && vertices->initialCapacity == 0) {
+        OrenAVMMetalVertexBufferInit(vertices, OrenAVMMetalInitialVertexBuilderCapacity(runCapacity));
+    }
+    return vertices;
 }
 
 static void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>** runsRef,
-                                       NSMutableData** verticesRef,
+                                       OrenAVMMetalVertexBuffer* verticesRef,
                                        NSUInteger runCapacity,
                                        OrenAVMMetalScissorState scissor,
                                        BOOL continueBuilding) {
-    NSMutableData* vertices = verticesRef ? *verticesRef : nil;
-    if (!vertices || vertices.length == 0) return;
+    if (!verticesRef || verticesRef->byteLength == 0) {
+        if (verticesRef && verticesRef->failed) {
+            NSUInteger initialCapacity = verticesRef->initialCapacity;
+            OrenAVMMetalVertexBufferFree(verticesRef);
+            OrenAVMMetalVertexBufferInit(verticesRef, initialCapacity);
+        }
+        return;
+    }
+    NSUInteger vertexBytes = 0;
+    uint8_t* vertices = OrenAVMMetalVertexBufferTakeBytes(verticesRef, &vertexBytes);
+    if (!vertices || vertexBytes == 0) return;
     NSMutableArray<OrenAVMMetalVertexRun*>* runs =
         (NSMutableArray<OrenAVMMetalVertexRun*>*)OrenAVMMetalEnsureRunArray((NSMutableArray**)runsRef, runCapacity);
     OrenAVMMetalVertexRun* run = [[OrenAVMMetalVertexRun alloc] init];
     run.vertices = vertices;
+    run.vertexBytes = vertexBytes;
     run.hasScissor = scissor.enabled;
     run.scissor = scissor.rect;
     [runs addObject:run];
     (void)continueBuilding;
-    *verticesRef = nil;
 }
 
 static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
@@ -672,7 +683,6 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                                                  imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>**)imageRuns
                                                runCapacity:(NSUInteger)runCapacity {
     NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = nil;
-    NSMutableData* vertices = nil;
     if (frame.length < 40) return @[];
     const uint8_t* data = (const uint8_t*)frame.bytes;
     if (memcmp(data, "OGF0", 4) != 0 || data[4] != 1) return @[];
@@ -685,6 +695,8 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     uint32_t drawableH = OrenAVMMetalReadU32LE(data + 32);
     if (logicalW == 0 || logicalH == 0 || drawableW == 0 || drawableH == 0) return @[];
 
+    OrenAVMMetalVertexBuffer vertices;
+    OrenAVMMetalVertexBufferInit(&vertices, OrenAVMMetalInitialVertexBuilderCapacity(runCapacity));
     size_t off = headerLen;
     OrenAVMMetalScissorState clip;
     clip.enabled = NO;
@@ -1403,6 +1415,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         off += payloadLen;
     }
     OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO);
+    OrenAVMMetalVertexBufferFree(&vertices);
     return vertexRuns ?: @[];
 }
 
@@ -1421,7 +1434,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = textRuns ? OrenAVMMetalCoalesceTextRuns(textRuns) : @[];
     uint32_t vertexCount = 0;
     for (OrenAVMMetalVertexRun* run in vertexRuns) {
-        vertexCount += (uint32_t)(run.vertices.length / sizeof(OrenAVMMetalVertex));
+        vertexCount += (uint32_t)(run.vertexBytes / sizeof(OrenAVMMetalVertex));
     }
     self.lastFrameVertexCount = vertexCount;
     self.lastFrameTextRunCount = (uint32_t)coalescedTextRuns.count;
@@ -1479,14 +1492,14 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     if (encoder && self.orenPipelineState) {
         [encoder setRenderPipelineState:self.orenPipelineState];
         for (OrenAVMMetalVertexRun* run in vertexRuns) {
-            if (run.vertices.length == 0) continue;
+            if (!run.vertices || run.vertexBytes == 0) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, &transientVertexBuffers, run.vertices, run.vertexBytes)) continue;
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
-                         vertexCount:run.vertices.length / sizeof(OrenAVMMetalVertex)];
+                         vertexCount:run.vertexBytes / sizeof(OrenAVMMetalVertex)];
         }
     }
     if (encoder && self.orenTextPipelineState) {

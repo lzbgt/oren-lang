@@ -8,7 +8,8 @@
 #include <stdint.h>
 
 @interface OrenAVMMetalVertexRun : NSObject
-@property(nonatomic, strong) NSData* vertices;
+@property(nonatomic) uint8_t* vertices;
+@property(nonatomic) NSUInteger vertexBytes;
 @property(nonatomic) BOOL hasScissor;
 @property(nonatomic) MTLScissorRect scissor;
 @end

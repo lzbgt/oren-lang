@@ -3,8 +3,70 @@
 #if TARGET_OS_IPHONE
 
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 _Static_assert(sizeof(OrenAVMMetalVertex) == 24, "OrenAVMMetalVertex must match shader packed_float2+packed_float4");
+
+void OrenAVMMetalVertexBufferInit(OrenAVMMetalVertexBuffer* buffer, NSUInteger initialCapacity) {
+    if (!buffer) return;
+    buffer->bytes = NULL;
+    buffer->byteLength = 0;
+    buffer->byteCapacity = 0;
+    buffer->initialCapacity = initialCapacity;
+    buffer->failed = NO;
+}
+
+void OrenAVMMetalVertexBufferFree(OrenAVMMetalVertexBuffer* buffer) {
+    if (!buffer) return;
+    free(buffer->bytes);
+    buffer->bytes = NULL;
+    buffer->byteLength = 0;
+    buffer->byteCapacity = 0;
+}
+
+uint8_t* OrenAVMMetalVertexBufferTakeBytes(OrenAVMMetalVertexBuffer* buffer, NSUInteger* byteLengthOut) {
+    if (!buffer || buffer->failed || buffer->byteLength == 0) {
+        if (byteLengthOut) *byteLengthOut = 0;
+        return NULL;
+    }
+    uint8_t* bytes = buffer->bytes;
+    if (byteLengthOut) *byteLengthOut = buffer->byteLength;
+    buffer->bytes = NULL;
+    buffer->byteLength = 0;
+    buffer->byteCapacity = 0;
+    return bytes;
+}
+
+static BOOL OrenAVMMetalVertexBufferAppend(OrenAVMMetalVertexBuffer* buffer, const OrenAVMMetalVertex* vertices, NSUInteger byteLength) {
+    if (!buffer || !vertices || byteLength == 0 || buffer->failed) return NO;
+    if (byteLength > NSUIntegerMax - buffer->byteLength) {
+        buffer->failed = YES;
+        return NO;
+    }
+    NSUInteger required = buffer->byteLength + byteLength;
+    if (required > buffer->byteCapacity) {
+        NSUInteger nextCapacity = buffer->byteCapacity;
+        if (nextCapacity == 0) nextCapacity = buffer->initialCapacity > 0 ? buffer->initialCapacity : sizeof(OrenAVMMetalVertex) * 6u;
+        while (nextCapacity < required) {
+            if (nextCapacity > NSUIntegerMax / 2u) {
+                nextCapacity = required;
+                break;
+            }
+            nextCapacity *= 2u;
+        }
+        uint8_t* next = (uint8_t*)realloc(buffer->bytes, nextCapacity);
+        if (!next) {
+            buffer->failed = YES;
+            return NO;
+        }
+        buffer->bytes = next;
+        buffer->byteCapacity = nextCapacity;
+    }
+    memcpy(buffer->bytes + buffer->byteLength, vertices, byteLength);
+    buffer->byteLength = required;
+    return YES;
+}
 
 static float OrenAVMMetalClipX(float x, float logicalWidth) {
     return logicalWidth <= 0.0f ? 0.0f : (x / logicalWidth) * 2.0f - 1.0f;
@@ -56,7 +118,7 @@ void OrenAVMMetalRGBAValueBytes(uint32_t rgbaValue, uint8_t out[4]) {
     out[3] = (uint8_t)((rgbaValue >> 24) & 255u);
 }
 
-void OrenAVMMetalAppendRect(NSMutableData* vertices,
+void OrenAVMMetalAppendRect(OrenAVMMetalVertexBuffer* vertices,
                             float x,
                             float y,
                             float w,
@@ -71,10 +133,10 @@ void OrenAVMMetalAppendRect(NSMutableData* vertices,
     out[3] = OrenAVMMetalMakeVertex(x + w, y, logicalWidth, logicalHeight, rgba);
     out[4] = OrenAVMMetalMakeVertex(x + w, y + h, logicalWidth, logicalHeight, rgba);
     out[5] = OrenAVMMetalMakeVertex(x, y + h, logicalWidth, logicalHeight, rgba);
-    [vertices appendBytes:out length:sizeof(out)];
+    (void)OrenAVMMetalVertexBufferAppend(vertices, out, sizeof(out));
 }
 
-void OrenAVMMetalAppendLine(NSMutableData* vertices,
+void OrenAVMMetalAppendLine(OrenAVMMetalVertexBuffer* vertices,
                             float x1,
                             float y1,
                             float x2,
@@ -101,10 +163,10 @@ void OrenAVMMetalAppendLine(NSMutableData* vertices,
     out[3] = OrenAVMMetalMakeVertex(x2 + nx, y2 + ny, logicalWidth, logicalHeight, rgba);
     out[4] = OrenAVMMetalMakeVertex(x2 - nx, y2 - ny, logicalWidth, logicalHeight, rgba);
     out[5] = OrenAVMMetalMakeVertex(x1 - nx, y1 - ny, logicalWidth, logicalHeight, rgba);
-    [vertices appendBytes:out length:sizeof(out)];
+    (void)OrenAVMMetalVertexBufferAppend(vertices, out, sizeof(out));
 }
 
-void OrenAVMMetalAppendStrokeRect(NSMutableData* vertices,
+void OrenAVMMetalAppendStrokeRect(OrenAVMMetalVertexBuffer* vertices,
                                   float x,
                                   float y,
                                   float w,
@@ -120,7 +182,7 @@ void OrenAVMMetalAppendStrokeRect(NSMutableData* vertices,
     OrenAVMMetalAppendRect(vertices, x + w - lw, y, lw, h, logicalWidth, logicalHeight, rgba);
 }
 
-void OrenAVMMetalAppendTriangle(NSMutableData* vertices,
+void OrenAVMMetalAppendTriangle(OrenAVMMetalVertexBuffer* vertices,
                                 float x1,
                                 float y1,
                                 float x2,
@@ -134,10 +196,10 @@ void OrenAVMMetalAppendTriangle(NSMutableData* vertices,
     out[0] = OrenAVMMetalMakeVertex(x1, y1, logicalWidth, logicalHeight, rgba);
     out[1] = OrenAVMMetalMakeVertex(x2, y2, logicalWidth, logicalHeight, rgba);
     out[2] = OrenAVMMetalMakeVertex(x3, y3, logicalWidth, logicalHeight, rgba);
-    [vertices appendBytes:out length:sizeof(out)];
+    (void)OrenAVMMetalVertexBufferAppend(vertices, out, sizeof(out));
 }
 
-void OrenAVMMetalAppendCircle(NSMutableData* vertices,
+void OrenAVMMetalAppendCircle(OrenAVMMetalVertexBuffer* vertices,
                               float cx,
                               float cy,
                               float radius,
@@ -164,7 +226,7 @@ void OrenAVMMetalAppendCircle(NSMutableData* vertices,
                                             logicalWidth,
                                             logicalHeight,
                                             rgba);
-            [vertices appendBytes:out length:sizeof(out)];
+            (void)OrenAVMMetalVertexBufferAppend(vertices, out, sizeof(out));
         }
         return;
     }
@@ -183,7 +245,7 @@ void OrenAVMMetalAppendCircle(NSMutableData* vertices,
     }
 }
 
-void OrenAVMMetalAppendEllipse(NSMutableData* vertices,
+void OrenAVMMetalAppendEllipse(OrenAVMMetalVertexBuffer* vertices,
                                float x,
                                float y,
                                float w,
@@ -216,7 +278,7 @@ void OrenAVMMetalAppendEllipse(NSMutableData* vertices,
                                             logicalWidth,
                                             logicalHeight,
                                             rgba);
-            [vertices appendBytes:out length:sizeof(out)];
+            (void)OrenAVMMetalVertexBufferAppend(vertices, out, sizeof(out));
         }
         return;
     }
@@ -236,7 +298,7 @@ void OrenAVMMetalAppendEllipse(NSMutableData* vertices,
     }
 }
 
-static void OrenAVMMetalAppendSector(NSMutableData* vertices,
+static void OrenAVMMetalAppendSector(OrenAVMMetalVertexBuffer* vertices,
                                      float cx,
                                      float cy,
                                      float radius,
@@ -262,11 +324,11 @@ static void OrenAVMMetalAppendSector(NSMutableData* vertices,
                                         logicalWidth,
                                         logicalHeight,
                                         rgba);
-        [vertices appendBytes:out length:sizeof(out)];
+        (void)OrenAVMMetalVertexBufferAppend(vertices, out, sizeof(out));
     }
 }
 
-static void OrenAVMMetalAppendArcLines(NSMutableData* vertices,
+static void OrenAVMMetalAppendArcLines(OrenAVMMetalVertexBuffer* vertices,
                                        float cx,
                                        float cy,
                                        float radius,
@@ -290,7 +352,7 @@ static void OrenAVMMetalAppendArcLines(NSMutableData* vertices,
     }
 }
 
-void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
+void OrenAVMMetalAppendRoundRect(OrenAVMMetalVertexBuffer* vertices,
                                  float x,
                                  float y,
                                  float w,

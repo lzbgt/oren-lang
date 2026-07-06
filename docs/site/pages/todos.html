@@ -3494,10 +3494,10 @@
 <p>  buffer tracking array through command completion instead of copying that array</p>
 <p>  after encoding.</p>
 <ul>
-<li>Metal geometry vertex-run flushing now transfers completed mutable vertex</li>
+<li>Metal geometry vertex-run flushing now transfers raw growable vertex buffers</li>
 </ul>
-<p>  buffers into immutable run ownership instead of copying their bytes at every</p>
-<p>  clip/transform/opacity/camera boundary.</p>
+<p>  into run ownership instead of retaining <code>NSMutableData</code> wrappers at</p>
+<p>  clip/transform/opacity/camera boundaries.</p>
 <ul>
 <li>Metal geometry vertex builders now stay lazy but reserve a small</li>
 </ul>
@@ -3586,8 +3586,8 @@
 <ul>
 <li>Single Metal image texture quads now stay inline in fixed image-run storage,</li>
 </ul>
-<p>  while text texture quads append into caller-owned mutable vertex buffers</p>
-<p>  instead of allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
+<p>  while text texture quads append into caller-owned run buffers instead of</p>
+<p>  allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
 <ul>
 <li>Metal text cache misses now share a typed view-owned UIKit attribute cache</li>
 </ul>

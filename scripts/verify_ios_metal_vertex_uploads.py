@@ -40,8 +40,18 @@ def main() -> int:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
     if "[NSMutableData dataWithCapacity:vertices.length]" in text:
         fail("geometry flush must not allocate the next mutable vertex buffer eagerly")
-    if "NSMutableData* vertices = nil;" not in text or "OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity)" not in text:
-        fail("geometry vertex buffers must be allocated lazily on first append with bounded capacity")
+    if "OrenAVMMetalVertexBuffer vertices;" not in text or "OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity)" not in text:
+        fail("geometry vertex buffers must use the raw lazy vertex buffer builder")
+    if "NSMutableData* vertices" in text or "NSMutableData* vertices" in geometry_text:
+        fail("Metal geometry vertex builders must not use NSMutableData wrappers")
+    if "[vertices appendBytes:" in geometry_text:
+        fail("Metal geometry append helpers must write into raw vertex buffers")
+    if "@property(nonatomic, strong) NSData* vertices" in resource_text:
+        fail("Metal geometry runs must own raw vertex buffers, not NSData wrappers")
+    if "uint8_t* vertices" not in resource_text or "NSUInteger vertexBytes" not in resource_text or "free(_vertices)" not in resource_text:
+        fail("Metal geometry vertex runs must expose raw bytes with explicit cleanup")
+    if "OrenAVMMetalVertexBufferTakeBytes" not in text or "run.vertexBytes = vertexBytes" not in text:
+        fail("Metal geometry flush must transfer raw vertex buffers into runs")
     if "OrenAVMMetalInitialVertexBuilderCapacity" not in text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in text:
         fail("geometry vertex builder must cap its lazy initial reservation")
     if '"OrenAVMMetalGeometry.h"' not in text or "OrenAVMMetalAppendRoundRect" not in geometry_text:

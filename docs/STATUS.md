@@ -2210,7 +2210,7 @@ Facts from the 2026-05-28 implementation pass:
 	  publisher consumes the latest retained frame without building an unbounded UI
 	  task backlog. The Metal
   view exposes SDK-side frame metrics for rendered frame count, CPU encode time,
-	      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append, retained Metal material override draws unbox material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with a scalar one-entry MRU to reduce repeated same-color miss overhead. UIKit/CoreGraphics
+		      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append and transfer raw buffers into vertex-run ownership, retained Metal material override draws unbox material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before boxed dictionary lookup, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with a scalar one-entry MRU to reduce repeated same-color miss overhead. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
   pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
@@ -2282,7 +2282,9 @@ Drawable-independent and live Metal frame preparation now derives run capacity
 from a byte-bounded OGF0 operation count and allocates geometry/text/image run
 arrays lazily only when those records appear, instead of trusting malformed
 frame headers, growing default arrays, or reserving unused run arrays for frames
-that do not need them. Metal batched text runs now write positioned glyph
+that do not need them. Metal primitive geometry builders now grow raw vertex
+buffers and transfer those buffers into vertex-run ownership instead of
+retaining `NSMutableData` wrappers. Metal batched text runs now write positioned glyph
 quads directly into raw run-owned vertex buffers instead of `NSMutableData`
 wrappers. Metal text-run coalescing now reuses prepared run objects for
 non-merged groups, avoids copying every non-merged run into mutable vertex
@@ -2322,7 +2324,7 @@ batched image rects. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
 dictionaries, removing per-draw model field lookups. Single Metal image texture
 quads now stay inline in fixed image-run storage, while text texture quads append
-into caller-owned mutable vertex buffers instead of allocating tiny `NSData`
+into caller-owned run buffers instead of allocating tiny `NSData`
 wrappers from stack vertices. Metal text texture cache lookups now use typed
 immutable cache keys instead of formatted strings that copy the full label into
 every lookup key. iOS SDK typed GFX input helpers now build

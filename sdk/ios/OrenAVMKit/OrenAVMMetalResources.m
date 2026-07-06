@@ -6,6 +6,9 @@
 #include <string.h>
 
 @implementation OrenAVMMetalVertexRun
+- (void)dealloc {
+    free(_vertices);
+}
 @end
 
 @implementation OrenAVMMetalImageRun
