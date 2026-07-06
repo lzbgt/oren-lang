@@ -13,6 +13,20 @@ typedef struct {
     int64_t zsum;
 } OrenAVMGfxTriangleOrder;
 
+@interface OrenAVMGfxMeshResource : NSObject
+@property(nonatomic, strong) NSData* triangles;
+@property(nonatomic, strong) NSData* vertices;
+@property(nonatomic, strong) NSData* indices;
+@property(nonatomic) uint32_t rgbaValue;
+@property(nonatomic) uint32_t triangleCount;
+@property(nonatomic) uint32_t indexCount;
+@property(nonatomic) uint32_t stride;
+@property(nonatomic) BOOL hasRGBA;
+@end
+
+@implementation OrenAVMGfxMeshResource
+@end
+
 static BOOL OrenAVMGraphicsViewAssignError(NSError** error, NSInteger code, NSString* message) {
     if (error) {
         *error = [NSError errorWithDomain:OrenAVMKitErrorDomain
@@ -102,6 +116,29 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
                            alpha:(CGFloat)rgba[3] / 255.0];
 }
 
+static uint32_t OrenAVMGfxRGBAValue(const uint8_t* rgba) {
+    return (uint32_t)rgba[0] |
+        ((uint32_t)rgba[1] << 8) |
+        ((uint32_t)rgba[2] << 16) |
+        ((uint32_t)rgba[3] << 24);
+}
+
+static void OrenAVMGfxSetFillColorValue(CGContextRef ctx, uint32_t rgbaValue) {
+    CGContextSetRGBFillColor(ctx,
+                             (CGFloat)(rgbaValue & 255u) / 255.0,
+                             (CGFloat)((rgbaValue >> 8) & 255u) / 255.0,
+                             (CGFloat)((rgbaValue >> 16) & 255u) / 255.0,
+                             (CGFloat)((rgbaValue >> 24) & 255u) / 255.0);
+}
+
+static void OrenAVMGfxSetFillColorBytes(CGContextRef ctx, const uint8_t* rgba) {
+    CGContextSetRGBFillColor(ctx,
+                             (CGFloat)rgba[0] / 255.0,
+                             (CGFloat)rgba[1] / 255.0,
+                             (CGFloat)rgba[2] / 255.0,
+                             (CGFloat)rgba[3] / 255.0);
+}
+
 static UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount) {
     uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
     if (!rgba || width == 0 || height == 0 || expected != (uint64_t)byteCount) return nil;
@@ -143,8 +180,8 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 @property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* orenTouchIDs;
 @property(nonatomic) uint32_t orenNextTouchID;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenTextResources;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes;
-@property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMGfxMeshResource*>* orenMeshes;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, UIImage*>* orenImages;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSNumber*>* orenImagePixels;
@@ -614,20 +651,20 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
-                NSData* triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
-                self.orenMeshes[@(meshID)] = @{@"color": OrenAVMGfxColor(payload + 4),
-                                               @"triangles": triangles,
-                                               @"count": @(triangleCount)};
+                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+                mesh.rgbaValue = OrenAVMGfxRGBAValue(payload + 4);
+                mesh.triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                mesh.triangleCount = triangleCount;
+                mesh.stride = 24u;
+                self.orenMeshes[@(meshID)] = mesh;
             }
         } else if (opcode == 81 && payloadLen == 4) {
-            NSDictionary<NSString*, id>* mesh = self.orenMeshes[@(OrenAVMGfxReadU32LE(payload))];
-            UIColor* color = mesh[@"color"];
-            NSData* triangles = mesh[@"triangles"];
-            NSNumber* count = mesh[@"count"];
+            OrenAVMGfxMeshResource* mesh = self.orenMeshes[@(OrenAVMGfxReadU32LE(payload))];
+            NSData* triangles = mesh.triangles;
             const uint8_t* tris = triangles.bytes;
-            if (color && tris && count.unsignedIntValue == triangles.length / 24u) {
-                CGContextSetFillColorWithColor(ctx, color.CGColor);
-                for (uint32_t ti = 0; ti < count.unsignedIntValue; ti++) {
+            if (tris && mesh.triangleCount == triangles.length / 24u) {
+                OrenAVMGfxSetFillColorValue(ctx, mesh.rgbaValue);
+                for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
                     const uint8_t* tri = tris + ((size_t)ti * 24u);
                     CGContextBeginPath(ctx);
                     CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri), (CGFloat)OrenAVMGfxReadU32LE(tri + 4));
@@ -643,11 +680,12 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
-                NSData* triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
-                self.orenMeshes[@(meshID)] = @{@"color": OrenAVMGfxColor(payload + 4),
-                                               @"triangles": triangles,
-                                               @"count": @(triangleCount),
-                                               @"stride": @36};
+                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+                mesh.rgbaValue = OrenAVMGfxRGBAValue(payload + 4);
+                mesh.triangles = [NSData dataWithBytes:payload + 12 length:(NSUInteger)payloadLen - 12u];
+                mesh.triangleCount = triangleCount;
+                mesh.stride = 36u;
+                self.orenMeshes[@(meshID)] = mesh;
             }
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
                    (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
@@ -671,29 +709,27 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 modelZ = model[@"z"].intValue;
                 scaleMilli = model[@"scale_milli"].unsignedIntValue;
             }
-            NSDictionary<NSString*, id>* mesh = self.orenMeshes[@(meshID)];
-            UIColor* materialColor = nil;
+            OrenAVMGfxMeshResource* mesh = self.orenMeshes[@(meshID)];
+            NSNumber* materialRGBAValue = nil;
             if (opcode == 90 || opcode == 91) {
                 materialID = OrenAVMGfxReadU32LE(payload + 4);
             }
             if (materialID != 0) {
-                materialColor = self.orenMaterials3D[@(materialID)];
-                if (!materialColor) {
+                materialRGBAValue = self.orenMaterials3D[@(materialID)];
+                if (!materialRGBAValue) {
                     off += payloadLen;
                     continue;
                 }
             }
-            UIColor* color = materialColor ?: mesh[@"color"];
-            NSData* triangles = mesh[@"triangles"];
-            NSData* vertices = mesh[@"vertices"];
-            NSData* indices = mesh[@"indices"];
-            NSNumber* count = mesh[@"count"];
-            NSNumber* stride = mesh[@"stride"];
+            NSData* triangles = mesh.triangles;
+            NSData* vertices = mesh.vertices;
+            NSData* indices = mesh.indices;
             const uint8_t* tris = triangles.bytes;
             const uint8_t* verts = vertices.bytes;
             const uint8_t* idx = indices.bytes;
-            uint32_t meshStride = stride.unsignedIntValue;
-            uint32_t triangleCount = count.unsignedIntValue;
+            uint32_t meshStride = mesh.stride;
+            uint32_t triangleCount = mesh.triangleCount;
+            uint32_t rgbaValue = materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue;
             if (opcode == 87) {
                 modelX = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
                 modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
@@ -705,7 +741,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 modelZ = (int32_t)OrenAVMGfxReadU32LE(payload + 16);
                 scaleMilli = OrenAVMGfxReadU32LE(payload + 20);
             }
-            if (verts && idx && color && scaleMilli != 0 && triangleCount == indices.length / 12u && vertices.length % 12u == 0) {
+            if (verts && idx && scaleMilli != 0 && triangleCount == indices.length / 12u && vertices.length % 12u == 0) {
                 NSMutableData* orderData = nil;
                 OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount, &orderData);
                 if (!order) {
@@ -719,12 +755,12 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                     order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
                 }
                 OrenAVMGfxSortTriangleOrder(order, visibleCount);
+                OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
                 for (uint32_t oi = 0; oi < visibleCount; oi++) {
                     const uint8_t* tri = idx + ((size_t)order[oi].triangle * 12u);
                     const uint8_t* v1 = verts + ((size_t)OrenAVMGfxReadU32LE(tri) * 12u);
                     const uint8_t* v2 = verts + ((size_t)OrenAVMGfxReadU32LE(tri + 4) * 12u);
                     const uint8_t* v3 = verts + ((size_t)OrenAVMGfxReadU32LE(tri + 8) * 12u);
-                    CGContextSetFillColorWithColor(ctx, color.CGColor);
                     CGContextBeginPath(ctx);
                     CGContextMoveToPoint(ctx,
                                          OrenAVMGfxMesh3DModelCoord(v1, modelX, scaleMilli),
@@ -752,11 +788,10 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                     order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
                 }
                 OrenAVMGfxSortTriangleOrder(order, visibleCount);
+                if (materialRGBAValue || !mesh.hasRGBA) OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
                 for (uint32_t oi = 0; oi < visibleCount; oi++) {
                     const uint8_t* tri = tris + ((size_t)order[oi].triangle * meshStride);
-                    UIColor* drawColor = materialColor ?: (meshStride == 40u ? OrenAVMGfxColor(tri + 36) : color);
-                    if (!drawColor) continue;
-                    CGContextSetFillColorWithColor(ctx, drawColor.CGColor);
+                    if (!materialRGBAValue && mesh.hasRGBA) OrenAVMGfxSetFillColorBytes(ctx, tri + 36);
                     CGContextBeginPath(ctx);
                     CGContextMoveToPoint(ctx,
                                          OrenAVMGfxMesh3DModelCoord(tri, modelX, scaleMilli),
@@ -775,7 +810,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             [self.orenMeshes removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
         } else if (opcode == 89 && payloadLen == 8) {
             uint32_t materialID = OrenAVMGfxReadU32LE(payload);
-            if (materialID != 0) self.orenMaterials3D[@(materialID)] = OrenAVMGfxColor(payload + 4);
+            if (materialID != 0) self.orenMaterials3D[@(materialID)] = @(OrenAVMGfxRGBAValue(payload + 4));
         } else if (opcode == 92 && payloadLen == 4) {
             [self.orenMaterials3D removeObjectForKey:@(OrenAVMGfxReadU32LE(payload))];
         } else if (opcode == 93 && payloadLen == 28) {
@@ -798,10 +833,12 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 4);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
-                NSData* triangles = [NSData dataWithBytes:payload + 8 length:(NSUInteger)payloadLen - 8u];
-                self.orenMeshes[@(meshID)] = @{@"triangles": triangles,
-                                               @"count": @(triangleCount),
-                                               @"stride": @40};
+                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+                mesh.triangles = [NSData dataWithBytes:payload + 8 length:(NSUInteger)payloadLen - 8u];
+                mesh.triangleCount = triangleCount;
+                mesh.stride = 40u;
+                mesh.hasRGBA = YES;
+                self.orenMeshes[@(meshID)] = mesh;
             }
         } else if (opcode == 88 && payloadLen >= 64) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
@@ -817,12 +854,13 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 }
             }
             if (indicesOK) {
-                NSData* vertices = [NSData dataWithBytes:payload + 16 length:vertexBytes];
-                NSData* indices = [NSData dataWithBytes:payload + 16 + vertexBytes length:indexBytes];
-                self.orenMeshes[@(meshID)] = @{@"color": OrenAVMGfxColor(payload + 4),
-                                               @"vertices": vertices,
-                                               @"indices": indices,
-                                               @"count": @(indexCount / 3u)};
+                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+                mesh.rgbaValue = OrenAVMGfxRGBAValue(payload + 4);
+                mesh.vertices = [NSData dataWithBytes:payload + 16 length:vertexBytes];
+                mesh.indices = [NSData dataWithBytes:payload + 16 + vertexBytes length:indexBytes];
+                mesh.triangleCount = indexCount / 3u;
+                mesh.indexCount = indexCount;
+                self.orenMeshes[@(meshID)] = mesh;
             }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);

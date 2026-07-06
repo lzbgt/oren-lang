@@ -28,6 +28,14 @@ def main() -> int:
         fail("retained 3D painter path still uses boxed set tracking")
     if text.count("OrenAVMGfxSortTriangleOrder(order, visibleCount)") < 2:
         fail("expected sorted order path for indexed and packed retained 3D meshes")
+    if "@interface OrenAVMGfxMeshResource" not in text:
+        fail("CoreGraphics retained meshes must use typed resource objects")
+    if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes' in text:
+        fail("CoreGraphics retained meshes must not use dictionary payload records")
+    if "NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D" in text:
+        fail("CoreGraphics retained materials must store scalar RGBA values")
+    if '@"color": OrenAVMGfxColor' in text:
+        fail("CoreGraphics retained mesh colors must stay scalar, not retained UIColor objects")
     print("OK: CoreGraphics retained 3D painter uses compact order buffers")
     return 0
 

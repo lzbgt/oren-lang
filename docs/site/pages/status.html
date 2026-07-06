@@ -2385,7 +2385,10 @@
 <p>vertices directly in stack storage before returning immutable <code>NSData</code>, avoiding</p>
 <p>a temporary mutable-data append/copy pair for common single-run draws. Retained</p>
 <p>Metal mesh, material, and text resource colors now keep 4-byte RGBA values as</p>
-<p>scalars instead of allocating <code>NSData</code> wrappers for each color. AVM</p>
+<p>scalars instead of allocating <code>NSData</code> wrappers for each color, and the</p>
+<p>CoreGraphics retained mesh/material fallback now stores typed mesh resource</p>
+<p>records plus scalar RGBA material values instead of dictionary payloads and</p>
+<p>retained <code>UIColor</code> material objects. AVM</p>
 <p><code>oren_read_u8_buf</code> now maps to a byte-native FS capability op that reads host</p>
 <p>and VFS files directly into AVM byte buffers instead of bridging through a</p>
 <p>boxed <code>list&lt;int&gt;</code> byte array, and <code>std:ui/scene3d.commands_from_binary_file</code></p>

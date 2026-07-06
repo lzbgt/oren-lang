@@ -2553,6 +2553,9 @@ design evidence lives under `project-doc/`.
   those records.
 - Retained Metal mesh, material, and text resource colors now store 4-byte RGBA
   values as scalars instead of allocating `NSData` wrappers for each color.
+- CoreGraphics retained mesh/material fallback records now use typed mesh
+  resources and scalar RGBA material values instead of dictionary payloads and
+  retained `UIColor` material objects.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads
   host and VFS files directly into AVM byte buffers instead of bridging through
   a boxed `list<int>` byte array.

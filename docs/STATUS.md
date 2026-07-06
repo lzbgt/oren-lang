@@ -2287,7 +2287,10 @@ Single texture-quad emission now fills the six text/image
 vertices directly in stack storage before returning immutable `NSData`, avoiding
 a temporary mutable-data append/copy pair for common single-run draws. Retained
 Metal mesh, material, and text resource colors now keep 4-byte RGBA values as
-scalars instead of allocating `NSData` wrappers for each color. AVM
+scalars instead of allocating `NSData` wrappers for each color, and the
+CoreGraphics retained mesh/material fallback now stores typed mesh resource
+records plus scalar RGBA material values instead of dictionary payloads and
+retained `UIColor` material objects. AVM
 `oren_read_u8_buf` now maps to a byte-native FS capability op that reads host
 and VFS files directly into AVM byte buffers instead of bridging through a
 boxed `list<int>` byte array, and `std:ui/scene3d.commands_from_binary_file`
