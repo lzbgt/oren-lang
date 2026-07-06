@@ -37,8 +37,12 @@ def main() -> int:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
     if "[NSMutableData dataWithCapacity:vertices.length]" in text:
         fail("geometry flush must not allocate the next mutable vertex buffer eagerly")
-    if "NSMutableData* vertices = nil;" not in text or "OrenAVMMetalEnsureVertexBuilder(&vertices)" not in text:
-        fail("geometry vertex buffers must be allocated lazily on first append")
+    if "NSMutableData* vertices = nil;" not in text or "OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity)" not in text:
+        fail("geometry vertex buffers must be allocated lazily on first append with bounded capacity")
+    if "OrenAVMMetalInitialVertexBuilderCapacity" not in text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in text:
+        fail("geometry vertex builder must cap its lazy initial reservation")
+    if "[NSMutableData data]" in text:
+        fail("geometry vertex builder must not default-grow from an uncapped zero-capacity buffer")
     if "run.vertices = [vertices copy]" in text_source:
         fail("batched text vertex runs must transfer completed buffers instead of copying them")
     if "NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u]" in text_source:

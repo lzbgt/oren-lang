@@ -205,8 +205,16 @@ static MTLScissorRect OrenAVMMetalIntersectScissor(MTLScissorRect a, MTLScissorR
     return out;
 }
 
-static NSMutableData* OrenAVMMetalEnsureVertexBuilder(NSMutableData** verticesRef) {
-    if (!*verticesRef) *verticesRef = [NSMutableData data];
+static NSUInteger OrenAVMMetalInitialVertexBuilderCapacity(NSUInteger runCapacity) {
+    const NSUInteger bytesPerSimpleRun = sizeof(OrenAVMMetalVertex) * 6u;
+    const NSUInteger maxInitialBytes = 64u * 1024u;
+    if (runCapacity == 0) return bytesPerSimpleRun;
+    if (runCapacity > maxInitialBytes / bytesPerSimpleRun) return maxInitialBytes;
+    return runCapacity * bytesPerSimpleRun;
+}
+
+static NSMutableData* OrenAVMMetalEnsureVertexBuilder(NSMutableData** verticesRef, NSUInteger runCapacity) {
+    if (!*verticesRef) *verticesRef = [NSMutableData dataWithCapacity:OrenAVMMetalInitialVertexBuilderCapacity(runCapacity)];
     return *verticesRef;
 }
 
@@ -1044,7 +1052,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                                                 (double)rgba[2] / 255.0,
                                                 (double)rgba[3] / 255.0);
             }
-            OrenAVMMetalAppendRect(OrenAVMMetalEnsureVertexBuilder(&vertices), (float)x + tx, (float)y + ty, (float)w, (float)h,
+            OrenAVMMetalAppendRect(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity), (float)x + tx, (float)y + ty, (float)w, (float)h,
                                    (float)logicalW, (float)logicalH, rgba);
         } else if (opcode == 16 && payloadLen == 16) {
             OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, YES);
@@ -1117,7 +1125,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t y2 = OrenAVMMetalReadU32LE(payload + 12);
             uint32_t width = OrenAVMMetalReadU32LE(payload + 16);
             OrenAVMMetalRGBAWithOpacity(payload + 20, opacity, rgba);
-            OrenAVMMetalAppendLine(OrenAVMMetalEnsureVertexBuilder(&vertices), (float)x1 + tx, (float)y1 + ty, (float)x2 + tx, (float)y2 + ty,
+            OrenAVMMetalAppendLine(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity), (float)x1 + tx, (float)y1 + ty, (float)x2 + tx, (float)y2 + ty,
                                    (float)(width == 0 ? 1u : width),
                                    (float)logicalW, (float)logicalH, rgba);
         } else if (opcode == 6 && payloadLen == 24) {
@@ -1127,7 +1135,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
             uint32_t width = OrenAVMMetalReadU32LE(payload + 16);
             OrenAVMMetalRGBAWithOpacity(payload + 20, opacity, rgba);
-            OrenAVMMetalAppendStrokeRect(OrenAVMMetalEnsureVertexBuilder(&vertices),
+            OrenAVMMetalAppendStrokeRect(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                          (float)x + tx,
                                          (float)y + ty,
                                          (float)w,
@@ -1145,7 +1153,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t width = OrenAVMMetalReadU32LE(payload + 20);
             uint32_t flags = OrenAVMMetalReadU32LE(payload + 24);
             OrenAVMMetalRGBAWithOpacity(payload + 28, opacity, rgba);
-            OrenAVMMetalAppendRoundRect(OrenAVMMetalEnsureVertexBuilder(&vertices),
+            OrenAVMMetalAppendRoundRect(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                         (float)x + tx,
                                         (float)y + ty,
                                         (float)w,
@@ -1162,7 +1170,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t radius = OrenAVMMetalReadU32LE(payload + 8);
             uint32_t flags = OrenAVMMetalReadU32LE(payload + 12);
             OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, rgba);
-            OrenAVMMetalAppendCircle(OrenAVMMetalEnsureVertexBuilder(&vertices),
+            OrenAVMMetalAppendCircle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                      (float)cx + tx,
                                      (float)cy + ty,
                                      (float)radius,
@@ -1178,7 +1186,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t width = OrenAVMMetalReadU32LE(payload + 16);
             uint32_t flags = OrenAVMMetalReadU32LE(payload + 20);
             OrenAVMMetalRGBAWithOpacity(payload + 24, opacity, rgba);
-            OrenAVMMetalAppendEllipse(OrenAVMMetalEnsureVertexBuilder(&vertices),
+            OrenAVMMetalAppendEllipse(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                       (float)x + tx,
                                       (float)y + ty,
                                       (float)w,
@@ -1200,7 +1208,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     const uint8_t* point = points + ((size_t)pi * 8u);
                     uint32_t x = OrenAVMMetalReadU32LE(point);
                     uint32_t y = OrenAVMMetalReadU32LE(point + 4);
-                    OrenAVMMetalAppendLine(OrenAVMMetalEnsureVertexBuilder(&vertices),
+                    OrenAVMMetalAppendLine(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                            (float)lastX + tx,
                                            (float)lastY + ty,
                                            (float)x + tx,
@@ -1221,7 +1229,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             uint32_t x3 = OrenAVMMetalReadU32LE(payload + 16);
             uint32_t y3 = OrenAVMMetalReadU32LE(payload + 20);
             OrenAVMMetalRGBAWithOpacity(payload + 24, opacity, rgba);
-            OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices),
+            OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                        (float)x1 + tx,
                                        (float)y1 + ty,
                                        (float)x2 + tx,
@@ -1238,7 +1246,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
                 for (uint32_t ti = 0; ti < triangleCount; ti++) {
                     const uint8_t* tri = tris + ((size_t)ti * 24u);
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices),
+                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                                (float)OrenAVMMetalReadU32LE(tri) + tx,
                                                (float)OrenAVMMetalReadU32LE(tri + 4) + ty,
                                                (float)OrenAVMMetalReadU32LE(tri + 8) + tx,
@@ -1272,7 +1280,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
                 for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
                     const uint8_t* tri = tris + ((size_t)ti * 24u);
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices),
+                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                                (float)OrenAVMMetalReadU32LE(tri) + tx,
                                                (float)OrenAVMMetalReadU32LE(tri + 4) + ty,
                                                (float)OrenAVMMetalReadU32LE(tri + 8) + tx,
@@ -1371,7 +1379,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
                     const uint8_t* v3 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 8) * 12u);
                     OrenAVMMetalRGBAValueWithOpacity(materialRGBAValue ? materialRGBAValue.unsignedIntValue : mesh.rgbaValue, opacity, rgba);
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices),
+                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                                OrenAVMMetalMesh3DModelCoord(v1, modelX, scaleMilli) + tx,
                                                OrenAVMMetalMesh3DModelCoord(v1 + 4, modelY, scaleMilli) + ty,
                                                OrenAVMMetalMesh3DModelCoord(v2, modelX, scaleMilli) + tx,
@@ -1406,7 +1414,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                     } else {
                         continue;
                     }
-                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices),
+                    OrenAVMMetalAppendTriangle(OrenAVMMetalEnsureVertexBuilder(&vertices, runCapacity),
                                                OrenAVMMetalMesh3DModelCoord(tri, modelX, scaleMilli) + tx,
                                                OrenAVMMetalMesh3DModelCoord(tri + 4, modelY, scaleMilli) + ty,
                                                OrenAVMMetalMesh3DModelCoord(tri + 12, modelX, scaleMilli) + tx,

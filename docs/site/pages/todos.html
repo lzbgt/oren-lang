@@ -3495,6 +3495,11 @@
 <p>  buffers into immutable run ownership instead of copying their bytes at every</p>
 <p>  clip/transform/opacity/camera boundary.</p>
 <ul>
+<li>Metal geometry vertex builders now stay lazy but reserve a small</li>
+</ul>
+<p>  op-count-bounded initial capacity on first append instead of growing from a</p>
+<p>  zero-capacity buffer.</p>
+<ul>
 <li>Metal batched text-run construction now transfers the completed mutable vertex</li>
 </ul>
 <p>  buffer into run ownership instead of copying all positioned glyph quad bytes.</p>

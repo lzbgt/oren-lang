@@ -2540,6 +2540,9 @@ design evidence lives under `project-doc/`.
 - Metal geometry vertex-run flushing now transfers completed mutable vertex
   buffers into immutable run ownership instead of copying their bytes at every
   clip/transform/opacity/camera boundary.
+- Metal geometry vertex builders now stay lazy but reserve a small
+  op-count-bounded initial capacity on first append instead of growing from a
+  zero-capacity buffer.
 - Metal batched text-run construction now transfers the completed mutable vertex
   buffer into run ownership instead of copying all positioned glyph quad bytes.
 - Metal text-run coalescing now keeps non-merged text runs on their existing
