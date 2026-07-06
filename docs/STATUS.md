@@ -2682,11 +2682,14 @@ Working evidence:
 	  follow-on smokes now live in
 	  `scripts/native_quick_math_followon_smokes.sh`, reducing
 	  `run_native_quick_integration.sh` to 1578 lines while preserving the sourced
-	  retry/logging context. Scene3D invalid JSON/package validation assertions now
-	  live in `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
-	  `test_ui_scene3d_v0.oren` to 1782 lines while preserving the curated AVM
-	  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in
-	  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines.
+		  retry/logging context. Scene3D invalid JSON/package validation assertions now
+		  live in `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
+		  `test_ui_scene3d_v0.oren` to 1782 lines while preserving the curated AVM
+		  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in
+		  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines. Metal
+		  shader and render-pipeline setup now lives in `OrenAVMMetalPipeline`,
+		  reducing `OrenAVMMetalView.m` to 1676 lines while keeping frame parsing and
+		  draw submission in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

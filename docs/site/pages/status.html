@@ -2801,11 +2801,14 @@
 <p>	  follow-on smokes now live in</p>
 <p>	  <code>scripts/native_quick_math_followon_smokes.sh</code>, reducing</p>
 <p>	  <code>run_native_quick_integration.sh</code> to 1578 lines while preserving the sourced</p>
-<p>	  retry/logging context. Scene3D invalid JSON/package validation assertions now</p>
-<p>	  live in <code>tests/avm/includes/test_ui_scene3d_invalid_cases.oren</code>, reducing</p>
-<p>	  <code>test_ui_scene3d_v0.oren</code> to 1782 lines while preserving the curated AVM</p>
-<p>	  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in</p>
-<p>	  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines.</p>
+<p>		  retry/logging context. Scene3D invalid JSON/package validation assertions now</p>
+<p>		  live in <code>tests/avm/includes/test_ui_scene3d_invalid_cases.oren</code>, reducing</p>
+<p>		  <code>test_ui_scene3d_v0.oren</code> to 1782 lines while preserving the curated AVM</p>
+<p>		  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in</p>
+<p>		  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines. Metal</p>
+<p>		  shader and render-pipeline setup now lives in <code>OrenAVMMetalPipeline</code>,</p>
+<p>		  reducing <code>OrenAVMMetalView.m</code> to 1676 lines while keeping frame parsing and</p>
+<p>		  draw submission in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

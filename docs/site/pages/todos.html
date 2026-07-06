@@ -3628,6 +3628,11 @@
 <p>  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines while</p>
 <p>  keeping draw-command parsing and run flushing in the view.</p>
 <ul>
+<li>Metal shader and render-pipeline setup now lives in <code>OrenAVMMetalPipeline</code>,</li>
+</ul>
+<p>  reducing <code>OrenAVMMetalView.m</code> to 1676 lines while keeping frame parsing and</p>
+<p>  draw submission in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

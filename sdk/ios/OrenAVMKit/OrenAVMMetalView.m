@@ -1,5 +1,6 @@
 #import "OrenAVMKit.h"
 #import "OrenAVMMetalGeometry.h"
+#import "OrenAVMMetalPipeline.h"
 #import "OrenAVMMetalResources.h"
 #import "OrenAVMMetalText.h"
 
@@ -473,7 +474,14 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     [self orenApplyFrameRate];
     if (self.device) {
         self.orenCommandQueue = [self.device newCommandQueue];
-        [self orenBuildPipeline];
+        id<MTLRenderPipelineState> geometryPipeline = nil;
+        id<MTLRenderPipelineState> textPipeline = nil;
+        (void)OrenAVMMetalBuildPipelineStates(self.device,
+                                              self.colorPixelFormat,
+                                              &geometryPipeline,
+                                              &textPipeline);
+        self.orenPipelineState = geometryPipeline;
+        self.orenTextPipelineState = textPipeline;
     }
     self.delegate = self;
 }
@@ -489,51 +497,6 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     NSInteger fps = (NSInteger)((hzMilli + 999u) / 1000u);
     if (fps <= 0) fps = 60;
     self.preferredFramesPerSecond = fps;
-}
-
-- (void)orenBuildPipeline {
-    if (!self.device) return;
-    NSString* source =
-        @"#include <metal_stdlib>\n"
-        "using namespace metal;\n"
-        "struct V { packed_float2 pos; packed_float4 color; };\n"
-        "struct O { float4 position [[position]]; float4 color; };\n"
-        "struct TV { packed_float2 pos; packed_float2 uv; };\n"
-        "struct TO { float4 position [[position]]; float2 uv; };\n"
-        "vertex O oren_vertex(uint vid [[vertex_id]], constant V* verts [[buffer(0)]]) {\n"
-        "  O o; o.position = float4(float2(verts[vid].pos), 0.0, 1.0); o.color = float4(verts[vid].color); return o;\n"
-        "}\n"
-        "fragment float4 oren_fragment(O in [[stage_in]]) { return in.color; }\n"
-        "vertex TO oren_text_vertex(uint vid [[vertex_id]], constant TV* verts [[buffer(0)]]) {\n"
-        "  TO o; o.position = float4(float2(verts[vid].pos), 0.0, 1.0); o.uv = float2(verts[vid].uv); return o;\n"
-        "}\n"
-        "fragment float4 oren_text_fragment(TO in [[stage_in]], texture2d<float> tex [[texture(0)]], constant float& opacity [[buffer(0)]]) {\n"
-        "  constexpr sampler s(address::clamp_to_edge, filter::linear); float4 c = tex.sample(s, in.uv); c.a *= opacity; return c;\n"
-        "}\n";
-    NSError* error = nil;
-    id<MTLLibrary> library = [self.device newLibraryWithSource:source options:nil error:&error];
-    if (!library) return;
-    MTLRenderPipelineDescriptor* descriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    descriptor.vertexFunction = [library newFunctionWithName:@"oren_vertex"];
-    descriptor.fragmentFunction = [library newFunctionWithName:@"oren_fragment"];
-    descriptor.colorAttachments[0].pixelFormat = self.colorPixelFormat;
-    descriptor.colorAttachments[0].blendingEnabled = YES;
-    descriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-    descriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    self.orenPipelineState = [self.device newRenderPipelineStateWithDescriptor:descriptor error:&error];
-
-    MTLRenderPipelineDescriptor* textDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    textDescriptor.vertexFunction = [library newFunctionWithName:@"oren_text_vertex"];
-    textDescriptor.fragmentFunction = [library newFunctionWithName:@"oren_text_fragment"];
-    textDescriptor.colorAttachments[0].pixelFormat = self.colorPixelFormat;
-    textDescriptor.colorAttachments[0].blendingEnabled = YES;
-    textDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    textDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    textDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-    textDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    self.orenTextPipelineState = [self.device newRenderPipelineStateWithDescriptor:textDescriptor error:&error];
 }
 
 - (BOOL)reloadFrameWithError:(NSError**)error {

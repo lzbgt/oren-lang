@@ -135,6 +135,7 @@ clang -std=c11 -O3 -fno-fast-math -ffp-contract=off -DAVM_EMBED_NO_ABORT_ON_LEAK
   sdk/ios/OrenAVMKit/OrenAVMGFXInput.m \
   sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m \
   sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.m \
+  sdk/ios/OrenAVMKit/OrenAVMMetalPipeline.m \
   sdk/ios/OrenAVMKit/OrenAVMMetalResources.m \
   sdk/ios/OrenAVMKit/OrenAVMPackageStore.m \
   sdk/ios/OrenAVMKit/OrenAVMPermissionGrantStore.m \

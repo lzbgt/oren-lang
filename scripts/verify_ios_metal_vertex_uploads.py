@@ -11,6 +11,8 @@ GEOMETRY_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.h"
 GEOMETRY_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalGeometry.m"
 RESOURCE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.h"
 RESOURCE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.m"
+PIPELINE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalPipeline.h"
+PIPELINE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalPipeline.m"
 TEXT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.m"
 TEXT_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.h"
 HELPER = "static BOOL OrenAVMMetalBindVertexPayload"
@@ -25,11 +27,18 @@ def main() -> int:
     text = SOURCE.read_text()
     geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
+    pipeline_text = PIPELINE_HEADER.read_text() + "\n" + PIPELINE_SOURCE.read_text()
     metal_text = text + "\n" + geometry_text + "\n" + resource_text
     text_source = TEXT_SOURCE.read_text()
     text_header = TEXT_HEADER.read_text()
     if "OrenAVMMetalInlineVertexBytesLimit" not in text:
         fail("missing inline vertex upload limit")
+    if '"OrenAVMMetalPipeline.h"' not in text or "OrenAVMMetalBuildPipelineStates(" not in pipeline_text:
+        fail("Metal shader/pipeline setup must live in OrenAVMMetalPipeline")
+    if "newLibraryWithSource:" in text or "newRenderPipelineStateWithDescriptor:" in text:
+        fail("Metal view must not inline shader compilation or pipeline descriptor setup")
+    if "newLibraryWithSource:" not in pipeline_text or "newRenderPipelineStateWithDescriptor:" not in pipeline_text:
+        fail("Metal pipeline helper must compile shaders and create render pipeline states")
     if HELPER not in text:
         fail("missing bounded vertex payload helper")
     if "newBufferWithBytes:" not in text or "addCompletedHandler:" not in text:
