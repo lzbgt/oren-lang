@@ -1334,15 +1334,19 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return YES;
 }
 
-- (BOOL)putGraphicsInputEventData:(NSData*)data error:(NSError**)error {
-    if (!data || data.length == 0) {
+- (BOOL)orenPutGraphicsInputEventBytes:(const void*)bytes length:(NSUInteger)length error:(NSError**)error {
+    if (!bytes || length == 0) {
         return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
                                         @"GFX input event data must be non-empty");
     }
     AvmEmbedResult result;
-    int rc = avm_embed_gfx_input_put(_handle, data.bytes, data.length, &result);
+    int rc = avm_embed_gfx_input_put(_handle, (const uint8_t*)bytes, length, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to enqueue GFX input event", &result);
     return YES;
+}
+
+- (BOOL)putGraphicsInputEventData:(NSData*)data error:(NSError**)error {
+    return [self orenPutGraphicsInputEventBytes:data.bytes length:data.length error:error];
 }
 
 - (BOOL)setGraphicsScreenWithID:(uint32_t)screenID

@@ -2619,6 +2619,9 @@ design evidence lives under `project-doc/`.
 - Metal single texture-quad emission now appends the six text/image vertices
   directly into caller-owned run buffers, avoiding tiny `NSData` wrappers and a
   temporary mutable-data append/copy pair for common single-run draws.
+- iOS SDK typed GFX input helpers now build fixed-size `OGE0` events on stack
+  and enqueue raw bytes directly; text/composition events use segmented
+  stack-first construction with one heap event fallback only for large payloads.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the

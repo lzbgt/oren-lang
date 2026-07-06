@@ -2415,7 +2415,10 @@
 <p>dictionaries, removing per-draw model field lookups. Single Metal image texture</p>
 <p>quads now stay inline in fixed image-run storage, while text texture quads append</p>
 <p>into caller-owned mutable vertex buffers instead of allocating tiny <code>NSData</code></p>
-<p>wrappers from stack vertices. The iOS SDK symbol verifier</p>
+<p>wrappers from stack vertices. iOS SDK typed GFX input helpers now build</p>
+<p>fixed-size <code>OGE0</code> events on stack and enqueue raw bytes directly; text and</p>
+<p>composition events use segmented stack-first construction with one heap event</p>
+<p>fallback only for large payloads. The iOS SDK symbol verifier</p>
 <p>now caches <code>nm</code> output once per archive and greps files instead of SIGPIPE-prone</p>
 <p><code>nm | grep -q</code> pipelines. AVM</p>
 <p><code>oren_read_u8_buf</code> now maps to a byte-native FS capability op that reads host</p>
