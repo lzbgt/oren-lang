@@ -959,6 +959,7 @@ verify-obc-store-backup-restore:
 	@go test ./internal/obcstore -run TestStoreDataDirBackupRestore -count=1
 
 verify-obc-store-demos: oren avm
+	@python3 scripts/verify_scene3d_package_format_coverage.py
 	@./scripts/verify_obc_store_demos.sh
 
 verify-obc-store-deploy-script:

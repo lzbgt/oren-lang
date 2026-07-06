@@ -2282,7 +2282,10 @@ Facts from the 2026-05-28 implementation pass:
   frames. A 119-frame adjacent capture
   (`build/ios-live-3d-litrot-phone-119/snapshot.png`) verifies visual continuity
   between neighboring frames.
-  Remaining game-grade work is broader package scene formats. The next GUI contract is
+  Scene3D binary package-format parity is now guarded by
+  `scripts/verify_scene3d_package_format_coverage.py`, which checks the package
+  builder covers all current Oren-side human-readable mesh payload keys plus raw
+  ABI and source-import paths. Remaining game-grade work is the broader GUI contract:
   game-grade rather than widget-only: display-link pacing, latest-frame/drop-stale
   behavior, retained resource handles, strict budgets, low-latency input ordering,
   and Metal/`MTKView` conformance gates are documented in
