@@ -3560,6 +3560,10 @@
 <p>  <code>oren_read_u8_buf</code> directly for binary payload reads instead of</p>
 <p>  <code>oren_read_bytes</code> plus list-shaped validation or repacking.</p>
 <ul>
+<li>The PPM write roundtrip fixture now reads generated binary image output through</li>
+</ul>
+<p>  <code>oren_read_u8_buf</code> instead of the legacy <code>oren_read_bytes</code> list bridge.</p>
+<ul>
 <li>The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and</li>
 </ul>
 <p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>

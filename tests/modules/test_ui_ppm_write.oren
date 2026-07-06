@@ -1,3 +1,4 @@
+import bytes "../../lib/std/bytes.oren"
 import ppm "../../lib/std/ui/ppm.oren"
 
 fn fail(code, msg) {
@@ -8,16 +9,6 @@ fn fail(code, msg) {
 fn assert_eq(a, b, code, msg) {
     if a == b { return 0 }
     fail(code, msg)
-}
-
-fn byte_len(xs) {
-    if oren_type_tag(xs) == 6 { return oren_list_len(xs) }
-    return oren_bytes_len(xs)
-}
-
-fn byte_get(xs, i) {
-    if oren_type_tag(xs) == 6 { return xs[i] }
-    return oren_bytes_get_u8(xs, i)
 }
 
 var w = 2
@@ -42,13 +33,13 @@ var path = "build/test_ui_ppm_write.ppm"
 var wr = ppm.write_rgba_ppm(path, rgba, w, h)
 if oren_is_err(wr) { fail(11, "write_rgba_ppm err") }
 
-var roundtrip = oren_read_bytes(path)
-if oren_is_err(roundtrip) { fail(12, "read_bytes err") }
-assert_eq(byte_len(roundtrip), byte_len(encoded), 13, "ppm size")
+var roundtrip = oren_read_u8_buf(path)
+if oren_is_err(roundtrip) { fail(12, "read_u8_buf err") }
+assert_eq(bytes.len(roundtrip), bytes.len(encoded), 13, "ppm size")
 
 var i = 0
-while i < byte_len(encoded) {
-    assert_eq(byte_get(roundtrip, i), byte_get(encoded, i), 20 + i, "ppm byte")
+while i < bytes.len(encoded) {
+    assert_eq(bytes.get_u8(roundtrip, i), bytes.get_u8(encoded, i), 20 + i, "ppm byte")
     i = i + 1
 }
 

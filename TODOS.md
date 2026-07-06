@@ -2577,6 +2577,8 @@ design evidence lives under `project-doc/`.
 - AVM VFS and multiverse demo paths plus the iOS host-FS chain fixture now use
   `oren_read_u8_buf` directly for binary payload reads instead of
   `oren_read_bytes` plus list-shaped validation or repacking.
+- The PPM write roundtrip fixture now reads generated binary image output through
+  `oren_read_u8_buf` instead of the legacy `oren_read_bytes` list bridge.
 - The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and
   permission-request byte buffers directly into `NSData` ownership instead of
   copying the bytes and then freeing the original buffer.
