@@ -16,9 +16,11 @@ typedef struct {
 @interface OrenAVMMetalTextRun : NSObject {
 @public
     OrenAVMMetalTextVertex inlineVertices[6];
+    OrenAVMMetalTextVertex* heapVertices;
+    NSUInteger heapVertexCount;
+    NSUInteger heapVertexCapacity;
 }
 @property(nonatomic, strong) id<MTLTexture> texture;
-@property(nonatomic, strong) NSData* vertices;
 @property(nonatomic) NSUInteger inlineVertexCount;
 @property(nonatomic) BOOL hasScissor;
 @property(nonatomic) MTLScissorRect scissor;
@@ -73,18 +75,6 @@ void OrenAVMMetalWriteTextureQuad(OrenAVMMetalTextVertex* out,
                                   float v0,
                                   float u1,
                                   float v1);
-
-void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
-                                   float x,
-                                   float y,
-                                   float w,
-                                   float h,
-                                   float logicalWidth,
-                                   float logicalHeight,
-                                   float u0,
-                                   float v0,
-                                   float u1,
-                                   float v1);
 
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                UIScreen* screen,

@@ -2547,15 +2547,14 @@ design evidence lives under `project-doc/`.
 - Metal geometry vertex builders now stay lazy but reserve a small
   op-count-bounded initial capacity on first append instead of growing from a
   zero-capacity buffer.
-- Metal batched text-run construction now transfers the completed mutable vertex
-  buffer into run ownership instead of copying all positioned glyph quad bytes.
+- Metal batched text-run construction now writes positioned glyph quads directly
+  into one raw run-owned vertex buffer instead of wrapping variable vertices in
+  `NSMutableData`.
 - Metal text-run coalescing now reuses prepared run objects for non-merged
-  groups, keeps their existing inline or immutable vertex data, and only
-  allocates mutable vertex storage when a same-texture/scissor/opacity run
-  actually merges.
-- Metal coalescing also reuses already mutable batched text-run vertex buffers
-  as the merge destination, avoiding the first-run clone for adjacent batched
-  text runs with matching texture/scissor/opacity.
+  groups, keeps their inline or raw heap vertex data, and only grows raw
+  run-owned storage when a same-texture/scissor/opacity run actually merges.
+- Metal coalescing appends adjacent compatible text runs into the first run's
+  raw vertex buffer, avoiding Objective-C data wrappers on batched text merges.
 - Metal text cache hits now return before constructing UIKit color/attribute
   objects, keeping repeated labels on the cached texture path.
 - Metal text cache misses now render glyphs into raw temporary pixel buffers

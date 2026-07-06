@@ -2282,12 +2282,12 @@ Drawable-independent and live Metal frame preparation now derives run capacity
 from a byte-bounded OGF0 operation count and allocates geometry/text/image run
 arrays lazily only when those records appear, instead of trusting malformed
 frame headers, growing default arrays, or reserving unused run arrays for frames
-that do not need them. Metal text-run
-coalescing now reuses prepared run objects for non-merged groups, avoids
-copying every non-merged run into mutable vertex storage, and only allocates
-mutable coalescing storage when an adjacent compatible run actually merges;
-adjacent batched text runs reuse the first run's existing mutable vertex buffer
-as the merge destination instead of cloning it first.
+that do not need them. Metal batched text runs now write positioned glyph
+quads directly into raw run-owned vertex buffers instead of `NSMutableData`
+wrappers. Metal text-run coalescing now reuses prepared run objects for
+non-merged groups, avoids copying every non-merged run into mutable vertex
+storage, and only grows the first run's raw vertex buffer when an adjacent
+compatible run actually merges.
 Metal text cache hits now return before constructing UIKit color/attribute
 objects, keeping repeated labels on the cached texture path.
 Single texture-quad emission now appends the six text/image vertices directly

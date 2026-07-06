@@ -2380,12 +2380,12 @@
 <p>from a byte-bounded OGF0 operation count and allocates geometry/text/image run</p>
 <p>arrays lazily only when those records appear, instead of trusting malformed</p>
 <p>frame headers, growing default arrays, or reserving unused run arrays for frames</p>
-<p>that do not need them. Metal text-run</p>
-<p>coalescing now reuses prepared run objects for non-merged groups, avoids</p>
-<p>copying every non-merged run into mutable vertex storage, and only allocates</p>
-<p>mutable coalescing storage when an adjacent compatible run actually merges;</p>
-<p>adjacent batched text runs reuse the first run&#x27;s existing mutable vertex buffer</p>
-<p>as the merge destination instead of cloning it first.</p>
+<p>that do not need them. Metal batched text runs now write positioned glyph</p>
+<p>quads directly into raw run-owned vertex buffers instead of <code>NSMutableData</code></p>
+<p>wrappers. Metal text-run coalescing now reuses prepared run objects for</p>
+<p>non-merged groups, avoids copying every non-merged run into mutable vertex</p>
+<p>storage, and only grows the first run&#x27;s raw vertex buffer when an adjacent</p>
+<p>compatible run actually merges.</p>
 <p>Metal text cache hits now return before constructing UIKit color/attribute</p>
 <p>objects, keeping repeated labels on the cached texture path.</p>
 <p>Single texture-quad emission now appends the six text/image vertices directly</p>

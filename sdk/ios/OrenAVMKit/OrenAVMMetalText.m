@@ -9,6 +9,9 @@
 #include <string.h>
 
 @implementation OrenAVMMetalTextRun
+- (void)dealloc {
+    free(heapVertices);
+}
 @end
 
 @implementation OrenAVMMetalTextResource
@@ -367,23 +370,6 @@ void OrenAVMMetalWriteTextureQuad(OrenAVMMetalTextVertex* out,
                                       v1};
 }
 
-void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
-                                   float x,
-                                   float y,
-                                   float w,
-                                   float h,
-                                   float logicalWidth,
-                                   float logicalHeight,
-                                   float u0,
-                                   float v0,
-                                   float u1,
-                                   float v1) {
-    if (!vertices || w <= 0.0f || h <= 0.0f) return;
-    OrenAVMMetalTextVertex out[6];
-    OrenAVMMetalWriteTextureQuad(out, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
-    [vertices appendBytes:out length:sizeof(out)];
-}
-
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                UIScreen* screen,
                                                OrenAVMMetalTextAtlas** atlas,
@@ -416,6 +402,30 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
     run.inlineVertexCount = 6u;
     run.opacity = opacity;
     return run;
+}
+
+static BOOL OrenAVMMetalTextRunReserveHeapVertices(OrenAVMMetalTextRun* run, NSUInteger neededCount) {
+    if (!run) return NO;
+    if (neededCount <= run->heapVertexCapacity) return YES;
+    if (neededCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
+    OrenAVMMetalTextVertex* grown = (OrenAVMMetalTextVertex*)realloc(run->heapVertices, neededCount * sizeof(OrenAVMMetalTextVertex));
+    if (!grown) return NO;
+    run->heapVertices = grown;
+    run->heapVertexCapacity = neededCount;
+    return YES;
+}
+
+static BOOL OrenAVMMetalTextRunAppendVertices(OrenAVMMetalTextRun* run,
+                                              const OrenAVMMetalTextVertex* vertices,
+                                              NSUInteger vertexCount) {
+    if (!run) return NO;
+    if (!vertices || vertexCount == 0) return YES;
+    if (run->heapVertexCount > NSUIntegerMax - vertexCount) return NO;
+    NSUInteger neededCount = run->heapVertexCount + vertexCount;
+    if (!OrenAVMMetalTextRunReserveHeapVertices(run, neededCount)) return NO;
+    memcpy(run->heapVertices + run->heapVertexCount, vertices, vertexCount * sizeof(OrenAVMMetalTextVertex));
+    run->heapVertexCount = neededCount;
+    return YES;
 }
 
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
@@ -456,38 +466,38 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
         run.opacity = opacity;
         return run;
     }
-    NSMutableData* vertices = [NSMutableData dataWithCapacity:(NSUInteger)positionCount * sizeof(OrenAVMMetalTextVertex) * 6u];
-    for (uint32_t i = 0; i < positionCount; i++) {
-        const uint8_t* p = positions + ((size_t)i * 8u);
-        OrenAVMMetalAppendTextureQuad(vertices,
-                                      (float)OrenAVMMetalTextReadU32LE(p) + translateX,
-                                      (float)OrenAVMMetalTextReadU32LE(p + 4) + translateY,
-                                      (float)entry.logicalSize.width,
-                                      (float)entry.logicalSize.height,
-                                      logicalWidth,
-                                      logicalHeight,
-                                      entry.u0,
-                                      entry.v0,
-                                      entry.u1,
-                                      entry.v1);
-    }
-    if (vertices.length == 0) return nil;
+    if (positionCount > NSUIntegerMax / 6u) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
-    run.vertices = vertices;
     run.opacity = opacity;
+    if (!OrenAVMMetalTextRunReserveHeapVertices(run, (NSUInteger)positionCount * 6u)) return nil;
+    for (uint32_t i = 0; i < positionCount; i++) {
+        const uint8_t* p = positions + ((size_t)i * 8u);
+        OrenAVMMetalWriteTextureQuad(run->heapVertices + run->heapVertexCount,
+                                     (float)OrenAVMMetalTextReadU32LE(p) + translateX,
+                                     (float)OrenAVMMetalTextReadU32LE(p + 4) + translateY,
+                                     (float)entry.logicalSize.width,
+                                     (float)entry.logicalSize.height,
+                                     logicalWidth,
+                                     logicalHeight,
+                                     entry.u0,
+                                     entry.v0,
+                                     entry.u1,
+                                     entry.v1);
+        run->heapVertexCount += 6u;
+    }
     return run;
 }
 
 const void* OrenAVMMetalTextRunVertexBytes(OrenAVMMetalTextRun* run) {
     if (!run) return NULL;
-    if (run.vertices.length != 0) return run.vertices.bytes;
+    if (run->heapVertexCount != 0) return run->heapVertices;
     return run.inlineVertexCount == 0 ? NULL : run->inlineVertices;
 }
 
 NSUInteger OrenAVMMetalTextRunVertexBytesLength(OrenAVMMetalTextRun* run) {
     if (!run) return 0;
-    if (run.vertices.length != 0) return run.vertices.length;
+    if (run->heapVertexCount != 0) return run->heapVertexCount * sizeof(OrenAVMMetalTextVertex);
     return run.inlineVertexCount * sizeof(OrenAVMMetalTextVertex);
 }
 
@@ -504,26 +514,19 @@ static BOOL OrenAVMMetalTextScissorEqual(OrenAVMMetalTextRun* a, OrenAVMMetalTex
            a.scissor.height == b.scissor.height;
 }
 
-static NSMutableData* OrenAVMMetalMutableTextVerticesForCoalescing(OrenAVMMetalTextRun* pending) {
-    NSData* vertices = pending.vertices;
-    if ([vertices isKindOfClass:[NSMutableData class]]) return (NSMutableData*)vertices;
-    NSMutableData* mutableVertices = nil;
-    if (vertices.length != 0) {
-        mutableVertices = [NSMutableData dataWithData:vertices];
-    } else {
-        mutableVertices = [NSMutableData dataWithBytes:pending->inlineVertices
-                                                length:pending.inlineVertexCount * sizeof(OrenAVMMetalTextVertex)];
-    }
-    pending.vertices = mutableVertices;
+static BOOL OrenAVMMetalEnsureHeapTextVerticesForCoalescing(OrenAVMMetalTextRun* pending) {
+    if (!pending) return NO;
+    if (pending->heapVertexCount != 0) return YES;
+    if (pending.inlineVertexCount == 0) return YES;
+    if (!OrenAVMMetalTextRunAppendVertices(pending, pending->inlineVertices, pending.inlineVertexCount)) return NO;
     pending.inlineVertexCount = 0;
-    return mutableVertices;
+    return YES;
 }
 
 NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetalTextRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalTextRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
     OrenAVMMetalTextRun* pending = nil;
-    NSMutableData* pendingVertices = nil;
     for (OrenAVMMetalTextRun* run in runs) {
         NSUInteger vertexBytes = OrenAVMMetalTextRunVertexBytesLength(run);
         const void* vertexData = OrenAVMMetalTextRunVertexBytes(run);
@@ -534,14 +537,16 @@ NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetal
             OrenAVMMetalTextScissorEqual(pending, run);
         if (!same) {
             pending = run;
-            pendingVertices = [pending.vertices isKindOfClass:[NSMutableData class]] ? (NSMutableData*)pending.vertices : nil;
             [out addObject:pending];
             continue;
         }
-        if (!pendingVertices) {
-            pendingVertices = OrenAVMMetalMutableTextVerticesForCoalescing(pending);
+        if (!OrenAVMMetalEnsureHeapTextVerticesForCoalescing(pending) ||
+            !OrenAVMMetalTextRunAppendVertices(pending,
+                                               (const OrenAVMMetalTextVertex*)vertexData,
+                                               vertexBytes / sizeof(OrenAVMMetalTextVertex))) {
+            pending = run;
+            [out addObject:pending];
         }
-        [pendingVertices appendBytes:vertexData length:vertexBytes];
     }
     return out;
 }

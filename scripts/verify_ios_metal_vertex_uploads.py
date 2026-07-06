@@ -58,10 +58,18 @@ def main() -> int:
         fail("Metal text runs must expose inline single-quad storage")
     if "[NSMutableData dataWithData:pending.vertices]" in text_source:
         fail("text coalescing must use the mutable-vertex helper instead of unconditionally copying pending data")
-    if "OrenAVMMetalMutableTextVerticesForCoalescing" not in text_source:
-        fail("missing text coalescing mutable-vertex reuse helper")
-    if "[vertices isKindOfClass:[NSMutableData class]]" not in text_source or "dataWithBytes:pending->inlineVertices" not in text_source:
-        fail("text coalescing must reuse mutable batches and materialize inline quads only when merging")
+    if "@property(nonatomic, strong) NSData* vertices" in text_header:
+        fail("Metal text runs must not wrap variable vertices in NSData")
+    if "NSMutableData* vertices = [NSMutableData dataWithCapacity:(NSUInteger)positionCount" in text_source:
+        fail("batched Metal text runs must use raw owned vertex buffers")
+    if "OrenAVMMetalAppendTextureQuad" in text_source or "OrenAVMMetalAppendTextureQuad" in text_header:
+        fail("Metal text quad writes must target caller-owned raw or inline buffers")
+    if "OrenAVMMetalTextVertex* heapVertices" not in text_header or "free(heapVertices)" not in text_source:
+        fail("Metal text runs must own raw heap vertex buffers with explicit cleanup")
+    if "OrenAVMMetalEnsureHeapTextVerticesForCoalescing" not in text_source:
+        fail("missing raw text coalescing heap-vertex helper")
+    if "[vertices isKindOfClass:[NSMutableData class]]" in text_source or "dataWithBytes:pending->inlineVertices" in text_source:
+        fail("text coalescing must not materialize inline quads through NSMutableData")
     coalesce_start = text_source.find("NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns")
     coalesce_end = text_source.find("#endif", coalesce_start)
     if coalesce_start < 0 or coalesce_end < 0:

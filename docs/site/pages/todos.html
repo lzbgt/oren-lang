@@ -3504,20 +3504,19 @@
 <p>  op-count-bounded initial capacity on first append instead of growing from a</p>
 <p>  zero-capacity buffer.</p>
 <ul>
-<li>Metal batched text-run construction now transfers the completed mutable vertex</li>
+<li>Metal batched text-run construction now writes positioned glyph quads directly</li>
 </ul>
-<p>  buffer into run ownership instead of copying all positioned glyph quad bytes.</p>
+<p>  into one raw run-owned vertex buffer instead of wrapping variable vertices in</p>
+<p>  <code>NSMutableData</code>.</p>
 <ul>
 <li>Metal text-run coalescing now reuses prepared run objects for non-merged</li>
 </ul>
-<p>  groups, keeps their existing inline or immutable vertex data, and only</p>
-<p>  allocates mutable vertex storage when a same-texture/scissor/opacity run</p>
-<p>  actually merges.</p>
+<p>  groups, keeps their inline or raw heap vertex data, and only grows raw</p>
+<p>  run-owned storage when a same-texture/scissor/opacity run actually merges.</p>
 <ul>
-<li>Metal coalescing also reuses already mutable batched text-run vertex buffers</li>
+<li>Metal coalescing appends adjacent compatible text runs into the first run&#x27;s</li>
 </ul>
-<p>  as the merge destination, avoiding the first-run clone for adjacent batched</p>
-<p>  text runs with matching texture/scissor/opacity.</p>
+<p>  raw vertex buffer, avoiding Objective-C data wrappers on batched text merges.</p>
 <ul>
 <li>Metal text cache hits now return before constructing UIKit color/attribute</li>
 </ul>
