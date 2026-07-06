@@ -23,6 +23,7 @@
 import rtinj "native_runtime_inject.oren"
 import astbin "astbin.oren"
 import bytes "bytes_builder.oren"
+import byte_view "byte_view.oren"
 
 // Schema version for on-disk runtime object cache format.
 //
@@ -319,37 +320,6 @@ fn _rtobj_dbg_val_to_string(v) {
         return "false"
     }
     return "<tag=" + oren_int_to_string(tt) + ">"
-}
-
-fn _rtobj_read_u32_le(ub, off) {
-    if ub == nil { return -1 }
-    if oren_is_u8_buf(ub) != true { return -1 }
-    var n = oren_buf_len(ub)
-    if off < 0 || n < 4 || off > n - 4 { return -1 }
-    var p = oren_buf_data_ptr_unchecked(ub)
-    if p == 0 { return -1 }
-    return (ptr_get_byte(iadd(p, off + 0)) & 255) +
-        (ptr_get_byte(iadd(p, off + 1)) & 255) * 256 +
-        (ptr_get_byte(iadd(p, off + 2)) & 255) * 65536 +
-        (ptr_get_byte(iadd(p, off + 3)) & 255) * 16777216
-}
-
-fn _rtobj_read_u64_le(ub, off) {
-    if ub == nil { return -1 }
-    if oren_is_u8_buf(ub) != true { return -1 }
-    var n = oren_buf_len(ub)
-    if off < 0 || n < 8 || off > n - 8 { return -1 }
-    var p = oren_buf_data_ptr_unchecked(ub)
-    if p == 0 { return -1 }
-    var lo = (ptr_get_byte(iadd(p, off + 0)) & 255) +
-        (ptr_get_byte(iadd(p, off + 1)) & 255) * 256 +
-        (ptr_get_byte(iadd(p, off + 2)) & 255) * 65536 +
-        (ptr_get_byte(iadd(p, off + 3)) & 255) * 16777216
-    var hi = (ptr_get_byte(iadd(p, off + 4)) & 255) +
-        (ptr_get_byte(iadd(p, off + 5)) & 255) * 256 +
-        (ptr_get_byte(iadd(p, off + 6)) & 255) * 65536 +
-        (ptr_get_byte(iadd(p, off + 7)) & 255) * 16777216
-    return lo + hi * 4294967296
 }
 
 fn _rtobj_meta_trace_sample(meta) {
@@ -1431,19 +1401,19 @@ fn _rtobj_meta_check_verify(meta_bs, check_bs, trace, tag) {
         }
         return false
     }
-    var checkp = oren_buf_data_ptr_unchecked(check_bs)
-    if checkp == 0 {
+    var checkv = byte_view.view(check_bs)
+    if byte_view.ptr(checkv) == 0 {
         if trace { print("[rtobj] " + tag + " miss: meta check ptr nil") }
         return false
     }
-    if (ptr_get_byte(iadd(checkp, 0)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC0 ||
-       (ptr_get_byte(iadd(checkp, 1)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC1 ||
-       (ptr_get_byte(iadd(checkp, 2)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC2 ||
-       (ptr_get_byte(iadd(checkp, 3)) & 255) != RUNTIME_OBJ_META_CHECK_MAGIC3 {
+    if byte_view.u8_at_unchecked(checkv, 0) != RUNTIME_OBJ_META_CHECK_MAGIC0 ||
+       byte_view.u8_at_unchecked(checkv, 1) != RUNTIME_OBJ_META_CHECK_MAGIC1 ||
+       byte_view.u8_at_unchecked(checkv, 2) != RUNTIME_OBJ_META_CHECK_MAGIC2 ||
+       byte_view.u8_at_unchecked(checkv, 3) != RUNTIME_OBJ_META_CHECK_MAGIC3 {
         if trace { print("[rtobj] " + tag + " miss: meta check magic mismatch") }
         return false
     }
-    var ver = _rtobj_read_u32_le(check_bs, 4)
+    var ver = byte_view.u32_le_at_unchecked(checkv, 4)
     if ver != RUNTIME_OBJ_META_CHECK_VERSION {
         if trace {
             print("[rtobj] " + tag + " miss: meta check version=" + _rtobj_dbg_val_to_string(ver) +
@@ -1451,7 +1421,7 @@ fn _rtobj_meta_check_verify(meta_bs, check_bs, trace, tag) {
         }
         return false
     }
-    var want_len = _rtobj_read_u32_le(check_bs, 8)
+    var want_len = byte_view.u32_le_at_unchecked(checkv, 8)
     if want_len <= 0 || want_len != oren_buf_len(meta_bs) {
         if trace {
             print("[rtobj] " + tag + " miss: meta check len mismatch want=" + _rtobj_dbg_val_to_string(want_len) +
@@ -1459,7 +1429,7 @@ fn _rtobj_meta_check_verify(meta_bs, check_bs, trace, tag) {
         }
         return false
     }
-    var want_hash = _rtobj_read_u64_le(check_bs, 12)
+    var want_hash = byte_view.u64_le_at_unchecked(checkv, 12)
     if want_hash < 0 {
         if trace { print("[rtobj] " + tag + " miss: meta check hash invalid") }
         return false

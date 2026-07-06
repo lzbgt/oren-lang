@@ -2561,6 +2561,9 @@ design evidence lives under `project-doc/`.
 - Runtime-object cache metadata check magic validation now reuses the already
   validated check-buffer pointer instead of routing each magic byte through the
   checked byte helper.
+- Runtime-object cache metadata check magic/version/length/hash reads now use
+  the shared compiler byte-view readers instead of carrying local u8-only endian
+  helpers.
 - `make verify-avm-bytes-hotpath-guards` now centralizes byte-hotpath source
   invariants, including the removed bytecode final-write list fallback and the
   removed runtime-object per-byte checked metadata helper. It also prevents

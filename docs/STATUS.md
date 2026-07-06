@@ -2380,13 +2380,14 @@ a temporary mutable-data append/copy pair for common single-run draws.
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
 		  Base64/Base64URL encode reads inputs through shared byte views after one length
 		  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
-  directly from shared byte views, OGE0 event headers and little-endian
-  payload fields read through shared byte-view readers, UI command validation
-  reads geometry/text-position/image-rect payload fields through shared
-  byte views while software rasterization reads those payload
-  fields through shared unchecked byte-view readers, PPM header/body output, Scene3D binary
-  package magic/header/table reads and payload slices through the shared
-  checked byte view, PPM RGBA input reads, software raster
+	  directly from shared byte views, OGE0 event headers and little-endian
+	  payload fields read through shared byte-view readers, UI command validation
+	  reads geometry/text-position/image-rect payload fields through shared
+	  byte views while software rasterization reads those payload
+	  fields through shared unchecked byte-view readers, PPM header/body output, Scene3D binary
+	  package magic/header/table reads and payload slices through the shared
+	  checked byte view, runtime-object cache metadata check fields read through
+	  shared compiler byte-view readers, PPM RGBA input reads, software raster
 	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw
 	  exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a

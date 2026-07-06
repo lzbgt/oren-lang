@@ -3530,6 +3530,11 @@
 <p>  validated check-buffer pointer instead of routing each magic byte through the</p>
 <p>  checked byte helper.</p>
 <ul>
+<li>Runtime-object cache metadata check magic/version/length/hash reads now use</li>
+</ul>
+<p>  the shared compiler byte-view readers instead of carrying local u8-only endian</p>
+<p>  helpers.</p>
+<ul>
 <li><code>make verify-avm-bytes-hotpath-guards</code> now centralizes byte-hotpath source</li>
 </ul>
 <p>  invariants, including the removed bytecode final-write list fallback and the</p>
