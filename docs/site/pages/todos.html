@@ -3658,6 +3658,11 @@
 <p>  <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1357 lines while</p>
 <p>  keeping retained image upload budgets and pixel accounting in the view.</p>
 <ul>
+<li>Metal retained-image upload/remove helpers now live in <code>OrenAVMMetalResources</code>,</li>
+</ul>
+<p>  reducing <code>OrenAVMMetalView.m</code> to 1328 lines while keeping view-owned budget</p>
+<p>  configuration and scalar-map lifetime ownership intact.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

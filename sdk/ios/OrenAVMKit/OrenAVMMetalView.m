@@ -357,49 +357,20 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                            height:(uint32_t)height
                              rgba:(const uint8_t*)rgba
                         byteCount:(uint32_t)byteCount {
-    if (!self.device || imageID == 0 || width == 0 || height == 0 || !rgba) return;
-    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
-    if (expected != (uint64_t)byteCount) return;
-    NSUInteger pixels = (NSUInteger)width * (NSUInteger)height;
-    const void* key = OrenAVMMetalRetainedImageKey(imageID);
-    OrenAVMMetalImageResource* oldResource = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
-    NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
-    NSUInteger imageCount = _orenImagesByID ? (NSUInteger)CFDictionaryGetCount(_orenImagesByID) : 0;
-    NSUInteger countAfter = oldResource ? imageCount : imageCount + 1u;
-    NSUInteger retainedAfterOld = self.retainedImagePixelCount >= oldPixels ? self.retainedImagePixelCount - oldPixels : 0;
-    if (pixels > NSUIntegerMax - retainedAfterOld) return;
-    NSUInteger pixelAfter = retainedAfterOld + pixels;
-    if (self.retainedImageCountLimit == 0 || countAfter > self.retainedImageCountLimit) return;
-    if (self.retainedImagePixelLimit == 0 || pixels > self.retainedImagePixelLimit || pixelAfter > self.retainedImagePixelLimit) return;
-    MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                                                          width:(NSUInteger)width
-                                                                                         height:(NSUInteger)height
-                                                                                      mipmapped:NO];
-    descriptor.usage = MTLTextureUsageShaderRead;
-    id<MTLTexture> texture = [self.device newTextureWithDescriptor:descriptor];
-    if (!texture) return;
-    [texture replaceRegion:MTLRegionMake2D(0, 0, (NSUInteger)width, (NSUInteger)height)
-               mipmapLevel:0
-                 withBytes:rgba
-               bytesPerRow:(NSUInteger)width * 4u];
-    OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
-    resource.texture = texture;
-    resource.pixels = pixels;
-    if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!_orenImagesByID) return;
-    CFDictionarySetValue(_orenImagesByID, key, (__bridge const void*)resource);
-    self.retainedImagePixelCount = pixelAfter;
+    OrenAVMMetalPutImageResource(&_orenImagesByID,
+                                 self.device,
+                                 imageID,
+                                 width,
+                                 height,
+                                 rgba,
+                                 byteCount,
+                                 self.retainedImageCountLimit,
+                                 self.retainedImagePixelLimit,
+                                 &_retainedImagePixelCount);
 }
 
 - (void)orenRemoveImageTextureWithID:(uint32_t)imageID {
-    if (imageID == 0 || !_orenImagesByID) return;
-    const void* key = OrenAVMMetalRetainedImageKey(imageID);
-    OrenAVMMetalImageResource* old = OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID);
-    if (old) {
-        NSUInteger pixels = old.pixels;
-        self.retainedImagePixelCount = self.retainedImagePixelCount > pixels ? self.retainedImagePixelCount - pixels : 0;
-    }
-    CFDictionaryRemoveValue(_orenImagesByID, key);
+    OrenAVMMetalRemoveImageResource(_orenImagesByID, imageID, &_retainedImagePixelCount);
 }
 
 - (NSArray<OrenAVMMetalVertexRun*>*)orenVertexRunsForFrame:(NSData*)frame

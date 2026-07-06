@@ -68,6 +68,19 @@ enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
 
 const void* OrenAVMMetalRetainedImageKey(uint32_t imageID);
 OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef images, uint32_t imageID);
+BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
+                                  id<MTLDevice> device,
+                                  uint32_t imageID,
+                                  uint32_t width,
+                                  uint32_t height,
+                                  const uint8_t* rgba,
+                                  uint32_t byteCount,
+                                  NSUInteger retainedImageCountLimit,
+                                  NSUInteger retainedImagePixelLimit,
+                                  NSUInteger* retainedImagePixelCount);
+void OrenAVMMetalRemoveImageResource(CFMutableDictionaryRef imagesByID,
+                                     uint32_t imageID,
+                                     NSUInteger* retainedImagePixelCount);
 OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
                                                  NSUInteger textureWidth,
                                                  NSUInteger textureHeight,

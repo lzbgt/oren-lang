@@ -2639,6 +2639,9 @@ design evidence lives under `project-doc/`.
 - Metal image-run sub-rect validation and quad construction now lives in
   `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1357 lines while
   keeping retained image upload budgets and pixel accounting in the view.
+- Metal retained-image upload/remove helpers now live in `OrenAVMMetalResources`,
+  reducing `OrenAVMMetalView.m` to 1328 lines while keeping view-owned budget
+  configuration and scalar-map lifetime ownership intact.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

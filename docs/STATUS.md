@@ -2706,7 +2706,10 @@ Working evidence:
 		  decisions in the view. Metal image-run sub-rect validation and quad
 		  construction now lives in `OrenAVMMetalResources`, reducing
 		  `OrenAVMMetalView.m` to 1357 lines while keeping retained image upload
-		  budgets and pixel accounting in the view.
+		  budgets and pixel accounting in the view. Metal retained-image
+		  upload/remove helpers now live in `OrenAVMMetalResources`, reducing
+		  `OrenAVMMetalView.m` to 1328 lines while keeping view-owned budget
+		  configuration and scalar-map lifetime ownership intact.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

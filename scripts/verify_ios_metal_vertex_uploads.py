@@ -165,6 +165,8 @@ def main() -> int:
     for helper in (
         "OrenAVMMetalRetainedImageKey",
         "OrenAVMMetalRetainedImageResource",
+        "OrenAVMMetalPutImageResource",
+        "OrenAVMMetalRemoveImageResource",
         "OrenAVMMetalImageRunCreate",
         "OrenAVMMetalRetainedTextKey",
         "OrenAVMMetalRetainedTextResource",
@@ -283,7 +285,15 @@ def main() -> int:
         fail("retained Metal image lookups must avoid boxed NSNumber image IDs")
     if "CFMutableDictionaryRef _orenImagesByID" not in text:
         fail("retained Metal images must use a scalar-key CF dictionary")
-    if "OrenAVMMetalRetainedImageKey(imageID)" not in text:
+    if "OrenAVMMetalPutImageResource(&_orenImagesByID," not in text:
+        fail("retained Metal image uploads must use the resource-owned upload helper")
+    if "OrenAVMMetalRemoveImageResource(_orenImagesByID, imageID, &_retainedImagePixelCount)" not in text:
+        fail("retained Metal image removal must use the resource-owned removal helper")
+    if "texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm" in text or "CFDictionarySetValue(_orenImagesByID" in text:
+        fail("retained Metal image texture creation and map writes must live in OrenAVMMetalResources")
+    if "CFDictionaryRemoveValue(_orenImagesByID" in text:
+        fail("retained Metal image removals must live in OrenAVMMetalResources")
+    if "OrenAVMMetalRetainedImageKey(imageID)" not in resource_text:
         fail("retained Metal image access must use the scalar image-id key helper")
     if "OrenAVMMetalRetainedImageResource(_orenImagesByID, imageID)" not in text:
         fail("retained Metal image draw paths must use the typed scalar-map resource helper")
