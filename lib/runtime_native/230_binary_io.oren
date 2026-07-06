@@ -118,7 +118,17 @@ fn oren_read_bytes(path) {
         return oren_err(0 - fd, "read_bytes: sys_open failed")
     }
 
-    var out = oren_new_list(size)
+    var out = oren_new_list_int(size)
+    var out_buf = ptr_get(iadd(out, 16))
+    if size == 0 {
+        var crc0 = sys_close(fd)
+        if crc0 < 0 {
+            if owned == 1 { free(rpath) }
+            return oren_err(0 - crc0, "read_bytes: sys_close failed")
+        }
+        if owned == 1 { free(rpath) }
+        return out
+    }
     var buf = malloc(1048576)
     if buf == 0 {
         sys_close(fd)
@@ -126,21 +136,31 @@ fn oren_read_bytes(path) {
         return oren_err(12, "read_bytes: alloc failed")
     }
 
-    while 1 {
-        var rn = sys_read(fd, buf, 1048576)
-        if rn == 0 { break } // EOF
+    var off = 0
+    while off < size {
+        var want = size - off
+        if want > 1048576 { want = 1048576 }
+        var rn = sys_read(fd, buf, want)
         if rn < 0 {
             sys_close(fd)
             free(buf)
             if owned == 1 { free(rpath) }
             return oren_err(0 - rn, "read_bytes: sys_read failed")
         }
+        if rn == 0 {
+            sys_close(fd)
+            free(buf)
+            if owned == 1 { free(rpath) }
+            return oren_err(5, "read_bytes: unexpected EOF")
+        }
         var i = 0
         while i < rn {
-            oren_list_push(out, ptr_get_byte(buf + i))
+            ptr_set(iadd(out_buf, (off + i) * 8), ptr_get_byte(buf + i))
             i = i + 1
         }
+        off = off + rn
     }
+    ptr_set(iadd(out, 0), size)
 
     free(buf)
     var crc = sys_close(fd)

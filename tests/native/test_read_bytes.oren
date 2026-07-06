@@ -19,6 +19,7 @@ fn main() {
     oren_write_bytes(path, bytes)
 
     var out = oren_read_bytes(path)
+    if oren_is_list_int(out) != true { fail(3) }
     if oren_list_len(out) != oren_list_len(bytes) { fail(1) }
 
     var i = 0

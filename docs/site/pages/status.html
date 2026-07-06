@@ -2452,7 +2452,10 @@
 <p>validate binary reads through <code>oren_read_u8_buf</code>, preserving FS policy coverage</p>
 <p>without boxing bytes. <code>std:fs</code> now exposes explicit <code>read_u8_buf</code> and</p>
 <p><code>read_u8_buf_under</code> facades for new byte-buffer callers while keeping</p>
-<p><code>read_byte_list</code> as the legacy list ABI. The iOS SDK now</p>
+<p><code>read_byte_list</code> as the legacy list ABI. Legacy native <code>oren_read_bytes</code> still</p>
+<p>exists for explicit compatibility callers, but it now fills a stat-sized native</p>
+<p><code>LIST_INT</code> directly from 1 MiB read chunks instead of per-byte</p>
+<p><code>oren_list_push</code> growth. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>

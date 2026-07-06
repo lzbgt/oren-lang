@@ -71,7 +71,7 @@
 </table>
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
-<li>Legacy native <code>oren_read_bytes</code> remains as an explicit compatibility ABI, but it now stats the file once, preallocates the result list to observed size, rejects oversized list output, and reads in 1 MiB chunks instead of growing from a zero-capacity list through 4 KiB syscalls.</li>
+<li>Legacy native <code>oren_read_bytes</code> remains as an explicit compatibility ABI, but it now stats the file once, preallocates a native <code>LIST_INT</code> result to observed size, rejects oversized list output, and fills slots directly from 1 MiB read chunks instead of growing from a zero-capacity list through 4 KiB syscalls or per-byte list pushes.</li>
 <li>Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.</li>
 <li>Parallel module parsing now emits setup and per-module worker phase markers under</li>
 </ul>
@@ -3701,6 +3701,11 @@
 <li>Native capsule FS read/mount fixtures now validate binary reads through</li>
 </ul>
 <p>  <code>oren_read_u8_buf</code>, preserving FS policy coverage without boxing bytes.</p>
+<ul>
+<li>Legacy native <code>oren_read_bytes</code> still exists for explicit compatibility callers,</li>
+</ul>
+<p>  but it now fills a stat-sized native <code>LIST_INT</code> directly from 1 MiB read chunks</p>
+<p>  instead of per-byte <code>oren_list_push</code> growth.</p>
 <ul>
 <li><code>std:fs</code> now exposes explicit <code>read_u8_buf</code>/<code>read_u8_buf_under</code> facades for</li>
 </ul>
