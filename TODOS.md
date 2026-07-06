@@ -2655,6 +2655,10 @@ design evidence lives under `project-doc/`.
 - Native all-test, full verify, AVM build, and libavm verification targets now
   live in `mk/native_avm.mk`, reducing the top-level `Makefile` to 1732 lines
   while preserving the existing target names and include-time variable scope.
+- Scene3D invalid JSON/package validation assertions now live in
+  `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
+  `test_ui_scene3d_v0.oren` to 1782 lines without changing the curated AVM
+  fixture entrypoint.
 - Std math inverse-trig and hypotenuse helpers now live in
   `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
   preserving the `std:math` import surface through compile-time include

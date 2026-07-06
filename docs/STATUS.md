@@ -2675,8 +2675,11 @@ Working evidence:
   expansion. Example build and cross-compile smoke targets now live in
   `mk/examples.mk`, and native all-test, full verify, AVM build, and libavm
   verification targets now live in `mk/native_avm.mk`, reducing the top-level
-  `Makefile` to 1732 lines. Metal primitive vertex/RGBA geometry helpers now
-  live in `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines.
+  `Makefile` to 1732 lines. Scene3D invalid JSON/package validation assertions
+  now live in `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
+  `test_ui_scene3d_v0.oren` to 1782 lines while preserving the curated AVM
+  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in
+  `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
