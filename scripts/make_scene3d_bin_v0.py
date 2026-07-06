@@ -10,9 +10,31 @@ import sys
 try:
     from scene3d_gltf import gltf_mesh_data, has_gltf_mesh
     from scene3d_3mf import has_threemf_mesh, threemf_mesh_data
+    from scene3d_flat_curves import (
+        pack_arc_bands_xy,
+        pack_discs_xy,
+        pack_ellipse_rings_xy,
+        pack_ellipses_xy,
+        pack_regular_polygons_xy,
+        pack_rings_xy,
+        pack_rounded_rects_xy,
+        pack_sectors_xy,
+        pack_stars_xy,
+    )
 except ModuleNotFoundError:
     from scripts.scene3d_gltf import gltf_mesh_data, has_gltf_mesh
     from scripts.scene3d_3mf import has_threemf_mesh, threemf_mesh_data
+    from scripts.scene3d_flat_curves import (
+        pack_arc_bands_xy,
+        pack_discs_xy,
+        pack_ellipse_rings_xy,
+        pack_ellipses_xy,
+        pack_regular_polygons_xy,
+        pack_rings_xy,
+        pack_rounded_rects_xy,
+        pack_sectors_xy,
+        pack_stars_xy,
+    )
 
 
 def color_u32(s):
@@ -1746,6 +1768,24 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_flat_xy_rects(mesh["rects_xy"], "rects_xy")
             elif mesh.get("polygons_xy") is not None:
                 payload = pack_polygons_xy(mesh["polygons_xy"])
+            elif mesh.get("discs_xy") is not None:
+                payload = pack_discs_xy(mesh["discs_xy"])
+            elif mesh.get("ellipses_xy") is not None:
+                payload = pack_ellipses_xy(mesh["ellipses_xy"])
+            elif mesh.get("ellipse_rings_xy") is not None:
+                payload = pack_ellipse_rings_xy(mesh["ellipse_rings_xy"])
+            elif mesh.get("regular_polygons_xy") is not None:
+                payload = pack_regular_polygons_xy(mesh["regular_polygons_xy"])
+            elif mesh.get("stars_xy") is not None:
+                payload = pack_stars_xy(mesh["stars_xy"])
+            elif mesh.get("rings_xy") is not None:
+                payload = pack_rings_xy(mesh["rings_xy"])
+            elif mesh.get("sectors_xy") is not None:
+                payload = pack_sectors_xy(mesh["sectors_xy"])
+            elif mesh.get("arc_bands_xy") is not None:
+                payload = pack_arc_bands_xy(mesh["arc_bands_xy"])
+            elif mesh.get("rounded_rects_xy") is not None:
+                payload = pack_rounded_rects_xy(mesh["rounded_rects_xy"])
             elif mesh.get("segments_xy") is not None:
                 payload = pack_segments_xy(mesh["segments_xy"])
             elif mesh.get("paths_xy") is not None:

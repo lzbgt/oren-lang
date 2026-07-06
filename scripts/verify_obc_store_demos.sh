@@ -257,6 +257,107 @@ def verify_scene3d_flat_line_lowering():
             raise SystemExit("scene malformed flat line shape unexpectedly lowered")
 
 
+def packed_xyz(vertices):
+    return b"".join(struct.pack("<iii", *v) for v in vertices)
+
+
+def verify_scene3d_flat_curve_lowering():
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{"kind": "triangles", "id": 1, "color": "#44cc88ff"}],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+
+    cases = [
+        (
+            "discs_xy",
+            [{"center": [2, 2], "radius": 1, "segments": 4, "z": 1}],
+            144,
+            ((2, 2, 1), (3, 2, 1), (2, 3, 1)),
+        ),
+        (
+            "ellipses_xy",
+            [{"center": [3, 2], "radii": [2, 1], "segments": 4, "z": 1}],
+            144,
+            ((3, 2, 1), (5, 2, 1), (3, 3, 1)),
+        ),
+        (
+            "ellipse_rings_xy",
+            [{"center": [3, 3], "inner_radii": [1, 1], "outer_radii": [3, 2], "segments": 4, "z": 1}],
+            288,
+            ((6, 3, 1), (3, 5, 1), (3, 4, 1), (6, 3, 1), (3, 4, 1), (4, 3, 1)),
+        ),
+        (
+            "regular_polygons_xy",
+            [{"center": [2, 2], "radius": 1, "sides": 4, "z": 1}],
+            144,
+            ((2, 2, 1), (3, 2, 1), (2, 3, 1)),
+        ),
+        (
+            "stars_xy",
+            [{"center": [3, 3], "inner_radius": 1, "outer_radius": 2, "points": 4, "z": 1}],
+            288,
+            ((3, 3, 1), (5, 3, 1), (4, 4, 1)),
+        ),
+        (
+            "rings_xy",
+            [{"center": [3, 3], "inner_radius": 1, "outer_radius": 2, "segments": 4, "z": 1}],
+            288,
+            ((5, 3, 1), (3, 5, 1), (3, 4, 1), (5, 3, 1), (3, 4, 1), (4, 3, 1)),
+        ),
+        (
+            "sectors_xy",
+            [{"center": [2, 2], "radius": 2, "start_milli_deg": 0, "end_milli_deg": 90000, "segments": 1, "z": 1}],
+            36,
+            ((2, 2, 1), (4, 2, 1), (2, 4, 1)),
+        ),
+        (
+            "arc_bands_xy",
+            [{"center": [3, 3], "inner_radius": 1, "outer_radius": 2, "start_milli_deg": 0, "end_milli_deg": 90000, "segments": 1, "z": 1}],
+            72,
+            ((5, 3, 1), (3, 5, 1), (3, 4, 1), (5, 3, 1), (3, 4, 1), (4, 3, 1)),
+        ),
+        (
+            "rounded_rects_xy",
+            [{"min": [1, 1], "max": [5, 5], "radius": 1, "corner_segments": 1, "z": 1}],
+            288,
+            ((3, 3, 1), (5, 4, 1), (4, 5, 1)),
+        ),
+    ]
+
+    for key, items, payload_len, expected_vertices in cases:
+        scene["meshes"][0] = {"kind": "triangles", "id": 1, key: items, "color": "#44cc88ff"}
+        data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+        if struct.pack("<I", payload_len) not in data or packed_xyz(expected_vertices) not in data:
+            raise SystemExit(f"scene {key} lowering did not produce expected flat curve payload")
+
+    bad_meshes = [
+        {"kind": "triangles", "id": 1, "discs_xy": [{"center": [0, 0], "radius": 1, "segments": 2}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "ellipses_xy": [{"center": [0, 0], "radii": [1, 0]}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "ellipse_rings_xy": [{"center": [0, 0], "inner_radii": [2, 1], "outer_radii": [2, 2]}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "regular_polygons_xy": [{"center": [0, 0], "radius": 1, "sides": 2}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "stars_xy": [{"center": [0, 0], "inner_radius": 2, "outer_radius": 2}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "rings_xy": [{"center": [0, 0], "inner_radius": 2, "outer_radius": 1}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "sectors_xy": [{"center": [0, 0], "radius": 1, "start_milli_deg": 90000, "end_milli_deg": 0}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "arc_bands_xy": [{"center": [0, 0], "inner_radius": 2, "outer_radius": 1, "start_milli_deg": 0, "end_milli_deg": 90000}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "rounded_rects_xy": [{"min": [0, 0], "max": [2, 2], "radius": 2}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "rounded_rects_xy": [{"min": [0, 0], "max": [4, 4], "radius": 1, "corner_segments": 0}], "color": "#ffffffff"},
+    ]
+    for mesh in bad_meshes:
+        try:
+            scene3d_module.scene3d_bin_v0(json.dumps({
+                "schema": "oren.ui.scene3d.v0",
+                "meshes": [mesh],
+                "models": [{"id": 2, "mesh_id": 1}],
+                "draw": [2],
+            }))
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("scene malformed flat curve shape unexpectedly lowered")
+
+
 def verify_scene3d_gltf_lowering():
     payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
@@ -918,6 +1019,7 @@ verify_scene3d_obj_lowering()
 verify_scene3d_flat_xy_lowering()
 verify_scene3d_flat_shape_lowering()
 verify_scene3d_flat_line_lowering()
+verify_scene3d_flat_curve_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()
