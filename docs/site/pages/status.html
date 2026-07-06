@@ -2752,11 +2752,12 @@
 <p>	  script to 1761 lines. Windows runtime</p>
 <p>	  once/atomic compatibility shims now live in</p>
 <p>	  <code>010_prelude_windows_once_atomics.inc</code>, reducing <code>010_prelude.inc</code> to 1990</p>
-<p>	  lines while keeping that platform boundary explicit. Example build and</p>
-<p>	  cross-compile smoke targets now live in <code>mk/examples.mk</code>, reducing the</p>
-<p>	  top-level <code>Makefile</code> to 1883 lines. Metal primitive vertex/RGBA geometry</p>
-<p>	  helpers now live in <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code></p>
-<p>	  to 1585 lines.</p>
+<p>	  lines while keeping that platform boundary explicit. Runtime GC marking and</p>
+<p>	  spawn-entry helpers now live in <code>010_prelude_gc_mark_spawn.inc</code>, reducing</p>
+<p>	  <code>010_prelude.inc</code> to 1805 lines. Example build and cross-compile smoke</p>
+<p>	  targets now live in <code>mk/examples.mk</code>, reducing the top-level <code>Makefile</code> to</p>
+<p>	  1883 lines. Metal primitive vertex/RGBA geometry helpers now live in</p>
+<p>	  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1585 lines.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

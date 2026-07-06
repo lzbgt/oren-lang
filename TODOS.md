@@ -2615,6 +2615,9 @@ design evidence lives under `project-doc/`.
 - Windows runtime once/atomic compatibility shims now live in
   `010_prelude_windows_once_atomics.inc`, reducing `010_prelude.inc` to 1990
   lines while keeping the platform-specific prelude boundary explicit.
+- Runtime GC marking and spawn-entry helpers now live in
+  `010_prelude_gc_mark_spawn.inc`, reducing `010_prelude.inc` to 1805 lines and
+  restoring headroom for prelude changes.
 - Example build and cross-compile smoke targets now live in `mk/examples.mk`,
   reducing the top-level `Makefile` to 1883 lines and preserving source-line
   guardrail headroom as verification targets continue to grow.
