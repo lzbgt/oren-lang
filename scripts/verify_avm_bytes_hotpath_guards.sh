@@ -87,6 +87,13 @@ if grep -q 'oren_read_bytes(path)\|oren_list_len(out)\|out\[[0-9]\]' tests/nativ
   exit 1
 fi
 
+read_bytes_impl="$(sed -n '/fn oren_read_bytes(path)/,/^}/p' lib/runtime_native/230_binary_io.oren)"
+if ! grep -q 'var out = oren_new_list(size)' <<<"$read_bytes_impl" ||
+  grep -Eq 'malloc\(4096\)|sys_read\(fd, buf, 4096\)|var out = oren_new_list\(0\)' <<<"$read_bytes_impl"; then
+  echo "ERROR: legacy native read_bytes fallback must remain stat-sized and chunked, not zero-capacity/4KiB growth" >&2
+  exit 1
+fi
+
 if ! grep -q 'fn read_u8_buf(path)' lib/std/fs.oren || grep -q 'var rb = fs.read_bytes\|var rb2 = fs.read_bytes_under' \
   tests/modules/test_fs_std.oren \
   tests/avm/test_std_fs_vfs.oren; then

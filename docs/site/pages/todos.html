@@ -71,6 +71,7 @@
 </table>
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
+<li>Legacy native <code>oren_read_bytes</code> remains as an explicit compatibility ABI, but it now stats the file once, preallocates the result list to observed size, rejects oversized list output, and reads in 1 MiB chunks instead of growing from a zero-capacity list through 4 KiB syscalls.</li>
 <li>Parallel module parsing now emits setup and per-module worker phase markers under</li>
 </ul>
 <p>  <code>OREN_TRACE_BUILD_PHASES_PATH</code> for both thread and fork worker modes. Fresh x64</p>

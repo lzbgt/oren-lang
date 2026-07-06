@@ -94,14 +94,32 @@ fn oren_read_bytes(path) {
     var owned = ptr_get(pair + 8)
     free(pair)
 
+    var st = oren_stat_alloc()
+    var src = sys_stat(rpath, st)
+    if src < 0 {
+        free(st)
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - src, "read_bytes: sys_stat failed")
+    }
+    var size = oren_stat_get_size(st)
+    free(st)
+    if size < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(4, "read_bytes: invalid size")
+    }
+    if size > 2147483647 {
+        if owned == 1 { free(rpath) }
+        return oren_err(4, "read_bytes: file too large")
+    }
+
     var fd = sys_open(rpath, 0, 0) // O_RDONLY
     if fd < 0 {
         if owned == 1 { free(rpath) }
         return oren_err(0 - fd, "read_bytes: sys_open failed")
     }
 
-    var out = oren_new_list(0)
-    var buf = malloc(4096)
+    var out = oren_new_list(size)
+    var buf = malloc(1048576)
     if buf == 0 {
         sys_close(fd)
         if owned == 1 { free(rpath) }
@@ -109,7 +127,7 @@ fn oren_read_bytes(path) {
     }
 
     while 1 {
-        var rn = sys_read(fd, buf, 4096)
+        var rn = sys_read(fd, buf, 1048576)
         if rn == 0 { break } // EOF
         if rn < 0 {
             sys_close(fd)
