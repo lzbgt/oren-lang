@@ -2415,7 +2415,9 @@
 <p>dictionaries, removing per-draw model field lookups. Single Metal image texture</p>
 <p>quads now stay inline in fixed image-run storage, while text texture quads append</p>
 <p>into caller-owned mutable vertex buffers instead of allocating tiny <code>NSData</code></p>
-<p>wrappers from stack vertices. iOS SDK typed GFX input helpers now build</p>
+<p>wrappers from stack vertices. Metal text texture cache lookups now use typed</p>
+<p>immutable cache keys instead of formatted strings that copy the full label into</p>
+<p>every lookup key. iOS SDK typed GFX input helpers now build</p>
 <p>fixed-size <code>OGE0</code> events on stack and enqueue raw bytes directly; text and</p>
 <p>composition events use segmented stack-first construction with one heap event</p>
 <p>fallback only for large payloads. The iOS SDK symbol verifier</p>

@@ -3634,6 +3634,10 @@
 <p>  directly into caller-owned run buffers, avoiding tiny <code>NSData</code> wrappers and a</p>
 <p>  temporary mutable-data append/copy pair for common single-run draws.</p>
 <ul>
+<li>Metal text texture cache lookups now use typed immutable cache keys instead</li>
+</ul>
+<p>  of formatted strings that copy the full label into every lookup key.</p>
+<ul>
 <li>iOS SDK typed GFX input helpers now build fixed-size <code>OGE0</code> events on stack</li>
 </ul>
 <p>  and enqueue raw bytes directly; text/composition events use segmented</p>

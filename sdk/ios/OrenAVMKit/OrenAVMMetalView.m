@@ -585,8 +585,8 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
 @property(nonatomic, strong, nullable) id<MTLCommandQueue> orenCommandQueue;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenPipelineState;
 @property(nonatomic, strong, nullable) id<MTLRenderPipelineState> orenTextPipelineState;
-@property(nonatomic, strong) NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
-@property(nonatomic, strong) NSMutableArray<NSString*>* orenTextCacheOrder;
+@property(nonatomic, strong) NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* orenTextCache;
+@property(nonatomic, strong) NSMutableArray<OrenAVMMetalTextCacheKey*>* orenTextCacheOrder;
 @property(nonatomic) NSUInteger orenTextCachePixels;
 @property(nonatomic, strong, nullable) OrenAVMMetalTextAtlas* orenTextAtlas;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, OrenAVMMetalTextResource*>* orenTextResources;

@@ -2619,6 +2619,8 @@ design evidence lives under `project-doc/`.
 - Metal single texture-quad emission now appends the six text/image vertices
   directly into caller-owned run buffers, avoiding tiny `NSData` wrappers and a
   temporary mutable-data append/copy pair for common single-run draws.
+- Metal text texture cache lookups now use typed immutable cache keys instead
+  of formatted strings that copy the full label into every lookup key.
 - iOS SDK typed GFX input helpers now build fixed-size `OGE0` events on stack
   and enqueue raw bytes directly; text/composition events use segmented
   stack-first construction with one heap event fallback only for large payloads.

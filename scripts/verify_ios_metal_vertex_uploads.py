@@ -55,6 +55,12 @@ def main() -> int:
     color_create = text_source.find("UIColor* color = [UIColor colorWithRed:")
     if cache_lookup < 0 or color_create < 0 or cache_lookup > color_create:
         fail("Metal text cache hits must return before constructing UIColor/attributes")
+    if "[NSString stringWithFormat:" in text_source:
+        fail("Metal text cache keys must stay typed objects instead of formatted strings")
+    if "@interface OrenAVMMetalTextCacheKey : NSObject <NSCopying>" not in text_header:
+        fail("Metal text cache must expose a typed immutable cache-key object")
+    if "+ (instancetype)keyWithText:(NSString*)text rgba:(const uint8_t*)rgba scaleMilli:(uint32_t)scaleMilli" not in text_source:
+        fail("Metal text cache must build compact typed cache keys")
     if "OrenAVMMetalTextureQuad" in text_source or "OrenAVMMetalTextureQuad" in text_header:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:

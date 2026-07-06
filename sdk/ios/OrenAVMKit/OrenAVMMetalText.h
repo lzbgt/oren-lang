@@ -30,6 +30,9 @@ typedef struct {
 @property(nonatomic) uint32_t rgbaValue;
 @end
 
+@interface OrenAVMMetalTextCacheKey : NSObject <NSCopying>
+@end
+
 @interface OrenAVMMetalTextCacheEntry : NSObject
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic) CGSize logicalSize;
@@ -49,8 +52,8 @@ typedef struct {
 @property(nonatomic) NSUInteger rowHeight;
 @end
 
-void OrenAVMMetalClearTextTextureCache(NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* cache,
-                                       NSMutableArray<NSString*>* order,
+void OrenAVMMetalClearTextTextureCache(NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
+                                       NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
                                        NSUInteger* pixels);
 
 void OrenAVMMetalWriteTextureQuad(OrenAVMMetalTextVertex* out,
@@ -80,8 +83,8 @@ void OrenAVMMetalAppendTextureQuad(NSMutableData* vertices,
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                UIScreen* screen,
                                                OrenAVMMetalTextAtlas** atlas,
-                                               NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* cache,
-                                               NSMutableArray<NSString*>* order,
+                                               NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
+                                               NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
                                                NSUInteger* cachePixels,
                                                NSString* text,
                                                float x,
@@ -94,8 +97,8 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
 OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
                                                     UIScreen* screen,
                                                     OrenAVMMetalTextAtlas** atlas,
-                                                    NSMutableDictionary<NSString*, OrenAVMMetalTextCacheEntry*>* cache,
-                                                    NSMutableArray<NSString*>* order,
+                                                    NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
+                                                    NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
                                                     NSUInteger* cachePixels,
                                                     NSString* text,
                                                     const uint8_t* positions,
