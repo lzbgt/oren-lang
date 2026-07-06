@@ -2241,6 +2241,9 @@ design evidence lives under `project-doc/`.
   labels, and FFI labels while reducing `090_tail.oren` to 1915 lines. The
   capped profile now shows `x64_native_program.oren` at ~47.1s total / ~33.8s
   parse, with `_data_add_fnobj` exposed at ~41ms as the next parser body.
+- X64 program debug metadata and global-root registration now live in
+  `089_debug_roots.oren`, preserving the existing tail include order while
+  reducing `090_tail.oren` to 1590 lines.
 - X64 function-object data emission now separates data/map state setup,
   existing-offset decode, zeroed 16-byte object append, and code-pointer fixup
   registration while using the shared u64 data writer for both placeholder

@@ -3058,6 +3058,11 @@
 <p>  capped profile now shows <code>x64_native_program.oren</code> at ~47.1s total / ~33.8s</p>
 <p>  parse, with <code>_data_add_fnobj</code> exposed at ~41ms as the next parser body.</p>
 <ul>
+<li>X64 program debug metadata and global-root registration now live in</li>
+</ul>
+<p>  <code>089_debug_roots.oren</code>, preserving the existing tail include order while</p>
+<p>  reducing <code>090_tail.oren</code> to 1590 lines.</p>
+<ul>
 <li>X64 function-object data emission now separates data/map state setup,</li>
 </ul>
 <p>  existing-offset decode, zeroed 16-byte object append, and code-pointer fixup</p>
