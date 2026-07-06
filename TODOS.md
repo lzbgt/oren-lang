@@ -2518,15 +2518,17 @@ design evidence lives under `project-doc/`.
 - iOS `OrenAVMMetalView` retained 3D painter ordering now builds one compact
   visible-triangle order buffer and sorts by depth with original-index ties,
   avoiding per-triangle Objective-C allocations and repeated full rescans in
-  the frame path; small retained 3D draws use stack order storage with heap
-  fallback only beyond the inline order capacity.
+  the frame path; small retained 3D draws use stack order storage, and large
+  draws use raw heap order buffers freed after sorting/drawing.
 - iOS `OrenAVMGraphicsView` retained 3D painter ordering now uses the same
   compact visible-triangle order buffer for indexed and packed 3D meshes,
   removing per-triangle `NSNumber`/`NSMutableSet` allocations and repeated
   full rescans from the CoreGraphics fallback path; it also uses stack order
-  storage for small retained 3D draws.
+  storage for small retained 3D draws and raw heap order buffers for larger
+  draws.
 - `make verify-libavm-ios` now guards the CoreGraphics retained-3D fallback
-  against regressing to boxed set-based painter tracking.
+  against regressing to boxed set-based painter tracking or Objective-C data
+  wrappers for large order buffers.
 - iOS `OrenAVMMetalView` live drawing and drawable-independent
   `prepareFrameResourcesWithError:` now share one prepared-frame path for
   vertex/image/text run construction, text-run coalescing, clear color, and

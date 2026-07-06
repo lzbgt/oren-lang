@@ -104,15 +104,14 @@ static int OrenAVMMetalTriangleOrderCompare(const void* left, const void* right)
 static OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,
                                                                   OrenAVMMetalTriangleOrder* inlineOrder,
                                                                   uint32_t inlineCapacity,
-                                                                  NSMutableData** storage) {
-    if (storage) *storage = nil;
+                                                                  OrenAVMMetalTriangleOrder** heapStorage) {
+    if (heapStorage) *heapStorage = NULL;
     if (triangleCount == 0) return NULL;
     if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder;
-    if (!storage) return NULL;
-    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder)];
-    OrenAVMMetalTriangleOrder* bytes = data.mutableBytes;
+    if (!heapStorage || (NSUInteger)triangleCount > NSUIntegerMax / sizeof(OrenAVMMetalTriangleOrder)) return NULL;
+    OrenAVMMetalTriangleOrder* bytes = (OrenAVMMetalTriangleOrder*)malloc((NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder));
     if (!bytes) return NULL;
-    *storage = data;
+    *heapStorage = bytes;
     return bytes;
 }
 
@@ -1049,11 +1048,11 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
             if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indexBytes / 4u) {
                 uint32_t triangleTotal = mesh.indexCount / 3u;
                 OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
-                NSMutableData* orderData = nil;
+                OrenAVMMetalTriangleOrder* heapOrder = NULL;
                 OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal,
                                                                                    inlineOrder,
                                                                                    OrenAVMMetalInlineTriangleOrderCapacity,
-                                                                                   &orderData);
+                                                                                   &heapOrder);
                 if (triangleTotal != 0 && !order) continue;
                 uint32_t visibleTotal = 0;
                 for (uint32_t ti = 0; ti < triangleTotal; ti++) {
@@ -1080,14 +1079,15 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                                                (float)logicalH,
                                                rgba);
                 }
+                free(heapOrder);
             } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangleBytes / meshStride) {
                 uint32_t triangleTotal = mesh.triangleCount;
                 OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
-                NSMutableData* orderData = nil;
+                OrenAVMMetalTriangleOrder* heapOrder = NULL;
                 OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal,
                                                                                    inlineOrder,
                                                                                    OrenAVMMetalInlineTriangleOrderCapacity,
-                                                                                   &orderData);
+                                                                                   &heapOrder);
                 if (triangleTotal != 0 && !order) continue;
                 uint32_t visibleTotal = 0;
                 for (uint32_t ti = 0; ti < triangleTotal; ti++) {
@@ -1119,6 +1119,7 @@ static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                                                (float)logicalH,
                                                rgba);
                 }
+                free(heapOrder);
             }
         } else if (opcode == 85 && payloadLen == 4) {
             [self.orenMeshes3D removeObjectForKey:@(OrenAVMMetalReadU32LE(payload))];

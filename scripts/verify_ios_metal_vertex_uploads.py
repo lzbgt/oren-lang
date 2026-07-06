@@ -155,6 +155,10 @@ def main() -> int:
         fail("retained Metal 3D triangle ordering must try inline storage before heap storage")
     if text.count("OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity]") < 2:
         fail("retained Metal 3D draw paths must pass stack triangle-order buffers")
+    if "NSMutableData* orderData" in text or "dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder)" in text:
+        fail("retained Metal 3D triangle ordering must not use NSMutableData heap fallbacks")
+    if "OrenAVMMetalTriangleOrder* heapOrder = NULL" not in text or "free(heapOrder)" not in text:
+        fail("retained Metal 3D triangle ordering must free raw heap fallbacks")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
         fail("retained Metal materials must store scalar RGBA NSNumber values")
     retained_3d_start = text.find("} else if ((opcode == 84")
