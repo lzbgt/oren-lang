@@ -2360,7 +2360,9 @@ without boxing bytes. `std:fs` now exposes explicit `read_u8_buf` and
 `read_byte_list` as the legacy list ABI. Legacy native `oren_read_bytes` still
 exists for explicit compatibility callers, but it now fills a stat-sized native
 `LIST_INT` directly from 1 MiB read chunks instead of per-byte
-`oren_list_push` growth. The iOS SDK now
+`oren_list_push` growth. Legacy AVM host and VFS `oren_read_bytes`
+compatibility paths now also materialize pre-sized `LIST_INT` carriers directly
+instead of boxed `AvmValue` byte-list entries. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

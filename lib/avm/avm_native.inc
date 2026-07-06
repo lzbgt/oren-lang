@@ -512,14 +512,19 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     res = avm_err(avm_err_from_errno(err), "read_bytes: fseek failed");
                     break;
                 }
+                if (len > 2147483647L) {
+                    fclose(f);
+                    res = avm_err(AVM_ERR_INVALID_ARG, "read_bytes: file too large");
+                    break;
+                }
 
                 // Preflight: ensure the record log has space BEFORE performing the read in record mode.
-                // For read_bytes, the return shape is LIST<int> of length `len` (legacy behavior).
+                // For read_bytes, the return shape is LIST_INT<int> of length `len` (legacy behavior).
                 if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
                     uint8_t dom = 0;
                     uint16_t capop = 0;
                     avm_legacy_native_to_domop(id, &dom, &capop);
-                    // value_size(LIST of aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
+                    // value_size(LIST_INT of aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
                     uint64_t need = 86ull + (uint64_t)len * 9ull;
                     if (!avm_log_can_fit(vm, need)) {
                         fclose(f);
@@ -550,36 +555,28 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 fclose(f);
                 (void)avm_io_charge(vm, (uint64_t)len, 1, 3);
 
-                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
-                if (!list) {
+                AvmValue out = avm_list_int_new((int)len);
+                if (out.type != AVM_VAL_LIST_INT || !out.as.li) {
                     if (buf) avm_heap_free(buf);
-                    res = avm_alloc_fail_value();
-                    avm_abort(vm, res);
+                    res = out;
+                    if (avm_is_err_val(res)) avm_abort(vm, res);
                     break;
                 }
+                AvmListInt* list = out.as.li;
                 list->count = (int)len;
-                list->capacity = (int)len;
-                list->all_int = 1;
                 if (len > 0) {
-                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)len, AVM_ALLOC_KIND_LIST);
                     if (!list->items) {
-                        avm_heap_free(list);
                         if (buf) avm_heap_free(buf);
-                        res = avm_alloc_fail_value();
+                        res = avm_err(AVM_ERR_INTERNAL, "read_bytes: invalid list_int output");
                         avm_abort(vm, res);
                         break;
                     }
                     for (long i = 0; i < len; i++) {
-                        list->items[i].type = AVM_VAL_INT;
-                        list->items[i].as.i = (unsigned char)buf[i];
+                        list->items[i] = (int64_t)(unsigned char)buf[i];
                     }
-                } else {
-                    list->items = NULL;
                 }
                 if (buf) avm_heap_free(buf);
-
-                res.type = AVM_VAL_LIST;
-                res.as.l = list;
+                res = out;
             }
             break;
         }

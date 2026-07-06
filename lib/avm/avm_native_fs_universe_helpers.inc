@@ -571,27 +571,20 @@ static int avm_vfs_clone(AvmVM* dst, AvmVM* src) {
     return 1;
 }
 
-// NOTE: legacy `oren_read_bytes` returns LIST<int>, not BYTES. VirtualFS matches that ABI.
+// NOTE: legacy `oren_read_bytes` returns LIST_INT<int>, not BYTES. VirtualFS matches that ABI.
 static AvmValue avm_vfs_read_bytes_list_value(AvmVM* vm, const uint8_t* data, uint32_t len) {
-    AvmValue res;
-    res.type = AVM_VAL_NIL;
-
-    AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
-    if (!list) return avm_alloc_fail_value();
+    (void)vm;
+    if (len > 2147483647u) return avm_err(AVM_ERR_INVALID_ARG, "read_bytes: file too large");
+    AvmValue res = avm_list_int_new((int)len);
+    if (res.type != AVM_VAL_LIST_INT || !res.as.li) return res;
+    AvmListInt* list = res.as.li;
     list->count = (int)len;
-    list->capacity = (int)len;
-    list->all_int = 1;
-    list->items = NULL;
     if (len > 0) {
-        list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)len, AVM_ALLOC_KIND_LIST);
-        if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
+        if (!list->items) return avm_err(AVM_ERR_INTERNAL, "read_bytes: invalid list_int output");
         for (uint32_t i = 0; i < len; i++) {
-            list->items[i].type = AVM_VAL_INT;
-            list->items[i].as.i = (int64_t)(unsigned char)(data ? data[i] : 0);
+            list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0);
         }
     }
-    res.type = AVM_VAL_LIST;
-    res.as.l = list;
     return res;
 }
 

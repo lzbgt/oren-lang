@@ -146,8 +146,8 @@
                         snprintf(msg, sizeof(msg), "vfs: file not found: %s (entries=%u)", path ? path : "", v ? (unsigned)v->count : 0u);
                         return avm_err_domop(AVM_ERR_NOT_FOUND, msg, domain, op);
                     }
-                    // Preflight record log capacity: legacy read_bytes returns LIST<int> of length len.
-                    // value_size(LIST aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
+                    // Preflight record log capacity: legacy read_bytes returns LIST_INT<int> of length len.
+                    // value_size(LIST_INT aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
                     if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
                         uint64_t need = 86ull + (uint64_t)e->len * 9ull;
                         if (!avm_log_can_fit(vm, need)) {

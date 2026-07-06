@@ -3774,6 +3774,11 @@
 <p>  but it now fills a stat-sized native <code>LIST_INT</code> directly from 1 MiB read chunks</p>
 <p>  instead of per-byte <code>oren_list_push</code> growth.</p>
 <ul>
+<li>Legacy AVM host and VFS <code>oren_read_bytes</code> compatibility paths now also</li>
+</ul>
+<p>  materialize pre-sized <code>LIST_INT</code> carriers directly instead of boxed <code>AvmValue</code></p>
+<p>  byte-list entries.</p>
+<ul>
 <li><code>std:fs</code> now exposes explicit <code>read_u8_buf</code>/<code>read_u8_buf_under</code> facades for</li>
 </ul>
 <p>  new byte-buffer callers while keeping <code>read_byte_list</code> as the legacy list ABI.</p>
