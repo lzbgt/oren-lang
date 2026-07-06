@@ -2578,6 +2578,9 @@ design evidence lives under `project-doc/`.
   instead of string-keyed dictionaries, removing per-draw model field lookups.
 - Single Metal image/text texture quads now append into caller-owned mutable
   vertex buffers instead of allocating tiny `NSData` wrappers from stack vertices.
+- Private Metal retained run/resource records and the raw payload-copy helper now
+  live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1874 lines
+  and preserving source-line guardrail headroom for continued renderer work.
 - iOS SDK symbol verification now caches `nm` output once per archive and
   greps files instead of SIGPIPE-prone `nm | grep -q` pipelines.
 - AVM `oren_read_u8_buf` now maps to a byte-native FS capability op that reads

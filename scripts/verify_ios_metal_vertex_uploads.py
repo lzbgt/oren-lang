@@ -7,6 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalView.m"
+RESOURCE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.h"
+RESOURCE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalResources.m"
 TEXT_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.m"
 TEXT_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMMetalText.h"
 HELPER = "static BOOL OrenAVMMetalBindVertexPayload"
@@ -19,6 +21,8 @@ def fail(message: str) -> None:
 
 def main() -> int:
     text = SOURCE.read_text()
+    resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
+    metal_text = text + "\n" + resource_text
     text_source = TEXT_SOURCE.read_text()
     text_header = TEXT_HEADER.read_text()
     if "OrenAVMMetalInlineVertexBytesLimit" not in text:
@@ -47,11 +51,11 @@ def main() -> int:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:
         fail("single Metal texture/text quads must not allocate NSData wrappers from stack vertices")
-    if "dataWithBytes:payload + 4 length:4" in text:
+    if "dataWithBytes:payload + 4 length:4" in metal_text:
         fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
-    if "@property(nonatomic) uint32_t rgbaValue" not in text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
+    if "@property(nonatomic) uint32_t rgbaValue" not in metal_text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:
         fail("missing scalar RGBA storage for retained Metal mesh/text resources")
-    if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
+    if "@property(nonatomic, strong) NSData* triangles" in metal_text or "@property(nonatomic, strong) NSData* indices" in metal_text:
         fail("retained Metal mesh payloads must stay raw owned buffers, not NSData wrappers")
     for pattern in (
         "mesh.triangles = [NSData dataWithBytes:payload",
@@ -60,13 +64,13 @@ def main() -> int:
         "mesh.triangles.bytes",
         "mesh.indices.length",
     ):
-        if pattern in text:
+        if pattern in metal_text:
             fail("retained Metal mesh payload path regressed to NSData-backed access")
-    if "OrenAVMMetalCopyPayloadBytes" not in text:
+    if "OrenAVMMetalCopyPayloadBytes" not in metal_text:
         fail("missing retained Metal mesh raw payload copy helper")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" not in text:
         fail("retained Metal materials must store scalar RGBA NSNumber values")
-    if "@interface OrenAVMMetalImageResource" not in text:
+    if "@interface OrenAVMMetalImageResource" not in metal_text:
         fail("retained Metal images must use typed resource objects")
     if "NSMutableDictionary<NSNumber*, id<MTLTexture>>* orenImageTextures" in text:
         fail("retained Metal images must not store bare texture values")
@@ -74,7 +78,7 @@ def main() -> int:
         fail("retained Metal image pixel accounting must not use a parallel dictionary")
     if "OrenAVMMetalSubrectInTexture" not in text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
-    if "@interface OrenAVMMetalModelResource" not in text:
+    if "@interface OrenAVMMetalModelResource" not in metal_text:
         fail("retained Metal models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
         fail("retained Metal models must not use dictionary payload records")

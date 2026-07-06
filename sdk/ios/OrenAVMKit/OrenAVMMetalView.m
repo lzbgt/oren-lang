@@ -1,4 +1,5 @@
 #import "OrenAVMKit.h"
+#import "OrenAVMMetalResources.h"
 #import "OrenAVMMetalText.h"
 
 #import <TargetConditionals.h>
@@ -34,81 +35,6 @@ typedef struct {
     MTLScissorRect rect;
 } OrenAVMMetalScissorState;
 
-@interface OrenAVMMetalVertexRun : NSObject
-@property(nonatomic, strong) NSData* vertices;
-@property(nonatomic) BOOL hasScissor;
-@property(nonatomic) MTLScissorRect scissor;
-@end
-
-@implementation OrenAVMMetalVertexRun
-@end
-
-@interface OrenAVMMetalImageRun : NSObject
-@property(nonatomic, strong) id<MTLTexture> texture;
-@property(nonatomic, strong) NSData* vertices;
-@property(nonatomic) BOOL hasScissor;
-@property(nonatomic) MTLScissorRect scissor;
-@property(nonatomic) float opacity;
-@end
-
-@implementation OrenAVMMetalImageRun
-@end
-
-@interface OrenAVMMetalImageResource : NSObject
-@property(nonatomic, strong) id<MTLTexture> texture;
-@property(nonatomic) NSUInteger pixels;
-@end
-
-@implementation OrenAVMMetalImageResource
-@end
-
-@interface OrenAVMMetalMesh2DResource : NSObject
-@property(nonatomic) uint8_t* triangles;
-@property(nonatomic) NSUInteger triangleBytes;
-@property(nonatomic) uint32_t rgbaValue;
-@property(nonatomic) uint32_t triangleCount;
-@end
-
-@implementation OrenAVMMetalMesh2DResource
-- (void)dealloc {
-    free(_triangles);
-}
-@end
-
-@interface OrenAVMMetalMesh3DResource : NSObject
-@property(nonatomic) uint8_t* triangles;
-@property(nonatomic) NSUInteger triangleBytes;
-@property(nonatomic) uint8_t* vertices;
-@property(nonatomic) NSUInteger vertexBytes;
-@property(nonatomic) uint8_t* indices;
-@property(nonatomic) NSUInteger indexBytes;
-@property(nonatomic) uint32_t rgbaValue;
-@property(nonatomic) BOOL hasRGBA;
-@property(nonatomic) uint32_t triangleCount;
-@property(nonatomic) uint32_t indexCount;
-@property(nonatomic) uint32_t stride;
-@end
-
-@implementation OrenAVMMetalMesh3DResource
-- (void)dealloc {
-    free(_triangles);
-    free(_vertices);
-    free(_indices);
-}
-@end
-
-@interface OrenAVMMetalModelResource : NSObject
-@property(nonatomic) uint32_t meshID;
-@property(nonatomic) uint32_t materialID;
-@property(nonatomic) int32_t x;
-@property(nonatomic) int32_t y;
-@property(nonatomic) int32_t z;
-@property(nonatomic) uint32_t scaleMilli;
-@end
-
-@implementation OrenAVMMetalModelResource
-@end
-
 static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
 static const NSUInteger OrenAVMMetalInlineVertexBytesLimit = 4096u;
@@ -122,14 +48,6 @@ static uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
            ((uint32_t)p[3] << 24);
-}
-
-static uint8_t* OrenAVMMetalCopyPayloadBytes(const uint8_t* src, NSUInteger len) {
-    if (len == 0) return NULL;
-    uint8_t* out = (uint8_t*)malloc(len);
-    if (!out) return NULL;
-    memcpy(out, src, len);
-    return out;
 }
 
 static BOOL OrenAVMMetalSubrectInTexture(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, NSUInteger width, NSUInteger height) {

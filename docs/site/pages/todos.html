@@ -3561,6 +3561,11 @@
 </ul>
 <p>  vertex buffers instead of allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
 <ul>
+<li>Private Metal retained run/resource records and the raw payload-copy helper now</li>
+</ul>
+<p>  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1874 lines</p>
+<p>  and preserving source-line guardrail headroom for continued renderer work.</p>
+<ul>
 <li>iOS SDK symbol verification now caches <code>nm</code> output once per archive and</li>
 </ul>
 <p>  greps files instead of SIGPIPE-prone <code>nm | grep -q</code> pipelines.</p>

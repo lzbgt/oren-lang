@@ -2393,7 +2393,10 @@
 <p>retained <code>UIColor</code> material objects. CoreGraphics and Metal retained mesh</p>
 <p>payloads now live in raw resource-owned buffers instead of retained <code>NSData</code></p>
 <p>wrappers, preserving lifetime safety while removing per-mesh payload objects</p>
-<p>from retained draw paths. CoreGraphics immediate primitive draws now set</p>
+<p>from retained draw paths. The private Metal retained run/resource record classes</p>
+<p>and raw payload-copy helper now live in <code>OrenAVMMetalResources</code>, keeping</p>
+<p><code>OrenAVMMetalView.m</code> below the 2000-line guardrail with headroom for continued</p>
+<p>renderer work. CoreGraphics immediate primitive draws now set</p>
 <p>fill/stroke colors from raw RGBA bytes instead of allocating per-draw</p>
 <p><code>UIColor</code> wrappers; CoreGraphics retained text fallback records</p>
 <p>now use typed resources with cached attributed strings instead of dictionary</p>
