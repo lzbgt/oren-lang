@@ -9,6 +9,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <dispatch/dispatch.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct {
@@ -19,6 +20,11 @@ typedef struct {
     float b;
     float a;
 } OrenAVMMetalVertex;
+
+typedef struct {
+    uint32_t triangle;
+    int64_t zsum;
+} OrenAVMMetalTriangleOrder;
 
 _Static_assert(sizeof(OrenAVMMetalVertex) == 24, "OrenAVMMetalVertex must match shader packed_float2+packed_float4");
 _Static_assert(sizeof(OrenAVMMetalTextVertex) == 16, "OrenAVMMetalTextVertex must match shader packed_float2+packed_float2");
@@ -110,14 +116,28 @@ static BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t 
     return zsum >= (int64_t)nearZ * 3 && zsum <= (int64_t)farZ * 3;
 }
 
-static uint8_t* OrenAVMMetalDrawnBitmap(uint32_t triangleCount, NSMutableData** storage) {
+static int OrenAVMMetalTriangleOrderCompare(const void* left, const void* right) {
+    const OrenAVMMetalTriangleOrder* a = (const OrenAVMMetalTriangleOrder*)left;
+    const OrenAVMMetalTriangleOrder* b = (const OrenAVMMetalTriangleOrder*)right;
+    if (a->zsum > b->zsum) return -1;
+    if (a->zsum < b->zsum) return 1;
+    if (a->triangle < b->triangle) return -1;
+    if (a->triangle > b->triangle) return 1;
+    return 0;
+}
+
+static OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount, NSMutableData** storage) {
     if (storage) *storage = nil;
     if (triangleCount == 0 || !storage) return NULL;
-    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount];
-    uint8_t* bytes = data.mutableBytes;
+    NSMutableData* data = [NSMutableData dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMMetalTriangleOrder)];
+    OrenAVMMetalTriangleOrder* bytes = data.mutableBytes;
     if (!bytes) return NULL;
     *storage = data;
     return bytes;
+}
+
+static void OrenAVMMetalSortTriangleOrder(OrenAVMMetalTriangleOrder* order, uint32_t count) {
+    if (count > 1) qsort(order, count, sizeof(OrenAVMMetalTriangleOrder), OrenAVMMetalTriangleOrderCompare);
 }
 
 static int64_t OrenAVMMetalMesh3DIndexedZSumModel(const uint8_t* vertices,
@@ -1280,25 +1300,18 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             }
             if (verts && idx && mesh.rgba.length == 4 && scaleMilli != 0 && mesh.indexCount == mesh.indices.length / 4u) {
                 uint32_t triangleTotal = mesh.indexCount / 3u;
-                NSMutableData* drawnData = nil;
-                uint8_t* drawn = OrenAVMMetalDrawnBitmap(triangleTotal, &drawnData);
-                if (triangleTotal != 0 && !drawn) continue;
-                for (uint32_t di = 0; di < triangleTotal; di++) {
-                    uint32_t best = 0;
-                    BOOL found = NO;
-                    int64_t bestZ = -9223372036854775807LL;
-                    for (uint32_t ti = 0; ti < triangleTotal; ti++) {
-                        if (drawn[ti]) continue;
-                        int64_t z = OrenAVMMetalMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
-                        if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                        if (!found || z > bestZ) {
-                            best = ti;
-                            bestZ = z;
-                            found = YES;
-                        }
-                    }
-                    if (!found) break;
-                    drawn[best] = 1;
+                NSMutableData* orderData = nil;
+                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal, &orderData);
+                if (triangleTotal != 0 && !order) continue;
+                uint32_t visibleTotal = 0;
+                for (uint32_t ti = 0; ti < triangleTotal; ti++) {
+                    int64_t z = OrenAVMMetalMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
+                    if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
+                    order[visibleTotal++] = (OrenAVMMetalTriangleOrder){ti, z};
+                }
+                OrenAVMMetalSortTriangleOrder(order, visibleTotal);
+                for (uint32_t di = 0; di < visibleTotal; di++) {
+                    uint32_t best = order[di].triangle;
                     const uint8_t* tri = idx + ((size_t)best * 12u);
                     const uint8_t* v1 = verts + ((size_t)OrenAVMMetalReadU32LE(tri) * 12u);
                     const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
@@ -1317,25 +1330,18 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
                 }
             } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangles.length / meshStride) {
                 uint32_t triangleTotal = mesh.triangleCount;
-                NSMutableData* drawnData = nil;
-                uint8_t* drawn = OrenAVMMetalDrawnBitmap(triangleTotal, &drawnData);
-                if (triangleTotal != 0 && !drawn) continue;
-                for (uint32_t di = 0; di < triangleTotal; di++) {
-                    uint32_t best = 0;
-                    BOOL found = NO;
-                    int64_t bestZ = -9223372036854775807LL;
-                    for (uint32_t ti = 0; ti < triangleTotal; ti++) {
-                        if (drawn[ti]) continue;
-                        int64_t z = OrenAVMMetalMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
-                        if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                        if (!found || z > bestZ) {
-                            best = ti;
-                            bestZ = z;
-                            found = YES;
-                        }
-                    }
-                    if (!found) break;
-                    drawn[best] = 1;
+                NSMutableData* orderData = nil;
+                OrenAVMMetalTriangleOrder* order = OrenAVMMetalTriangleOrderBuffer(triangleTotal, &orderData);
+                if (triangleTotal != 0 && !order) continue;
+                uint32_t visibleTotal = 0;
+                for (uint32_t ti = 0; ti < triangleTotal; ti++) {
+                    int64_t z = OrenAVMMetalMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
+                    if (!OrenAVMMetalMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
+                    order[visibleTotal++] = (OrenAVMMetalTriangleOrder){ti, z};
+                }
+                OrenAVMMetalSortTriangleOrder(order, visibleTotal);
+                for (uint32_t di = 0; di < visibleTotal; di++) {
+                    uint32_t best = order[di].triangle;
                     const uint8_t* tri = tris + ((size_t)best * meshStride);
                     const uint8_t* triRGBA = materialRGBA ? materialRGBA.bytes : (meshStride == 40u ? tri + 36 : mesh.rgba.bytes);
                     if (!triRGBA) continue;
