@@ -2331,8 +2331,8 @@ Facts from the 2026-05-28 implementation pass:
   concat/copy spans use raw pointer byte copies, and overlapping in-place u8
   `copy_into` copies backward when needed, `std:buffer` view/matrix
   `copy_from_bytes` helpers read byte carriers directly, route contiguous
-  slice/dense-matrix u8 destinations through `bytes.copy_into`, and cache u8
-  source pointers for non-contiguous view/matrix fallbacks, while contiguous
+  slice/dense-matrix u8 destinations through `bytes.copy_into`, and reuse
+  shared checked byte views for non-contiguous view/matrix fallbacks, while contiguous
   slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
 		  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
@@ -2358,8 +2358,8 @@ Facts from the 2026-05-28 implementation pass:
 	  payload fields read from cached u8-buffer pointers, UI command validation
 	  and software rasterization read geometry/text-position/image-rect payload
 		  fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary
-		  package magic/header/table reads and payload slices through one cached
-		  byte view, PPM RGBA input reads, software raster
+		  package magic/header/table reads and payload slices through the shared
+		  checked byte view, PPM RGBA input reads, software raster
 	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw
 	  exact-size buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a

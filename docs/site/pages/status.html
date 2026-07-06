@@ -2437,8 +2437,8 @@
 <p>  concat/copy spans use raw pointer byte copies, and overlapping in-place u8</p>
 <p>  <code>copy_into</code> copies backward when needed, <code>std:buffer</code> view/matrix</p>
 <p>  <code>copy_from_bytes</code> helpers read byte carriers directly, route contiguous</p>
-<p>  slice/dense-matrix u8 destinations through <code>bytes.copy_into</code>, and cache u8</p>
-<p>  source pointers for non-contiguous view/matrix fallbacks, while contiguous</p>
+<p>  slice/dense-matrix u8 destinations through <code>bytes.copy_into</code>, and reuse</p>
+<p>  shared checked byte views for non-contiguous view/matrix fallbacks, while contiguous</p>
 <p>  slice/dense-matrix byte and text exports use direct byte-slice conversion,</p>
 <p>	  JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>		  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
@@ -2464,8 +2464,8 @@
 <p>	  payload fields read from cached u8-buffer pointers, UI command validation</p>
 <p>	  and software rasterization read geometry/text-position/image-rect payload</p>
 <p>		  fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
-<p>		  package magic/header/table reads and payload slices through one cached</p>
-<p>		  byte view, PPM RGBA input reads, software raster</p>
+<p>		  package magic/header/table reads and payload slices through the shared</p>
+<p>		  checked byte view, PPM RGBA input reads, software raster</p>
 <p>	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw</p>
 <p>	  exact-size buffer stores or direct u8-buffer access, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>

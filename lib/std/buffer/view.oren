@@ -124,25 +124,14 @@ fn _validate_int_or_err(v, ctx) {
     return v
 }
 
-fn _bytes_ptr_or_nil(bytes) {
-    if oren_is_u8_buf(bytes) == true { return oren_buf_data_ptr_unchecked(bytes) }
-    return nil
-}
-
-fn _bytes_read_u8(bytes, data, idx) {
-    if data != nil { return ptr_get_byte(data + idx) & 255 }
-    return bytesm.get_u8(bytes, idx)
-}
-
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
-    var nb = bytesm.len(bytes)
-    if oren_is_err(nb) { return nb }
+    var bv = bytesm.view(bytes, ctx)
+    if oren_is_err(bv) { return bv }
+    var nb = bytesm.view_len(bv)
     if nb != n { return _err_invalid(ctx + ": length mismatch") }
-    var data = _bytes_ptr_or_nil(bytes)
     var i = 0
     while i < n {
-        var v = _bytes_read_u8(bytes, data, i)
-        if oren_is_err(v) { return v }
+        var v = bytesm.view_get_u8_unchecked(bv, i)
         var rc = store_fn(view, i, v)
         if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
         i = i + 1
@@ -151,15 +140,14 @@ fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
 }
 
 fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
-    var nb = bytesm.len(bytes)
-    if oren_is_err(nb) { return nb }
+    var bv = bytesm.view(bytes, ctx)
+    if oren_is_err(bv) { return bv }
+    var nb = bytesm.view_len(bv)
     if off < 0 || count < 0 || off + count > nb { return oren_err(4, ctx + ": slice out of bounds") }
     if count != n { return _err_invalid(ctx + ": length mismatch") }
-    var data = _bytes_ptr_or_nil(bytes)
     var i = 0
     while i < n {
-        var v = _bytes_read_u8(bytes, data, off + i)
-        if oren_is_err(v) { return v }
+        var v = bytesm.view_get_u8_unchecked(bv, off + i)
         var rc = store_fn(view, i, v)
         if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
         i = i + 1

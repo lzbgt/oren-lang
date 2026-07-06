@@ -13,16 +13,6 @@ import view "std:buffer/view"
 fn _err_invalid(msg) { return core._err_invalid(msg) }
 fn _u8_validate_or_err(v, ctx) { return mshared._mat_validate_u8_or_err(v, ctx) }
 
-fn _bytes_ptr_or_nil(bytes) {
-    if oren_is_u8_buf(bytes) == true { return oren_buf_data_ptr_unchecked(bytes) }
-    return nil
-}
-
-fn _bytes_read_u8(bytes, data, idx) {
-    if data != nil { return ptr_get_byte(data + idx) & 255 }
-    return bytesm.get_u8(bytes, idx)
-}
-
 fn _mat_unpack_projected_rows(m, ctx, rowf) {
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
     var out = []
@@ -230,23 +220,22 @@ fn u8_mat_copy_from_bytes(m, bytes) {
     var ctx = "buffer.u8_mat_copy_from_bytes"
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
     var total = m[2] * m[3]
-    var nb = bytesm.len(bytes)
-    if oren_is_err(nb) { return nb }
+    var bv = bytesm.view(bytes, ctx)
+    if oren_is_err(bv) { return bv }
+    var nb = bytesm.view_len(bv)
     if nb != total { return _err_invalid(ctx + ": byte count mismatch") }
     if oren_is_u8_buf(m[0]) == true && m[4] == m[3] {
         var rc0 = bytesm.copy_into(m[0], m[1], bytes, 0, total)
         if oren_is_err(rc0) { return rc0 }
         return m[0]
     }
-    var data = _bytes_ptr_or_nil(bytes)
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = _bytes_read_u8(bytes, data, r * m[3] + c)
-            if oren_is_err(v) { return v }
+            var v = bytesm.view_get_u8_unchecked(bv, r * m[3] + c)
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }
             c = c + 1
@@ -262,8 +251,9 @@ fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
     if mshared._is_int(off) == false { return oren_err(4, ctx + ": off must be int") }
     if mshared._is_int(n) == false { return oren_err(4, ctx + ": len must be int") }
     var total = m[2] * m[3]
-    var nb = bytesm.len(bytes)
-    if oren_is_err(nb) { return nb }
+    var bv = bytesm.view(bytes, ctx)
+    if oren_is_err(bv) { return bv }
+    var nb = bytesm.view_len(bv)
     if off < 0 || n < 0 || off + n > nb { return oren_err(4, ctx + ": slice out of bounds") }
     if n != total { return _err_invalid(ctx + ": byte count mismatch") }
     if oren_is_u8_buf(m[0]) == true && m[4] == m[3] {
@@ -271,15 +261,13 @@ fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
         if oren_is_err(rc0) { return rc0 }
         return m[0]
     }
-    var data = _bytes_ptr_or_nil(bytes)
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = _bytes_read_u8(bytes, data, off + r * m[3] + c)
-            if oren_is_err(v) { return v }
+            var v = bytesm.view_get_u8_unchecked(bv, off + r * m[3] + c)
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }
             c = c + 1

@@ -1438,8 +1438,8 @@ This file is the concise task view. Detailed implementation status lives in
 	     payload fields read from cached u8-buffer pointers, UI command validation
 	     and software rasterization read geometry/text-position/image-rect payload
 		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary
-		     package magic/header/table reads and payload slices through one cached
-		     byte view, and PPM/software-raster RGBA sampling
+		     package magic/header/table reads and payload slices through the shared
+		     checked byte view, and PPM/software-raster RGBA sampling
 	     plus clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
      caches typed response body bytes for `.bytes()` on content-length and
      chunked responses. Native `oren_write_file` writes strings directly
@@ -1465,8 +1465,8 @@ This file is the concise task view. Detailed implementation status lives in
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`/`from_hex`, `std:strings` byte roundtrips,
      `std:bytes` u8/endian writes, concat/copy u8-buffer spans, overlap-safe
-     u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
-     carrier reads with cached u8 pointers for non-contiguous fallbacks,
+	     u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
+	     carrier reads through shared checked byte views for non-contiguous fallbacks,
      contiguous slice/dense-matrix byte/text exports, and
      raw u8-buffer load/store plus `copy_into` u8-buffer destinations, native byte-order writes,
      and `std:time` ISO-8601 UTC parsing now use direct source-string byte reads

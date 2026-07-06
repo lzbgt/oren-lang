@@ -1373,45 +1373,21 @@ fn _asset_color(m, ctx) {
     return _color_hex(c["r"] * 16777216 + c["g"] * 65536 + c["b"] * 256 + c["a"])
 }
 
-fn _bin_u32_from_ptr(p, off) {
-    return (ptr_get_byte(p + off) & 255) |
-        ((ptr_get_byte(p + off + 1) & 255) << 8) |
-        ((ptr_get_byte(p + off + 2) & 255) << 16) |
-        ((ptr_get_byte(p + off + 3) & 255) << 24)
-}
-
 fn _bin_view(data) {
-    var n = bytes.len(data)
-    var p = nil
-    if oren_is_err(n) == false && oren_is_u8_buf(data) == true { p = oren_buf_data_ptr_unchecked(data) }
-    return [data, n, p]
+    return bytes.view(data, "ui.scene3d binary")
 }
 
-fn _bin_data(v) { return v[0] }
-fn _bin_len(v) { return v[1] }
-fn _bin_ptr(v) { return v[2] }
+fn _bin_data(v) { return bytes.view_bytes(v) }
+fn _bin_len(v) { return bytes.view_len(v) }
 
 fn _bin_u32(v, off) {
-    var out = nil
-    var data_ptr = _bin_ptr(v)
-    if data_ptr != nil {
-        out = _bin_u32_from_ptr(data_ptr, off)
-    } else {
-        out = bytes.get_u32_le(_bin_data(v), off)
-    }
+    var out = bytes.view_get_u32_le(v, off)
     if oren_is_err(out) { return out }
     return [out, off + 4]
 }
 
 fn _bin_i32(v, off) {
-    var out = nil
-    var data_ptr = _bin_ptr(v)
-    if data_ptr != nil {
-        out = _bin_u32_from_ptr(data_ptr, off)
-        if out >= 2147483648 { out = out - 4294967296 }
-    } else {
-        out = bytes.get_i32_le(_bin_data(v), off)
-    }
+    var out = bytes.view_get_i32_le(v, off)
     if oren_is_err(out) { return out }
     return [out, off + 4]
 }
@@ -1422,9 +1398,7 @@ fn _bin_slice(v, off, n) {
 }
 
 fn _bin_byte(v, off) {
-    var data_ptr = _bin_ptr(v)
-    if data_ptr != nil { return ptr_get_byte(data_ptr + off) & 255 }
-    return bytes.get_u8(_bin_data(v), off)
+    return bytes.view_get_u8_unchecked(v, off)
 }
 
 fn _bin_magic_ok(v) {
@@ -1442,6 +1416,7 @@ fn _bin_magic_ok(v) {
 
 fn scene_from_binary(data) {
     var bv = _bin_view(data)
+    if oren_is_err(bv) { return bv }
     if _bin_magic_ok(bv) == false { return oren_err(4, "ui.scene3d.scene_from_binary: bad magic") }
     var n = _bin_len(bv)
     if oren_is_err(n) { return n }
