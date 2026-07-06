@@ -2156,7 +2156,10 @@
 <p>  <code>liveNetworkSessionByteLimitBytes</code> caps total bytes read/written per session.</p>
 <p>  Apps can update those limits at runtime with</p>
 <p>  <code>configureLiveNetworkSessionLimitsWithMaxSessions:byteLimitBytes:error:</code>.</p>
-<p>  The iOS verifier proves an intentional byte-budget failure path.</p>
+<p>  The runtime stores host-backed session fds, kinds, and byte counters in</p>
+<p>  scalar-key CF maps instead of boxed <code>NSNumber</code> dictionaries, and the iOS</p>
+<p>  verifier proves both scalar storage and an intentional byte-budget failure</p>
+<p>  path.</p>
 <ul>
 <li>Embedders can now request or clear VM cancellation through</li>
 </ul>
@@ -2662,13 +2665,15 @@
 <p>  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now read inputs through shared byte views and write exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>		  intermediate Oren list, and their decode paths reject malformed padding,</p>
 <p>		  third-character padding without fourth-character padding, and nonzero</p>
-<p>		  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. NET cleanup now covers native and AVM session</p>
-<p>		  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
-<p>		  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
-<p>		  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
-<p>		  expose <code>.recv_text(...)</code> / <code>.send_text_client(...)</code>, and AVM virtual</p>
-<p>		  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
-<p>			  waits, accept, and close receiver methods. Native HTTP/2 client state now</p>
+<p>			  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. NET cleanup now covers native and AVM session</p>
+<p>			  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
+<p>			  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
+<p>			  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
+<p>			  expose <code>.recv_text(...)</code> / <code>.send_text_client(...)</code>, and AVM virtual</p>
+<p>			  socket/TCP/UDP/WebSocket sessions expose read/write/send/recv, readiness</p>
+<p>				  waits, accept, and close receiver methods. The iOS live VNET SDK maps session fds,</p>
+<p>			  kinds, and byte counts through scalar-key CF dictionaries instead of</p>
+<p>			  boxed <code>NSNumber</code> session state. Native HTTP/2 client state now</p>
 <p>				  uses a typed <code>Client</code> receiver with <code>client.request(...).text()</code> /</p>
 <p>				  <code>.bytes()</code> response methods. Public fallible NET APIs now use normal</p>
 <p>				  verbs returning <code>value | oren_err</code> or explicit <code>{ok,...}</code> records;</p>

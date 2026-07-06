@@ -3715,6 +3715,11 @@
 <p>  permission-request byte buffers directly into <code>NSData</code> ownership instead of</p>
 <p>  copying the bytes and then freeing the original buffer.</p>
 <ul>
+<li>The iOS SDK live VNET session maps now store socket fds, session kinds, and</li>
+</ul>
+<p>  byte counters through scalar-key CF dictionaries instead of boxed <code>NSNumber</code></p>
+<p>  session dictionaries.</p>
+<ul>
 <li><code>OrenAVMRunResult</code> now preserves immutable no-copy stdout data without</li>
 </ul>
 <p>  recopying it, while still copying mutable inputs defensively.</p>
