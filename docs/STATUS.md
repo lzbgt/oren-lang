@@ -2264,7 +2264,10 @@ Facts from the 2026-05-28 implementation pass:
   text-run, and image-run metrics even when no `CAMetalDrawable` is available;
   drawable-independent preparation and live drawing now share the same
   prepared-frame path for run construction, text coalescing, clear color, and
-  metric counts.
+  metric counts. Live Metal draws keep small vertex uploads inline but promote
+  large geometry/image/text runs to transient `MTLBuffer` objects retained
+  through command completion, so retained meshes and batches do not rely on
+  unbounded `setVertexBytes` payloads.
   `make capture-ios-live-3d-performance` now builds a generated iPhoneOS app
   harness that runs the 3D OBC program concurrently with `OrenAVMMetalView`,
   republishes animated frames from host `frame_tick` events, records device

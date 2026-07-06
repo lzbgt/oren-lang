@@ -3458,6 +3458,12 @@
 <p>  vertex/image/text run construction, text-run coalescing, clear color, and</p>
 <p>  frame metric counts so verifier and live renderer behavior cannot drift.</p>
 <ul>
+<li>iOS <code>OrenAVMMetalView</code> now keeps small vertex uploads inline but promotes</li>
+</ul>
+<p>  large geometry/image/text vertex payloads to transient <code>MTLBuffer</code> objects</p>
+<p>  retained through command completion, avoiding unbounded <code>setVertexBytes</code></p>
+<p>  usage for retained meshes and batches.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

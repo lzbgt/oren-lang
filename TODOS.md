@@ -2517,6 +2517,10 @@ design evidence lives under `project-doc/`.
   `prepareFrameResourcesWithError:` now share one prepared-frame path for
   vertex/image/text run construction, text-run coalescing, clear color, and
   frame metric counts so verifier and live renderer behavior cannot drift.
+- iOS `OrenAVMMetalView` now keeps small vertex uploads inline but promotes
+  large geometry/image/text vertex payloads to transient `MTLBuffer` objects
+  retained through command completion, avoiding unbounded `setVertexBytes`
+  usage for retained meshes and batches.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

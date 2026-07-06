@@ -78,6 +78,7 @@ typedef struct {
 
 static const NSUInteger OrenAVMMetalDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalDefaultRetainedImageCountLimit = 1024u;
+static const NSUInteger OrenAVMMetalInlineVertexBytesLimit = 4096u;
 
 static uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -233,6 +234,25 @@ static void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>* r
     run.scissor = scissor.rect;
     [runs addObject:run];
     [vertices setLength:0];
+}
+
+static BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
+                                          id<MTLDevice> device,
+                                          NSMutableArray<id<MTLBuffer>>* transientBuffers,
+                                          const void* bytes,
+                                          NSUInteger length) {
+    if (!encoder || !bytes || length == 0) return NO;
+    if (length <= OrenAVMMetalInlineVertexBytesLimit) {
+        [encoder setVertexBytes:bytes length:length atIndex:0];
+        return YES;
+    }
+    id<MTLBuffer> buffer = [device newBufferWithBytes:bytes
+                                               length:length
+                                              options:MTLResourceStorageModeShared];
+    if (!buffer) return NO;
+    [transientBuffers addObject:buffer];
+    [encoder setVertexBuffer:buffer offset:0 atIndex:0];
+    return YES;
 }
 
 static float OrenAVMMetalClipX(float x, float logicalWidth) {
@@ -1689,6 +1709,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
     if (!commandBuffer) return;
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
     if (!encoder) return;
+    NSMutableArray<id<MTLBuffer>>* transientVertexBuffers = [NSMutableArray array];
     MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawable.texture.width, (NSUInteger)drawable.texture.height};
     if (encoder && self.orenPipelineState) {
         [encoder setRenderPipelineState:self.orenPipelineState];
@@ -1697,7 +1718,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
                          vertexCount:run.vertices.length / sizeof(OrenAVMMetalVertex)];
@@ -1710,7 +1731,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
@@ -1723,7 +1744,7 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            [encoder setVertexBytes:run.vertices.bytes length:run.vertices.length atIndex:0];
+            if (!OrenAVMMetalBindVertexPayload(encoder, self.device, transientVertexBuffers, run.vertices.bytes, run.vertices.length)) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
@@ -1733,6 +1754,13 @@ static void OrenAVMMetalAppendRoundRect(NSMutableData* vertices,
         }
     }
     [encoder endEncoding];
+    if (transientVertexBuffers.count > 0) {
+        NSArray<id<MTLBuffer>>* retainedVertexBuffers = [transientVertexBuffers copy];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> completedBuffer) {
+            (void)completedBuffer;
+            (void)retainedVertexBuffers.count;
+        }];
+    }
     [commandBuffer presentDrawable:drawable];
     [commandBuffer commit];
     self.renderedFrameCount += 1u;
