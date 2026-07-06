@@ -1,5 +1,7 @@
 @myorg.tag(name="avm-bytes-set-endian")
 
+import list "std:list"
+
 fn fail() {
     var a = [1]
     var x = a[2]
@@ -17,21 +19,39 @@ fn main() {
     assert_eq(oren_bytes_set_u16_be(l16, 0, 4660), 4660)
     assert_eq(l16[0], 18)
     assert_eq(l16[1], 52)
+    assert_eq(oren_bytes_get_u16_be(l16, 0), 4660)
 
     var l16n = [0, 0]
     assert_eq(oren_bytes_set_i16_be(l16n, 0, -2), -2)
     assert_eq(l16n[0], 255)
     assert_eq(l16n[1], 254)
+    assert_eq(oren_bytes_get_i16_be(l16n, 0), -2)
 
     var l32 = [0, 0, 0, 0]
     assert_eq(oren_bytes_set_u32_be(l32, 0, 16909060), 16909060)
     assert_eq(l32[0], 1)
     assert_eq(l32[3], 4)
+    assert_eq(oren_bytes_get_u32_be(l32, 0), 16909060)
 
     var l32n = [0, 0, 0, 0]
     assert_eq(oren_bytes_set_i32_be(l32n, 0, -2), -2)
     assert_eq(l32n[0], 255)
     assert_eq(l32n[3], 254)
+    assert_eq(oren_bytes_get_i32_be(l32n, 0), -2)
+
+    var li = list.int_new(0)
+    list.int_push(li, 1)
+    list.int_push(li, 2)
+    list.int_push(li, 3)
+    list.int_push(li, 4)
+    list.int_push(li, 5)
+    list.int_push(li, 6)
+    list.int_push(li, 7)
+    list.int_push(li, 8)
+    assert_eq(oren_bytes_get_u8(li, 0), 1)
+    assert_eq(oren_bytes_get_u16_be(li, 0), 258)
+    assert_eq(oren_bytes_get_u32_le(li, 0), 67305985)
+    assert_eq(oren_bytes_get_u64_be(li, 0), 72623859790382856)
 
     // bytes path
     var b = oren_bytes_from_hex("0000")
@@ -39,6 +59,7 @@ fn main() {
     assert_eq(oren_bytes_set_u16_be(b, 0, 4660), 4660)
     assert_eq(oren_bytes_get_u8(b, 0), 18)
     assert_eq(oren_bytes_get_u8(b, 1), 52)
+    assert_eq(oren_bytes_get_u16_be(b, 0), 4660)
 
     print("avm bytes_set_endian OK")
 }

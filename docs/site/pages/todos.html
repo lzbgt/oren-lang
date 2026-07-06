@@ -3397,6 +3397,12 @@
 </ul>
 <p>  and AVM returns optimized integer lists for unpacked byte buffers.</p>
 <ul>
+<li>AVM <code>oren_bytes_get_u8</code> and endian read/write intrinsics now share</li>
+</ul>
+<p>  overflow-safe byte-span checks across byte buffers, boxed byte lists, and</p>
+<p>  packed <code>LIST_INT</code> read carriers; <code>tests/avm/test_bytes_set_endian.oren</code></p>
+<p>  covers direct endian reads.</p>
+<ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>
 <p>  buffers instead of re-reading each byte in the stdlib loop.</p>

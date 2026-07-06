@@ -2478,6 +2478,10 @@ design evidence lives under `project-doc/`.
   is part of the native quick integration gate.
 - Public `bytes.unpack` routes u8-buffer carriers through kernel byte intrinsics,
   and AVM returns optimized integer lists for unpacked byte buffers.
+- AVM `oren_bytes_get_u8` and endian read/write intrinsics now share
+  overflow-safe byte-span checks across byte buffers, boxed byte lists, and
+  packed `LIST_INT` read carriers; `tests/avm/test_bytes_set_endian.oren`
+  covers direct endian reads.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases
