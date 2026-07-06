@@ -33,6 +33,7 @@ try:
         pack_sectors_xy,
         pack_stars_xy,
     )
+    from scene3d_grid import pack_heightfields_xy, pack_surfaces_xyz, pack_vertices_xy
 except ModuleNotFoundError:
     from scripts.scene3d_gltf import gltf_mesh_data, has_gltf_mesh
     from scripts.scene3d_3mf import has_threemf_mesh, threemf_mesh_data
@@ -59,6 +60,7 @@ except ModuleNotFoundError:
         pack_sectors_xy,
         pack_stars_xy,
     )
+    from scripts.scene3d_grid import pack_heightfields_xy, pack_surfaces_xyz, pack_vertices_xy
 
 
 def color_u32(s):
@@ -1755,6 +1757,8 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = (
                     pack_vertices_xyz(mesh["vertices_xyz"])
                     if mesh.get("vertices_xyz") is not None
+                    else pack_vertices_xy(mesh["vertices_xy"])
+                    if mesh.get("vertices_xy") is not None
                     else bytes(mesh["vertices"])
                 )
                 if len(payload) % 12 != 0:
@@ -1836,6 +1840,10 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_gable_roofs_xy(mesh["gable_roofs_xy"])
             elif mesh.get("pyramids_xy") is not None:
                 payload = pack_pyramids_xy(mesh["pyramids_xy"])
+            elif mesh.get("heightfields_xy") is not None:
+                payload = pack_heightfields_xy(mesh["heightfields_xy"])
+            elif mesh.get("surfaces_xyz") is not None:
+                payload = pack_surfaces_xyz(mesh["surfaces_xyz"])
             elif mesh.get("boxes_xyz") is not None:
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
             elif mesh.get("prisms_xy") is not None:

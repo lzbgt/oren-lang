@@ -462,6 +462,66 @@ def verify_scene3d_flat_arch_lowering():
             raise SystemExit("scene malformed flat architectural shape unexpectedly lowered")
 
 
+def verify_scene3d_grid_lowering():
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{
+            "kind": "indexed",
+            "id": 1,
+            "vertices_xy": [[0, 0], [2, 0], [2, 2], [0, 2]],
+            "quads": [[0, 1, 2, 3]],
+            "color": "#00ffffff",
+        }],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    vertices = packed_xyz(((0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0)))
+    if struct.pack("<I", 48) not in data or vertices not in data:
+        raise SystemExit("scene indexed vertices_xy lowering did not produce expected XYZ payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "heightfields_xy": [{"origin": [0, 0], "step_xy": [2, 2], "z_values": [[0, 1], [2, 3]]}],
+        "color": "#8844ccff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    heightfield = packed_xyz(((0, 0, 0), (2, 0, 1), (2, 2, 3), (0, 0, 0), (2, 2, 3), (0, 2, 2)))
+    if struct.pack("<I", 72) not in data or heightfield not in data:
+        raise SystemExit("scene heightfields_xy lowering did not produce expected grid payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "surfaces_xyz": [{"vertices": [[[0, 0, 0], [2, 0, 1]], [[0, 2, 2], [2, 2, 3]]]}],
+        "color": "#44cc88ff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    surface = packed_xyz(((0, 0, 0), (2, 0, 1), (2, 2, 3), (0, 0, 0), (2, 2, 3), (0, 2, 2)))
+    if struct.pack("<I", 72) not in data or surface not in data:
+        raise SystemExit("scene surfaces_xyz lowering did not produce expected grid payload")
+
+    bad_meshes = [
+        {"kind": "indexed", "id": 1, "vertices_xy": [[0, 0, 0]], "faces": [[0, 0, 0]], "color": "#ffffffff"},
+        {"kind": "indexed", "id": 1, "vertices_xy": [[0, 0]], "faces": [[0, 1, 2]], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "heightfields_xy": [{"z_values": [[0, 1], [2]]}], "color": "#ffffffff"},
+        {"kind": "triangles", "id": 1, "surfaces_xyz": [{"vertices": [[[0, 0, 0], [1, 0, 0]], [[0, 1, 0]]]}], "color": "#ffffffff"},
+    ]
+    for mesh in bad_meshes:
+        try:
+            scene3d_module.scene3d_bin_v0(json.dumps({
+                "schema": "oren.ui.scene3d.v0",
+                "meshes": [mesh],
+                "models": [{"id": 2, "mesh_id": 1}],
+                "draw": [2],
+            }))
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("scene malformed grid/indexed shape unexpectedly lowered")
+
+
 def verify_scene3d_gltf_lowering():
     payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
@@ -1125,6 +1185,7 @@ verify_scene3d_flat_shape_lowering()
 verify_scene3d_flat_line_lowering()
 verify_scene3d_flat_curve_lowering()
 verify_scene3d_flat_arch_lowering()
+verify_scene3d_grid_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()
