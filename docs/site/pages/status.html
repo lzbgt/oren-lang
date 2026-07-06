@@ -2374,11 +2374,11 @@
 <p>completed mutable vertex buffer at every clip/transform/opacity/camera boundary.</p>
 <p>Metal batched text-run construction also transfers completed mutable vertex</p>
 <p>buffers into run ownership instead of copying positioned glyph quads.</p>
-<p>Drawable-independent and live Metal frame preparation now preallocates vertex</p>
-<p>runs from a byte-bounded OGF0 operation count and allocates text/image run</p>
+<p>Drawable-independent and live Metal frame preparation now derives run capacity</p>
+<p>from a byte-bounded OGF0 operation count and allocates geometry/text/image run</p>
 <p>arrays lazily only when those records appear, instead of trusting malformed</p>
-<p>frame headers, growing default arrays, or reserving unused text/image arrays for</p>
-<p>geometry-only frames. Metal text-run</p>
+<p>frame headers, growing default arrays, or reserving unused run arrays for frames</p>
+<p>that do not need them. Metal text-run</p>
 <p>coalescing now avoids copying every non-merged run into mutable vertex storage</p>
 <p>and only allocates mutable coalescing storage when an adjacent compatible run</p>
 <p>actually merges; adjacent batched text runs reuse the first run&#x27;s existing</p>

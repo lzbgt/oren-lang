@@ -154,7 +154,7 @@ def main() -> int:
         fail("retained Metal models must not use dictionary payload records")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("retained Metal model draws must not use string-key dictionary lookups")
-    if "OrenAVMMetalFlushVertexRun(vertexRuns, &vertices, clip, NO)" not in text:
+    if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "static NSUInteger OrenAVMMetalFrameRunCapacity" not in text:
         fail("missing bounded Metal frame run-capacity helper")
@@ -163,14 +163,17 @@ def main() -> int:
     if "static NSMutableArray* OrenAVMMetalEnsureRunArray" not in text:
         fail("missing lazy Metal text/image run-array helper")
     eager_run_arrays = [
+        "NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
         "NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
         "NSMutableArray<OrenAVMMetalImageRun*>* imageRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
     ]
     for pattern in eager_run_arrays:
         if pattern in text:
-            fail("text/image run arrays must be allocated lazily, not eagerly from runCapacity")
-    if text.count("OrenAVMMetalEnsureRunArray(") < 7:
-        fail("expected lazy run-array helper declaration plus text/image add sites")
+            fail("geometry/text/image run arrays must be allocated lazily, not eagerly from runCapacity")
+    if "[NSMutableArray arrayWithCapacity:runCapacity]" in text:
+        fail("Metal frame run arrays must use lazy OrenAVMMetalEnsureRunArray allocation")
+    if text.count("OrenAVMMetalEnsureRunArray(") < 8:
+        fail("expected lazy run-array helper declaration plus geometry/text/image add sites")
 
     in_helper = False
     saw_helper_body = False
