@@ -422,7 +422,8 @@ static int OrenAVMRuntimeWebSocketWriteText(int fd, const uint8_t* data, size_t 
     if (len > 65535u) return -1;
     size_t headerLen = len < 126u ? 6u : 8u;
     size_t frameLen = headerLen + len;
-    uint8_t* frame = (uint8_t*)malloc(frameLen);
+    uint8_t inlineFrame[2048];
+    uint8_t* frame = frameLen <= sizeof(inlineFrame) ? inlineFrame : (uint8_t*)malloc(frameLen);
     if (!frame) return -1;
     size_t off = 0;
     frame[off++] = 0x81u;
@@ -439,7 +440,7 @@ static int OrenAVMRuntimeWebSocketWriteText(int fd, const uint8_t* data, size_t 
     off += sizeof(mask);
     for (size_t i = 0; i < len; i++) frame[off + i] = data[i] ^ mask[i & 3u];
     int rc = OrenAVMRuntimeSendAll(fd, frame, frameLen);
-    free(frame);
+    if (frame != inlineFrame) free(frame);
     return rc;
 }
 

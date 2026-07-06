@@ -34,6 +34,7 @@ def main() -> int:
         "NSMutableData* response",
         "appendBytes:tmp",
         "initWithData:response",
+        "uint8_t* frame = (uint8_t*)malloc(frameLen)",
     ]
     for needle in forbidden:
         if needle in text:
@@ -53,6 +54,9 @@ def main() -> int:
         "uint8_t keyBytes[16]",
         "uint8_t response[8192]",
         "[[NSString alloc] initWithBytes:response length:responseLen encoding:NSASCIIStringEncoding]",
+        "uint8_t inlineFrame[2048]",
+        "uint8_t* frame = frameLen <= sizeof(inlineFrame) ? inlineFrame : (uint8_t*)malloc(frameLen)",
+        "if (frame != inlineFrame) free(frame)",
     ]
     for needle in required:
         if needle not in text:

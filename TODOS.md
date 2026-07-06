@@ -2721,6 +2721,8 @@ design evidence lives under `project-doc/`.
 - The iOS SDK host-backed WebSocket handshake path now generates keys, sends the
   ASCII upgrade request, and accumulates the response header through raw
   stack-first buffers instead of transient `NSData`/`NSMutableData` wrappers.
+- iOS host-backed WebSocket session writes now build small masked text frames in
+  a stack buffer, falling back to heap only beyond the inline frame capacity.
 - `OrenAVMRunResult` now preserves immutable no-copy stdout data without
   recopying it, while still copying mutable inputs defensively.
 - The iOS package installer now borrows stored ZIP entry byte slices directly

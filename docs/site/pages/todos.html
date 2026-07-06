@@ -3798,6 +3798,10 @@
 <p>  ASCII upgrade request, and accumulates the response header through raw</p>
 <p>  stack-first buffers instead of transient <code>NSData</code>/<code>NSMutableData</code> wrappers.</p>
 <ul>
+<li>iOS host-backed WebSocket session writes now build small masked text frames in</li>
+</ul>
+<p>  a stack buffer, falling back to heap only beyond the inline frame capacity.</p>
+<ul>
 <li><code>OrenAVMRunResult</code> now preserves immutable no-copy stdout data without</li>
 </ul>
 <p>  recopying it, while still copying mutable inputs defensively.</p>

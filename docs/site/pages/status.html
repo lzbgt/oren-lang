@@ -2466,12 +2466,13 @@
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>
 <p>still copying mutable inputs defensively, and the package installer borrows</p>
 <p>stored ZIP entry slices from the release bundle during CRC/write instead of</p>
-<p>copying each stored entry. Package-store hex decode, raw-deflate inflation, and</p>
-<p>publisher signature message wrapping use raw/no-copy buffers instead of</p>
-<p><code>NSMutableData</code> or string-to-<code>NSData</code> copy helpers, and CompilerKit</p>
-<p><code>compileSource</code> encodes source strings into stack-first raw UTF-8 buffers before</p>
-<p>the synchronous VFS copy. <code>make verify-libavm-ios</code> guards these byte ownership</p>
-<p>contracts.</p>
+<p>copying each stored entry. Host-backed WebSocket session writes build small</p>
+<p>masked text frames in a stack buffer and fall back to heap only beyond the inline</p>
+<p>frame capacity. Package-store hex decode, raw-deflate inflation, and publisher</p>
+<p>signature message wrapping use raw/no-copy buffers instead of <code>NSMutableData</code> or</p>
+<p>string-to-<code>NSData</code> copy helpers, and CompilerKit <code>compileSource</code> encodes source</p>
+<p>strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.</p>
+<p><code>make verify-libavm-ios</code> guards these byte ownership contracts.</p>
 <p>  <code>make capture-ios-live-3d-performance</code> now builds a generated iPhoneOS app</p>
 <p>  harness that runs the 3D OBC program concurrently with <code>OrenAVMMetalView</code>,</p>
 <p>  republishes animated frames from host <code>frame_tick</code> events, records device</p>
