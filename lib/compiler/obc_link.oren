@@ -62,7 +62,7 @@ fn _view_starts_with(v, prefix_str) {
     if byte_view.view_len(v) < pn { return false }
     var i = 0
     while i < pn {
-        if byte_view.u8_at(v, i) != _string_u8_at(prefix_str, i) { return false }
+        if byte_view.u8_at_unchecked(v, i) != _string_u8_at(prefix_str, i) { return false }
         i = i + 1
     }
     return true
@@ -76,7 +76,7 @@ fn _metadata_json_from_view(v) {
 
 fn _decode_string_u16_view(v, pos) {
     if !byte_view.span_ok(v, pos, 2) { return {"error": "truncated OBX string length", "next": pos} }
-    var len = byte_view.u16_le_at(v, pos)
+    var len = byte_view.u16_le_at_unchecked(v, pos)
     var start = pos + 2
     if !byte_view.span_ok(v, start, len) { return {"error": "truncated OBX string", "next": start + len} }
     return {"value": oren_string_from_bytes_slice(byte_view.bytes(v), start, len), "next": start + len}
@@ -183,7 +183,7 @@ fn obx_decode(obx_bytes) {
 
     var exports = {}
     if !byte_view.span_ok(obxv, pos, 2) { return {"error": "truncated OBX export count"} }
-    var n_exports = byte_view.u16_le_at(obxv, pos)
+    var n_exports = byte_view.u16_le_at_unchecked(obxv, pos)
     pos = pos + 2
     var i = 0
     while i < n_exports {
@@ -192,7 +192,7 @@ fn obx_decode(obx_bytes) {
         var name = dn["value"]
         pos = dn["next"]
         if !byte_view.span_ok(obxv, pos, 4) { return {"error": "truncated OBX export address"} }
-        var addr = byte_view.u32_le_at(obxv, pos)
+        var addr = byte_view.u32_le_at_unchecked(obxv, pos)
         pos = pos + 4
         exports[name] = addr
         i = i + 1
@@ -200,7 +200,7 @@ fn obx_decode(obx_bytes) {
 
     var relocs = []
     if !byte_view.span_ok(obxv, pos, 2) { return {"error": "truncated OBX reloc count"} }
-    var n_relocs = byte_view.u16_le_at(obxv, pos)
+    var n_relocs = byte_view.u16_le_at_unchecked(obxv, pos)
     pos = pos + 2
     var j = 0
     while j < n_relocs {
@@ -209,20 +209,20 @@ fn obx_decode(obx_bytes) {
         var rname = dn2["value"]
         pos = dn2["next"]
         if !byte_view.span_ok(obxv, pos, 5) { return {"error": "truncated OBX reloc entry"} }
-        var rpos = byte_view.u32_le_at(obxv, pos)
+        var rpos = byte_view.u32_le_at_unchecked(obxv, pos)
         pos = pos + 4
-        var kind = byte_view.u8_at(obxv, pos)
+        var kind = byte_view.u8_at_unchecked(obxv, pos)
         pos = pos + 1
         oren_list_push(relocs, {"name": rname, "pos": rpos, "kind": kind})
         j = j + 1
     }
 
     var surface = {"function_returns": {}, "impl_methods": {}, "impl_trait_methods": {}, "traits": []}
-    if pos + 4 <= byte_view.view_len(obxv) {
-        if byte_view.u8_at(obxv, pos) == 83 && byte_view.u8_at(obxv, pos + 1) == 85 && byte_view.u8_at(obxv, pos + 2) == 82 && byte_view.u8_at(obxv, pos + 3) == 70 {
+    if byte_view.span_ok(obxv, pos, 4) {
+        if byte_view.u8_at_unchecked(obxv, pos) == 83 && byte_view.u8_at_unchecked(obxv, pos + 1) == 85 && byte_view.u8_at_unchecked(obxv, pos + 2) == 82 && byte_view.u8_at_unchecked(obxv, pos + 3) == 70 {
             pos = pos + 4
             if !byte_view.span_ok(obxv, pos, 2) { return {"error": "truncated OBX surface return count"} }
-            var n_returns = byte_view.u16_le_at(obxv, pos)
+            var n_returns = byte_view.u16_le_at_unchecked(obxv, pos)
             pos = pos + 2
             var ri2 = 0
             while ri2 < n_returns {
@@ -239,7 +239,7 @@ fn obx_decode(obx_bytes) {
             }
 
             if !byte_view.span_ok(obxv, pos, 2) { return {"error": "truncated OBX surface impl count"} }
-            var n_impls = byte_view.u16_le_at(obxv, pos)
+            var n_impls = byte_view.u16_le_at_unchecked(obxv, pos)
             pos = pos + 2
             var ii2 = 0
             while ii2 < n_impls {
@@ -387,10 +387,10 @@ fn obc_write_file(out_path, obc) {
 fn obc_parse_bytes(bs) {
     var bsv = byte_view.view(bs)
     if bs == nil || byte_view.view_len(bsv) < 4 { return {"error": "obc too short"} }
-    if byte_view.u8_at(bsv, 0) != 205 || byte_view.u8_at(bsv, 1) != 14 { return {"error": "bad obc magic"} }
+    if byte_view.u8_at_unchecked(bsv, 0) != 205 || byte_view.u8_at_unchecked(bsv, 1) != 14 { return {"error": "bad obc magic"} }
 
     var pos = 2
-    var n_consts = byte_view.u16_le_at(bsv, pos)
+    var n_consts = byte_view.u16_le_at_unchecked(bsv, pos)
     pos = pos + 2
     var consts = []
     var obx = nil
@@ -399,32 +399,32 @@ fn obc_parse_bytes(bs) {
     var i = 0
     while i < n_consts {
         if pos >= byte_view.view_len(bsv) { return {"error": "truncated constants"} }
-        var tag = byte_view.u8_at(bsv, pos)
+        var tag = byte_view.u8_at_unchecked(bsv, pos)
         pos = pos + 1
         if tag == 0 {
             oren_list_push(consts, {"type": "Nil"})
         } else {
             if tag == 1 {
                 if !byte_view.span_ok(bsv, pos, 8) { return {"error": "truncated integer constant"} }
-                var v = byte_view.u64_le_at(bsv, pos)
+                var v = byte_view.u64_le_at_unchecked(bsv, pos)
                 pos = pos + 8
                 oren_list_push(consts, {"type": "Integer", "value": v})
             } else {
                 if tag == 2 {
                     if !byte_view.span_ok(bsv, pos, 1) { return {"error": "truncated bool constant"} }
-                    var b = byte_view.u8_at(bsv, pos)
+                    var b = byte_view.u8_at_unchecked(bsv, pos)
                     pos = pos + 1
                     oren_list_push(consts, {"type": "Bool", "value": b})
                 } else {
                     if tag == 3 {
                         if !byte_view.span_ok(bsv, pos, 8) { return {"error": "truncated float constant"} }
-                        var bits = byte_view.u64_le_at(bsv, pos)
+                        var bits = byte_view.u64_le_at_unchecked(bsv, pos)
                         pos = pos + 8
                         oren_list_push(consts, {"type": "Float", "value": bits})
                     } else {
                         if tag == 4 {
                             if !byte_view.span_ok(bsv, pos, 2) { return {"error": "truncated string length"} }
-                            var sl = byte_view.u16_le_at(bsv, pos)
+                            var sl = byte_view.u16_le_at_unchecked(bsv, pos)
                             pos = pos + 2
                             if !byte_view.span_ok(bsv, pos, sl) { return {"error": "truncated string constant"} }
                             var sval = oren_string_from_bytes_slice(bs, pos, sl)
@@ -433,7 +433,7 @@ fn obc_parse_bytes(bs) {
                         } else {
                             if tag == 8 {
                                 if !byte_view.span_ok(bsv, pos, 4) { return {"error": "truncated bytes length"} }
-                                var bl = byte_view.u32_le_at(bsv, pos)
+                                var bl = byte_view.u32_le_at_unchecked(bsv, pos)
                                 pos = pos + 4
                                 if !byte_view.span_ok(bsv, pos, bl) { return {"error": "truncated bytes constant"} }
                                 var bb = oren_u8_buf_from_bytes_slice(bs, pos, bl)
@@ -479,10 +479,10 @@ fn obc_global_count(code) {
     var max_idx = -1
     var n_code = byte_view.view_len(cv)
     while i < n_code {
-        var op = byte_view.u8_at(cv, i)
+        var op = byte_view.u8_at_unchecked(cv, i)
         if op == codegen_bytecode.AVM_LOAD_GLOBAL || op == codegen_bytecode.AVM_STORE_GLOBAL {
             if i + 2 >= n_code { break }
-            var idx = byte_view.u16_le_at(cv, i + 1)
+            var idx = byte_view.u16_le_at_unchecked(cv, i + 1)
             if idx > max_idx { max_idx = idx }
             i = i + 3
             continue
@@ -494,7 +494,7 @@ fn obc_global_count(code) {
 }
 
 fn obc_opcode_len_view(cv, i) {
-    var op = byte_view.u8_at(cv, i)
+    var op = byte_view.u8_at_unchecked(cv, i)
     if op == codegen_bytecode.AVM_PUSH_CONST { return 3 }
     if op == codegen_bytecode.AVM_LOAD_LOCAL { return 2 }
     if op == codegen_bytecode.AVM_STORE_LOCAL { return 2 }
@@ -539,7 +539,7 @@ fn _append_patched_code(out, code, code_len_eff, const_base, global_base, code_b
     var cv = byte_view.view(code)
     var i = 0
     while i < code_len_eff {
-        var op = byte_view.u8_at(cv, i)
+        var op = byte_view.u8_at_unchecked(cv, i)
         var ilen = obc_opcode_len_view(cv, i)
         if op == codegen_bytecode.AVM_PUSH_CONST {
             var idx = byte_view.u16_le_at(cv, i + 1)
@@ -618,7 +618,7 @@ fn obc_link(obcs) {
         var code_len_eff = byte_view.len(code)
         if mi < (oren_list_len(obcs) - 1) {
             var code_view_for_tail = byte_view.view(code)
-            if code_len_eff > 0 && byte_view.u8_at(code_view_for_tail, code_len_eff - 1) == codegen_bytecode.AVM_HALT {
+            if code_len_eff > 0 && byte_view.u8_at_unchecked(code_view_for_tail, code_len_eff - 1) == codegen_bytecode.AVM_HALT {
                 code_len_eff = code_len_eff - 1
             }
         }
