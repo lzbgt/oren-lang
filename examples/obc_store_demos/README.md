@@ -23,7 +23,7 @@ human-readable `vertices_xyz` / `faces` or `quads` coordinate arrays, builder-si
 glTF 2.0 JSON/GLB `gltf_source` plus inline JSON `gltf_json` with sparse accessors, static `POSITION` and `COLOR_0` morph target weights, baked skinning, sampled glTF animation, material×`COLOR_0`, triangle/strip/fan topology, and explicit node or scene TRS/matrix selection, Wavefront OBJ `obj_source` / `obj_text`,
 binary-or-ASCII STL `stl_source`,
 inline ASCII STL `stl_text`, binary-or-ASCII PLY `ply_source`,
-inline ASCII PLY `ply_text`, PLY face/vertex colors lowered to `mesh3d_rgba`, and core 3MF `3mf_source` ZIP mesh/build plus basematerial `displaycolor` lowering and optional `3mf_triangle_set` selection, `triangles_xyz` / `quads_xyz` or flat `triangles_xy` / `quads_xy` direct meshes, flat per-triangle-color `triangles_xy_rgba` / `quads_xy_rgba`, compact boxes/prisms and bounded
+inline ASCII PLY `ply_text`, PLY face/vertex colors lowered to `mesh3d_rgba`, and core 3MF `3mf_source` ZIP mesh/build plus basematerial `displaycolor` lowering and optional `3mf_triangle_set` selection, `triangles_xyz` / `quads_xyz` or flat `triangles_xy` / `quads_xy` direct meshes, flat per-triangle-color `triangles_xy_rgba` / `quads_xy_rgba`, rectangular `planes_xy` / `rects_xy`, flat `polygons_xy`, compact boxes/prisms and bounded
 cylinders/cones/spheres/ellipsoids/toruses/capsules, per-triangle `triangles_xyz_rgba` colors,
 richer material fields (`base_color`,
 `opacity_milli`, `roughness_milli`, `metallic_milli`), and sampled transform

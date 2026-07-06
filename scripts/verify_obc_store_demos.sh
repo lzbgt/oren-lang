@@ -125,6 +125,72 @@ def verify_scene3d_flat_xy_lowering():
         raise SystemExit("scene malformed triangles_xy unexpectedly lowered")
 
 
+def verify_scene3d_flat_shape_lowering():
+    scene = {
+        "schema": "oren.ui.scene3d.v0",
+        "meshes": [{
+            "kind": "triangles",
+            "id": 1,
+            "planes_xy": [{"min_xy": [1, 2], "max_xy": [5, 6], "z_milli": 7}],
+            "color": "#8899aaff",
+        }],
+        "models": [{"id": 2, "mesh_id": 1}],
+        "draw": [2],
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    plane_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((1, 2, 7), (5, 2, 7), (5, 6, 7), (1, 2, 7), (5, 6, 7), (1, 6, 7))
+    )
+    if struct.pack("<I", 72) not in data or plane_payload not in data:
+        raise SystemExit("scene planes_xy lowering did not produce expected rectangle payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "rects_xy": [{"origin_xyz": [2, 3, 4], "size_xy": [5, 6]}],
+        "color": "#8899aaff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    rect_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((2, 3, 4), (7, 3, 4), (7, 9, 4), (2, 3, 4), (7, 9, 4), (2, 9, 4))
+    )
+    if struct.pack("<I", 72) not in data or rect_payload not in data:
+        raise SystemExit("scene rects_xy lowering did not produce expected origin/size payload")
+
+    scene["meshes"][0] = {
+        "kind": "triangles",
+        "id": 1,
+        "polygons_xy": [{"points_xy": [[0, 0], [4, 0], [4, 4], [0, 4]], "z": 8}],
+        "color": "#8899aaff",
+    }
+    data = scene3d_module.scene3d_bin_v0(json.dumps(scene))
+    polygon_payload = b"".join(
+        struct.pack("<iii", *v)
+        for v in ((0, 0, 8), (4, 0, 8), (4, 4, 8), (0, 0, 8), (4, 4, 8), (0, 4, 8))
+    )
+    if struct.pack("<I", 72) not in data or polygon_payload not in data:
+        raise SystemExit("scene polygons_xy lowering did not produce expected fan payload")
+
+    try:
+        scene3d_module.scene3d_bin_v0(json.dumps({
+            "schema": "oren.ui.scene3d.v0",
+            "meshes": [{
+                "kind": "triangles",
+                "id": 1,
+                "polygons_xy": [{"points": [[0, 0], [1, 0]], "z": 0}],
+                "color": "#ffffffff",
+            }],
+            "models": [{"id": 2, "mesh_id": 1}],
+            "draw": [2],
+        }))
+    except SystemExit:
+        pass
+    else:
+        raise SystemExit("scene malformed polygons_xy unexpectedly lowered")
+
+
 def verify_scene3d_gltf_lowering():
     payload = bytearray()
     for vertex in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
@@ -784,6 +850,7 @@ def verify_scene3d_3mf_lowering():
 
 verify_scene3d_obj_lowering()
 verify_scene3d_flat_xy_lowering()
+verify_scene3d_flat_shape_lowering()
 verify_scene3d_gltf_lowering()
 verify_scene3d_stl_lowering()
 verify_scene3d_ply_lowering()

@@ -779,6 +779,73 @@ def pack_quads_xy_rgba(quads):
     return bytes(out)
 
 
+def flat_xy_pair(value, key, label):
+    if not isinstance(value, list) or len(value) != 2:
+        raise SystemExit(f"scene {key} {label} must be [x,y]")
+    return int(value[0]), int(value[1])
+
+
+def flat_xy_rect_bounds(item, key):
+    if not isinstance(item, dict):
+        raise SystemExit(f"scene {key} entries must be objects")
+    lo = item.get("min", item.get("min_xy"))
+    hi = item.get("max", item.get("max_xy"))
+    if lo is not None or hi is not None:
+        x0, y0 = flat_xy_pair(lo, key, "min")
+        x1, y1 = flat_xy_pair(hi, key, "max")
+        z = flat_xy_z(item, key)
+    else:
+        origin = item.get("origin", item.get("origin_xyz"))
+        if not isinstance(origin, list) or len(origin) != 3:
+            raise SystemExit(f"scene {key} origin must be [x,y,z]")
+        size = item.get("size", item.get("size_xy"))
+        w, h = flat_xy_pair(size, key, "size")
+        x0, y0, z = int(origin[0]), int(origin[1]), int(origin[2])
+        x1, y1 = x0 + w, y0 + h
+    if x1 <= x0 or y1 <= y0:
+        raise SystemExit(f"scene {key} max must be greater than min")
+    return x0, y0, x1, y1, z
+
+
+def flat_xy_rect_triangles(item, key):
+    x0, y0, x1, y1, z = flat_xy_rect_bounds(item, key)
+    return [
+        [[x0, y0, z], [x1, y0, z], [x1, y1, z]],
+        [[x0, y0, z], [x1, y1, z], [x0, y1, z]],
+    ]
+
+
+def pack_flat_xy_rects(items, key):
+    triangles = []
+    for item in items:
+        triangles.extend(flat_xy_rect_triangles(item, key))
+    return pack_triangles_xyz(triangles)
+
+
+def polygon_points_xy(poly, key):
+    if not isinstance(poly, dict):
+        raise SystemExit(f"scene {key} entries must be objects")
+    points = poly.get("points", poly.get("points_xy"))
+    if not isinstance(points, list) or len(points) < 3 or len(points) > 128:
+        raise SystemExit(f"scene {key} points must contain 3..128 [x,y] entries")
+    return [flat_xy_pair(point, key, "point") for point in points]
+
+
+def pack_polygons_xy(polygons):
+    triangles = []
+    for poly in polygons:
+        points = polygon_points_xy(poly, "polygons_xy")
+        z = flat_xy_z(poly, "polygons_xy")
+        p0 = points[0]
+        for i in range(1, len(points) - 1):
+            p1 = points[i]
+            p2 = points[i + 1]
+            triangles.append([[p0[0], p0[1], z], [p1[0], p1[1], z], [p2[0], p2[1], z]])
+    if len(triangles) > 2048:
+        raise SystemExit("scene polygons_xy exceed mesh3d triangle budget")
+    return pack_triangles_xyz(triangles)
+
+
 def box_min_max(box):
     if not isinstance(box, dict):
         raise SystemExit("scene boxes_xyz entries must be objects")
@@ -1526,6 +1593,12 @@ def scene3d_bin_v0(scene_bytes, base_dir=None):
                 payload = pack_triangles_xy(mesh["triangles_xy"])
             elif mesh.get("quads_xy") is not None:
                 payload = pack_quads_xy(mesh["quads_xy"])
+            elif mesh.get("planes_xy") is not None:
+                payload = pack_flat_xy_rects(mesh["planes_xy"], "planes_xy")
+            elif mesh.get("rects_xy") is not None:
+                payload = pack_flat_xy_rects(mesh["rects_xy"], "rects_xy")
+            elif mesh.get("polygons_xy") is not None:
+                payload = pack_polygons_xy(mesh["polygons_xy"])
             elif mesh.get("boxes_xyz") is not None:
                 payload = pack_boxes_xyz(mesh["boxes_xyz"])
             elif mesh.get("prisms_xy") is not None:
