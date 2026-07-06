@@ -3587,6 +3587,11 @@
 <p>  while text texture quads append into caller-owned mutable vertex buffers</p>
 <p>  instead of allocating tiny <code>NSData</code> wrappers from stack vertices.</p>
 <ul>
+<li>Metal text cache misses now share a typed view-owned UIKit attribute cache</li>
+</ul>
+<p>  with a scalar one-entry MRU before boxed dictionary-key lookup for repeated</p>
+<p>  same-color labels.</p>
+<ul>
 <li>Private Metal retained run/resource records and the raw payload-copy helper now</li>
 </ul>
 <p>  live in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to 1874 lines</p>

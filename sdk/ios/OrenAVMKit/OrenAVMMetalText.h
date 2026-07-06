@@ -52,6 +52,12 @@ typedef struct {
 @property(nonatomic) NSUInteger rowHeight;
 @end
 
+@interface OrenAVMMetalTextAttributeCache : NSObject
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* entries;
+@property(nonatomic) uint32_t lastRGBA;
+@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* lastAttributes;
+@end
+
 void OrenAVMMetalClearTextTextureCache(NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                        NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
                                        NSUInteger* pixels);
@@ -85,7 +91,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                OrenAVMMetalTextAtlas** atlas,
                                                NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                                NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
-                                               NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
+                                               OrenAVMMetalTextAttributeCache* attributesCache,
                                                NSUInteger* cachePixels,
                                                NSString* text,
                                                float x,
@@ -100,7 +106,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
                                                     OrenAVMMetalTextAtlas** atlas,
                                                     NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                                     NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
-                                                    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
+                                                    OrenAVMMetalTextAttributeCache* attributesCache,
                                                     NSUInteger* cachePixels,
                                                     NSString* text,
                                                     const uint8_t* positions,

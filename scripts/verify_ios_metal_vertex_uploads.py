@@ -61,10 +61,21 @@ def main() -> int:
         fail("Metal text cache hits must return before looking up UIKit attributes")
     if "OrenAVMMetalTextAttributeCacheEntryLimit = 256u" not in text_source:
         fail("Metal text attribute cache must stay bounded")
-    if "NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes" not in text:
-        fail("Metal text attributes must be cached by packed RGBA on the view")
+    if "OrenAVMMetalTextAttributeCache* orenTextAttributes" not in text:
+        fail("Metal text attributes must be cached through a typed view-owned cache")
     if text.count("self.orenTextAttributes") < 4:
         fail("Metal text creation paths must share the view-owned attribute cache")
+    if "@interface OrenAVMMetalTextAttributeCache : NSObject" not in text_header:
+        fail("Metal text attributes must use a typed cache object")
+    attr_helper_start = text_source.find("static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGBA")
+    attr_helper_end = text_source.find("void OrenAVMMetalClearTextTextureCache", attr_helper_start)
+    if attr_helper_start < 0 or attr_helper_end < 0:
+        fail("missing Metal text attribute helper body")
+    attr_helper = text_source[attr_helper_start:attr_helper_end]
+    mru_pos = attr_helper.find("cache.lastAttributes && cache.lastRGBA == rgbaValue")
+    boxed_key_pos = attr_helper.find("NSNumber* key = @(rgbaValue)")
+    if mru_pos < 0 or boxed_key_pos < 0 or mru_pos > boxed_key_pos:
+        fail("Metal repeated-color text attributes must hit a scalar MRU before boxing NSNumber keys")
     if "[NSString stringWithFormat:" in text_source:
         fail("Metal text cache keys must stay typed objects instead of formatted strings")
     if "@interface OrenAVMMetalTextCacheKey : NSObject <NSCopying>" not in text_header:

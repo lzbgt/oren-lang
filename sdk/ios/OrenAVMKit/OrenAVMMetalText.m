@@ -62,6 +62,9 @@
 @implementation OrenAVMMetalTextAtlas
 @end
 
+@implementation OrenAVMMetalTextAttributeCache
+@end
+
 static const NSUInteger OrenAVMMetalTextCachePixelLimit = 8u * 1024u * 1024u;
 static const NSUInteger OrenAVMMetalTextCacheEntryLimit = 256u;
 static const NSUInteger OrenAVMMetalTextAttributeCacheEntryLimit = 256u;
@@ -170,16 +173,22 @@ static void OrenAVMMetalClearTextAtlasPadding(id<MTLTexture> texture,
 }
 
 static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGBA(
-    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* cache,
+    OrenAVMMetalTextAttributeCache* cache,
     const uint8_t* rgba) {
     if (!rgba) return nil;
     uint32_t rgbaValue = (uint32_t)rgba[0] |
         ((uint32_t)rgba[1] << 8) |
         ((uint32_t)rgba[2] << 16) |
         ((uint32_t)rgba[3] << 24);
+    if (cache.lastAttributes && cache.lastRGBA == rgbaValue) return cache.lastAttributes;
+    if (cache && !cache.entries) cache.entries = [NSMutableDictionary dictionary];
     NSNumber* key = @(rgbaValue);
-    NSDictionary<NSAttributedStringKey, id>* cached = cache[key];
-    if (cached) return cached;
+    NSDictionary<NSAttributedStringKey, id>* cached = cache.entries[key];
+    if (cached) {
+        cache.lastRGBA = rgbaValue;
+        cache.lastAttributes = cached;
+        return cached;
+    }
     static UIFont* font = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -193,7 +202,9 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGB
         NSForegroundColorAttributeName: color,
         NSFontAttributeName: font
     };
-    if (cache && cache.count < OrenAVMMetalTextAttributeCacheEntryLimit) cache[key] = attrs;
+    if (cache && cache.entries.count < OrenAVMMetalTextAttributeCacheEntryLimit) cache.entries[key] = attrs;
+    cache.lastRGBA = rgbaValue;
+    cache.lastAttributes = attrs;
     return attrs;
 }
 
@@ -211,7 +222,7 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     OrenAVMMetalTextAtlas** atlas,
     NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
     NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
-    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
+    OrenAVMMetalTextAttributeCache* attributesCache,
     NSUInteger* cachePixels,
     NSString* text,
     const uint8_t* rgba) {
@@ -378,7 +389,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
                                                OrenAVMMetalTextAtlas** atlas,
                                                NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                                NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
-                                               NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
+                                               OrenAVMMetalTextAttributeCache* attributesCache,
                                                NSUInteger* cachePixels,
                                                NSString* text,
                                                float x,
@@ -412,7 +423,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
                                                     OrenAVMMetalTextAtlas** atlas,
                                                     NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* cache,
                                                     NSMutableArray<OrenAVMMetalTextCacheKey*>* order,
-                                                    NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* attributesCache,
+                                                    OrenAVMMetalTextAttributeCache* attributesCache,
                                                     NSUInteger* cachePixels,
                                                     NSString* text,
                                                     const uint8_t* positions,

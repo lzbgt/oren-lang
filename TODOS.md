@@ -2594,6 +2594,9 @@ design evidence lives under `project-doc/`.
 - Single Metal image texture quads now stay inline in fixed image-run storage,
   while text texture quads append into caller-owned mutable vertex buffers
   instead of allocating tiny `NSData` wrappers from stack vertices.
+- Metal text cache misses now share a typed view-owned UIKit attribute cache
+  with a scalar one-entry MRU before boxed dictionary-key lookup for repeated
+  same-color labels.
 - Private Metal retained run/resource records and the raw payload-copy helper now
   live in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to 1874 lines
   and preserving source-line guardrail headroom for continued renderer work.
