@@ -396,6 +396,15 @@ if ! grep -Fq 'var frame_hdr = malloc(14)' lib/std/net/ws.oren ||
   echo "ERROR: native WebSocket recv_text must use one fixed frame-prefix scratch buffer, not multiple small header/ext/mask allocations" >&2
   exit 1
 fi
+ws_send_impl="$(sed -n '/fn _send_frame_raw/,/fn _send_frame_str/p' lib/std/net/ws.oren)"
+if ! grep -Fq 'if masked != 1 {' <<<"$ws_send_impl" ||
+  ! grep -Fq 'var hdr = malloc(14)' <<<"$ws_send_impl" ||
+  ! grep -Fq 'var pw = _io_write_from(conn, payload_ptr, payload_len, timeout_ms)' <<<"$ws_send_impl" ||
+  ! grep -Fq 'var mask_bytes = 4' <<<"$ws_send_impl" ||
+  grep -Fq 'if payload_len > 0 { oren_memcpy(buf + payload_off, payload_ptr, payload_len) }' <<<"$ws_send_impl"; then
+  echo "ERROR: native WebSocket unmasked sends must stream raw payload spans after a compact header instead of copying into full-frame buffers" >&2
+  exit 1
+fi
 
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||

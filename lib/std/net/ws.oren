@@ -715,8 +715,32 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     else if payload_len < 65536 { ext = 2 }
     else { ext = 8 }
 
-    var mask_bytes = 0
-    if masked == 1 { mask_bytes = 4 }
+    if masked != 1 {
+        var hdr_len = 2 + ext
+        var hdr = malloc(14)
+        if hdr == 0 { return 0 - 12 } // ENOMEM
+        ptr_set_byte(hdr + 0, 128 | (opcode & 15))
+        if ext == 0 {
+            ptr_set_byte(hdr + 1, payload_len & 127)
+        } else if ext == 2 {
+            ptr_set_byte(hdr + 1, 126)
+            _write_u16_be(hdr, 2, payload_len)
+        } else {
+            ptr_set_byte(hdr + 1, 127)
+            _write_u64_be(hdr, 2, payload_len)
+        }
+        var hw = _io_write_from(conn, hdr, hdr_len, timeout_ms)
+        free(hdr)
+        if hw < 0 { return hw }
+        if hw != hdr_len { return 0 - 5 } // EIO
+        if payload_len <= 0 { return 0 }
+        var pw = _io_write_from(conn, payload_ptr, payload_len, timeout_ms)
+        if pw < 0 { return pw }
+        if pw != payload_len { return 0 - 5 } // EIO
+        return 0
+    }
+
+    var mask_bytes = 4
     var total = 2 + ext + mask_bytes + payload_len
     total = native_canon_i32_arg(total)
     var buf = malloc(total)
@@ -724,15 +748,13 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
 
     // FIN=1, opcode
     ptr_set_byte(buf + 0, 128 | (opcode & 15))
-    var b1 = 0
-    if masked == 1 { b1 = 128 } // mask bit
     if ext == 0 {
-        ptr_set_byte(buf + 1, b1 | (payload_len & 127))
+        ptr_set_byte(buf + 1, 128 | (payload_len & 127))
     } else if ext == 2 {
-        ptr_set_byte(buf + 1, b1 | 126)
+        ptr_set_byte(buf + 1, 128 | 126)
         _write_u16_be(buf, 2, payload_len)
     } else {
-        ptr_set_byte(buf + 1, b1 | 127)
+        ptr_set_byte(buf + 1, 128 | 127)
         _write_u64_be(buf, 2, payload_len)
     }
 
@@ -743,26 +765,20 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     var mask3 = 0
 
     var payload_off = 2 + ext
-    if masked == 1 {
-        var rc_r = rand.fill_raw(buf + payload_off, 4)
-        if rc_r < 0 { free(buf); return rc_r }
-        mask0 = ptr_get_byte(buf + payload_off + 0) & 255
-        mask1 = ptr_get_byte(buf + payload_off + 1) & 255
-        mask2 = ptr_get_byte(buf + payload_off + 2) & 255
-        mask3 = ptr_get_byte(buf + payload_off + 3) & 255
-        payload_off = payload_off + 4
-    }
+    var rc_r = rand.fill_raw(buf + payload_off, 4)
+    if rc_r < 0 { free(buf); return rc_r }
+    mask0 = ptr_get_byte(buf + payload_off + 0) & 255
+    mask1 = ptr_get_byte(buf + payload_off + 1) & 255
+    mask2 = ptr_get_byte(buf + payload_off + 2) & 255
+    mask3 = ptr_get_byte(buf + payload_off + 3) & 255
+    payload_off = payload_off + 4
 
-    if masked == 0 {
-        if payload_len > 0 { oren_memcpy(buf + payload_off, payload_ptr, payload_len) }
-    } else {
-        var i = 0
-        while i < payload_len {
-            var b = ptr_get_byte(payload_ptr + i) & 255
-            b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i)
-            ptr_set_byte(buf + payload_off + i, b)
-            i = i + 1
-        }
+    var i = 0
+    while i < payload_len {
+        var b = ptr_get_byte(payload_ptr + i) & 255
+        b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i)
+        ptr_set_byte(buf + payload_off + i, b)
+        i = i + 1
     }
 
     // Rolling correctness guard (Win64 bring-up):
