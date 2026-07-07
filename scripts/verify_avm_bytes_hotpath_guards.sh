@@ -697,6 +697,14 @@ if ! grep -Fq 'ptr_set_byte(data + i, xs[i] & 255)' <<<"$buffer_raw_pack_into_im
   exit 1
 fi
 
+buffer_u8_mat_pack_impl="$(sed -n '/fn u8_mat_pack_rows/,/fn u8_mat_unpack_rows/p;/fn u8_mat_pack_strings/,/fn u8_mat_unpack_strings/p' lib/std/buffer/mat_u8.oren)"
+if ! grep -Fq 'ptr_set_byte(data + i, v & 255)' <<<"$buffer_u8_mat_pack_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + i, oren_string_byte_at_unchecked(row, c) & 255)' <<<"$buffer_u8_mat_pack_impl" ||
+  grep -Fq 'raw._store_u8_buf_unchecked_direct(out, i' <<<"$buffer_u8_mat_pack_impl"; then
+  echo "ERROR: std:buffer u8 matrix pack helpers must write fresh dense u8_buf matrices directly" >&2
+  exit 1
+fi
+
 buffer_u8_mat_export_impl="$(sed -n '/fn _u8_mat_is_dense_u8_buf/,/fn _u8_mat_copy_flat_list/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'ptr_set_byte(dst + i, ptr_get_byte(row_src + c) & 255)' <<<"$buffer_u8_mat_export_impl" ||
   ! grep -Fq 'return _u8_mat_to_u8_buf_direct(m, ctx)' <<<"$buffer_u8_mat_export_impl" ||

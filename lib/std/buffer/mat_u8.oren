@@ -35,6 +35,7 @@ fn u8_mat_pack_rows(rows) {
     // Safe: rows pack writes every element of the fresh buffer before successful return.
     var out = raw.u8_new_uninit(nrows * ncols)
     if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
     var i = 0
     var r = 0
     while r < nrows {
@@ -43,8 +44,7 @@ fn u8_mat_pack_rows(rows) {
         while c < ncols {
             var v = _u8_validate_or_err(row[c], "buffer.u8_mat_pack_rows")
             if oren_is_err(v) { return v }
-            var rc = raw._store_u8_buf_unchecked_direct(out, i, v)
-            if oren_is_err(rc) { return rc }
+            ptr_set_byte(data + i, v & 255)
             i = i + 1
             c = c + 1
         }
@@ -65,14 +65,14 @@ fn u8_mat_pack_strings(rows) {
     // Safe: string rows pack writes every element of the fresh buffer before successful return.
     var out = raw.u8_new_uninit(nrows * ncols)
     if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
     var i = 0
     var r = 0
     while r < nrows {
         var row = rows[r]
         var c = 0
         while c < ncols {
-            var rc = raw._store_u8_buf_unchecked_direct(out, i, oren_string_byte_at_unchecked(row, c) & 255)
-            if oren_is_err(rc) { return rc }
+            ptr_set_byte(data + i, oren_string_byte_at_unchecked(row, c) & 255)
             i = i + 1
             c = c + 1
         }

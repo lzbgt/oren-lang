@@ -2699,6 +2699,8 @@
 <p>  Raw <code>u8_copy_from_string*</code> validates the destination and source span once,</p>
 <p>  then writes string bytes directly into <code>u8_buf</code> storage before falling back to</p>
 <p>  compatibility stores for non-optimized carriers.</p>
+<p>  U8 matrix pack helpers now write validated row-list and string-row payloads</p>
+<p>  directly into fresh dense <code>u8_buf</code> storage.</p>
 <p>  Strided u8 view copies from byte carriers, <code>u8_buf</code>, and strings validate the</p>
 <p>  source span once, then write directly into strided <code>u8_buf</code> storage before</p>
 <p>  falling back to checked per-element view stores; strided <code>u8_buf</code> exports and</p>

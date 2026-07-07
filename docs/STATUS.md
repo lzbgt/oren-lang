@@ -2593,6 +2593,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   Raw `u8_copy_from_string*` validates the destination and source span once,
   then writes string bytes directly into `u8_buf` storage before falling back to
   compatibility stores for non-optimized carriers.
+  U8 matrix pack helpers now write validated row-list and string-row payloads
+  directly into fresh dense `u8_buf` storage.
   Strided u8 view copies from byte carriers, `u8_buf`, and strings validate the
   source span once, then write directly into strided `u8_buf` storage before
   falling back to checked per-element view stores; strided `u8_buf` exports and
