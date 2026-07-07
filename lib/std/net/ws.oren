@@ -215,10 +215,6 @@ fn _read_http_header_into_buf(conn, timeout_ms, max_bytes) {
     if buf == 0 { return {"ok": 0, "err": "malloc failed"} }
     var used = 0
 
-    // Reuse one scratch buffer to avoid per-iteration malloc/free.
-    var tmp = malloc(1024)
-    if tmp == 0 { free(buf); return {"ok": 0, "err": "malloc scratch failed"} }
-
     var deadline = 0
     if timeout_ms > 0 {
         var t0 = oren_time_unix_ns()
@@ -234,7 +230,6 @@ fn _read_http_header_into_buf(conn, timeout_ms, max_bytes) {
             if now != 0 {
                 var rem_ns = deadline - now
                 if rem_ns <= 0 {
-                    free(tmp)
                     free(buf)
                     return {"ok": 0, "err": "read timeout"}
                 }
@@ -245,35 +240,31 @@ fn _read_http_header_into_buf(conn, timeout_ms, max_bytes) {
             // TIME might be unavailable in some bring-up environments; keep bounded.
             spins = spins + 1
             if spins > 64 {
-                free(tmp)
                 free(buf)
                 return {"ok": 0, "err": "read timeout"}
             }
         }
 
-        var n = _io_read_into(conn, tmp, 1024, rem)
+        var read_cap = cap - used
+        if read_cap <= 0 {
+            free(buf)
+            return {"ok": 0, "err": "header too large"}
+        }
+        if read_cap > 1024 { read_cap = 1024 }
+
+        var n = _io_read_into(conn, buf + used, read_cap, rem)
         if n == 0 {
-            free(tmp)
             free(buf)
             return {"ok": 0, "err": "eof before header complete"}
         }
         if n < 0 {
-            free(tmp)
             free(buf)
             return {"ok": 0, "err": "read failed (errno=" + oren_int_to_string(0 - n) + ")"}
         }
-        if used + n > cap {
-            free(tmp)
-            free(buf)
-            return {"ok": 0, "err": "header too large"}
-        }
-        oren_memcpy(buf + used, tmp, n)
         used = used + n
         body_off = _find_header_body_split(buf, used)
         if body_off != 0 { break }
     }
-
-    free(tmp)
 
     return {"ok": 1, "buf": buf, "used": used, "body_off": body_off}
 }

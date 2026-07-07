@@ -2627,8 +2627,9 @@
 <p>  class-selector scans, DOM parsing, and streaming readers use direct</p>
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>
-<p>  and native WebSocket header slices plus unmasked frame payloads copy with</p>
-<p>  <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
+<p>  upgrade headers read directly into reserved header storage without scratch</p>
+<p>  copies, and native WebSocket header slices plus unmasked frame payloads</p>
+<p>  copy with <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
 <p>				  Base64/Base64URL encode reads inputs through shared byte views after one length</p>
 <p>				  check, tolerant Base64 decode derives clean length plus trailing padding from one</p>
@@ -2712,8 +2713,9 @@
 <p>			  buffers, single-CONTINUATION inbound header blocks exact-combine without</p>
 <p>			  an overcapacity finish copy, <code>content-length</code> DATA bodies use exact-capacity accumulation</p>
 <p>			  with mismatch checks, including header-only response termination,</p>
-<p>	  and native WebSocket header slices/unmasked frame payloads plus DNS QNAME</p>
-<p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
+<p>	  and native WebSocket upgrade headers read into reserved storage while</p>
+<p>	  header slices/unmasked frame payloads plus DNS QNAME labels use the same</p>
+<p>	  native copy path. PEM relaxed decode passes body slices</p>
 <p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>	  exact-size <code>u8_buf</code> writes instead of a byte list. JSON, YAML, CBOR,</p>
 <p>		  Base64/Base64URL, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing, native string</p>

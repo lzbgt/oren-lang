@@ -357,6 +357,7 @@ fi
 
 chunked_http_impl="$(sed -n '/fn _decode_chunked_body/,/fn headers_get/p' lib/std/net/http.oren)"
 http_fetch_impl="$(sed -n '/fn _fetch_response_resolver_opts/,/fn request_resolver_opts/p' lib/std/net/http.oren)"
+ws_header_impl="$(sed -n '/fn _read_http_header_into_buf/,/fn _ws_accept_for_key/p' lib/std/net/ws.oren)"
 if ! grep -Fq 'fn _chunked_decoded_len(body_ptr, body_len)' lib/std/net/http.oren ||
   ! grep -Fq 'var decoded_len = _chunked_decoded_len(body_ptr, body_len)' <<<"$chunked_http_impl" ||
   ! grep -Fq 'var out = malloc(decoded_len + 1)' <<<"$chunked_http_impl" ||
@@ -374,6 +375,15 @@ if ! grep -Fq 'tls.read_into_raw(tls_conn, buf + used, read_cap, timeout_ms)' <<
   grep -Fq 'var tmp = malloc(2048)' <<<"$http_fetch_impl" ||
   grep -Fq 'oren_memcpy(buf + used, tmp, n)' <<<"$http_fetch_impl"; then
   echo "ERROR: native HTTP receive loop must read directly into reserved response storage without per-read temp buffers" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'var n = _io_read_into(conn, buf + used, read_cap, rem)' <<<"$ws_header_impl" ||
+  ! grep -Fq 'if read_cap > 1024 { read_cap = 1024 }' <<<"$ws_header_impl" ||
+  grep -Fq 'var tmp = malloc(1024)' <<<"$ws_header_impl" ||
+  grep -Fq '_io_read_into(conn, tmp' <<<"$ws_header_impl" ||
+  grep -Fq 'oren_memcpy(buf + used, tmp, n)' <<<"$ws_header_impl"; then
+  echo "ERROR: native WebSocket HTTP upgrade header reads must fill reserved header storage directly without scratch-buffer copies" >&2
   exit 1
 fi
 
