@@ -178,6 +178,11 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 		if stmt.Post != nil {
 			_ = inferStatementReturnType(stmt.Post, env, stack)
 		}
+		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
+			*stack = append(*stack, map[string]string{name: typeName})
+			defer func() { *stack = (*stack)[:len(*stack)-1] }()
+			return inferForInBodyReturnType(stmt.Body, env, stack)
+		}
 		return inferBlockReturnType(stmt.Body, env, stack)
 	}
 	return ""
@@ -204,9 +209,95 @@ func inferStatementReturnFieldTypes(stmt ast.Statement, env memberTypeEnv, stack
 		if stmt.Post != nil {
 			_ = inferStatementReturnFieldTypes(stmt.Post, env, stack)
 		}
+		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
+			*stack = append(*stack, map[string]string{name: typeName})
+			defer func() { *stack = (*stack)[:len(*stack)-1] }()
+			return inferForInBodyReturnFieldTypes(stmt.Body, env, stack)
+		}
 		return inferBlockReturnFieldTypes(stmt.Body, env, stack)
 	}
 	return nil
+}
+
+func inferForInBodyReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) string {
+	if block == nil {
+		return ""
+	}
+	*stack = append(*stack, map[string]string{})
+	defer func() { *stack = (*stack)[:len(*stack)-1] }()
+
+	var inferred string
+	for _, stmt := range block.Statements {
+		next := inferGuardedIfReturnType(stmt, env, *stack)
+		if next == "" {
+			next = inferStatementReturnType(stmt, env, stack)
+		}
+		if next == "" {
+			continue
+		}
+		if inferred == "" {
+			inferred = next
+			continue
+		}
+		if inferred != next {
+			return ""
+		}
+	}
+	return inferred
+}
+
+func inferForInBodyReturnFieldTypes(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) map[string]string {
+	if block == nil {
+		return nil
+	}
+	*stack = append(*stack, map[string]string{})
+	defer func() { *stack = (*stack)[:len(*stack)-1] }()
+
+	var inferred map[string]string
+	for _, stmt := range block.Statements {
+		next := inferGuardedIfReturnFieldTypes(stmt, env, *stack)
+		if len(next) == 0 {
+			next = inferStatementReturnFieldTypes(stmt, env, stack)
+		}
+		if len(next) == 0 {
+			continue
+		}
+		if inferred == nil {
+			inferred = cloneFieldTypes(next)
+			continue
+		}
+		inferred = mergeFieldTypeFacts(inferred, next)
+		if len(inferred) == 0 {
+			return nil
+		}
+	}
+	return inferred
+}
+
+func inferGuardedIfReturnType(stmt ast.Statement, env memberTypeEnv, stack []map[string]string) string {
+	exprStmt, ok := stmt.(*ast.ExpressionStatement)
+	if !ok {
+		return ""
+	}
+	ifExpr, ok := exprStmt.Expression.(*ast.IfExpression)
+	if !ok || ifExpr.Consequence == nil || ifExpr.Alternative != nil {
+		return ""
+	}
+	consequenceStack := cloneTypeStack(stack)
+	return inferBlockReturnType(ifExpr.Consequence, env, &consequenceStack)
+}
+
+func inferGuardedIfReturnFieldTypes(stmt ast.Statement, env memberTypeEnv, stack []map[string]string) map[string]string {
+	exprStmt, ok := stmt.(*ast.ExpressionStatement)
+	if !ok {
+		return nil
+	}
+	ifExpr, ok := exprStmt.Expression.(*ast.IfExpression)
+	if !ok || ifExpr.Consequence == nil || ifExpr.Alternative != nil {
+		return nil
+	}
+	consequenceStack := cloneTypeStack(stack)
+	return inferBlockReturnFieldTypes(ifExpr.Consequence, env, &consequenceStack)
 }
 
 func inferExpressionReturnType(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string) string {

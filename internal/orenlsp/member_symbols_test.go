@@ -816,6 +816,27 @@ func TestInferExpressionTypeUsesIndexedContainers(t *testing.T) {
 	}
 }
 
+func TestInferFunctionReturnTypeUsesForInElements(t *testing.T) {
+	text := strings.Join([]string{
+		"struct Point { x, y }",
+		"fn first(points) {",
+		"  for p in points {",
+		"    return p",
+		"  }",
+		"}",
+		"var points = [Point(1, 2), Point(3, 4)]",
+		"var picked = first(points)",
+		"",
+	}, "\n")
+	_, env := typedMemberAnalysisEnv(text, "file:///infer-for-in-return.oren", nil, nil)
+	if got := env.Functions["first"]; got != "Point" {
+		t.Fatalf("first return type=%q want Point; params=%#v", got, env.Params["first"])
+	}
+	if got := inferExpressionType(parseMemberReceiverExpression("picked"), env, []map[string]string{{"picked": env.Functions["first"]}}); got != "Point" {
+		t.Fatalf("picked inferred type=%q want Point", got)
+	}
+}
+
 func TestServerNavigationUsesForInReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	lines := []string{
@@ -926,6 +947,90 @@ func TestServerNavigationUsesForInReceiverFields(t *testing.T) {
 		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: 15}, End: position{Line: 0, Character: 16}}},
 		{URI: uri, Range: diagnosticRange{Start: position{Line: 6, Character: strings.Index(lines[6], ".x") + 1}, End: position{Line: 6, Character: strings.Index(lines[6], ".x") + 2}}},
 	})
+}
+
+func TestServerNavigationUsesForInReturnReceiverFields(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Point { x, y }",
+		"struct Other { z }",
+		"fn first(points) {",
+		"  for p in points {",
+		"    return p",
+		"  }",
+		"}",
+		"var points = [Point(1, 2), Point(3, 4)]",
+		"var mixed = [Point(1, 2), Other(9)]",
+		"var picked = first(points)",
+		"var bad = first(mixed)",
+		"fn main() {",
+		"  var direct = first(points).",
+		"  return picked.x + first(points).y + bad.z",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-for-in-return.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      758,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 12, "character": len([]rune(lines[12]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      759,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.Index(lines[13], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      760,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.Index(lines[13], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      761,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.Index(lines[13], ".z") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 758)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("for-in return completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 759)["result"].([]any), uri, 0, 15, 16)
+	assertDefinition(t, messageByID(t, msgs, 760)["result"].([]any), uri, 0, 18, 19)
+	defs := messageByID(t, msgs, 761)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed for-in return member definition=%#v want none", defs)
+	}
 }
 
 func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
