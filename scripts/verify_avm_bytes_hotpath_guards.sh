@@ -690,4 +690,13 @@ if ! grep -Fq 'ptr_set_byte(data + m[1] + i, oren_string_byte_at_unchecked(text,
   exit 1
 fi
 
+buffer_u8_mat_list_impl="$(sed -n '/fn _u8_mat_copy_flat_list/,/fn _u8_mat_copy_from_u8_buf/p;/fn u8_mat_copy_from_rows/,/fn u8_mat_copy_from_strings/p' lib/std/buffer/mat_u8.oren)"
+if ! grep -Fq 'ptr_set_byte(data + m[1] + i, xs[i] & 255)' <<<"$buffer_u8_mat_list_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + m[1] + i, rows[wr][wc] & 255)' <<<"$buffer_u8_mat_list_impl" ||
+  ! grep -Fq 'var rc = view.slice_store_u8(row, c, xs[r * m[3] + c])' <<<"$buffer_u8_mat_list_impl" ||
+  ! grep -Fq 'var rc = view.slice_store_u8(row, c, v)' <<<"$buffer_u8_mat_list_impl"; then
+  echo "ERROR: std:buffer dense u8 matrix copies from flat/row lists must use direct byte writes before falling back to checked row stores" >&2
+  exit 1
+fi
+
 echo "OK: AVM bytes hotpath source guards passed"

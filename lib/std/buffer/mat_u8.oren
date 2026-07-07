@@ -151,6 +151,15 @@ fn _u8_mat_copy_flat_list(m, xs, ctx) {
         if oren_is_err(v) { return v }
         i = i + 1
     }
+    if _u8_mat_is_dense_u8_buf(m) {
+        var data = oren_buf_data_ptr_unchecked(m[0])
+        i = 0
+        while i < nx {
+            ptr_set_byte(data + m[1] + i, xs[i] & 255)
+            i = i + 1
+        }
+        return m[0]
+    }
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
@@ -313,6 +322,31 @@ fn u8_mat_copy_from_flat(m, xs) {
 fn u8_mat_copy_from_rows(m, rows) {
     var shape = mshared._mat_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_rows")
     if oren_is_err(shape) { return shape }
+    if _u8_mat_is_dense_u8_buf(m) {
+        var vr = 0
+        while vr < shape[0] {
+            var vc = 0
+            while vc < shape[1] {
+                var vv = _u8_validate_or_err(rows[vr][vc], "buffer.u8_mat_copy_from_rows")
+                if oren_is_err(vv) { return vv }
+                vc = vc + 1
+            }
+            vr = vr + 1
+        }
+        var data = oren_buf_data_ptr_unchecked(m[0])
+        var i = 0
+        var wr = 0
+        while wr < shape[0] {
+            var wc = 0
+            while wc < shape[1] {
+                ptr_set_byte(data + m[1] + i, rows[wr][wc] & 255)
+                i = i + 1
+                wc = wc + 1
+            }
+            wr = wr + 1
+        }
+        return m[0]
+    }
     var r = 0
     while r < shape[0] {
         var row = proj.mat_row_slice(m, r)
