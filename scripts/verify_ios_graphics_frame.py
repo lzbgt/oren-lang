@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify CoreGraphics frame/state helpers stay out of the view."""
+"""Verify CoreGraphics frame traversal/state helpers stay out of the view."""
 
 from pathlib import Path
 import sys
@@ -37,22 +37,29 @@ def main() -> int:
         "BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,",
         "void OrenAVMGfxRestoreFrameState(CGContextRef ctx, OrenAVMGfxFrameState* state)",
         "typedef struct {",
+        "CFMutableDictionaryRef* textResources",
+        "void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context)",
         "CGFloat opacityStack[64]",
         "BOOL depthEnabledStack[64]",
     ):
         if token not in frame_text:
             fail(f"CoreGraphics frame helper is missing expected state logic: {token}")
 
-    if "OrenAVMGfxFrameState frameState" not in view_text or "OrenAVMGfxFrameStateInit(&frameState)" not in view_text:
-        fail("CoreGraphics drawRect must use the frame-state helper")
-    if "OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)" not in view_text:
-        fail("CoreGraphics drawRect must delegate state opcodes to OrenAVMGraphicsFrame")
-    if "OrenAVMGfxRestoreFrameState(ctx, &frameState)" not in view_text:
-        fail("CoreGraphics drawRect must delegate final state cleanup to OrenAVMGraphicsFrame")
-    if "frameState.depthEnabled" not in view_text or "frameState.nearZ" not in view_text or "frameState.farZ" not in view_text:
+    if "OrenAVMGfxFrameDrawContext context = {" not in view_text or "OrenAVMGfxDrawFrame(ctx, frame, &context)" not in view_text:
+        fail("CoreGraphics drawRect must delegate OGF0 traversal to OrenAVMGraphicsFrame")
+    if "OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)" not in frame_text:
+        fail("CoreGraphics frame traversal must delegate state opcodes to OrenAVMGfxHandleFrameStateCommand")
+    if "OrenAVMGfxRestoreFrameState(ctx, &frameState)" not in frame_text:
+        fail("CoreGraphics frame traversal must delegate final state cleanup to OrenAVMGraphicsFrame")
+    if "frameState.depthEnabled" not in frame_text or "frameState.nearZ" not in frame_text or "frameState.farZ" not in frame_text:
         fail("CoreGraphics retained 3D draws must consume frame-state depth windows")
 
     forbidden_view_tokens = (
+        "uint8_t opcode =",
+        "uint16_t payloadLen =",
+        "OrenAVMGfxDrawImmediatePrimitive(ctx, opcode",
+        "OrenAVMGfxHandleFrameStateCommand(ctx, opcode",
+        "OrenAVMGfxRestoreFrameState(ctx, &frameState)",
         "uint32_t clipDepth =",
         "CGFloat opacityStack[64]",
         "BOOL depthEnabledStack[64]",

@@ -3777,6 +3777,12 @@
 <p>  <code>OrenAVMGraphicsView.m</code> to 527 lines while keeping retained resource</p>
 <p>  routing in the view.</p>
 <ul>
+<li>CoreGraphics OGF0 command traversal now lives in <code>OrenAVMGraphicsFrame</code></li>
+</ul>
+<p>  behind a draw-context struct carrying view-owned retained resource maps,</p>
+<p>  attribute caches, and image budgets, reducing <code>OrenAVMGraphicsView.m</code> to</p>
+<p>  310 lines while preserving UIKit ownership in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

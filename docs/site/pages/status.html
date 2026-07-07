@@ -2933,6 +2933,11 @@
 <p>  opcodes now live in <code>OrenAVMGraphicsFrame</code>, reducing</p>
 <p>  <code>OrenAVMGraphicsView.m</code> to 527 lines while keeping retained resource</p>
 <p>  routing in the view.</p>
+<p>  CoreGraphics OGF0 command traversal now also lives in</p>
+<p>  <code>OrenAVMGraphicsFrame</code> behind a draw-context struct carrying view-owned</p>
+<p>  retained resource maps, text attribute caches, and retained-image budgets,</p>
+<p>  reducing <code>OrenAVMGraphicsView.m</code> to 310 lines while keeping UIKit ownership</p>
+<p>  in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

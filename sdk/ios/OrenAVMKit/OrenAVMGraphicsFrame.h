@@ -23,6 +23,20 @@ typedef struct {
     uint32_t cameraDepth;
 } OrenAVMGfxFrameState;
 
+typedef struct {
+    CFMutableDictionaryRef* textAttributes;
+    uint32_t* lastTextAttributesRGBA;
+    NSDictionary<NSAttributedStringKey, id>* __strong* lastTextAttributes;
+    CFMutableDictionaryRef* textResources;
+    CFMutableDictionaryRef* meshes;
+    CFMutableDictionaryRef* materials3D;
+    CFMutableDictionaryRef* models3D;
+    CFMutableDictionaryRef* images;
+    NSUInteger retainedImageCountLimit;
+    NSUInteger retainedImagePixelLimit;
+    NSUInteger* retainedImagePixelCount;
+} OrenAVMGfxFrameDrawContext;
+
 static inline uint16_t OrenAVMGfxReadU16LE(const uint8_t* p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -36,6 +50,7 @@ static inline uint32_t OrenAVMGfxReadU32LE(const uint8_t* p) {
 
 BOOL OrenAVMGfxFrameDataIsValid(NSData* frame);
 void OrenAVMGfxFrameStateInit(OrenAVMGfxFrameState* state);
+void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context);
 BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
                                        uint8_t opcode,
                                        const uint8_t* payload,

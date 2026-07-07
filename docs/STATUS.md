@@ -2814,6 +2814,11 @@ Working evidence:
   opcodes now live in `OrenAVMGraphicsFrame`, reducing
   `OrenAVMGraphicsView.m` to 527 lines while keeping retained resource
   routing in the view.
+  CoreGraphics OGF0 command traversal now also lives in
+  `OrenAVMGraphicsFrame` behind a draw-context struct carrying view-owned
+  retained resource maps, text attribute caches, and retained-image budgets,
+  reducing `OrenAVMGraphicsView.m` to 310 lines while keeping UIKit ownership
+  in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

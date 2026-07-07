@@ -2714,6 +2714,10 @@ design evidence lives under `project-doc/`.
   opcodes now live in `OrenAVMGraphicsFrame`, reducing
   `OrenAVMGraphicsView.m` to 527 lines while keeping retained resource
   routing in the view.
+- CoreGraphics OGF0 command traversal now lives in `OrenAVMGraphicsFrame`
+  behind a draw-context struct carrying view-owned retained resource maps,
+  attribute caches, and image budgets, reducing `OrenAVMGraphicsView.m` to
+  310 lines while preserving UIKit ownership in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
