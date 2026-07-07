@@ -425,6 +425,21 @@ if ! grep -Fq 'bytes = _make_binary_payload(4101)' tests/native/test_ws_echo_loo
   echo "ERROR: native WebSocket loopback must exercise byte-native binary frames larger than the fixed 4096-byte masked chunk" >&2
   exit 1
 fi
+ios_ws_impl="$(sed -n '/static int OrenAVMRuntimeWebSocketWriteFrame/,/static int OrenAVMRuntimeWebSocketReadPayload/p' sdk/ios/OrenAVMKit/OrenAVMKit.m)"
+if ! grep -Fq 'avm_embed_set_net_session_write_typed_callback(_handle, OrenAVMRuntimeNetSessionWriteTyped' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  ! grep -Fq 'uint8_t opcode = payloadKind == AVM_NET_SESSION_PAYLOAD_BYTES ? 2u : 1u' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  ! grep -Fq 'frame[off++] = 0x80u | opcode' <<<"$ios_ws_impl" ||
+  grep -Fq 'OrenAVMRuntimeWebSocketWriteText' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  grep -Fq 'frame[off++] = 0x81u' <<<"$ios_ws_impl"; then
+  echo "ERROR: iOS host-backed AVM WebSocket writes must preserve string-vs-bytes payload kinds as text-vs-binary frame opcodes" >&2
+  exit 1
+fi
+if ! grep -Fq 'if opcode != 2 or payload != b"bin!"' scripts/libavm_ios_verify_net_helpers.py ||
+  ! grep -Fq 'net_ws.send(sid, bin, 5000)' tests/fixtures/ios_avm/embed_chain.oren ||
+  ! grep -Fq 'net_ws.recv(sid, 4, 5000)' tests/fixtures/ios_avm/embed_chain.oren; then
+  echo "ERROR: iOS AVM WebSocket verifier must exercise byte-native binary frame opcodes" >&2
+  exit 1
+fi
 
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||

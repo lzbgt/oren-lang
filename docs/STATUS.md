@@ -2415,9 +2415,10 @@ buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while
 still copying mutable inputs defensively, and the package installer borrows
 stored ZIP entry slices from the release bundle during CRC/write instead of
-copying each stored entry. Host-backed WebSocket session writes build small
-masked text frames in a stack buffer and fall back to heap only beyond the inline
-frame capacity. Package-store hex decode, raw-deflate inflation, and publisher
+copying each stored entry. Host-backed WebSocket session writes use typed AVM
+embed payload callbacks so string writes emit opcode-1 text frames, byte writes
+emit opcode-2 binary frames, and both use small masked stack-first frames before
+heap fallback. Package-store hex decode, raw-deflate inflation, and publisher
 signature message wrapping use raw/no-copy buffers instead of `NSMutableData` or
 string-to-`NSData` copy helpers, and CompilerKit `compileSource` encodes source
 strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
@@ -2648,7 +2649,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 				  kinds, and byte counts through scalar-key CF dictionaries instead of
 				  boxed `NSNumber` session state, and its host-backed WebSocket upgrade
 				  path uses raw stack-first key/request/response buffers instead of
-				  transient Objective-C data wrappers. Native HTTP/2 client state now
+				  transient Objective-C data wrappers, and its typed AVM embed write
+				  callback preserves text-vs-binary WebSocket opcodes for string and
+				  byte payloads. Native HTTP/2 client state now
 				  uses a typed `Client` receiver with `client.request(...).text()` /
 				  `.bytes()` response methods. Public fallible NET APIs now use normal
 				  verbs returning `value | oren_err` or explicit `{ok,...}` records;

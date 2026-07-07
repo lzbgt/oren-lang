@@ -284,14 +284,16 @@
                 if (nargs < 2 || args[0].type != AVM_VAL_INT || (!((args[1].type == AVM_VAL_BYTES && args[1].as.b) || args[1].type == AVM_VAL_STRING))) {
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_write expects (session_id: int, data: bytes|string, timeout_ms?: int)", domain, op);
                 }
-                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_write_fn) {
+                if (!vm || vm->net_backend_kind != 1 || (!vm->net_session_write_fn && !vm->net_session_write_typed_fn)) {
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session write not implemented", domain, op);
                 }
                 const uint8_t* data = NULL;
                 size_t len = 0;
+                uint32_t payload_kind = AVM_NET_SESSION_PAYLOAD_TEXT;
                 if (args[1].type == AVM_VAL_BYTES) {
                     data = args[1].as.b->data;
                     len = (size_t)args[1].as.b->len;
+                    payload_kind = AVM_NET_SESSION_PAYLOAD_BYTES;
                 } else {
                     const char* s = (const char*)args[1].as.p;
                     data = (const uint8_t*)s;
@@ -301,7 +303,10 @@
                 uint32_t timeout_ms = 0;
                 if (nargs >= 3) timeout_ms = (uint32_t)avm_value_u64(args[2], 0);
                 size_t written = 0;
-                if (vm->net_session_write_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), data, len, timeout_ms, &written) != 0) {
+                int write_rc = vm->net_session_write_typed_fn
+                    ? vm->net_session_write_typed_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), data, len, payload_kind, timeout_ms, &written)
+                    : vm->net_session_write_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), data, len, timeout_ms, &written);
+                if (write_rc != 0) {
                     return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session write failed", domain, op);
                 }
                 AvmValue ret = avm_int((int64_t)written);

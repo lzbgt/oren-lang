@@ -71,6 +71,13 @@ fn main() {
         if oren_is_err(rb) { oren_exit(59) }
         if is_ws {
             if rb != "pong" { oren_exit(60) }
+            var bin = bytes.from_string("bin!")
+            if oren_is_err(bin) { oren_exit(68) }
+            var bn = net_ws.send(sid, bin, 5000)
+            if oren_is_err(bn) || bn != 4 { oren_exit(69) }
+            var br = net_ws.recv(sid, 4, 5000)
+            if oren_is_err(br) { oren_exit(70) }
+            if bytes.to_string(br) != "bong" { oren_exit(71) }
         } else {
             if bytes.to_string(rb) != "pong" { oren_exit(60) }
         }

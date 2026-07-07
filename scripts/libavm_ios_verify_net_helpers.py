@@ -120,25 +120,34 @@ def run_ws_echo(args: argparse.Namespace) -> int:
             f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
         )
         conn.sendall(response.encode("ascii"))
-        h = recv_exact(conn, 2)
-        opcode = h[0] & 0x0F
-        length = h[1] & 0x7F
-        if length == 126:
-            ext = recv_exact(conn, 2)
-            length = (ext[0] << 8) | ext[1]
-        elif length == 127:
-            raise RuntimeError("64-bit websocket length unsupported in verifier")
-        mask = recv_exact(conn, 4) if (h[1] & 0x80) else b"\x00\x00\x00\x00"
-        payload = bytearray(recv_exact(conn, length))
-        for i in range(len(payload)):
-            payload[i] ^= mask[i & 3]
-        if opcode != 1 or bytes(payload) != b"ping":
-            raise RuntimeError("unexpected websocket payload")
+        opcode, payload = recv_ws_frame(conn)
+        if opcode != 1 or payload != b"ping":
+            raise RuntimeError("unexpected websocket text payload")
         conn.sendall(b"\x81\x04pong")
+        opcode, payload = recv_ws_frame(conn)
+        if opcode != 2 or payload != b"bin!":
+            raise RuntimeError("unexpected websocket binary payload")
+        conn.sendall(b"\x82\x04bong")
     finally:
         conn.close()
         srv.close()
     return 0
+
+
+def recv_ws_frame(conn: socket.socket) -> tuple[int, bytes]:
+    h = recv_exact(conn, 2)
+    opcode = h[0] & 0x0F
+    length = h[1] & 0x7F
+    if length == 126:
+        ext = recv_exact(conn, 2)
+        length = (ext[0] << 8) | ext[1]
+    elif length == 127:
+        raise RuntimeError("64-bit websocket length unsupported in verifier")
+    mask = recv_exact(conn, 4) if (h[1] & 0x80) else b"\x00\x00\x00\x00"
+    payload = bytearray(recv_exact(conn, length))
+    for i in range(len(payload)):
+        payload[i] ^= mask[i & 3]
+    return opcode, bytes(payload)
 
 
 def run_static_http(args: argparse.Namespace) -> int:
