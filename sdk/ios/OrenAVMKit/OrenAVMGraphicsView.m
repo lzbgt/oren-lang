@@ -1,5 +1,6 @@
 #import "OrenAVMKit.h"
 #import "OrenAVMGFXInput.h"
+#import "OrenAVMGraphicsFrame.h"
 #import "OrenAVMGraphicsGeometry.h"
 #import "OrenAVMGraphicsResources.h"
 
@@ -23,33 +24,11 @@ static BOOL OrenAVMGraphicsViewAssignError(NSError** error, NSInteger code, NSSt
 static const NSUInteger OrenAVMDefaultRetainedImagePixelLimit = 16u * 1024u * 1024u;
 static const NSUInteger OrenAVMDefaultRetainedImageCountLimit = 1024u;
 
-static uint16_t OrenAVMGfxReadU16LE(const uint8_t* p) {
-    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-}
-
-static uint32_t OrenAVMGfxReadU32LE(const uint8_t* p) {
-    return (uint32_t)p[0] |
-        ((uint32_t)p[1] << 8) |
-        ((uint32_t)p[2] << 16) |
-        ((uint32_t)p[3] << 24);
-}
-
 static uint32_t OrenAVMGfxRGBAValue(const uint8_t* rgba) {
     return (uint32_t)rgba[0] |
         ((uint32_t)rgba[1] << 8) |
         ((uint32_t)rgba[2] << 16) |
         ((uint32_t)rgba[3] << 24);
-}
-
-static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
-    if (frame.length < 24) return NO;
-    const uint8_t* data = (const uint8_t*)frame.bytes;
-    if (memcmp(data, "OGF0", 4) != 0) return NO;
-    uint8_t version = data[4];
-    if (version != 0 && version != 1) return NO;
-    uint16_t headerLen = version == 0 ? 24 : OrenAVMGfxReadU16LE(data + 6);
-    if (headerLen < 24 || headerLen > frame.length) return NO;
-    return OrenAVMGfxReadU32LE(data + 8) != 0 && OrenAVMGfxReadU32LE(data + 12) != 0;
 }
 
 @interface OrenAVMGraphicsView () {
@@ -307,18 +286,8 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 
     size_t off = headerLen;
     size_t len = frame.length;
-    uint32_t clipDepth = 0;
-    uint32_t stateDepth = 0;
-    CGFloat opacity = 1.0;
-    CGFloat opacityStack[64];
-    uint32_t opacityDepth = 0;
-    BOOL depthEnabled = NO;
-    int32_t nearZ = 0;
-    int32_t farZ = 0;
-    BOOL depthEnabledStack[64];
-    int32_t nearZStack[64];
-    int32_t farZStack[64];
-    uint32_t cameraDepth = 0;
+    OrenAVMGfxFrameState frameState;
+    OrenAVMGfxFrameStateInit(&frameState);
     for (uint32_t i = 0; i < opCount && off + 4 <= len; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
@@ -330,66 +299,9 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             off += payloadLen;
             continue;
         }
-        if (opcode == 16 && payloadLen == 16) {
-            uint32_t x = OrenAVMGfxReadU32LE(payload);
-            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-            CGContextSaveGState(ctx);
-            CGContextClipToRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
-            clipDepth++;
-            stateDepth++;
-        } else if (opcode == 17 && payloadLen == 0) {
-            if (clipDepth > 0) {
-                CGContextRestoreGState(ctx);
-                clipDepth--;
-                if (stateDepth > 0) stateDepth--;
-            }
-        } else if (opcode == 18 && payloadLen == 8) {
-            int32_t dx = (int32_t)OrenAVMGfxReadU32LE(payload);
-            int32_t dy = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
-            CGContextSaveGState(ctx);
-            CGContextTranslateCTM(ctx, (CGFloat)dx, (CGFloat)dy);
-            stateDepth++;
-        } else if (opcode == 19 && payloadLen == 0) {
-            if (stateDepth > 0) {
-                CGContextRestoreGState(ctx);
-                stateDepth--;
-            }
-        } else if (opcode == 20 && payloadLen == 4) {
-            uint32_t alphaMilli = OrenAVMGfxReadU32LE(payload);
-            if (opacityDepth < 64) {
-                opacityStack[opacityDepth++] = opacity;
-                opacity = opacity * ((CGFloat)alphaMilli / 1000.0);
-                CGContextSaveGState(ctx);
-                CGContextSetAlpha(ctx, opacity);
-                stateDepth++;
-            }
-        } else if (opcode == 21 && payloadLen == 0) {
-            if (opacityDepth > 0 && stateDepth > 0) {
-                CGContextRestoreGState(ctx);
-                opacity = opacityStack[--opacityDepth];
-                stateDepth--;
-            }
-        } else if (opcode == 22 && payloadLen == 8) {
-            if (cameraDepth < 64) {
-                depthEnabledStack[cameraDepth] = depthEnabled;
-                nearZStack[cameraDepth] = nearZ;
-                farZStack[cameraDepth] = farZ;
-                cameraDepth++;
-                depthEnabled = YES;
-                nearZ = (int32_t)OrenAVMGfxReadU32LE(payload);
-                farZ = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
-                stateDepth++;
-            }
-        } else if (opcode == 23 && payloadLen == 0) {
-            if (cameraDepth > 0 && stateDepth > 0) {
-                cameraDepth--;
-                depthEnabled = depthEnabledStack[cameraDepth];
-                nearZ = nearZStack[cameraDepth];
-                farZ = farZStack[cameraDepth];
-                stateDepth--;
-            }
+        if (OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)) {
+            off += payloadLen;
+            continue;
         } else if (opcode == 80 && payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
@@ -429,9 +341,9 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                                          _orenModels3DByID,
                                          opcode,
                                          payload,
-                                         depthEnabled,
-                                         nearZ,
-                                         farZ);
+                                         frameState.depthEnabled,
+                                         frameState.nearZ,
+                                         frameState.farZ);
         } else if (opcode == 85 && payloadLen == 4) {
             OrenAVMGfxRemoveMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 89 && payloadLen == 8) {
@@ -583,10 +495,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
 
         off += payloadLen;
     }
-    while (stateDepth > 0) {
-        CGContextRestoreGState(ctx);
-        stateDepth--;
-    }
+    OrenAVMGfxRestoreFrameState(ctx, &frameState);
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {

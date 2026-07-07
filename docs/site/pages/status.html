@@ -2924,6 +2924,10 @@
 <p>  CoreGraphics immediate primitive payload expansion now lives in</p>
 <p>  <code>OrenAVMGraphicsGeometry</code>, reducing <code>OrenAVMGraphicsView.m</code> to 615 lines</p>
 <p>  while keeping frame state stacks and retained resource routing in the view.</p>
+<p>  CoreGraphics frame validation plus clip/transform/opacity/camera state-stack</p>
+<p>  opcodes now live in <code>OrenAVMGraphicsFrame</code>, reducing</p>
+<p>  <code>OrenAVMGraphicsView.m</code> to 527 lines while keeping retained resource</p>
+<p>  routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

@@ -2805,6 +2805,10 @@ Working evidence:
   CoreGraphics immediate primitive payload expansion now lives in
   `OrenAVMGraphicsGeometry`, reducing `OrenAVMGraphicsView.m` to 615 lines
   while keeping frame state stacks and retained resource routing in the view.
+  CoreGraphics frame validation plus clip/transform/opacity/camera state-stack
+  opcodes now live in `OrenAVMGraphicsFrame`, reducing
+  `OrenAVMGraphicsView.m` to 527 lines while keeping retained resource
+  routing in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

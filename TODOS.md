@@ -2710,6 +2710,10 @@ design evidence lives under `project-doc/`.
 - CoreGraphics immediate primitive payload expansion now lives in
   `OrenAVMGraphicsGeometry`, reducing `OrenAVMGraphicsView.m` to 615 lines
   while keeping frame state stacks and retained resource routing in the view.
+- CoreGraphics frame validation plus clip/transform/opacity/camera state-stack
+  opcodes now live in `OrenAVMGraphicsFrame`, reducing
+  `OrenAVMGraphicsView.m` to 527 lines while keeping retained resource
+  routing in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
