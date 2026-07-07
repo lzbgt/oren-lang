@@ -331,6 +331,16 @@ if ! grep -Fq 'var w = list.int_new(80)' lib/std/crypto/sha1.oren ||
   exit 1
 fi
 
+if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||
+  grep -Fq '_b64_char(' lib/std/encoding/base64.oren ||
+  grep -Fq '_b64url_char(' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'encode list_int value' tests/modules/test_base64.oren ||
+  ! grep -Fq 'base64url list_int alphabet' tests/modules/test_base64.oren; then
+  echo "ERROR: Base64 encode must cache alphabet tables and cover LIST_INT byte carriers" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||
