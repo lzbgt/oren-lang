@@ -1691,7 +1691,7 @@ This file is the concise task view. Detailed implementation status lives in
     expression receiver field navigation/completion plus constructor-field
     and constructor-bound variable/alias field-chain inference/completion, homogeneous list/hash indexed receiver evidence for field navigation and direct literal completions,
     list `for-in` loop element receiver evidence for field navigation/references and call-site parameter propagation,
-    recursive nested constructor-bound call-site parameter and parameter-return field-chain inference,
+    recursive nested constructor-bound call-site parameter and parameter-return field-chain inference including imported identity-return call sites,
     source-brace scoped local/list-for-in receiver completions inside function blocks,
     consistent direct call-site parameter inference with conflict
     invalidation, direct parameter-return propagation,
@@ -1703,7 +1703,7 @@ This file is the concise task view. Detailed implementation status lives in
   - Current VS Code package slice adds the `.oren` language contribution, TextMate
     syntax grammar, language configuration, `vscode-languageclient` activation, and
     a smoke verifier for manifest/grammar/config/entrypoint integrity.
-  - Remaining work is richer member inference beyond direct constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/conditional-branch/return-if/indexed-container/list-for-in/scoped-completion evidence.
+  - Remaining work is richer member inference beyond direct constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/conditional-branch/return-if/indexed-container/list-for-in/scoped-completion evidence.
 
 ## Closed/Do-Not-Repeat Families
 

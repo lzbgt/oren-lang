@@ -50,17 +50,13 @@ func collectFunctionReturnFieldTypes(program *ast.Program, prefix string, env me
 	return out
 }
 
-func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv) map[string]map[string]string {
+func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv, functions map[string]*ast.FunctionLiteral) map[string]map[string]string {
 	out := map[string]map[string]string{}
 	if program == nil {
 		return out
 	}
-	functions := map[string]*ast.FunctionLiteral{}
-	for _, stmt := range program.Statements {
-		fn := namedFunctionLiteral(stmt)
-		if fn != nil && fn.Name != "" {
-			functions[fn.Name] = fn
-		}
+	if functions == nil {
+		functions = collectNamedFunctionLiterals(program, "")
 	}
 	if len(functions) == 0 {
 		return out
@@ -72,6 +68,20 @@ func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv) map[stri
 		collectFunctionParamStatementTypes(stmt, env, functions, &stack, out, conflicts)
 	}
 	return out
+}
+
+func collectNamedFunctionLiterals(program *ast.Program, prefix string) map[string]*ast.FunctionLiteral {
+	functions := map[string]*ast.FunctionLiteral{}
+	if program == nil {
+		return functions
+	}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn != nil && fn.Name != "" {
+			functions[prefix+fn.Name] = fn
+		}
+	}
+	return functions
 }
 
 func namedFunctionLiteral(stmt ast.Statement) *ast.FunctionLiteral {
@@ -529,9 +539,5 @@ func deleteCallParamFieldTypes(paramName string, params map[string]string) {
 }
 
 func calledFunctionName(expr ast.Expression) string {
-	ident, ok := expr.(*ast.Identifier)
-	if !ok || !validMemberIdentifier(ident) {
-		return ""
-	}
-	return ident.Value
+	return constructorTypeKey(expr)
 }

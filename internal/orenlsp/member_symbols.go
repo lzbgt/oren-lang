@@ -219,12 +219,45 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 			env.FunctionFields[key] = fields
 		}
 	}
-	env.Params = collectFunctionParamTypes(program, env)
+	functions := collectNamedFunctionLiterals(program, "")
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		for key, fn := range collectNamedFunctionLiterals(importProgram, alias+".") {
+			functions[key] = fn
+		}
+	}
+	env.Params = collectFunctionParamTypes(program, env, functions)
 	for key, typeName := range collectFunctionReturnTypes(program, "", env.Types, env.Params) {
 		env.Functions[key] = typeName
 	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		for key, typeName := range collectFunctionReturnTypes(importProgram, alias+".", env.Types, env.Params) {
+			env.Functions[key] = typeName
+		}
+	}
 	for key, fields := range collectFunctionReturnFieldTypes(program, "", env) {
 		env.FunctionFields[key] = fields
+	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		importEnv := env
+		importEnv.Prefix = alias + "."
+		for key, fields := range collectFunctionReturnFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionFields[key] = fields
+		}
 	}
 	return program, env
 }
@@ -1250,7 +1283,11 @@ func inferredParamFrame(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]s
 	if fn == nil || fn.Name == "" {
 		return frame
 	}
-	for name, typeName := range env.Params[fn.Name] {
+	params := env.Params[fn.Name]
+	if len(params) == 0 && env.Prefix != "" {
+		params = env.Params[env.Prefix+fn.Name]
+	}
+	for name, typeName := range params {
 		if typeName != "" {
 			frame[name] = typeName
 		}
