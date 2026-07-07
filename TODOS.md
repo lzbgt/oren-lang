@@ -37,7 +37,7 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - Legacy native `oren_read_bytes` remains as an explicit compatibility ABI, but it now stats the file once, preallocates a native `LIST_INT` result to observed size, rejects oversized list output, and fills slots directly from 1 MiB read chunks instead of growing from a zero-capacity list through 4 KiB syscalls or per-byte list pushes.
-- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; AVM host `oren_read_bytes` also fills its returned `LIST_INT` from bounded chunks without a full-file byte mirror; C runtime and AVM host list-input `oren_write_bytes` compatibility paths validate first and then write bounded stack chunks instead of allocating full-size byte mirrors; AVM host and VFS `write_bytes` now accept `LIST_INT` carriers from `read_bytes` directly, and VFS list/list-int writes fill final VFS storage through a shared owned-data path instead of building a duplicate byte mirror.
+- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; AVM host `oren_read_bytes` also fills its returned `LIST_INT` from bounded chunks without a full-file byte mirror; native, C runtime, and AVM host list-input `oren_write_bytes` compatibility paths validate before opening/truncating destinations and then write bounded chunks instead of allocating full-size byte mirrors; AVM host and VFS `write_bytes` now accept `LIST_INT` carriers from `read_bytes` directly, and VFS list/list-int writes fill final VFS storage through a shared owned-data path instead of building a duplicate byte mirror.
 - Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
 - Parallel module parsing now emits setup and per-module worker phase markers under
   `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
@@ -2761,9 +2761,13 @@ design evidence lives under `project-doc/`.
   list, but now fills that list from bounded 64 KiB read chunks instead of
   allocating a second full-file temporary byte buffer before list materialization.
 - Legacy C runtime `oren_write_bytes` now keeps list-input compatibility but
-  validates the full list before writing bounded 64 KiB stack chunks, avoiding
-  the former full-size temporary byte mirror while preserving invalid-input
-  behavior.
+  validates the full list before opening/truncating the destination and writing
+  bounded 64 KiB stack chunks, avoiding the former full-size temporary byte
+  mirror while preserving invalid-input no-clobber behavior.
+- Legacy native `oren_write_bytes` now mirrors that contract for self-hosted
+  tests: it validates list bytes and allocates only a bounded scratch chunk
+  before opening/truncating the destination, then streams short-write-safe
+  chunks instead of materializing a full-size byte mirror.
 - `std:fs` now exposes explicit `read_u8_buf`/`read_u8_buf_under` facades for
   new byte-buffer callers while keeping `read_byte_list` as the legacy list ABI.
 - The iOS SDK now transfers embedder-returned stdout, VFS, GFX frame, and

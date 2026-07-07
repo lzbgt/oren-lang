@@ -8,24 +8,18 @@ fn oren_write_bytes(path, bytes) {
     var owned = ptr_get(pair + 8)
     free(pair)
 
-    var flags = 1 | OREN_O_CREAT | OREN_O_TRUNC // WRONLY|CREAT|TRUNC (Oren-level flags)
-    var fd = sys_open(rpath, flags, 420) // 0644
-    if fd < 0 {
-        if owned == 1 { free(rpath) }
-        return oren_err(0 - fd, "write_bytes: sys_open failed")
-    }
-
     var n = 0
     var buf = 0
-    var owned_buf = 0
+    var list_chunk = 0
+    var list_chunk_len = 0
+    var is_u8 = native_bytes_is_u8_buf(bytes)
 
-    if native_bytes_is_u8_buf(bytes) == true {
+    if is_u8 == true {
         // Zero-copy write from typed buffer payload.
         n = ptr_get(bytes + 0)
         if n > 0 {
             buf = native_buf_data_ptr(bytes)
             if buf == 0 {
-                sys_close(fd)
                 if owned == 1 { free(rpath) }
                 return oren_err(4, "write_bytes: u8_buf payload is nil")
             }
@@ -34,49 +28,83 @@ fn oren_write_bytes(path, bytes) {
         // Legacy path: list<int 0..255>
         n = oren_list_len(bytes)
         if n > 0 {
-            buf = malloc(n)
-            owned_buf = 1
-            if buf == 0 {
-                sys_close(fd)
-                if owned == 1 { free(rpath) }
-                return oren_err(12, "write_bytes: alloc failed")
-            }
             var i = 0
             while i < n {
                 var v = bytes[i]
                 if v < 0 || v > 255 {
-                    sys_close(fd)
-                    free(buf)
                     if owned == 1 { free(rpath) }
                     return oren_err(4, "write_bytes: byte out of range")
                 }
-                ptr_set_byte(buf + i, v)
                 i = i + 1
+            }
+            list_chunk_len = n
+            if list_chunk_len > 65536 { list_chunk_len = 65536 }
+            list_chunk = malloc(list_chunk_len)
+            if list_chunk == 0 {
+                if owned == 1 { free(rpath) }
+                return oren_err(12, "write_bytes: alloc failed")
             }
         }
     }
 
+    var flags = 1 | OREN_O_CREAT | OREN_O_TRUNC // WRONLY|CREAT|TRUNC (Oren-level flags)
+    var fd = sys_open(rpath, flags, 420) // 0644
+    if fd < 0 {
+        if list_chunk != 0 { free(list_chunk) }
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - fd, "write_bytes: sys_open failed")
+    }
+
     if n > 0 {
-        // Handle short writes and propagate errno deterministically.
-        var off = 0
-        while off < n {
-            var wn = sys_write(fd, buf + off, n - off)
-            if wn < 0 {
-                sys_close(fd)
-                if owned_buf == 1 { free(buf) }
-                if owned == 1 { free(rpath) }
-                return oren_err(0 - wn, "write_bytes: sys_write failed")
+        if is_u8 == true {
+            // Handle short writes and propagate errno deterministically.
+            var off = 0
+            while off < n {
+                var wn = sys_write(fd, buf + off, n - off)
+                if wn < 0 {
+                    sys_close(fd)
+                    if owned == 1 { free(rpath) }
+                    return oren_err(0 - wn, "write_bytes: sys_write failed")
+                }
+                if wn == 0 {
+                    sys_close(fd)
+                    if owned == 1 { free(rpath) }
+                    return oren_err(5, "write_bytes: sys_write made no progress")
+                }
+                off = off + wn
             }
-            if wn == 0 {
-                sys_close(fd)
-                if owned_buf == 1 { free(buf) }
-                if owned == 1 { free(rpath) }
-                return oren_err(5, "write_bytes: sys_write made no progress")
+        } else {
+            var off2 = 0
+            while off2 < n {
+                var want = n - off2
+                if want > list_chunk_len { want = list_chunk_len }
+                var j = 0
+                while j < want {
+                    ptr_set_byte(list_chunk + j, bytes[off2 + j])
+                    j = j + 1
+                }
+                var wrote = 0
+                while wrote < want {
+                    var wn2 = sys_write(fd, list_chunk + wrote, want - wrote)
+                    if wn2 < 0 {
+                        sys_close(fd)
+                        free(list_chunk)
+                        if owned == 1 { free(rpath) }
+                        return oren_err(0 - wn2, "write_bytes: sys_write failed")
+                    }
+                    if wn2 == 0 {
+                        sys_close(fd)
+                        free(list_chunk)
+                        if owned == 1 { free(rpath) }
+                        return oren_err(5, "write_bytes: sys_write made no progress")
+                    }
+                    wrote = wrote + wn2
+                }
+                off2 = off2 + want
             }
-            off = off + wn
         }
     }
-    if owned_buf == 1 { free(buf) }
+    if list_chunk != 0 { free(list_chunk) }
 
     var crc = sys_close(fd)
     if crc < 0 {

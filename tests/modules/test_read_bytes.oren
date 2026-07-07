@@ -21,6 +21,17 @@ fn run() {
         i = i + 1
     }
 
+    var invalid_path = "build/test_read_bytes_invalid_preserve.bin"
+    oren_write_bytes(invalid_path, [7, 8, 9])
+    var bad_write = oren_write_bytes(invalid_path, [1, 999])
+    if oren_is_err(bad_write) != true {
+        fail("invalid write should return error")
+    }
+    var preserved = oren_read_bytes(invalid_path)
+    if oren_list_len(preserved) != 3 || preserved[0] != 7 || preserved[1] != 8 || preserved[2] != 9 {
+        fail("invalid write clobbered existing file")
+    }
+
     var large_path = "build/test_read_bytes_large.bin"
     var large = []
     var j = 0

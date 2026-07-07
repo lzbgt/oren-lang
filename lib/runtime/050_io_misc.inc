@@ -98,20 +98,18 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     if (path.type != OREN_TYPE_STRING || !(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF)) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects (string, list<int>|u8_buf)"));
     }
-    FILE *f = fopen(path.as.string_val, "wb");
-    if (!f) {
-        return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
-    }
 
     if (bytes.type == OREN_TYPE_U8_BUF) {
         OrenBuf* b = bytes.as.buf_val;
         if (!b || b->elem_size != 1u) {
-            fclose(f);
             return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes: expected u8_buf"));
         }
         if (b->len != 0u && !b->data) {
-            fclose(f);
             return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes: u8_buf payload is nil"));
+        }
+        FILE *f = fopen(path.as.string_val, "wb");
+        if (!f) {
+            return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
         }
         if (b->len != 0u) {
             size_t n = fwrite(b->data, 1, (size_t)b->len, f);
@@ -130,20 +128,25 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
         for (int i = 0; i < nbytes; i++) {
             OrenValue v = bytes.as.list_val->items[i];
             if (v.type != OREN_TYPE_INT) {
-                fclose(f);
                 char buf[160];
                 snprintf(buf, sizeof(buf), "write_bytes expects list<int>; element %d has type=%d", i, v.type);
                 return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
             }
             long long b = v.as.int_val;
             if (b < 0 || b > 255) {
-                fclose(f);
                 char buf[160];
                 snprintf(buf, sizeof(buf), "write_bytes byte out of range: element %d has value=%lld", i, b);
                 return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
             }
         }
+    }
 
+    FILE *f = fopen(path.as.string_val, "wb");
+    if (!f) {
+        return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
+    }
+
+    if (nbytes > 0) {
         uint8_t chunk[64 * 1024];
         int off = 0;
         while (off < nbytes) {

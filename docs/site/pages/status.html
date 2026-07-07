@@ -2474,8 +2474,13 @@
 <p>that list from bounded 64 KiB read chunks instead of allocating a second</p>
 <p>full-file temporary byte buffer before list materialization. Legacy C runtime</p>
 <p><code>oren_write_bytes</code> now keeps list-input compatibility but validates the full</p>
-<p>list before writing bounded 64 KiB stack chunks, avoiding the former full-size</p>
-<p>temporary byte mirror while preserving invalid-input behavior. The iOS SDK now</p>
+<p>list before opening/truncating the destination and writing bounded 64 KiB stack</p>
+<p>chunks, avoiding the former full-size temporary byte mirror while preserving</p>
+<p>invalid-input no-clobber behavior. Legacy native <code>oren_write_bytes</code> mirrors</p>
+<p>that contract for self-hosted tests by validating list bytes and allocating only</p>
+<p>a bounded scratch chunk before opening/truncating the destination, then</p>
+<p>streaming short-write-safe chunks instead of materializing a full-size byte</p>
+<p>mirror. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>
