@@ -397,9 +397,11 @@ if ! grep -Fq 'var literal_lens = []' <<<"$hpack_len_impl" ||
   exit 1
 fi
 
-strict_b64_impl="$(sed -n '/fn decode_bytes_strict(s)/,/fn decode_strict/p' lib/std/encoding/base64.oren)"
+strict_b64_impl="$(sed -n '/fn _decode_bytes_strict_range_impl/,/fn decode_strict/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" ||
-  ! grep -Fq 'var v0 = _b64_val(_str_byte(s, si))' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'v0 = _b64_val(_str_byte(s, start + si))' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'fn decode_bytes_strict_range(s, start, count)' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'fn decode_bytes_strict_lines_range(s, start, count)' <<<"$strict_b64_impl" ||
   ! grep -Fq 'if v0 == -2 || v1 == -2 || v2 == -2 || v3 == -2' <<<"$strict_b64_impl" ||
   ! grep -Fq 'var rc = _store_decoded_triple(out, outi, out_len, triple, count)' <<<"$strict_b64_impl" ||
   grep -Fq 'return decode_bytes(s)' <<<"$strict_b64_impl" ||
@@ -410,9 +412,10 @@ if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" 
   exit 1
 fi
 
-tolerant_b64_impl="$(sed -n '/fn decode_bytes(s)/,/fn decode(s): bytes/p' lib/std/encoding/base64.oren)"
-if ! grep -Fq 'fn _b64_clean_meta(s)' lib/std/encoding/base64.oren ||
-  ! grep -Fq 'var meta = _b64_clean_meta(s)' <<<"$tolerant_b64_impl" ||
+tolerant_b64_impl="$(sed -n '/fn _decode_bytes_range_impl/,/fn decode(s): bytes/p' lib/std/encoding/base64.oren)"
+if ! grep -Fq 'fn _b64_clean_meta_range(s, start, end)' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'fn decode_bytes_range(s, start, count)' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'var meta = _b64_clean_meta_range(s, start, end)' <<<"$tolerant_b64_impl" ||
   ! grep -Fq 'return clean * 4 + trailing_pad' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var clean = meta / 4' <<<"$tolerant_b64_impl" ||
   ! grep -Fq 'var pad = meta % 4' <<<"$tolerant_b64_impl" ||
@@ -421,6 +424,19 @@ if ! grep -Fq 'fn _b64_clean_meta(s)' lib/std/encoding/base64.oren ||
   grep -Fq 'while i >= 0 && seen < 2' <<<"$tolerant_b64_impl" ||
   ! grep -Fq 'parse_bytes whitespace metadata padded' tests/modules/test_base64.oren; then
   echo "ERROR: tolerant Base64 decode must derive clean length and padding from one metadata pass, not a clean-count pass plus backward padding scan" >&2
+  exit 1
+fi
+
+pem_impl="$(sed -n '/fn decode_blocks(pem_text)/,/^}/p' lib/std/crypto/pem.oren)"
+pem_strict_impl="$(sed -n '/fn decode_blocks_strict(pem_text)/,/^}/p' lib/std/crypto/pem.oren)"
+if ! grep -Fq 'base64.decode_bytes_range(pem_text, body_start, body_end - body_start)' <<<"$pem_impl" ||
+  ! grep -Fq 'base64.decode_bytes_strict_lines_range(pem_text, body_start, body_end - body_start)' <<<"$pem_strict_impl" ||
+  grep -Fq 'var b64_str = oren_string_slice(pem_text, body_start, body_end)' lib/std/crypto/pem.oren ||
+  grep -Fq 'fn _strict_body_string' lib/std/crypto/pem.oren ||
+  grep -Fq 'ptr_set_byte(iadd(outp, oi)' lib/std/crypto/pem.oren ||
+  ! grep -Fq 'parse_bytes_strict_lines_range newline span' tests/modules/test_base64.oren ||
+  ! grep -Fq 'var wrapped = "prefix' tests/native/test_pem_decode_smoke.oren; then
+  echo "ERROR: PEM body decode must use Base64 range decoders directly, not slice or compact body text into temporary strings" >&2
   exit 1
 fi
 

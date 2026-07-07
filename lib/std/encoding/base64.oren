@@ -242,12 +242,11 @@ fn _b64url_val(c) {
     return list.int_get(_b64url_decode_table(), c)
 }
 
-fn _b64_clean_meta(s) {
-    var n = oren_string_len(s)
-    var i = 0
+fn _b64_clean_meta_range(s, start, end) {
+    var i = start
     var clean = 0
     var trailing_pad = 0
-    while i < n {
+    while i < end {
         var c = _str_byte(s, i)
         if b64_is_ws(c) == 0 {
             clean = clean + 1
@@ -262,22 +261,25 @@ fn _b64_clean_meta(s) {
     return clean * 4 + trailing_pad
 }
 
-fn decode_bytes(s) {
-    // Decode a base64 string into bytes (u8_buf).
-    //
-    // Accepts whitespace (space, \t, \r, \n) anywhere.
-    // Requires standard RFC4648 alphabet (+/ with '=' padding).
-    if s == nil { return oren_err(4, "base64.decode_bytes: string is nil") }
+fn _range_end(s, start, count, ctx) {
+    if s == nil { return oren_err(4, ctx + ": string is nil") }
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return oren_err(4, ctx + ": s must be string") }
+    if start < 0 || count < 0 || start > n || count > n - start {
+        return oren_err(4, ctx + ": invalid range")
+    }
+    return start + count
+}
 
-    var meta = _b64_clean_meta(s)
+fn _decode_bytes_range_impl(s, start, end, ctx) {
+    var meta = _b64_clean_meta_range(s, start, end)
     var clean = meta / 4
     if clean == 0 { return oren_u8_buf_new_uninit(0) }
-    if (clean % 4) != 0 { return oren_err(4, "base64.decode_bytes: invalid length (not multiple of 4)") }
+    if (clean % 4) != 0 { return oren_err(4, ctx + ": invalid length (not multiple of 4)") }
 
     // Output length comes from the same clean-character metadata pass.
-    var n = oren_string_len(s)
     var pad = meta % 4
-    if pad > 2 { return oren_err(4, "base64.decode_bytes: invalid padding") }
+    if pad > 2 { return oren_err(4, ctx + ": invalid padding") }
 
     var groups = clean / 4
     var out_len = groups * 3 - pad
@@ -287,9 +289,9 @@ fn decode_bytes(s) {
     if oren_is_err(out) { return out }
 
     // Decode loop: read 4 non-ws chars at a time.
-    var si = 0
+    var si = start
     var outi = 0
-    var slen = n
+    var slen = end
 
     var g = 0
     while g < groups {
@@ -325,19 +327,19 @@ fn decode_bytes(s) {
             if v3 == -2 { continue } // ws
             break
         }
-        if v0 < 0 || v1 < 0 { return oren_err(4, "base64.decode_bytes: invalid base64") }
-        if v0 == -1 || v1 == -1 { return oren_err(4, "base64.decode_bytes: padding in first 2 chars") }
-        if v2 < -1 || v3 < -1 { return oren_err(4, "base64.decode_bytes: invalid base64") }
+        if v0 < 0 || v1 < 0 { return oren_err(4, ctx + ": invalid base64") }
+        if v0 == -1 || v1 == -1 { return oren_err(4, ctx + ": padding in first 2 chars") }
+        if v2 < -1 || v3 < -1 { return oren_err(4, ctx + ": invalid base64") }
         if (v2 == -1 || v3 == -1) && g + 1 < groups {
-            return oren_err(4, "base64.decode_bytes: padding before final group")
+            return oren_err(4, ctx + ": padding before final group")
         }
         if v2 == -1 && v3 != -1 {
-            return oren_err(4, "base64.decode_bytes: invalid padding")
+            return oren_err(4, ctx + ": invalid padding")
         }
         if v2 == -1 {
-            if (v1 & 15) != 0 { return oren_err(4, "base64.decode_bytes: nonzero padding bits") }
+            if (v1 & 15) != 0 { return oren_err(4, ctx + ": nonzero padding bits") }
         } else if v3 == -1 {
-            if (v2 & 3) != 0 { return oren_err(4, "base64.decode_bytes: nonzero padding bits") }
+            if (v2 & 3) != 0 { return oren_err(4, ctx + ": nonzero padding bits") }
         }
 
         var triple = (v0 << 18) | (v1 << 12)
@@ -367,6 +369,23 @@ fn decode_bytes(s) {
     }
 
     return out
+}
+
+fn decode_bytes_range(s, start, count) {
+    var end = _range_end(s, start, count, "base64.decode_bytes_range")
+    if oren_is_err(end) { return end }
+    return _decode_bytes_range_impl(s, start, end, "base64.decode_bytes_range")
+}
+
+fn decode_bytes(s) {
+    // Decode a base64 string into bytes (u8_buf).
+    //
+    // Accepts whitespace (space, \t, \r, \n) anywhere.
+    // Requires standard RFC4648 alphabet (+/ with '=' padding).
+    if s == nil { return oren_err(4, "base64.decode_bytes: string is nil") }
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return oren_err(4, "base64.decode_bytes: s must be string") }
+    return _decode_bytes_range_impl(s, 0, n, "base64.decode_bytes")
 }
 
 fn decode(s): bytes { return decode_bytes(s) }
@@ -453,18 +472,35 @@ fn decode_url_bytes(s) {
 
 fn decode_url(s): bytes { return decode_url_bytes(s) }
 
-fn decode_bytes_strict(s) {
-    // Strict variant: rejects any whitespace and decodes in one forward pass.
-    if s == nil { return oren_err(4, "base64.decode_bytes_strict: string is nil") }
-    var n = oren_string_len(s)
-    if oren_is_err(n) { return oren_err(4, "base64.decode_bytes_strict: s must be string") }
+fn _decode_bytes_strict_range_impl(s, start, end, ctx, allow_line_breaks) {
+    var n = end - start
     if n == 0 { return oren_u8_buf_new_uninit(0) }
-    if (n % 4) != 0 { return oren_err(4, "base64.decode_bytes_strict: invalid length (not multiple of 4)") }
+    if allow_line_breaks == 1 {
+        var meta = _b64_clean_meta_lines_strict_range(s, start, end, ctx)
+        if oren_is_err(meta) { return meta }
+        n = meta
+    }
+    if (n % 4) != 0 { return oren_err(4, ctx + ": invalid length (not multiple of 4)") }
 
     var pad = 0
-    if _str_byte(s, n - 1) == 61 { pad = pad + 1 }
-    if n >= 2 && _str_byte(s, n - 2) == 61 { pad = pad + 1 }
-    if pad > 2 { return oren_err(4, "base64.decode_bytes_strict: invalid padding") }
+    if allow_line_breaks == 0 {
+        if _str_byte(s, end - 1) == 61 { pad = pad + 1 }
+        if n >= 2 && _str_byte(s, end - 2) == 61 { pad = pad + 1 }
+    } else {
+        var back = end - 1
+        var seen = 0
+        while back >= start && seen < 2 {
+            var bc = _str_byte(s, back)
+            if bc == 10 || bc == 13 {
+                back = back - 1
+                continue
+            }
+            if bc == 61 { pad = pad + 1 }
+            seen = seen + 1
+            back = back - 1
+        }
+    }
+    if pad > 2 { return oren_err(4, ctx + ": invalid padding") }
 
     var groups = n / 4
     var out_len = groups * 3 - pad
@@ -473,29 +509,53 @@ fn decode_bytes_strict(s) {
     if oren_is_err(out) { return out }
 
     var si = 0
+    if allow_line_breaks == 1 { si = start }
     var outi = 0
     var g = 0
     while g < groups {
-        var v0 = _b64_val(_str_byte(s, si))
-        var v1 = _b64_val(_str_byte(s, si + 1))
-        var v2 = _b64_val(_str_byte(s, si + 2))
-        var v3 = _b64_val(_str_byte(s, si + 3))
-        if v0 == -2 || v1 == -2 || v2 == -2 || v3 == -2 {
-            return oren_err(4, "base64.decode_bytes_strict: whitespace not allowed")
+        var v0 = -9999
+        var v1 = -9999
+        var v2 = -9999
+        var v3 = -9999
+        if allow_line_breaks == 0 {
+            v0 = _b64_val(_str_byte(s, start + si))
+            v1 = _b64_val(_str_byte(s, start + si + 1))
+            v2 = _b64_val(_str_byte(s, start + si + 2))
+            v3 = _b64_val(_str_byte(s, start + si + 3))
+        } else {
+            var r0 = _next_b64_line_strict_val(s, end, si, ctx)
+            if oren_is_err(r0) { return r0 }
+            v0 = r0["val"]
+            si = r0["pos"]
+            var r1 = _next_b64_line_strict_val(s, end, si, ctx)
+            if oren_is_err(r1) { return r1 }
+            v1 = r1["val"]
+            si = r1["pos"]
+            var r2 = _next_b64_line_strict_val(s, end, si, ctx)
+            if oren_is_err(r2) { return r2 }
+            v2 = r2["val"]
+            si = r2["pos"]
+            var r3 = _next_b64_line_strict_val(s, end, si, ctx)
+            if oren_is_err(r3) { return r3 }
+            v3 = r3["val"]
+            si = r3["pos"]
         }
-        if v0 < 0 || v1 < 0 { return oren_err(4, "base64.decode_bytes_strict: invalid base64") }
-        if v0 == -1 || v1 == -1 { return oren_err(4, "base64.decode_bytes_strict: padding in first 2 chars") }
-        if v2 < -1 || v3 < -1 { return oren_err(4, "base64.decode_bytes_strict: invalid base64") }
+        if v0 == -2 || v1 == -2 || v2 == -2 || v3 == -2 {
+            return oren_err(4, ctx + ": whitespace not allowed")
+        }
+        if v0 < 0 || v1 < 0 { return oren_err(4, ctx + ": invalid base64") }
+        if v0 == -1 || v1 == -1 { return oren_err(4, ctx + ": padding in first 2 chars") }
+        if v2 < -1 || v3 < -1 { return oren_err(4, ctx + ": invalid base64") }
         if (v2 == -1 || v3 == -1) && g + 1 < groups {
-            return oren_err(4, "base64.decode_bytes_strict: padding before final group")
+            return oren_err(4, ctx + ": padding before final group")
         }
         if v2 == -1 && v3 != -1 {
-            return oren_err(4, "base64.decode_bytes_strict: invalid padding")
+            return oren_err(4, ctx + ": invalid padding")
         }
         if v2 == -1 {
-            if (v1 & 15) != 0 { return oren_err(4, "base64.decode_bytes_strict: nonzero padding bits") }
+            if (v1 & 15) != 0 { return oren_err(4, ctx + ": nonzero padding bits") }
         } else if v3 == -1 {
-            if (v2 & 3) != 0 { return oren_err(4, "base64.decode_bytes_strict: nonzero padding bits") }
+            if (v2 & 3) != 0 { return oren_err(4, ctx + ": nonzero padding bits") }
         }
 
         var triple = (v0 << 18) | (v1 << 12)
@@ -510,11 +570,61 @@ fn decode_bytes_strict(s) {
         var rc = _store_decoded_triple(out, outi, out_len, triple, count)
         if oren_is_err(rc) { return rc }
 
-        si = si + 4
+        if allow_line_breaks == 0 { si = si + 4 }
         outi = outi + count
         g = g + 1
     }
     return out
+}
+
+fn _b64_clean_meta_lines_strict_range(s, start, end, ctx) {
+    var i = start
+    var clean = 0
+    while i < end {
+        var c = _str_byte(s, i)
+        if c == 10 || c == 13 {
+            i = i + 1
+            continue
+        }
+        if b64_is_ws(c) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
+        clean = clean + 1
+        i = i + 1
+    }
+    return clean
+}
+
+fn _next_b64_line_strict_val(s, end, pos, ctx) {
+    var p = pos
+    while p < end {
+        var c = _str_byte(s, p)
+        p = p + 1
+        if c == 10 || c == 13 {
+            continue
+        }
+        if b64_is_ws(c) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
+        return {"pos": p, "val": _b64_val(c)}
+    }
+    return oren_err(4, ctx + ": truncated base64")
+}
+
+fn decode_bytes_strict_range(s, start, count) {
+    var end = _range_end(s, start, count, "base64.decode_bytes_strict_range")
+    if oren_is_err(end) { return end }
+    return _decode_bytes_strict_range_impl(s, start, end, "base64.decode_bytes_strict_range", 0)
+}
+
+fn decode_bytes_strict_lines_range(s, start, count) {
+    var end = _range_end(s, start, count, "base64.decode_bytes_strict_lines_range")
+    if oren_is_err(end) { return end }
+    return _decode_bytes_strict_range_impl(s, start, end, "base64.decode_bytes_strict_lines_range", 1)
+}
+
+fn decode_bytes_strict(s) {
+    // Strict variant: rejects any whitespace and decodes in one forward pass.
+    if s == nil { return oren_err(4, "base64.decode_bytes_strict: string is nil") }
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return oren_err(4, "base64.decode_bytes_strict: s must be string") }
+    return _decode_bytes_strict_range_impl(s, 0, n, "base64.decode_bytes_strict", 0)
 }
 
 fn decode_strict(s): bytes { return decode_bytes_strict(s) }

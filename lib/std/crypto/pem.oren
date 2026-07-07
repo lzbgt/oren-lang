@@ -90,8 +90,7 @@ fn _line_has_colon(s, start, end) {
     return false
 }
 
-fn _strict_body_string(pem_text, start, end, ctx) {
-    var count = 0
+fn _validate_strict_body_lines(pem_text, start, end, ctx) {
     var i = start
     while i < end {
         var le = _find_line_end(pem_text, i)
@@ -104,34 +103,12 @@ fn _strict_body_string(pem_text, start, end, ctx) {
             while k < le {
                 var b = oren_string_byte_at_unchecked(pem_text, k) & 255
                 if base64.b64_is_ws(b) == 1 { return oren_err(4, ctx + ": whitespace not allowed in base64") }
-                count = count + 1
                 k = k + 1
             }
         }
         i = _skip_line_break(pem_text, le)
     }
-
-    var out = oren_u8_buf_new_uninit(count)
-    if oren_is_err(out) { return out }
-    var outp = 0
-    if count > 0 {
-        outp = oren_buf_data_ptr_unchecked(out)
-        if outp == 0 { return oren_err(4, ctx + ": output data ptr is nil") }
-    }
-    var oi = 0
-    i = start
-    while i < end {
-        var le2 = _find_line_end(pem_text, i)
-        if le2 > end { le2 = end }
-        var k2 = i
-        while k2 < le2 {
-            ptr_set_byte(iadd(outp, oi), oren_string_byte_at_unchecked(pem_text, k2) & 255)
-            oi = oi + 1
-            k2 = k2 + 1
-        }
-        i = _skip_line_break(pem_text, le2)
-    }
-    return oren_string_from_bytes_slice(out, 0, count)
+    return true
 }
 
 fn decode_blocks(pem_text) {
@@ -182,8 +159,7 @@ fn decode_blocks(pem_text) {
 
             if found_end != true { return oren_err(4, "pem.decode_blocks: missing END for type " + block_type) }
 
-            var b64_str = oren_string_slice(pem_text, body_start, body_end)
-            var decoded = base64.decode_bytes(b64_str)
+            var decoded = base64.decode_bytes_range(pem_text, body_start, body_end - body_start)
             if oren_is_err(decoded) { return decoded }
             oren_list_push(out, {"type": block_type, "bytes": decoded})
             continue
@@ -238,9 +214,9 @@ fn decode_blocks_strict(pem_text) {
 
             if found_end != true { return oren_err(4, "pem.decode_blocks_strict: missing END for type " + block_type) }
 
-            var b64_str = _strict_body_string(pem_text, body_start, body_end, "pem.decode_blocks_strict")
-            if oren_is_err(b64_str) { return b64_str }
-            var decoded = base64.decode_bytes_strict(b64_str)
+            var body_ok = _validate_strict_body_lines(pem_text, body_start, body_end, "pem.decode_blocks_strict")
+            if oren_is_err(body_ok) { return body_ok }
+            var decoded = base64.decode_bytes_strict_lines_range(pem_text, body_start, body_end - body_start)
             if oren_is_err(decoded) { return decoded }
             oren_list_push(out, {"type": block_type, "bytes": decoded})
             continue

@@ -31,5 +31,12 @@ fn main() {
     _expect(oren_buf_len(strict_multiline[0]["bytes"]) == 4, 24)
     var bad = pem.decode_blocks_strict("-----BEGIN TEST-----\nAQID BA==\n-----END TEST-----\n")
     _expect(oren_is_err(bad), 22)
+    var wrapped = "prefix\n-----BEGIN TEST-----\nAQID\nBA==\n-----END TEST-----\nsuffix"
+    var wrapped_blocks = pem.decode_blocks(wrapped)
+    _expect(!oren_is_err(wrapped_blocks), 25)
+    _expect(oren_buf_len(wrapped_blocks[0]["bytes"]) == 4, 26)
+    var wrapped_strict = pem.decode_blocks_strict(wrapped)
+    _expect(!oren_is_err(wrapped_strict), 27)
+    _expect(oren_buf_len(wrapped_strict[0]["bytes"]) == 4, 28)
     exit(0)
 }
