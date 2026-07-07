@@ -185,6 +185,29 @@ if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_copy_helper" ||
   exit 1
 fi
 
+byte_copy_list_int_helper="$(sed -n '/static int avm_native_bytes_copy_span_to_list_int/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
+if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_copy_list_int_helper" ||
+  ! grep -Fq 'dst->items[(int)i] = (int64_t)b->data[(int)(start + i)]' <<<"$byte_copy_list_int_helper" ||
+  ! grep -Fq 'dst->items[(int)i] = it' <<<"$byte_copy_list_int_helper"; then
+  echo "ERROR: AVM bytes_unpack must share one checked bytes/list/LIST_INT to LIST_INT copy-span helper" >&2
+  exit 1
+fi
+
+bytes_pack_impl="$(sed -n '/case 30:.*oren_bytes_pack/,/case 31:/p' lib/avm/avm_native.inc)"
+bytes_unpack_impl="$(sed -n '/case 31:.*oren_bytes_unpack/,/case 32:/p' lib/avm/avm_native.inc)"
+if ! grep -Fq 'avm_native_bytes_copy_span(args[0], 0, count, bv.as.b->data' <<<"$bytes_pack_impl" ||
+  grep -Fq 'list->items[i]' <<<"$bytes_pack_impl"; then
+  echo "ERROR: AVM bytes_pack must route list/LIST_INT carriers through the shared byte copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'avm_native_bytes_copy_span_to_list_int(args[0], 0, count, list' <<<"$bytes_unpack_impl" ||
+  grep -Fq 'src_list->items[i]' <<<"$bytes_unpack_impl" ||
+  grep -Fq 'src_list_int->items[i]' <<<"$bytes_unpack_impl" ||
+  grep -Fq 'b->data[i]' <<<"$bytes_unpack_impl"; then
+  echo "ERROR: AVM bytes_unpack must route bytes/list/LIST_INT carriers through the shared LIST_INT copy-span helper" >&2
+  exit 1
+fi
+
 if ! grep -Fq 'args[0].type == AVM_VAL_LIST_INT' <<<"$string_from_bytes_impl" ||
   ! grep -Fq 'string_from_bytes: expected list_int bytes 0..255' <<<"$string_from_bytes_impl" ||
   ! grep -Fq 'avm_native_bytes_copy_span(args[0], 0, n, (uint8_t*)out' <<<"$string_from_bytes_impl" ||

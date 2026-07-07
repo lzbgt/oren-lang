@@ -41,6 +41,20 @@ fn main() {
     if oren_type_tag(empty_xs) != 6 { oren_exit(111) }
     if oren_list_len(empty_xs) != 0 { oren_exit(112) }
 
+    var packed_empty_li = oren_new_list_int(0)
+    var packed_empty = oren_bytes_pack(packed_empty_li)
+    if oren_is_err(packed_empty) { oren_exit(115) }
+    if oren_bytes_len(packed_empty) != 0 { oren_exit(116) }
+    var unpacked_empty = oren_bytes_unpack(packed_empty_li)
+    if oren_is_err(unpacked_empty) { oren_exit(117) }
+    if oren_list_len(unpacked_empty) != 0 { oren_exit(118) }
+
+    var bad_li = oren_new_list_int(0)
+    oren_list_int_push(bad_li, 65)
+    oren_list_int_push(bad_li, 300)
+    if oren_is_err(oren_bytes_pack(bad_li)) == false { oren_exit(119) }
+    if oren_is_err(oren_bytes_unpack(bad_li)) == false { oren_exit(120) }
+
     var b2 = oren_bytes_pack(xs)
     if oren_is_err(b2) { oren_exit(1) }
     if oren_bytes_to_hex(b2) != "00ffab20" { oren_exit(1) }

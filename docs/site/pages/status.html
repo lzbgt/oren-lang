@@ -2496,11 +2496,11 @@
 <p>that contract for self-hosted tests by validating list bytes and allocating only</p>
 <p>a bounded scratch chunk before opening/truncating the destination, then</p>
 <p>streaming short-write-safe chunks instead of materializing a full-size byte</p>
-<p>mirror. AVM byte/string slice conversion now shares one checked bytes/list/</p>
-<p><code>LIST_INT</code> copy-span helper for full-buffer string conversion,</p>
-<p><code>oren_string_from_bytes_slice</code>, and <code>oren_u8_buf_from_bytes_slice</code>, keeping</p>
-<p>LIST_INT byte carriers on the optimized path without duplicated boxed-list</p>
-<p>slice loops. The iOS SDK now</p>
+<p>mirror. AVM byte/string slice conversion now shares checked bytes/list/</p>
+<p><code>LIST_INT</code> copy-span helpers for full-buffer string conversion,</p>
+<p><code>oren_string_from_bytes_slice</code>, <code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>,</p>
+<p>and <code>bytes_unpack</code>, keeping LIST_INT byte carriers on the optimized path</p>
+<p>without duplicated boxed-list slice loops. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>

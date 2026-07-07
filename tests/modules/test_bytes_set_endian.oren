@@ -62,9 +62,16 @@ if oren_bytes_to_hex(li) != "41424344" { exit(35) }
 var li_packed = oren_bytes_pack(li)
 if oren_is_err(li_packed) { exit(36) }
 if oren_bytes_get_u8(li_packed, 3) != 68 { exit(37) }
+var li_empty = oren_new_list_int(0)
+var li_empty_packed = oren_bytes_pack(li_empty)
+if oren_is_err(li_empty_packed) { exit(48) }
+if oren_bytes_len(li_empty_packed) != 0 { exit(49) }
 var li_xs = oren_bytes_unpack(li)
 if oren_is_err(li_xs) { exit(38) }
 if li_xs[2] != 67 { exit(39) }
+var li_empty_xs = oren_bytes_unpack(li_empty)
+if oren_is_err(li_empty_xs) { exit(50) }
+if oren_list_len(li_empty_xs) != 0 { exit(51) }
 var li_s = oren_string_from_bytes_slice(li, 1, 2)
 if oren_is_err(li_s) { exit(40) }
 if li_s != "BC" { exit(41) }
@@ -79,6 +86,8 @@ oren_list_int_push(bad_li, 65)
 oren_list_int_push(bad_li, 300)
 if oren_is_err(oren_string_from_bytes_slice(bad_li, 0, 2)) == false { exit(46) }
 if oren_is_err(oren_u8_buf_from_bytes_slice(bad_li, 0, 2)) == false { exit(47) }
+if oren_is_err(oren_bytes_pack(bad_li)) == false { exit(52) }
+if oren_is_err(oren_bytes_unpack(bad_li)) == false { exit(53) }
 
 print("module bytes_set_endian OK")
 exit(0)

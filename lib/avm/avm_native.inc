@@ -660,38 +660,26 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         }
         case 30: { // oren_bytes_pack(list<int 0..255>) -> bytes
             if (nargs > 0 && (args[0].type == AVM_VAL_LIST || args[0].type == AVM_VAL_LIST_INT)) {
-                int count = 0;
-                if (args[0].type == AVM_VAL_LIST) {
-                    AvmList* list = args[0].as.l;
-                    if (!list || list->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_pack: invalid list"); break; }
-                    count = list->count;
-                } else {
-                    AvmListInt* list = args[0].as.li;
-                    if (!list || list->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_pack: invalid list_int"); break; }
-                    count = list->count;
+                int64_t count = 0;
+                const char* err_msg = NULL;
+                if (!avm_native_bytes_len_checked(args[0], &count, &err_msg,
+                        "bytes_pack: invalid bytes",
+                        "bytes_pack: invalid list",
+                        "bytes_pack: invalid list_int",
+                        "oren_bytes_pack expects (list)")) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "oren_bytes_pack expects (list)");
+                    break;
                 }
-                AvmValue bv = avm_bytes_new(count);
+                if (count > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_pack: list too large"); break; }
+                AvmValue bv = avm_bytes_new((int)count);
                 if (bv.type != AVM_VAL_BYTES) { res = avm_err(AVM_ERR_INTERNAL, "bytes_pack: out of memory"); break; }
-                if (args[0].type == AVM_VAL_LIST_INT) {
-                    AvmListInt* list = args[0].as.li;
-                    for (int i = 0; i < count; i++) {
-                        int64_t it = list->items[i];
-                        if (it < 0 || it > 255) {
-                            res = avm_err(AVM_ERR_INVALID_ARG, "bytes_pack: expected int bytes 0..255");
-                            break;
-                        }
-                        bv.as.b->data[i] = (uint8_t)it;
-                    }
-                } else {
-                    AvmList* list = args[0].as.l;
-                    for (int i = 0; i < count; i++) {
-                        AvmValue it = list->items[i];
-                        if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
-                            res = avm_err(AVM_ERR_INVALID_ARG, "bytes_pack: expected int bytes 0..255");
-                            break;
-                        }
-                        bv.as.b->data[i] = (uint8_t)it.as.i;
-                    }
+                if (!avm_native_bytes_copy_span(args[0], 0, count, bv.as.b->data, &err_msg,
+                        "bytes_pack: invalid list",
+                        "oren_bytes_pack expects (list)",
+                        "bytes_pack: expected int bytes 0..255",
+                        "bytes_pack: expected int bytes 0..255")) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "bytes_pack: invalid list");
+                    break;
                 }
                 if (!avm_is_err_val(res)) res = bv;
             } else {
@@ -701,48 +689,28 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         }
         case 31: { // oren_bytes_unpack(bytes|list<int 0..255>|list_int) -> list<int>
             if (nargs > 0 && (args[0].type == AVM_VAL_BYTES || args[0].type == AVM_VAL_LIST || args[0].type == AVM_VAL_LIST_INT)) {
-                int count = 0;
-                AvmBytes* b = NULL;
-                AvmList* src_list = NULL;
-                AvmListInt* src_list_int = NULL;
-                if (args[0].type == AVM_VAL_BYTES) {
-                    b = args[0].as.b;
-                    if (!b || b->len < 0 || (b->len > 0 && !b->data)) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid bytes"); break; }
-                    count = b->len;
-                } else if (args[0].type == AVM_VAL_LIST) {
-                    src_list = args[0].as.l;
-                    if (!src_list || src_list->count < 0 || (src_list->count > 0 && !src_list->items)) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid list"); break; }
-                    count = src_list->count;
-                } else {
-                    src_list_int = args[0].as.li;
-                    if (!src_list_int || src_list_int->count < 0 || (src_list_int->count > 0 && !src_list_int->items)) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid list_int"); break; }
-                    count = src_list_int->count;
+                int64_t count = 0;
+                const char* err_msg = NULL;
+                if (!avm_native_bytes_len_checked(args[0], &count, &err_msg,
+                        "bytes_unpack: invalid bytes",
+                        "bytes_unpack: invalid list",
+                        "bytes_unpack: invalid list_int",
+                        "oren_bytes_unpack expects (bytes|list|list_int)")) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "oren_bytes_unpack expects (bytes|list|list_int)");
+                    break;
                 }
-                AvmValue out = avm_list_int_new(count);
+                if (count > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: input too large"); break; }
+                AvmValue out = avm_list_int_new((int)count);
                 if (out.type != AVM_VAL_LIST_INT || !out.as.li) { res = out; if (avm_is_err_val(res)) avm_abort(vm, res); break; }
                 AvmListInt* list = out.as.li;
-                list->count = count;
-                if (count > 0) {
-                    if (!list->items) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid output"); break; }
-                    for (int i = 0; i < count; i++) {
-                        if (b) {
-                            list->items[i] = (int64_t)b->data[i];
-                        } else if (src_list) {
-                            AvmValue it = src_list->items[i];
-                            if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
-                                res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: expected list<int 0..255>");
-                                break;
-                            }
-                            list->items[i] = it.as.i;
-                        } else {
-                            int64_t it = src_list_int->items[i];
-                            if (it < 0 || it > 255) {
-                                res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: expected list_int bytes 0..255");
-                                break;
-                            }
-                            list->items[i] = it;
-                        }
-                    }
+                list->count = (int)count;
+                if (!avm_native_bytes_copy_span_to_list_int(args[0], 0, count, list, &err_msg,
+                        "bytes_unpack: invalid output",
+                        "oren_bytes_unpack expects (bytes|list|list_int)",
+                        "bytes_unpack: expected list<int 0..255>",
+                        "bytes_unpack: expected list_int bytes 0..255")) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "bytes_unpack: invalid output");
+                    break;
                 }
                 if (!avm_is_err_val(res)) res = out;
             } else {
