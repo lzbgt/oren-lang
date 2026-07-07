@@ -172,6 +172,11 @@ fn _u8_mat_copy_from_u8_buf(m, src, ctx) {
     var nx = oren_buf_len(src)
     if nx == nil || oren_is_err(nx) { return _err_invalid(ctx + ": src must be []u8") }
     if nx != total { return _err_invalid(ctx + ": byte count mismatch") }
+    if oren_is_u8_buf(m[0]) == true && m[4] == m[3] && oren_is_u8_buf(src) == true {
+        var rc0 = bytesm.copy_into(m[0], m[1], src, 0, total)
+        if oren_is_err(rc0) { return rc0 }
+        return m[0]
+    }
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)

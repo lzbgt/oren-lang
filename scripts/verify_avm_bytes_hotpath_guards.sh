@@ -674,4 +674,11 @@ if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" 
   exit 1
 fi
 
+buffer_u8_mat_impl="$(sed -n '/fn _u8_mat_copy_from_u8_buf/,/fn _u8_mat_copy_from_string_range/p' lib/std/buffer/mat_u8.oren)"
+if ! grep -Fq 'bytesm.copy_into(m[0], m[1], src, 0, total)' <<<"$buffer_u8_mat_impl" ||
+  ! grep -Fq 'var v = raw._load_u8_direct(src, r * m[3] + c)' <<<"$buffer_u8_mat_impl"; then
+  echo "ERROR: std:buffer dense u8 matrix copies from u8_buf must use direct byte-span copy before falling back to checked row stores" >&2
+  exit 1
+fi
+
 echo "OK: AVM bytes hotpath source guards passed"

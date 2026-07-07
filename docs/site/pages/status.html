@@ -2693,8 +2693,9 @@
 <p>  <code>[]u8</code>, u8 slice/strided view, and u8 matrix string/byte conversions now lower</p>
 <p>  through <code>u8_buf</code> byte slices instead of unpacking to Oren lists first, and</p>
 <p>  direct byte slice helpers reject out-of-bounds spans before native conversion.</p>
-<p>  Contiguous u8 slice copies from <code>u8_buf</code> now use the shared byte-span</p>
-<p>  <code>bytes.copy_into</code> path before falling back to checked per-element view stores.</p>
+<p>  Contiguous u8 slice and dense u8 matrix copies from <code>u8_buf</code> now use the</p>
+<p>  shared byte-span <code>bytes.copy_into</code> path before falling back to checked</p>
+<p>  per-element view stores.</p>
 <p>  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
 <p>  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>
 <p>  <code>cbor.cint(7).bytes().cbor()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>
