@@ -36,6 +36,10 @@ def main() -> int:
         "@interface OrenAVMGfxImageResource",
         "@interface OrenAVMGfxModelResource",
         "OrenAVMGfxRetainedImageKey",
+        "OrenAVMGfxImageRGBA",
+        "OrenAVMGfxPutImageResource",
+        "OrenAVMGfxRemoveImageResource",
+        "OrenAVMGfxDrawImageSubrect",
         "OrenAVMGfxRetainedTextKey",
         "OrenAVMGfxRetainedMeshKey",
         "OrenAVMGfxRetainedMaterialKey",
@@ -55,6 +59,10 @@ def main() -> int:
         "static OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer",
         "static const void* OrenAVMGfxRetainedImageKey",
         "static OrenAVMGfxImageResource* OrenAVMGfxRetainedImageResource",
+        "static UIImage* OrenAVMGfxImageRGBA",
+        "- (void)orenPutImage:",
+        "- (void)orenRemoveImageWithID:",
+        "static void OrenAVMGfxDrawImageSubrect",
         "static const void* OrenAVMGfxRetainedTextKey",
         "static OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource",
         "static const void* OrenAVMGfxRetainedMeshKey",
@@ -66,6 +74,10 @@ def main() -> int:
     ):
         if forbidden in view_text:
             fail(f"CoreGraphics view must not define retained resource helper: {forbidden}")
+    if "OrenAVMGfxPutImageResource(&_orenImagesByID," not in view_text:
+        fail("CoreGraphics retained image uploads must delegate map mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveImageResource(_orenImagesByID, imageID, &_retainedImagePixelCount)" not in view_text:
+        fail("CoreGraphics retained image removals must delegate pixel accounting to OrenAVMGraphicsResources")
 
     print("OK: CoreGraphics retained resource helpers live in OrenAVMGraphicsResources")
     return 0

@@ -3739,6 +3739,12 @@
 <p>  <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 1070 lines</p>
 <p>  while keeping frame traversal and CoreGraphics draw decisions in the view.</p>
 <ul>
+<li>CoreGraphics retained image RGBA upload, count/pixel budget mutation,</li>
+</ul>
+<p>  removal accounting, and checked sub-rect drawing now live in</p>
+<p>  <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 983 lines</p>
+<p>  while keeping image opcode routing in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>
@@ -3960,6 +3966,10 @@
 </ul>
 <p>  copy, and retained-3D painter ordering helpers now live in</p>
 <p>  <code>OrenAVMGraphicsResources</code>, matching the Metal resource-module boundary.</p>
+<ul>
+<li>CoreGraphics retained image upload/remove/sub-rect helpers now also live in</li>
+</ul>
+<p>  <code>OrenAVMGraphicsResources</code>, keeping budget accounting with the resource map.</p>
 <ul>
 <li>Bytecode final artifact writes now report the original <code>u8_buf</code></li>
 </ul>

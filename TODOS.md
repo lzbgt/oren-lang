@@ -2690,6 +2690,10 @@ design evidence lives under `project-doc/`.
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to 1070 lines
   while keeping frame traversal and CoreGraphics draw decisions in the view.
+- CoreGraphics retained image RGBA upload, count/pixel budget mutation,
+  removal accounting, and checked sub-rect drawing now live in
+  `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to 983 lines
+  while keeping image opcode routing in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
@@ -2822,6 +2826,8 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained resource models, scalar map keys/lookups, raw payload
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.
+- CoreGraphics retained image upload/remove/sub-rect helpers now also live in
+  `OrenAVMGraphicsResources`, keeping budget accounting with the resource map.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the

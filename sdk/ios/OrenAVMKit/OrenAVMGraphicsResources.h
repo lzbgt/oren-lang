@@ -49,6 +49,28 @@ enum { OrenAVMGfxInlineTriangleOrderCapacity = 128 };
 
 const void* OrenAVMGfxRetainedImageKey(uint32_t imageID);
 OrenAVMGfxImageResource* OrenAVMGfxRetainedImageResource(CFDictionaryRef images, uint32_t imageID);
+UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount);
+BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
+                                UIImage* image,
+                                uint32_t imageID,
+                                NSUInteger pixels,
+                                NSUInteger retainedImageCountLimit,
+                                NSUInteger retainedImagePixelLimit,
+                                NSUInteger* retainedImagePixelCount);
+void OrenAVMGfxRemoveImageResource(CFMutableDictionaryRef imagesByID,
+                                   uint32_t imageID,
+                                   NSUInteger* retainedImagePixelCount);
+void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
+                                size_t imageWidth,
+                                size_t imageHeight,
+                                uint32_t sx,
+                                uint32_t sy,
+                                uint32_t sw,
+                                uint32_t sh,
+                                uint32_t x,
+                                uint32_t y,
+                                uint32_t w,
+                                uint32_t h);
 const void* OrenAVMGfxRetainedTextKey(uint32_t textID);
 OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
 const void* OrenAVMGfxRetainedMeshKey(uint32_t meshID);

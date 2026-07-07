@@ -50,6 +50,107 @@ OrenAVMGfxImageResource* OrenAVMGfxRetainedImageResource(CFDictionaryRef images,
     return (__bridge OrenAVMGfxImageResource*)CFDictionaryGetValue(images, OrenAVMGfxRetainedImageKey(imageID));
 }
 
+static void OrenAVMGfxReleaseImageBytes(void* info, const void* data, size_t size) {
+    (void)info;
+    (void)size;
+    free((void*)data);
+}
+
+UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount) {
+    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
+    if (!rgba || width == 0 || height == 0 || expected != (uint64_t)byteCount) return nil;
+    uint8_t* imageBytes = (uint8_t*)malloc((size_t)byteCount);
+    if (!imageBytes) return nil;
+    memcpy(imageBytes, rgba, (size_t)byteCount);
+    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, imageBytes, (size_t)byteCount, OrenAVMGfxReleaseImageBytes);
+    if (!provider) {
+        free(imageBytes);
+        return nil;
+    }
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGImageRef image = CGImageCreate((size_t)width,
+                                     (size_t)height,
+                                     8,
+                                     32,
+                                     (size_t)width * 4u,
+                                     colorSpace,
+                                     kCGBitmapByteOrder32Big | kCGImageAlphaLast,
+                                     provider,
+                                     NULL,
+                                     false,
+                                     kCGRenderingIntentDefault);
+    CGColorSpaceRelease(colorSpace);
+    CGDataProviderRelease(provider);
+    if (!image) return nil;
+    UIImage* out = [UIImage imageWithCGImage:image];
+    CGImageRelease(image);
+    return out;
+}
+
+BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
+                                UIImage* image,
+                                uint32_t imageID,
+                                NSUInteger pixels,
+                                NSUInteger retainedImageCountLimit,
+                                NSUInteger retainedImagePixelLimit,
+                                NSUInteger* retainedImagePixelCount) {
+    if (!imagesByID || !image || imageID == 0 || !retainedImagePixelCount) return NO;
+    const void* key = OrenAVMGfxRetainedImageKey(imageID);
+    OrenAVMGfxImageResource* oldResource = OrenAVMGfxRetainedImageResource(*imagesByID, imageID);
+    NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
+    NSUInteger imageCount = *imagesByID ? (NSUInteger)CFDictionaryGetCount(*imagesByID) : 0;
+    NSUInteger countAfter = oldResource ? imageCount : imageCount + 1u;
+    NSUInteger retainedAfterOld = *retainedImagePixelCount >= oldPixels ? *retainedImagePixelCount - oldPixels : 0;
+    if (pixels > NSUIntegerMax - retainedAfterOld) return NO;
+    NSUInteger pixelAfter = retainedAfterOld + pixels;
+    if (retainedImageCountLimit == 0 || countAfter > retainedImageCountLimit) return NO;
+    if (retainedImagePixelLimit == 0 || pixels > retainedImagePixelLimit || pixelAfter > retainedImagePixelLimit) return NO;
+    OrenAVMGfxImageResource* resource = [[OrenAVMGfxImageResource alloc] init];
+    resource.image = image;
+    resource.pixels = pixels;
+    if (!*imagesByID) *imagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*imagesByID) return NO;
+    CFDictionarySetValue(*imagesByID, key, (__bridge const void*)resource);
+    *retainedImagePixelCount = pixelAfter;
+    return YES;
+}
+
+void OrenAVMGfxRemoveImageResource(CFMutableDictionaryRef imagesByID,
+                                   uint32_t imageID,
+                                   NSUInteger* retainedImagePixelCount) {
+    if (imageID == 0 || !imagesByID) return;
+    OrenAVMGfxImageResource* old = OrenAVMGfxRetainedImageResource(imagesByID, imageID);
+    if (old && retainedImagePixelCount) {
+        NSUInteger pixels = old.pixels;
+        *retainedImagePixelCount = *retainedImagePixelCount > pixels ? *retainedImagePixelCount - pixels : 0;
+    }
+    CFDictionaryRemoveValue(imagesByID, OrenAVMGfxRetainedImageKey(imageID));
+}
+
+static BOOL OrenAVMGfxSubrectInImage(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, size_t width, size_t height) {
+    return (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
+        (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
+}
+
+void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
+                                size_t imageWidth,
+                                size_t imageHeight,
+                                uint32_t sx,
+                                uint32_t sy,
+                                uint32_t sw,
+                                uint32_t sh,
+                                uint32_t x,
+                                uint32_t y,
+                                uint32_t w,
+                                uint32_t h) {
+    if (!cgImage || !OrenAVMGfxSubrectInImage(sx, sy, sw, sh, imageWidth, imageHeight)) return;
+    CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
+    if (!subImage) return;
+    UIImage* cropped = [UIImage imageWithCGImage:subImage];
+    [cropped drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
+    CGImageRelease(subImage);
+}
+
 const void* OrenAVMGfxRetainedTextKey(uint32_t textID) {
     return OrenAVMGfxRetainedKey(textID);
 }
