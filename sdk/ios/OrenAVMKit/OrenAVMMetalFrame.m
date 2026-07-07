@@ -43,6 +43,118 @@ uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli) {
     return 1000000000000ull / effectiveHzMilli;
 }
 
+void OrenAVMMetalFrameStateInit(OrenAVMMetalFrameState* state) {
+    if (!state) return;
+    memset(state, 0, sizeof(*state));
+    state->opacity = 1.0f;
+}
+
+BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
+                                         const uint8_t* payload,
+                                         uint16_t payloadLen,
+                                         NSMutableArray<OrenAVMMetalVertexRun*>** runsRef,
+                                         OrenAVMMetalVertexBuffer* verticesRef,
+                                         NSUInteger runCapacity,
+                                         OrenAVMMetalFrameState* state,
+                                         uint32_t logicalW,
+                                         uint32_t logicalH,
+                                         uint32_t drawableW,
+                                         uint32_t drawableH) {
+    if (!payload || !state) return NO;
+    switch (opcode) {
+        case 16: {
+            if (payloadLen != 16) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->clipDepth < 64) {
+                state->clipStack[state->clipDepth++] = state->clip;
+                int32_t cx = (int32_t)OrenAVMMetalReadU32LE(payload);
+                int32_t cy = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
+                MTLScissorRect next = OrenAVMMetalClipRectToScissor((int64_t)lrintf((float)cx + state->tx),
+                                                                    (int64_t)lrintf((float)cy + state->ty),
+                                                                    OrenAVMMetalReadU32LE(payload + 8),
+                                                                    OrenAVMMetalReadU32LE(payload + 12),
+                                                                    logicalW,
+                                                                    logicalH,
+                                                                    drawableW,
+                                                                    drawableH);
+                state->clip.rect = state->clip.enabled ? OrenAVMMetalIntersectScissor(state->clip.rect, next) : next;
+                state->clip.enabled = YES;
+            }
+            return YES;
+        }
+        case 17: {
+            if (payloadLen != 0) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->clipDepth > 0) state->clip = state->clipStack[--state->clipDepth];
+            return YES;
+        }
+        case 18: {
+            if (payloadLen != 8) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->transformDepth < 64) {
+                state->txStack[state->transformDepth] = state->tx;
+                state->tyStack[state->transformDepth] = state->ty;
+                state->transformDepth++;
+                state->tx += (float)(int32_t)OrenAVMMetalReadU32LE(payload);
+                state->ty += (float)(int32_t)OrenAVMMetalReadU32LE(payload + 4);
+            }
+            return YES;
+        }
+        case 19: {
+            if (payloadLen != 0) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->transformDepth > 0) {
+                state->transformDepth--;
+                state->tx = state->txStack[state->transformDepth];
+                state->ty = state->tyStack[state->transformDepth];
+            }
+            return YES;
+        }
+        case 20: {
+            if (payloadLen != 4) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->opacityDepth < 64) {
+                state->opacityStack[state->opacityDepth++] = state->opacity;
+                state->opacity *= (float)OrenAVMMetalReadU32LE(payload) / 1000.0f;
+            }
+            return YES;
+        }
+        case 21: {
+            if (payloadLen != 0) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->opacityDepth > 0) state->opacity = state->opacityStack[--state->opacityDepth];
+            return YES;
+        }
+        case 22: {
+            if (payloadLen != 8) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->cameraDepth < 64) {
+                state->depthEnabledStack[state->cameraDepth] = state->depthEnabled;
+                state->nearZStack[state->cameraDepth] = state->nearZ;
+                state->farZStack[state->cameraDepth] = state->farZ;
+                state->cameraDepth++;
+                state->depthEnabled = YES;
+                state->nearZ = (int32_t)OrenAVMMetalReadU32LE(payload);
+                state->farZ = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
+            }
+            return YES;
+        }
+        case 23: {
+            if (payloadLen != 0) return NO;
+            OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
+            if (state->cameraDepth > 0) {
+                state->cameraDepth--;
+                state->depthEnabled = state->depthEnabledStack[state->cameraDepth];
+                state->nearZ = state->nearZStack[state->cameraDepth];
+                state->farZ = state->farZStack[state->cameraDepth];
+            }
+            return YES;
+        }
+        default:
+            return NO;
+    }
+}
+
 MTLScissorRect OrenAVMMetalClipRectToScissor(int64_t x,
                                              int64_t y,
                                              uint32_t w,

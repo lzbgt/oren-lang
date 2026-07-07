@@ -476,7 +476,30 @@ def main() -> int:
         fail("retained Metal model map mutation must live in OrenAVMMetalResources")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("retained Metal model draws must not use string-key dictionary lookups")
-    if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO)" not in text:
+    if "OrenAVMMetalFrameState frameState" not in text or "OrenAVMMetalFrameStateInit(&frameState)" not in text:
+        fail("Metal view must use the frame-owned state container")
+    if "OrenAVMMetalHandleFrameStateCommand(opcode," not in text:
+        fail("Metal state-stack opcodes must delegate to the frame-owned command helper")
+    if "BOOL OrenAVMMetalHandleFrameStateCommand" not in frame_text:
+        fail("Metal state-stack command helper must live in OrenAVMMetalFrame")
+    state_command = frame_text[frame_text.find("BOOL OrenAVMMetalHandleFrameStateCommand") :]
+    for token in (
+        "case 16:",
+        "case 17:",
+        "case 18:",
+        "case 19:",
+        "case 20:",
+        "case 21:",
+        "case 22:",
+        "case 23:",
+        "OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES)",
+    ):
+        if token not in state_command:
+            fail(f"Metal frame-state command helper missing expected path: {token}")
+    for token in ("clipStack[64]", "txStack[64]", "opacityStack[64]", "depthEnabledStack[64]"):
+        if token in text:
+            fail("Metal view must not own frame state stacks directly")
+    if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")

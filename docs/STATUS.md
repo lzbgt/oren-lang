@@ -2748,7 +2748,10 @@ Working evidence:
   in the view. Metal retained mesh/material/model upload/draw/remove opcode
   handling now lives in `OrenAVMMetalResources`, reducing
   `OrenAVMMetalView.m` to 747 lines while keeping frame transforms, depth
-  windows, and vertex output in the view.
+  windows, and vertex output in the view. Metal clip/transform/opacity/camera
+  state stacks and opcodes now live in `OrenAVMMetalFrame`, reducing
+  `OrenAVMMetalView.m` to 676 lines while keeping per-frame resource/text/image
+  command routing in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

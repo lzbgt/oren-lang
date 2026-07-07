@@ -2867,7 +2867,10 @@
 <p>  in the view. Metal retained mesh/material/model upload/draw/remove opcode</p>
 <p>  handling now lives in <code>OrenAVMMetalResources</code>, reducing</p>
 <p>  <code>OrenAVMMetalView.m</code> to 747 lines while keeping frame transforms, depth</p>
-<p>  windows, and vertex output in the view.</p>
+<p>  windows, and vertex output in the view. Metal clip/transform/opacity/camera</p>
+<p>  state stacks and opcodes now live in <code>OrenAVMMetalFrame</code>, reducing</p>
+<p>  <code>OrenAVMMetalView.m</code> to 676 lines while keeping per-frame resource/text/image</p>
+<p>  command routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

@@ -372,26 +372,8 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
     OrenAVMMetalVertexBuffer vertices;
     OrenAVMMetalVertexBufferInit(&vertices, OrenAVMMetalInitialVertexBuilderCapacity(runCapacity));
     size_t off = headerLen;
-    OrenAVMMetalScissorState clip;
-    clip.enabled = NO;
-    clip.rect = (MTLScissorRect){0, 0, 0, 0};
-    OrenAVMMetalScissorState clipStack[64];
-    uint32_t clipDepth = 0;
-    float tx = 0.0f;
-    float ty = 0.0f;
-    float txStack[64];
-    float tyStack[64];
-    uint32_t transformDepth = 0;
-    float opacity = 1.0f;
-    float opacityStack[64];
-    uint32_t opacityDepth = 0;
-    BOOL depthEnabled = NO;
-    int32_t nearZ = 0;
-    int32_t farZ = 0;
-    BOOL depthEnabledStack[64];
-    int32_t nearZStack[64];
-    int32_t farZStack[64];
-    uint32_t cameraDepth = 0;
+    OrenAVMMetalFrameState frameState;
+    OrenAVMMetalFrameStateInit(&frameState);
     for (uint32_t i = 0; i < opCount && off + 4 <= frame.length; i++) {
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMMetalReadU16LE(data + off + 2);
@@ -403,9 +385,9 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
             uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
             uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
             uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
-            if (x == 0 && y == 0 && w >= logicalW && h >= logicalH && clearColor && opacity >= 0.999f) {
+            if (x == 0 && y == 0 && w >= logicalW && h >= logicalH && clearColor && frameState.opacity >= 0.999f) {
                 uint8_t clearRGBA[4];
-                OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, clearRGBA);
+                OrenAVMMetalRGBAWithOpacity(payload + 16, frameState.opacity, clearRGBA);
                 *clearColor = MTLClearColorMake((double)clearRGBA[0] / 255.0,
                                                 (double)clearRGBA[1] / 255.0,
                                                 (double)clearRGBA[2] / 255.0,
@@ -416,75 +398,22 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                                    payload,
                                                                    payloadLen,
                                                                    &vertices,
-                                                                   tx,
-                                                                   ty,
+                                                                   frameState.tx,
+                                                                   frameState.ty,
                                                                    (float)logicalW,
                                                                    (float)logicalH,
-                                                                   opacity);
-        if (!primitiveHandled && opcode == 16 && payloadLen == 16) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (clipDepth < 64) {
-                clipStack[clipDepth++] = clip;
-                int32_t cx = (int32_t)OrenAVMMetalReadU32LE(payload);
-                int32_t cy = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
-                MTLScissorRect next = OrenAVMMetalClipRectToScissor((int64_t)lrintf((float)cx + tx),
-                                                                    (int64_t)lrintf((float)cy + ty),
-                                                                    OrenAVMMetalReadU32LE(payload + 8),
-                                                                    OrenAVMMetalReadU32LE(payload + 12),
-                                                                    logicalW,
-                                                                    logicalH,
-                                                                    drawableW,
-                                                                    drawableH);
-                clip.rect = clip.enabled ? OrenAVMMetalIntersectScissor(clip.rect, next) : next;
-                clip.enabled = YES;
-            }
-        } else if (opcode == 17 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (clipDepth > 0) clip = clipStack[--clipDepth];
-        } else if (opcode == 18 && payloadLen == 8) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (transformDepth < 64) {
-                txStack[transformDepth] = tx;
-                tyStack[transformDepth] = ty;
-                transformDepth++;
-                tx += (float)(int32_t)OrenAVMMetalReadU32LE(payload);
-                ty += (float)(int32_t)OrenAVMMetalReadU32LE(payload + 4);
-            }
-        } else if (opcode == 19 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (transformDepth > 0) {
-                transformDepth--;
-                tx = txStack[transformDepth];
-                ty = tyStack[transformDepth];
-            }
-        } else if (opcode == 20 && payloadLen == 4) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (opacityDepth < 64) {
-                opacityStack[opacityDepth++] = opacity;
-                opacity *= (float)OrenAVMMetalReadU32LE(payload) / 1000.0f;
-            }
-        } else if (opcode == 21 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (opacityDepth > 0) opacity = opacityStack[--opacityDepth];
-        } else if (opcode == 22 && payloadLen == 8) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (cameraDepth < 64) {
-                depthEnabledStack[cameraDepth] = depthEnabled;
-                nearZStack[cameraDepth] = nearZ;
-                farZStack[cameraDepth] = farZ;
-                cameraDepth++;
-                depthEnabled = YES;
-                nearZ = (int32_t)OrenAVMMetalReadU32LE(payload);
-                farZ = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
-            }
-        } else if (opcode == 23 && payloadLen == 0) {
-            OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, YES);
-            if (cameraDepth > 0) {
-                cameraDepth--;
-                depthEnabled = depthEnabledStack[cameraDepth];
-                nearZ = nearZStack[cameraDepth];
-                farZ = farZStack[cameraDepth];
-            }
+                                                                   frameState.opacity);
+        if (!primitiveHandled && OrenAVMMetalHandleFrameStateCommand(opcode,
+                                                                     payload,
+                                                                     payloadLen,
+                                                                     &vertexRuns,
+                                                                     &vertices,
+                                                                     runCapacity,
+                                                                     &frameState,
+                                                                     logicalW,
+                                                                     logicalH,
+                                                                     drawableW,
+                                                                     drawableH)) {
         } else if (OrenAVMMetalHandleMeshCommand(&_orenMeshesByID,
                                                  &_orenMeshes3DByID,
                                                  &_orenMaterials3DByID,
@@ -493,14 +422,14 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                  payload,
                                                  payloadLen,
                                                  &vertices,
-                                                 tx,
-                                                 ty,
+                                                 frameState.tx,
+                                                 frameState.ty,
                                                  (float)logicalW,
                                                  (float)logicalH,
-                                                 opacity,
-                                                 depthEnabled,
-                                                 nearZ,
-                                                 farZ)) {
+                                                 frameState.opacity,
+                                                 frameState.depthEnabled,
+                                                 frameState.nearZ,
+                                                 frameState.farZ)) {
         } else {
             NSUInteger textCachePixels = self.orenTextCachePixels;
             OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
@@ -517,13 +446,13 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                              &textCachePixels,
                                                              textRuns,
                                                              runCapacity,
-                                                             clip.enabled,
-                                                             clip.rect,
-                                                             tx,
-                                                             ty,
+                                                             frameState.clip.enabled,
+                                                             frameState.clip.rect,
+                                                             frameState.tx,
+                                                             frameState.ty,
                                                              (float)logicalW,
                                                              (float)logicalH,
-                                                             opacity);
+                                                             frameState.opacity);
             if (textHandled) {
                 self.orenTextCachePixels = textCachePixels;
                 self.orenTextAtlas = textAtlas;
@@ -534,13 +463,13 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                       payloadLen,
                                                       imageRuns,
                                                       runCapacity,
-                                                      clip.enabled,
-                                                      clip.rect,
-                                                      tx,
-                                                      ty,
+                                                      frameState.clip.enabled,
+                                                      frameState.clip.rect,
+                                                      frameState.tx,
+                                                      frameState.ty,
                                                       (float)logicalW,
                                                       (float)logicalH,
-                                                      opacity,
+                                                      frameState.opacity,
                                                       self.retainedImageCountLimit,
                                                       self.retainedImagePixelLimit,
                                                       &_retainedImagePixelCount)) {
@@ -548,7 +477,7 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
         }
         off += payloadLen;
     }
-    OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, clip, NO);
+    OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO);
     OrenAVMMetalVertexBufferFree(&vertices);
     return vertexRuns ?: @[];
 }

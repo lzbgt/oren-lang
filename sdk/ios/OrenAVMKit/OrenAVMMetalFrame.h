@@ -13,6 +13,27 @@ typedef struct {
     MTLScissorRect rect;
 } OrenAVMMetalScissorState;
 
+typedef struct {
+    OrenAVMMetalScissorState clip;
+    OrenAVMMetalScissorState clipStack[64];
+    uint32_t clipDepth;
+    float tx;
+    float ty;
+    float txStack[64];
+    float tyStack[64];
+    uint32_t transformDepth;
+    float opacity;
+    float opacityStack[64];
+    uint32_t opacityDepth;
+    BOOL depthEnabled;
+    int32_t nearZ;
+    int32_t farZ;
+    BOOL depthEnabledStack[64];
+    int32_t nearZStack[64];
+    int32_t farZStack[64];
+    uint32_t cameraDepth;
+} OrenAVMMetalFrameState;
+
 static const NSUInteger OrenAVMMetalInlineVertexBytesLimit = 4096u;
 
 static inline uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
@@ -36,6 +57,18 @@ NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame);
 NSMutableArray* OrenAVMMetalEnsureRunArray(NSMutableArray** runs, NSUInteger capacity);
 uint64_t OrenAVMMetalNowNs(void);
 uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli);
+void OrenAVMMetalFrameStateInit(OrenAVMMetalFrameState* state);
+BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
+                                         const uint8_t* payload,
+                                         uint16_t payloadLen,
+                                         NSMutableArray<OrenAVMMetalVertexRun*>** runsRef,
+                                         OrenAVMMetalVertexBuffer* verticesRef,
+                                         NSUInteger runCapacity,
+                                         OrenAVMMetalFrameState* state,
+                                         uint32_t logicalW,
+                                         uint32_t logicalH,
+                                         uint32_t drawableW,
+                                         uint32_t drawableH);
 
 MTLScissorRect OrenAVMMetalClipRectToScissor(int64_t x,
                                              int64_t y,
