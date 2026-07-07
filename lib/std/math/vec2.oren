@@ -72,6 +72,33 @@ fn sign(x: f64, y: f64) {
     return [sx, sy]
 }
 
+fn sqrt(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.sqrt")
+    if oren_is_err(ok) { return ok }
+    if x < 0.0 || y < 0.0 { return oren_err(4, "vec2.sqrt: domain") }
+    return [math.sqrt(x), math.sqrt(y)]
+}
+
+fn cbrt(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.cbrt")
+    if oren_is_err(ok) { return ok }
+    return [math.cbrt(x), math.cbrt(y)]
+}
+
+fn pow(x: f64, y: f64, ex: f64, ey: f64) {
+    var ok = _finite4(x, y, ex, ey, "vec2.pow")
+    if oren_is_err(ok) { return ok }
+    var ox = math.pow(x, ex)
+    if oren_is_err(ox) { return ox }
+    var oy = math.pow(y, ey)
+    if oren_is_err(oy) { return oy }
+    return [ox, oy]
+}
+
+fn power(x: f64, y: f64, ex: f64, ey: f64) {
+    return pow(x, y, ex, ey)
+}
+
 fn floor(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.floor")
     if oren_is_err(ok) { return ok }

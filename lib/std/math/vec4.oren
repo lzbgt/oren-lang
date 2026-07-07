@@ -91,6 +91,37 @@ fn sign(x: f64, y: f64, z: f64, w: f64) {
     return [sx, sy, sz, sw]
 }
 
+fn sqrt(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.sqrt")
+    if oren_is_err(ok) { return ok }
+    if x < 0.0 || y < 0.0 || z < 0.0 || w < 0.0 { return oren_err(4, "vec4.sqrt: domain") }
+    return [math.sqrt(x), math.sqrt(y), math.sqrt(z), math.sqrt(w)]
+}
+
+fn cbrt(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.cbrt")
+    if oren_is_err(ok) { return ok }
+    return [math.cbrt(x), math.cbrt(y), math.cbrt(z), math.cbrt(w)]
+}
+
+fn pow(x: f64, y: f64, z: f64, w: f64, ex: f64, ey: f64, ez: f64, ew: f64) {
+    var ok = _finite8(x, y, z, w, ex, ey, ez, ew, "vec4.pow")
+    if oren_is_err(ok) { return ok }
+    var ox = math.pow(x, ex)
+    if oren_is_err(ox) { return ox }
+    var oy = math.pow(y, ey)
+    if oren_is_err(oy) { return oy }
+    var oz = math.pow(z, ez)
+    if oren_is_err(oz) { return oz }
+    var ow = math.pow(w, ew)
+    if oren_is_err(ow) { return ow }
+    return [ox, oy, oz, ow]
+}
+
+fn power(x: f64, y: f64, z: f64, w: f64, ex: f64, ey: f64, ez: f64, ew: f64) {
+    return pow(x, y, z, w, ex, ey, ez, ew)
+}
+
 fn floor(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.floor")
     if oren_is_err(ok) { return ok }
