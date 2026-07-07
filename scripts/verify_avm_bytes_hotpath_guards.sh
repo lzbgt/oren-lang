@@ -227,6 +227,7 @@ if ! grep -Fq 'avm_native_bytes_copy_span(args[0], start, n, (uint8_t*)out' <<<"
 fi
 
 native_byte_helpers="lib/runtime_native/180_bytes_helpers.oren"
+native_string_impl="$(sed -n '/fn oren_string_from_bytes(bytes)/,/fn string_concat/p' lib/runtime_native/160_iteration.oren)"
 native_copy_helper="$(sed -n '/fn native_bytes_copy_span(bytes/,/^}/p' "$native_byte_helpers")"
 native_copy_list_helper="$(sed -n '/fn native_bytes_copy_span_to_int_list(bytes/,/^}/p' "$native_byte_helpers")"
 native_string_slice_impl="$(sed -n '/fn oren_string_from_bytes_slice/,/fn bytes_untracked_strings_enabled/p' "$native_byte_helpers")"
@@ -244,14 +245,18 @@ if ! grep -Fq 'native_bytes_is_u8_buf(bytes) == true' <<<"$native_copy_list_help
   echo "ERROR: native bytes_unpack must share one checked bytes/list/LIST_INT to int-list copy-span helper" >&2
   exit 1
 fi
-if ! grep -Fq 'native_bytes_copy_span(bytes, start, len, out)' <<<"$native_string_slice_impl" ||
+if ! grep -Fq 'oren_string_from_bytes_slice(bytes, 0, total)' <<<"$native_string_impl" ||
+  grep -Fq 'native_bytes_is_list(bytes) == true' <<<"$native_string_impl" ||
+  grep -Fq 'ptr_get(buf + (i << 3))' <<<"$native_string_impl" ||
+  grep -Fq 'ptr_set_byte(out + i, b)' <<<"$native_string_impl" ||
+  ! grep -Fq 'native_bytes_copy_span(bytes, start, len, out)' <<<"$native_string_slice_impl" ||
   ! grep -Fq 'native_bytes_copy_span(bytes, start, len, dst)' <<<"$native_u8_slice_impl" ||
   ! grep -Fq 'native_bytes_copy_span_to_int_list(bytes, 0, n, out)' <<<"$native_pack_unpack_impl" ||
   ! grep -Fq 'native_bytes_copy_span(xs, 0, n, outp)' <<<"$native_pack_unpack_impl" ||
   grep -Fq 'ptr_get(list_buf + (start + i) * 8)' <<<"$native_string_slice_impl$native_u8_slice_impl" ||
   grep -Fq 'ptr_get(list_buf + j * 8)' <<<"$native_pack_unpack_impl" ||
   grep -Fq 'ptr_get(in_buf + i * 8)' <<<"$native_pack_unpack_impl"; then
-  echo "ERROR: native byte slice/pack/unpack helpers must route through shared copy-span helpers instead of duplicating list/LIST_INT loops" >&2
+  echo "ERROR: native string/slice/pack/unpack helpers must route through shared copy-span helpers instead of duplicating list/LIST_INT loops" >&2
   exit 1
 fi
 

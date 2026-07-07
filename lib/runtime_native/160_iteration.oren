@@ -376,35 +376,6 @@ fn oren_bytes_from_string(s) {
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {
     if bytes == 0 { return 0 }
-
-    // Fast path: list<int 0..255> can be copied directly from its backing buffer.
-    // Avoids per-byte helper calls (critical for lexing/tooling performance).
-    if native_bytes_is_list(bytes) == true {
-        var n = ptr_get(bytes + 0)
-        if n < 0 { return 0 }
-        var buf = ptr_get(bytes + 16)
-        if buf == 0 { return 0 }
-
-        var out = 0
-        if bytes_untracked_strings_enabled() == 0 {
-            out = malloc_k(n + 1, 1)
-        } else {
-            out = malloc(n + 1)
-        }
-        if out == 0 { return 0 }
-
-        var i = 0
-        while i < n {
-            // List elements are stored as 8-byte slots; treat each as a byte by masking to 8 bits.
-            var b = ptr_get(buf + (i << 3)) & 255
-            ptr_set_byte(out + i, b)
-            i = iadd(i, 1)
-        }
-        ptr_set_byte(out + n, 0)
-        return out
-    }
-
-    // Generic path: u8_buf (and future byte containers) route through the slice helper.
     var total = oren_bytes_len(bytes)
     if oren_is_err(total) { return 0 }
     var out2 = oren_string_from_bytes_slice(bytes, 0, total)
