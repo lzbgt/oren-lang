@@ -414,6 +414,7 @@ if ! grep -Fq 'var literal_lens = list.int_new(list.len(headers) * 2)' <<<"$hpac
 fi
 
 http2_client_impl="$(sed -n '/fn _parse_content_length_value/,/fn _request_value/p' lib/std/net/http2_client.oren)"
+http2_read_header_impl="$(sed -n '/fn _read_header_block/,/fn _send_headers_fragmented/p' lib/std/net/http2_client.oren)"
 http2_send_headers_impl="$(sed -n '/fn _send_headers_fragmented/,/fn _new_record/p' lib/std/net/http2_client.oren)"
 if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
   ! grep -Fq 'fn _headers_content_length(hs)' <<<"$http2_client_impl" ||
@@ -426,6 +427,14 @@ if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
   ! grep -Fq '{"name": "content-length", "value": "5", "index": "no"}' tests/native/test_http2_headers_loopback.oren ||
   grep -Fq 'var body_acc = _u8_acc_new(0)' <<<"$http2_client_impl"; then
   echo "ERROR: HTTP/2 response bodies with content-length must use exact-capacity u8 accumulation and validate DATA length" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'fn _u8_concat2_exact(a, b)' lib/std/net/http2_client.oren ||
+  ! grep -Fq 'hb = _u8_concat2_exact(hb, fr["payload"])' <<<"$http2_read_header_impl" ||
+  ! grep -Fq 'var acc = _u8_acc_new(hb_len + fr_len + 64)' <<<"$http2_read_header_impl" ||
+  grep -Fq 'var acc = _u8_acc_new(hb_len + 64)' <<<"$http2_read_header_impl"; then
+  echo "ERROR: HTTP/2 inbound single-CONTINUATION header blocks must exact-combine instead of overallocating then shrink-copying" >&2
   exit 1
 fi
 

@@ -170,6 +170,31 @@ fn _u8_acc_finish(acc) {
     return out
 }
 
+fn _u8_concat2_exact(a, b) {
+    if a == nil { a = oren_u8_buf_new_uninit(0) }
+    if b == nil { b = oren_u8_buf_new_uninit(0) }
+    var na = oren_buf_len(a)
+    var nb = oren_buf_len(b)
+    if oren_is_err(na) || oren_is_err(nb) { return oren_err(4, "http2_client: concat bad buf") }
+    var total = na + nb
+    var out = oren_u8_buf_new_uninit(total)
+    if oren_is_err(out) { return out }
+    if total == 0 { return out }
+    var dst = native_buf_data_ptr(out)
+    if dst == 0 { return oren_err(4, "http2_client: concat nil dst") }
+    if na > 0 {
+        var pa = native_buf_data_ptr(a)
+        if pa == 0 { return oren_err(4, "http2_client: concat nil a") }
+        oren_memcpy(dst, pa, na)
+    }
+    if nb > 0 {
+        var pb = native_buf_data_ptr(b)
+        if pb == 0 { return oren_err(4, "http2_client: concat nil b") }
+        oren_memcpy(dst + na, pb, nb)
+    }
+    return out
+}
+
 fn _parse_content_length_value(v) {
     if v == nil { return 0 - 2 }
     var n = oren_string_len(v)
@@ -263,12 +288,27 @@ fn _read_header_block(conn, first_fr, timeout_ms) {
     }
     var hb_len = oren_buf_len(hb)
     if oren_is_err(hb_len) { return _err("http2_client: bad header block") }
-    var acc = _u8_acc_new(hb_len + 64)
+
+    var fr = _read_frame(conn, timeout_ms)
+    if fr["ok"] != 1 { return _err("http2_client: read CONTINUATION") }
+    if fr["type"] != h2.FRAME_CONTINUATION { return _err("http2_client: expected CONTINUATION") }
+    if fr["stream"] != stream { return _err("http2_client: CONTINUATION stream mismatch") }
+    if (fr["flags"] & h2.FLAG_END_HEADERS) != 0 {
+        hb = _u8_concat2_exact(hb, fr["payload"])
+        if oren_is_err(hb) { return _err("http2_client: concat header block") }
+        return {"ok": 1, "b": hb, "flags": flags, "stream": stream}
+    }
+    var fr_len = oren_buf_len(fr["payload"])
+    if oren_is_err(fr_len) { return _err("http2_client: bad CONTINUATION payload") }
+
+    var acc = _u8_acc_new(hb_len + fr_len + 64)
     if oren_is_err(acc) { return _err("http2_client: alloc header block") }
     var arc = _u8_acc_append(acc, hb)
     if oren_is_err(arc) { return _err("http2_client: append header block") }
+    arc = _u8_acc_append(acc, fr["payload"])
+    if oren_is_err(arc) { return _err("http2_client: append header block") }
     while true {
-        var fr = _read_frame(conn, timeout_ms)
+        fr = _read_frame(conn, timeout_ms)
         if fr["ok"] != 1 { return _err("http2_client: read CONTINUATION") }
         if fr["type"] != h2.FRAME_CONTINUATION { return _err("http2_client: expected CONTINUATION") }
         if fr["stream"] != stream { return _err("http2_client: CONTINUATION stream mismatch") }
