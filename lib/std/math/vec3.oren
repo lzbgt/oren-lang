@@ -143,6 +143,37 @@ fn smootherstep(edge0_x: f64, edge0_y: f64, edge0_z: f64, edge1_x: f64, edge1_y:
     return [math.smootherstep(edge0_x, edge1_x, x), math.smootherstep(edge0_y, edge1_y, y), math.smootherstep(edge0_z, edge1_z, z)]
 }
 
+fn inverse_lerp(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, x: f64, y: f64, z: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.inverse_lerp")
+    if oren_is_err(ok) { return ok }
+    ok = _finite3(x, y, z, "vec3.inverse_lerp")
+    if oren_is_err(ok) { return ok }
+    if ax == bx || ay == by || az == bz { return oren_err(4, "vec3.inverse_lerp: a == b") }
+    return [math.inverse_lerp(ax, bx, x), math.inverse_lerp(ay, by, y), math.inverse_lerp(az, bz, z)]
+}
+
+fn remap(in0_x: f64, in0_y: f64, in0_z: f64, in1_x: f64, in1_y: f64, in1_z: f64, out0_x: f64, out0_y: f64, out0_z: f64, out1_x: f64, out1_y: f64, out1_z: f64, x: f64, y: f64, z: f64) {
+    var ok = _finite6(in0_x, in0_y, in0_z, in1_x, in1_y, in1_z, "vec3.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _finite6(out0_x, out0_y, out0_z, out1_x, out1_y, out1_z, "vec3.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _finite3(x, y, z, "vec3.remap")
+    if oren_is_err(ok) { return ok }
+    if in0_x == in1_x || in0_y == in1_y || in0_z == in1_z { return oren_err(4, "vec3.remap: in0 == in1") }
+    return [math.remap(in0_x, in1_x, out0_x, out1_x, x), math.remap(in0_y, in1_y, out0_y, out1_y, y), math.remap(in0_z, in1_z, out0_z, out1_z, z)]
+}
+
+fn remap_clamped(in0_x: f64, in0_y: f64, in0_z: f64, in1_x: f64, in1_y: f64, in1_z: f64, out0_x: f64, out0_y: f64, out0_z: f64, out1_x: f64, out1_y: f64, out1_z: f64, x: f64, y: f64, z: f64) {
+    var ok = _finite6(in0_x, in0_y, in0_z, in1_x, in1_y, in1_z, "vec3.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _finite6(out0_x, out0_y, out0_z, out1_x, out1_y, out1_z, "vec3.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _finite3(x, y, z, "vec3.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    if in0_x == in1_x || in0_y == in1_y || in0_z == in1_z { return oren_err(4, "vec3.remap_clamped: in0 == in1") }
+    return [math.remap_clamped(in0_x, in1_x, out0_x, out1_x, x), math.remap_clamped(in0_y, in1_y, out0_y, out1_y, y), math.remap_clamped(in0_z, in1_z, out0_z, out1_z, z)]
+}
+
 fn min(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.min")
     if oren_is_err(ok) { return ok }

@@ -12,6 +12,11 @@ fn _finite8(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f
     return _finite4(bx, by, bz, bw, ctx)
 }
 
+fn _check_vec4(v, ctx) {
+    if oren_list_len(v) != 4 { return oren_err(4, ctx + ": expected 4 values") }
+    return _finite4(v[0], v[1], v[2], v[3], ctx)
+}
+
 fn _finite_scalar(x: f64, ctx) {
     if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
     if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
@@ -148,6 +153,55 @@ fn smootherstep(edge0_x: f64, edge0_y: f64, edge0_z: f64, edge0_w: f64, edge1_x:
         return oren_err(4, "vec4.smootherstep: edge1 <= edge0")
     }
     return [math.smootherstep(edge0_x, edge1_x, x), math.smootherstep(edge0_y, edge1_y, y), math.smootherstep(edge0_z, edge1_z, z), math.smootherstep(edge0_w, edge1_w, w)]
+}
+
+fn inverse_lerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.inverse_lerp")
+    if oren_is_err(ok) { return ok }
+    ok = _finite4(x, y, z, w, "vec4.inverse_lerp")
+    if oren_is_err(ok) { return ok }
+    if ax == bx || ay == by || az == bz || aw == bw { return oren_err(4, "vec4.inverse_lerp: a == b") }
+    return [math.inverse_lerp(ax, bx, x), math.inverse_lerp(ay, by, y), math.inverse_lerp(az, bz, z), math.inverse_lerp(aw, bw, w)]
+}
+
+fn remap(in0, in1, out0, out1, v) {
+    var ok = _check_vec4(in0, "vec4.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(in1, "vec4.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(out0, "vec4.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(out1, "vec4.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(v, "vec4.remap")
+    if oren_is_err(ok) { return ok }
+    if in0[0] == in1[0] || in0[1] == in1[1] || in0[2] == in1[2] || in0[3] == in1[3] { return oren_err(4, "vec4.remap: in0 == in1") }
+    return [
+        math.remap(in0[0], in1[0], out0[0], out1[0], v[0]),
+        math.remap(in0[1], in1[1], out0[1], out1[1], v[1]),
+        math.remap(in0[2], in1[2], out0[2], out1[2], v[2]),
+        math.remap(in0[3], in1[3], out0[3], out1[3], v[3])
+    ]
+}
+
+fn remap_clamped(in0, in1, out0, out1, v) {
+    var ok = _check_vec4(in0, "vec4.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(in1, "vec4.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(out0, "vec4.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(out1, "vec4.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(v, "vec4.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    if in0[0] == in1[0] || in0[1] == in1[1] || in0[2] == in1[2] || in0[3] == in1[3] { return oren_err(4, "vec4.remap_clamped: in0 == in1") }
+    return [
+        math.remap_clamped(in0[0], in1[0], out0[0], out1[0], v[0]),
+        math.remap_clamped(in0[1], in1[1], out0[1], out1[1], v[1]),
+        math.remap_clamped(in0[2], in1[2], out0[2], out1[2], v[2]),
+        math.remap_clamped(in0[3], in1[3], out0[3], out1[3], v[3])
+    ]
 }
 
 fn min(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {

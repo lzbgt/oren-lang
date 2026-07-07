@@ -132,6 +132,37 @@ fn smootherstep(edge0_x: f64, edge0_y: f64, edge1_x: f64, edge1_y: f64, x: f64, 
     return [math.smootherstep(edge0_x, edge1_x, x), math.smootherstep(edge0_y, edge1_y, y)]
 }
 
+fn inverse_lerp(ax: f64, ay: f64, bx: f64, by: f64, x: f64, y: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.inverse_lerp")
+    if oren_is_err(ok) { return ok }
+    ok = _finite2(x, y, "vec2.inverse_lerp")
+    if oren_is_err(ok) { return ok }
+    if ax == bx || ay == by { return oren_err(4, "vec2.inverse_lerp: a == b") }
+    return [math.inverse_lerp(ax, bx, x), math.inverse_lerp(ay, by, y)]
+}
+
+fn remap(in0_x: f64, in0_y: f64, in1_x: f64, in1_y: f64, out0_x: f64, out0_y: f64, out1_x: f64, out1_y: f64, x: f64, y: f64) {
+    var ok = _finite4(in0_x, in0_y, in1_x, in1_y, "vec2.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _finite4(out0_x, out0_y, out1_x, out1_y, "vec2.remap")
+    if oren_is_err(ok) { return ok }
+    ok = _finite2(x, y, "vec2.remap")
+    if oren_is_err(ok) { return ok }
+    if in0_x == in1_x || in0_y == in1_y { return oren_err(4, "vec2.remap: in0 == in1") }
+    return [math.remap(in0_x, in1_x, out0_x, out1_x, x), math.remap(in0_y, in1_y, out0_y, out1_y, y)]
+}
+
+fn remap_clamped(in0_x: f64, in0_y: f64, in1_x: f64, in1_y: f64, out0_x: f64, out0_y: f64, out1_x: f64, out1_y: f64, x: f64, y: f64) {
+    var ok = _finite4(in0_x, in0_y, in1_x, in1_y, "vec2.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _finite4(out0_x, out0_y, out1_x, out1_y, "vec2.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    ok = _finite2(x, y, "vec2.remap_clamped")
+    if oren_is_err(ok) { return ok }
+    if in0_x == in1_x || in0_y == in1_y { return oren_err(4, "vec2.remap_clamped: in0 == in1") }
+    return [math.remap_clamped(in0_x, in1_x, out0_x, out1_x, x), math.remap_clamped(in0_y, in1_y, out0_y, out1_y, y)]
+}
+
 fn min(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.min")
     if oren_is_err(ok) { return ok }

@@ -114,6 +114,24 @@ assert_close(ss[0], 0.5, 1e-12, 120, "smootherstep x")
 assert_close(ss[1], 0.5, 1e-12, 121, "smootherstep y")
 assert_close(ss[2], 0.5, 1e-12, 122, "smootherstep z")
 
+var il = vec3.inverse_lerp(0.0, 10.0, 0.0 - 10.0, 10.0, 20.0, 10.0, 2.5, 15.0, 0.0)
+assert_true(!oren_is_err(il), 125, "inverse_lerp ok")
+assert_close(il[0], 0.25, 1e-12, 126, "inverse_lerp x")
+assert_close(il[1], 0.5, 1e-12, 127, "inverse_lerp y")
+assert_close(il[2], 0.5, 1e-12, 128, "inverse_lerp z")
+
+var rm = vec3.remap(0.0, 10.0, 0.0 - 10.0, 10.0, 20.0, 10.0, 100.0, 200.0, 300.0, 200.0, 400.0, 500.0, 2.5, 15.0, 0.0)
+assert_true(!oren_is_err(rm), 129, "remap ok")
+assert_close(rm[0], 125.0, 1e-12, 130, "remap x")
+assert_close(rm[1], 300.0, 1e-12, 131, "remap y")
+assert_close(rm[2], 400.0, 1e-12, 132, "remap z")
+
+var rc = vec3.remap_clamped(0.0, 10.0, 0.0 - 10.0, 10.0, 20.0, 10.0, 100.0, 200.0, 300.0, 200.0, 400.0, 500.0, 20.0, 5.0, 20.0)
+assert_true(!oren_is_err(rc), 133, "remap_clamped ok")
+assert_close(rc[0], 200.0, 1e-12, 134, "remap_clamped x")
+assert_close(rc[1], 200.0, 1e-12, 135, "remap_clamped y")
+assert_close(rc[2], 500.0, 1e-12, 136, "remap_clamped z")
+
 var mn = vec3.min(3.0, 0.0 - 4.0, 8.0, 2.0, 5.0, 7.0)
 assert_true(!oren_is_err(mn), 73, "min ok")
 assert_close(mn[0], 2.0, 0.0, 74, "min x")
@@ -167,6 +185,8 @@ assert_true(oren_is_err(vec3.round(1.0, math.inf(), 2.0)), 109, "round inf error
 assert_true(oren_is_err(vec3.fract(1.0, math.nan(), 2.0)), 110, "fract nan errors")
 assert_true(oren_is_err(vec3.step(0.5, 0.5, math.inf(), 1.0, 2.0, 3.0)), 123, "step inf errors")
 assert_true(oren_is_err(vec3.smoothstep(0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.5, 1.0, 0.5)), 124, "smoothstep edge errors")
+assert_true(oren_is_err(vec3.inverse_lerp(0.0, 1.0, 2.0, 0.0, 2.0, 3.0, 0.5, 1.5, 2.5)), 137, "inverse_lerp range errors")
+assert_true(oren_is_err(vec3.remap_clamped(0.0, 1.0, 2.0, 1.0, 1.0, 3.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.5, 1.0, 2.5)), 138, "remap_clamped range errors")
 
 print("module math vec3 OK")
 exit(0)

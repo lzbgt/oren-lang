@@ -122,6 +122,21 @@ assert_true(!oren_is_err(ss), 107, "smootherstep ok")
 assert_close(ss[0], 0.5, 1e-12, 108, "smootherstep x")
 assert_close(ss[1], 0.5, 1e-12, 109, "smootherstep y")
 
+var il = vec2.inverse_lerp(0.0, 10.0, 10.0, 20.0, 2.5, 15.0)
+assert_true(!oren_is_err(il), 113, "inverse_lerp ok")
+assert_close(il[0], 0.25, 1e-12, 114, "inverse_lerp x")
+assert_close(il[1], 0.5, 1e-12, 115, "inverse_lerp y")
+
+var rm = vec2.remap(0.0, 10.0, 10.0, 20.0, 100.0, 200.0, 200.0, 400.0, 2.5, 15.0)
+assert_true(!oren_is_err(rm), 116, "remap ok")
+assert_close(rm[0], 125.0, 1e-12, 117, "remap x")
+assert_close(rm[1], 300.0, 1e-12, 118, "remap y")
+
+var rc = vec2.remap_clamped(0.0, 10.0, 10.0, 20.0, 100.0, 200.0, 200.0, 400.0, 20.0, 5.0)
+assert_true(!oren_is_err(rc), 119, "remap_clamped ok")
+assert_close(rc[0], 200.0, 1e-12, 120, "remap_clamped x")
+assert_close(rc[1], 200.0, 1e-12, 121, "remap_clamped y")
+
 var mn = vec2.min(3.0, 0.0 - 4.0, 2.0, 5.0)
 assert_true(!oren_is_err(mn), 50, "min ok")
 assert_close(mn[0], 2.0, 0.0, 51, "min x")
@@ -168,6 +183,9 @@ assert_true(oren_is_err(vec2.saturate(1.0, math.nan())), 100, "saturate nan erro
 assert_true(oren_is_err(vec2.step(0.5, math.inf(), 1.0, 2.0)), 110, "step inf errors")
 assert_true(oren_is_err(vec2.smoothstep(1.0, 0.0, 0.5, 1.0, 0.75, 0.5)), 111, "smoothstep edge errors")
 assert_true(oren_is_err(vec2.smootherstep(0.0, 1.0, 1.0, 1.0, 0.5, 1.0)), 112, "smootherstep edge errors")
+assert_true(oren_is_err(vec2.inverse_lerp(0.0, 1.0, 0.0, 2.0, 0.5, 1.5)), 122, "inverse_lerp range errors")
+assert_true(oren_is_err(vec2.remap(0.0, 1.0, 1.0, 2.0, 0.0, math.inf(), 1.0, 2.0, 0.5, 1.5)), 123, "remap inf errors")
+assert_true(oren_is_err(vec2.remap_clamped(0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.5, 1.0)), 124, "remap_clamped range errors")
 
 print("module math vec2 OK")
 exit(0)
