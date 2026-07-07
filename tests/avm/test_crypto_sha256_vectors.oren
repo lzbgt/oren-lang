@@ -60,6 +60,18 @@ fn main() {
     list.int_push(abc_li, 98)
     list.int_push(abc_li, 99)
     assert_eq(oren_bytes_to_hex(oren_sha256_range(abc_li, 0, 3)), got1, "sha256 native list_int range")
+    var long_list = []
+    var long_list_int = list.int_new(0)
+    var long_i = 0
+    while long_i < 70000 {
+        var long_b = (long_i * 37 + 11) & 255
+        oren_list_push(long_list, long_b)
+        list.int_push(long_list_int, long_b)
+        long_i = long_i + 1
+    }
+    var long_hash = "3c43d02a5c493c6c534dda8983b3da6d13cf36f155491e4d6553c0a88f5b817d"
+    assert_eq(oren_bytes_to_hex(oren_sha256_range(long_list, 0, 70000)), long_hash, "sha256 AVM long boxed list range")
+    assert_eq(oren_bytes_to_hex(oren_sha256_range(long_list_int, 0, 70000)), long_hash, "sha256 AVM long list_int range")
     var got1_repeat = sha256.sha256_hex(abc)
     assert_eq(got1_repeat, got1, "abc repeat")
     var multiblock = oren_bytes_from_string("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")

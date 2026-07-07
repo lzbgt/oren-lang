@@ -300,6 +300,16 @@ if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$c_runtime_sha256_impl" ||
   exit 1
 fi
 
+avm_sha256_impl="$(sed -n '/case 120:.*oren_sha256_range/,/case 121:/p' lib/avm/avm_native_core_tail_cases.inc)"
+if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$avm_sha256_impl" ||
+  ! grep -Fq 'avm_sha256_update(&ctx, chunk, want)' <<<"$avm_sha256_impl" ||
+  grep -Fq 'avm_sha256_update(&ctx, &b, 1)' <<<"$avm_sha256_impl" ||
+  ! grep -Fq 'sha256 AVM long boxed list range' tests/avm/test_crypto_sha256_vectors.oren ||
+  ! grep -Fq 'sha256 AVM long list_int range' tests/avm/test_crypto_sha256_vectors.oren; then
+  echo "ERROR: AVM sha256_range list/LIST_INT inputs must hash bounded chunks, not call sha256_update once per byte" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||

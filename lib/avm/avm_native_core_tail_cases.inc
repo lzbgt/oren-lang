@@ -39,18 +39,26 @@
                 if (bytes) {
                     if (len > 0) avm_sha256_update(&ctx, bytes->data + (size_t)start, (size_t)len);
                 } else {
-                    for (int64_t i = 0; i < len; i++) {
-                        int64_t v = 0;
-                        if (list) {
-                            AvmValue it = list->items[(int)(start + i)];
-                            if (it.type != AVM_VAL_INT) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected list<int 0..255>"); break; }
-                            v = it.as.i;
-                        } else {
-                            v = list_int->items[(int)(start + i)];
+                    uint8_t chunk[64 * 1024];
+                    int64_t off = 0;
+                    while (off < len) {
+                        int64_t remaining = len - off;
+                        size_t want = remaining > (int64_t)sizeof(chunk) ? sizeof(chunk) : (size_t)remaining;
+                        for (size_t i = 0; i < want; i++) {
+                            int64_t v = 0;
+                            if (list) {
+                                AvmValue it = list->items[(int)(start + off + (int64_t)i)];
+                                if (it.type != AVM_VAL_INT) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected list<int 0..255>"); break; }
+                                v = it.as.i;
+                            } else {
+                                v = list_int->items[(int)(start + off + (int64_t)i)];
+                            }
+                            if (v < 0 || v > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected bytes 0..255"); break; }
+                            chunk[i] = (uint8_t)v;
                         }
-                        if (v < 0 || v > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected bytes 0..255"); break; }
-                        uint8_t b = (uint8_t)v;
-                        avm_sha256_update(&ctx, &b, 1);
+                        if (avm_is_err_val(res)) break;
+                        avm_sha256_update(&ctx, chunk, want);
+                        off += (int64_t)want;
                     }
                 }
                 if (avm_is_err_val(res)) break;
