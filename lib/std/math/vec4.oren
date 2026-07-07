@@ -122,6 +122,34 @@ fn saturate(x: f64, y: f64, z: f64, w: f64) {
     return [math.saturate(x), math.saturate(y), math.saturate(z), math.saturate(w)]
 }
 
+fn step(edge_x: f64, edge_y: f64, edge_z: f64, edge_w: f64, x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite8(edge_x, edge_y, edge_z, edge_w, x, y, z, w, "vec4.step")
+    if oren_is_err(ok) { return ok }
+    return [math.step(edge_x, x), math.step(edge_y, y), math.step(edge_z, z), math.step(edge_w, w)]
+}
+
+fn smoothstep(edge0_x: f64, edge0_y: f64, edge0_z: f64, edge0_w: f64, edge1_x: f64, edge1_y: f64, edge1_z: f64, edge1_w: f64, x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite8(edge0_x, edge0_y, edge0_z, edge0_w, edge1_x, edge1_y, edge1_z, edge1_w, "vec4.smoothstep")
+    if oren_is_err(ok) { return ok }
+    ok = _finite4(x, y, z, w, "vec4.smoothstep")
+    if oren_is_err(ok) { return ok }
+    if edge1_x <= edge0_x || edge1_y <= edge0_y || edge1_z <= edge0_z || edge1_w <= edge0_w {
+        return oren_err(4, "vec4.smoothstep: edge1 <= edge0")
+    }
+    return [math.smoothstep(edge0_x, edge1_x, x), math.smoothstep(edge0_y, edge1_y, y), math.smoothstep(edge0_z, edge1_z, z), math.smoothstep(edge0_w, edge1_w, w)]
+}
+
+fn smootherstep(edge0_x: f64, edge0_y: f64, edge0_z: f64, edge0_w: f64, edge1_x: f64, edge1_y: f64, edge1_z: f64, edge1_w: f64, x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite8(edge0_x, edge0_y, edge0_z, edge0_w, edge1_x, edge1_y, edge1_z, edge1_w, "vec4.smootherstep")
+    if oren_is_err(ok) { return ok }
+    ok = _finite4(x, y, z, w, "vec4.smootherstep")
+    if oren_is_err(ok) { return ok }
+    if edge1_x <= edge0_x || edge1_y <= edge0_y || edge1_z <= edge0_z || edge1_w <= edge0_w {
+        return oren_err(4, "vec4.smootherstep: edge1 <= edge0")
+    }
+    return [math.smootherstep(edge0_x, edge1_x, x), math.smootherstep(edge0_y, edge1_y, y), math.smootherstep(edge0_z, edge1_z, z), math.smootherstep(edge0_w, edge1_w, w)]
+}
+
 fn min(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.min")
     if oren_is_err(ok) { return ok }

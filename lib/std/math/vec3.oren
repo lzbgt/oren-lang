@@ -115,6 +115,34 @@ fn saturate(x: f64, y: f64, z: f64) {
     return [math.saturate(x), math.saturate(y), math.saturate(z)]
 }
 
+fn step(edge_x: f64, edge_y: f64, edge_z: f64, x: f64, y: f64, z: f64) {
+    var ok = _finite6(edge_x, edge_y, edge_z, x, y, z, "vec3.step")
+    if oren_is_err(ok) { return ok }
+    return [math.step(edge_x, x), math.step(edge_y, y), math.step(edge_z, z)]
+}
+
+fn smoothstep(edge0_x: f64, edge0_y: f64, edge0_z: f64, edge1_x: f64, edge1_y: f64, edge1_z: f64, x: f64, y: f64, z: f64) {
+    var ok = _finite6(edge0_x, edge0_y, edge0_z, edge1_x, edge1_y, edge1_z, "vec3.smoothstep")
+    if oren_is_err(ok) { return ok }
+    ok = _finite3(x, y, z, "vec3.smoothstep")
+    if oren_is_err(ok) { return ok }
+    if edge1_x <= edge0_x || edge1_y <= edge0_y || edge1_z <= edge0_z {
+        return oren_err(4, "vec3.smoothstep: edge1 <= edge0")
+    }
+    return [math.smoothstep(edge0_x, edge1_x, x), math.smoothstep(edge0_y, edge1_y, y), math.smoothstep(edge0_z, edge1_z, z)]
+}
+
+fn smootherstep(edge0_x: f64, edge0_y: f64, edge0_z: f64, edge1_x: f64, edge1_y: f64, edge1_z: f64, x: f64, y: f64, z: f64) {
+    var ok = _finite6(edge0_x, edge0_y, edge0_z, edge1_x, edge1_y, edge1_z, "vec3.smootherstep")
+    if oren_is_err(ok) { return ok }
+    ok = _finite3(x, y, z, "vec3.smootherstep")
+    if oren_is_err(ok) { return ok }
+    if edge1_x <= edge0_x || edge1_y <= edge0_y || edge1_z <= edge0_z {
+        return oren_err(4, "vec3.smootherstep: edge1 <= edge0")
+    }
+    return [math.smootherstep(edge0_x, edge1_x, x), math.smootherstep(edge0_y, edge1_y, y), math.smootherstep(edge0_z, edge1_z, z)]
+}
+
 fn min(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.min")
     if oren_is_err(ok) { return ok }
