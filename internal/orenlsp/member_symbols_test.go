@@ -485,6 +485,131 @@ func TestServerNavigationUsesCallSiteParameterFieldChains(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesNestedCallSiteParameterFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf, label }",
+		"struct Outer { inner, other }",
+		"struct Other { z }",
+		"fn unknown() { return 0 }",
+		"fn use_outer(o) {",
+		"  var c = o.inner.leaf.",
+		"  return o.inner.leaf.x",
+		"}",
+		"fn identity_outer(o) {",
+		"  return o",
+		"}",
+		"fn use_conflict(o) {",
+		"  return o.inner.leaf.x",
+		"}",
+		"var good = Outer(Inner(Leaf(1, 2), \"a\"), Other(9))",
+		"var alias = good",
+		"var weak = Outer(Inner(unknown(), \"b\"), Other(10))",
+		"var bad = Outer(Inner(Other(11), \"c\"), Other(12))",
+		"var a = use_outer(alias)",
+		"var b = use_outer(Outer(Inner(Leaf(3, 4), \"d\"), Other(13)))",
+		"var c = use_conflict(good)",
+		"var d = use_conflict(bad)",
+		"var e = identity_outer(good)",
+		"fn main() {",
+		"  var from_return = e.inner.leaf.",
+		"  return e.inner.leaf.y + weak.inner.leaf.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-nested-call-param-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      241,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": len([]rune(lines[6]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      242,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": strings.LastIndex(lines[7], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      243,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.LastIndex(lines[13], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      244,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 25, "character": len([]rune(lines[25]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      245,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 26, "character": strings.Index(lines[26], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      246,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 26, "character": strings.LastIndex(lines[26], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 241)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("nested call-site parameter field-chain completion mismatch: %#v", items)
+	}
+	leafX := float64(strings.Index(lines[0], "x"))
+	assertDefinition(t, messageByID(t, msgs, 242)["result"].([]any), uri, 0, leafX, leafX+1)
+	defs := messageByID(t, msgs, 243)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("conflicting nested call-site field-chain definition=%#v want none", defs)
+	}
+	returned := messageByID(t, msgs, 244)["result"].([]any)
+	if !hasCompletion(returned, "x", 5) || !hasCompletion(returned, "y", 5) || hasCompletion(returned, "z", 5) {
+		t.Fatalf("returned nested parameter field-chain completion mismatch: %#v", returned)
+	}
+	leafY := float64(strings.Index(lines[0], "y"))
+	assertDefinition(t, messageByID(t, msgs, 245)["result"].([]any), uri, 0, leafY, leafY+1)
+	defs = messageByID(t, msgs, 246)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("weak nested call-site field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesReturnIfExpressionReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

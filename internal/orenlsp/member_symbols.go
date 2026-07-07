@@ -953,8 +953,8 @@ func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, st
 	if expr == nil || !validMemberIdentifier(expr.Property) {
 		return ""
 	}
-	if ident, ok := expr.Left.(*ast.Identifier); ok && validMemberIdentifier(ident) {
-		if typeName := lookupInferredVarType(inferredFieldKey(ident.Value, expr.Property.Value), stack); typeName != "" {
+	if fieldPath := memberExpressionPath(expr); fieldPath != "" {
+		if typeName := lookupInferredVarType(fieldPath, stack); typeName != "" {
 			return typeName
 		}
 	}
@@ -1003,6 +1003,7 @@ func inferExpressionFieldTypes(expr ast.Expression, env memberTypeEnv, stack []m
 			if fieldType != "" {
 				out[field.Symbol.Name] = fieldType
 			}
+			mergeNestedFieldTypes(out, field.Symbol.Name, inferExpressionFieldTypes(expr.Arguments[i], env, stack))
 		}
 		if len(out) == 0 {
 			return nil
@@ -1131,27 +1132,8 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 		copyInferredFieldTypes(ident.Value, source.Value, stack)
 		return
 	}
-	call, ok := expr.(*ast.CallExpression)
-	if !ok {
-		return
-	}
-	if fields := functionFieldTypesForCall(call, env); len(fields) != 0 {
+	if fields := inferExpressionFieldTypes(expr, env, stack); len(fields) != 0 {
 		setInferredFieldTypes(ident.Value, fields, stack[len(stack)-1])
-		return
-	}
-	info, ok := env.Types[typeName]
-	if !ok {
-		return
-	}
-	fields := orderedTypeFields(info)
-	for i, field := range fields {
-		if i >= len(call.Arguments) {
-			break
-		}
-		fieldType := inferExpressionType(call.Arguments[i], env, stack)
-		if fieldType != "" {
-			stack[len(stack)-1][inferredFieldKey(ident.Value, field.Symbol.Name)] = fieldType
-		}
 	}
 }
 
@@ -1231,6 +1213,36 @@ func inferredFieldKey(name, field string) string {
 		return ""
 	}
 	return name + "." + field
+}
+
+func memberExpressionPath(expr ast.Expression) string {
+	switch expr := expr.(type) {
+	case *ast.Identifier:
+		if validMemberIdentifier(expr) {
+			return expr.Value
+		}
+	case *ast.MemberExpression:
+		if !validMemberIdentifier(expr.Property) {
+			return ""
+		}
+		left := memberExpressionPath(expr.Left)
+		if left == "" {
+			return ""
+		}
+		return inferredFieldKey(left, expr.Property.Value)
+	}
+	return ""
+}
+
+func mergeNestedFieldTypes(out map[string]string, fieldName string, fields map[string]string) {
+	if len(out) == 0 || fieldName == "" || len(fields) == 0 {
+		return
+	}
+	for nested, typeName := range fields {
+		if nested != "" && typeName != "" {
+			out[inferredFieldKey(fieldName, nested)] = typeName
+		}
+	}
 }
 
 func inferredParamFrame(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {

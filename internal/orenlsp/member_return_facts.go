@@ -465,6 +465,7 @@ func mergeCallParamFieldTypes(fnName, paramName, typeName string, fields map[str
 	if out[fnName] == nil {
 		out[fnName] = map[string]string{}
 	}
+	dropMissingCallParamFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
 	if info, ok := env.Types[typeName]; ok {
 		for _, field := range orderedTypeFields(info) {
 			fieldName := field.Symbol.Name
@@ -494,6 +495,24 @@ func mergeCallParamFieldTypes(fnName, paramName, typeName string, fields map[str
 		}
 		delete(out[fnName], paramField)
 		conflicts[conflictKey] = true
+	}
+}
+
+func dropMissingCallParamFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "."
+	for key := range params {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		field := strings.TrimPrefix(key, prefix)
+		if field == "" || fields[field] != "" {
+			continue
+		}
+		delete(params, key)
+		conflicts[fnName+"\x00"+key] = true
 	}
 }
 
