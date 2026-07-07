@@ -565,6 +565,7 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
     }
     uint8_t rgba[4];
     if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indexBytes / 4u) {
+        OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
         uint32_t triangleTotal = mesh.indexCount / 3u;
         OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
         OrenAVMMetalTriangleOrder* heapOrder = NULL;
@@ -586,7 +587,6 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
             const uint8_t* v1 = verts + ((size_t)OrenAVMMetalReadU32LE(tri) * 12u);
             const uint8_t* v2 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 4) * 12u);
             const uint8_t* v3 = verts + ((size_t)OrenAVMMetalReadU32LE(tri + 8) * 12u);
-            OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
             OrenAVMMetalAppendTriangle(vertices,
                                        OrenAVMMetalMesh3DModelCoord(v1, modelX, scaleMilli) + tx,
                                        OrenAVMMetalMesh3DModelCoord(v1 + 4, modelY, scaleMilli) + ty,
@@ -600,6 +600,13 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
         }
         free(heapOrder);
     } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangleBytes / meshStride) {
+        uint8_t constantRGBA[4];
+        BOOL hasConstantRGBA = hasMaterialRGBA || (meshStride == 36u && mesh.hasRGBA);
+        if (hasConstantRGBA) {
+            OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue,
+                                             opacity,
+                                             constantRGBA);
+        }
         uint32_t triangleTotal = mesh.triangleCount;
         OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
         OrenAVMMetalTriangleOrder* heapOrder = NULL;
@@ -618,12 +625,12 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
         for (uint32_t di = 0; di < visibleTotal; di++) {
             uint32_t best = order[di].triangle;
             const uint8_t* tri = tris + ((size_t)best * meshStride);
-            if (hasMaterialRGBA) {
-                OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
+            const uint8_t* triangleRGBA = NULL;
+            if (hasConstantRGBA) {
+                triangleRGBA = constantRGBA;
             } else if (meshStride == 40u) {
                 OrenAVMMetalRGBAWithOpacity(tri + 36, opacity, rgba);
-            } else if (mesh.hasRGBA) {
-                OrenAVMMetalRGBAValueWithOpacity(mesh.rgbaValue, opacity, rgba);
+                triangleRGBA = rgba;
             } else {
                 continue;
             }
@@ -636,7 +643,7 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
                                        OrenAVMMetalMesh3DModelCoord(tri + 28, modelY, scaleMilli) + ty,
                                        logicalWidth,
                                        logicalHeight,
-                                       rgba);
+                                       triangleRGBA);
         }
         free(heapOrder);
     }

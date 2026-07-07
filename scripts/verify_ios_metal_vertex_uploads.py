@@ -385,6 +385,24 @@ def main() -> int:
             fail(f"retained Metal mesh/material/model command helper missing expected path: {token}")
     if "uint32_t materialRGBA = hasMaterialRGBA ? materialRGBAOverride : mesh.rgbaValue;" not in resource_text:
         fail("retained Metal material overrides must resolve once per draw")
+    indexed_start = resource_text.find("if (verts && idx && mesh.hasRGBA")
+    packed_start = resource_text.find("} else if (tris && scaleMilli", indexed_start)
+    mesh_draw_end = resource_text.find("BOOL OrenAVMMetalHandleMeshCommand", packed_start)
+    if indexed_start < 0 or packed_start < 0 or mesh_draw_end < 0:
+        fail("retained Metal 3D draw helper missing indexed or packed draw branches")
+    indexed_draw = resource_text[indexed_start:packed_start]
+    packed_draw = resource_text[packed_start:mesh_draw_end]
+    indexed_rgba = "OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);"
+    if indexed_draw.count(indexed_rgba) != 1:
+        fail("indexed retained Metal 3D draws must convert constant RGBA exactly once")
+    if indexed_draw.find(indexed_rgba) > indexed_draw.find("for (uint32_t di = 0; di < visibleTotal; di++)"):
+        fail("indexed retained Metal 3D RGBA conversion must happen before the triangle draw loop")
+    if "BOOL hasConstantRGBA = hasMaterialRGBA || (meshStride == 36u && mesh.hasRGBA);" not in packed_draw:
+        fail("packed retained Metal 3D draws must identify constant material/mesh RGBA once")
+    if "OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue," not in packed_draw:
+        fail("packed retained Metal 3D draws must convert constant material/mesh RGBA before drawing")
+    if packed_draw.find("OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue,") > packed_draw.find("for (uint32_t di = 0; di < visibleTotal; di++)"):
+        fail("packed retained Metal 3D constant RGBA conversion must happen before the triangle draw loop")
     if "OrenAVMMetalAppendMesh3DResource(_orenMeshes3DByID" in text or "OrenAVMMetalTriangleOrder" in text:
         fail("retained Metal 3D draw block must not expand resource payloads in the view")
     if "unsignedIntValue" in mesh_command:
