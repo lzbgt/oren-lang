@@ -1276,15 +1276,7 @@ func inferBlockReturnMapValueFieldTypes(block *ast.BlockStatement, env memberTyp
 
 	var inferred map[string]string
 	for _, stmt := range block.Statements {
-		var next map[string]string
-		switch stmt := stmt.(type) {
-		case *ast.VarStatement:
-			setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
-		case *ast.AssignStatement:
-			setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
-		case *ast.ReturnStatement:
-			next = inferMapValueFieldTypes(stmt.ReturnValue, env, *stack)
-		}
+		next := inferStatementReturnMapValueFieldTypes(stmt, env, stack)
 		if len(next) == 0 {
 			continue
 		}
@@ -1320,15 +1312,7 @@ func inferBlockReturnElementFieldTypes(block *ast.BlockStatement, env memberType
 
 	var inferred map[string]string
 	for _, stmt := range block.Statements {
-		var next map[string]string
-		switch stmt := stmt.(type) {
-		case *ast.VarStatement:
-			setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
-		case *ast.AssignStatement:
-			setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
-		case *ast.ReturnStatement:
-			next = inferIterableElementFieldTypes(stmt.ReturnValue, env, *stack)
-		}
+		next := inferStatementReturnElementFieldTypes(stmt, env, stack)
 		if len(next) == 0 {
 			continue
 		}
