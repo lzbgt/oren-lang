@@ -2439,7 +2439,10 @@
 <p>Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking</p>
 <p>keep active pointer IDs in scalar pointer maps instead of retaining per-touch</p>
 <p><code>NSNumber</code> boxes, and both renderers share <code>OrenAVMGFXInput</code> touch forwarding</p>
-<p>helpers while keeping per-view maps. The</p>
+<p>helpers while keeping per-view maps. CoreGraphics retained resource models,</p>
+<p>scalar map keys/lookups, raw payload copy, and retained-3D painter ordering</p>
+<p>helpers now live in <code>OrenAVMGraphicsResources</code>, matching the Metal resource</p>
+<p>module boundary. The</p>
 <p>iOS SDK symbol verifier</p>
 <p>now caches <code>nm</code> output once per archive and greps files instead of SIGPIPE-prone</p>
 <p><code>nm | grep -q</code> pipelines. AVM</p>
@@ -2890,6 +2893,10 @@
 <p>  and Metal UIKit touch forwarding now share <code>OrenAVMGFXInput</code> scalar touch-ID</p>
 <p>  helpers, reducing <code>OrenAVMMetalView.m</code> to 510 lines and</p>
 <p>  <code>OrenAVMGraphicsView.m</code> to 1249 lines while keeping view-owned maps.</p>
+<p>  CoreGraphics retained resource models, scalar map keys/lookups, raw payload</p>
+<p>  copy, and retained-3D painter ordering helpers now live in</p>
+<p>  <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 1070 lines</p>
+<p>  while keeping frame traversal and draw decisions in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

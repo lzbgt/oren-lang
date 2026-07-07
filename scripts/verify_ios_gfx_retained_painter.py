@@ -7,6 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m"
+RESOURCE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsResources.h"
+RESOURCE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsResources.m"
 
 
 def fail(message: str) -> None:
@@ -15,7 +17,9 @@ def fail(message: str) -> None:
 
 
 def main() -> int:
-    text = SOURCE.read_text()
+    view_text = SOURCE.read_text()
+    resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
+    text = view_text + "\n" + resource_text
     required = [
         "OrenAVMGfxTriangleOrder",
         "OrenAVMGfxTriangleOrderBuffer",
@@ -30,7 +34,9 @@ def main() -> int:
         fail("expected sorted order path for indexed and packed retained 3D meshes")
     if "OrenAVMGfxInlineTriangleOrderCapacity = 128" not in text:
         fail("CoreGraphics retained 3D triangle ordering must have a small stack buffer")
-    if "OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount,\n                                                              OrenAVMGfxTriangleOrder* inlineOrder" not in text:
+    if "OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount," not in resource_text:
+        fail("CoreGraphics retained 3D triangle ordering helper must live in OrenAVMGraphicsResources")
+    if "if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder" not in resource_text:
         fail("CoreGraphics retained 3D triangle ordering must try inline storage before heap storage")
     if text.count("OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity]") < 2:
         fail("CoreGraphics retained 3D draw paths must pass stack triangle-order buffers")

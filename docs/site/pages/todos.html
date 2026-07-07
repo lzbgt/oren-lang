@@ -3733,6 +3733,12 @@
 <p>  while reducing <code>OrenAVMMetalView.m</code> to 510 lines and <code>OrenAVMGraphicsView.m</code></p>
 <p>  to 1249 lines.</p>
 <ul>
+<li>CoreGraphics retained resource models, scalar map keys/lookups, raw payload</li>
+</ul>
+<p>  copy, and retained-3D painter ordering helpers now live in</p>
+<p>  <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 1070 lines</p>
+<p>  while keeping frame traversal and CoreGraphics draw decisions in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>
@@ -3949,6 +3955,11 @@
 <p>  raw scalar values instead of retaining per-touch <code>NSNumber</code> boxes, and both</p>
 <p>  renderers now share the <code>OrenAVMGFXInput</code> touch forwarding helper while</p>
 <p>  keeping their per-view maps.</p>
+<ul>
+<li>CoreGraphics retained resource models, scalar map keys/lookups, raw payload</li>
+</ul>
+<p>  copy, and retained-3D painter ordering helpers now live in</p>
+<p>  <code>OrenAVMGraphicsResources</code>, matching the Metal resource-module boundary.</p>
 <ul>
 <li>Bytecode final artifact writes now report the original <code>u8_buf</code></li>
 </ul>

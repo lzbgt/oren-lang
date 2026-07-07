@@ -36,6 +36,7 @@ done < <(
 OREN_AVM_KIT_SOURCES=(
   sdk/ios/OrenAVMKit/OrenAVMCompilerKit.m
   sdk/ios/OrenAVMKit/OrenAVMGFXInput.m
+  sdk/ios/OrenAVMKit/OrenAVMGraphicsResources.m
   sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m
   sdk/ios/OrenAVMKit/OrenAVMKit.m
   sdk/ios/OrenAVMKit/OrenAVMMetalFrame.m

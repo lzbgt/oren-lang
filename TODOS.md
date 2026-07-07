@@ -2686,6 +2686,10 @@ design evidence lives under `project-doc/`.
   scalar touch-ID helpers, keeping per-view `CFMutableDictionary` ownership
   while reducing `OrenAVMMetalView.m` to 510 lines and `OrenAVMGraphicsView.m`
   to 1249 lines.
+- CoreGraphics retained resource models, scalar map keys/lookups, raw payload
+  copy, and retained-3D painter ordering helpers now live in
+  `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to 1070 lines
+  while keeping frame traversal and CoreGraphics draw decisions in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
@@ -2815,6 +2819,9 @@ design evidence lives under `project-doc/`.
   raw scalar values instead of retaining per-touch `NSNumber` boxes, and both
   renderers now share the `OrenAVMGFXInput` touch forwarding helper while
   keeping their per-view maps.
+- CoreGraphics retained resource models, scalar map keys/lookups, raw payload
+  copy, and retained-3D painter ordering helpers now live in
+  `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the
