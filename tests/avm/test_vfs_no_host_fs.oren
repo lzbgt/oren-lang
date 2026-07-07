@@ -36,6 +36,15 @@ fn main() {
     if oren_bytes_get_u8(large_out, 65535) != ((65535 * 37) & 255) { fail("large mismatch 65535") }
     if oren_bytes_get_u8(large_out, 69999) != ((69999 * 37) & 255) { fail("large mismatch 69999") }
 
+    var list_int_path = "build/avm_vfs_list_int_copy.bin"
+    var large_list_int = oren_read_bytes(large_path)
+    oren_write_bytes(list_int_path, large_list_int)
+    var list_int_out = oren_read_u8_buf(list_int_path)
+    if oren_bytes_len(list_int_out) != 70000 { fail("list_int length mismatch") }
+    if oren_bytes_get_u8(list_int_out, 0) != 0 { fail("list_int mismatch 0") }
+    if oren_bytes_get_u8(list_int_out, 65535) != ((65535 * 37) & 255) { fail("list_int mismatch 65535") }
+    if oren_bytes_get_u8(list_int_out, 69999) != ((69999 * 37) & 255) { fail("list_int mismatch 69999") }
+
     oren_exit(0)
 }
 

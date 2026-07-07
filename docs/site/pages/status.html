@@ -2463,12 +2463,13 @@
 <p>instead of boxed <code>AvmValue</code> byte-list entries; the host path now fills the</p>
 <p>returned <code>LIST_INT</code> directly from bounded 64 KiB file chunks instead of</p>
 <p>allocating a full-size AVM heap byte mirror first. Legacy AVM host</p>
-<p><code>oren_write_bytes</code> now keeps list-input compatibility but validates list bytes</p>
-<p>before opening the destination and streams bounded 64 KiB stack chunks instead</p>
-<p>of allocating a full-size AVM heap byte mirror. Legacy AVM VFS list-backed</p>
-<p><code>write_bytes</code> now stores bytes directly into the final VFS entry buffer instead</p>
-<p>of first building a full-size temporary byte mirror and then copying it into VFS</p>
-<p>storage. Legacy C runtime</p>
+<p><code>oren_write_bytes</code> now keeps list-input compatibility but validates boxed-list</p>
+<p>or <code>LIST_INT</code> bytes before opening the destination and streams bounded 64 KiB</p>
+<p>stack chunks instead of allocating a full-size AVM heap byte mirror. Legacy AVM</p>
+<p>VFS list-backed <code>write_bytes</code> now stores boxed-list and <code>LIST_INT</code> bytes</p>
+<p>directly into the final VFS entry buffer through a shared owned-data path</p>
+<p>instead of first building a full-size temporary byte mirror and then copying it</p>
+<p>into VFS storage. Legacy C runtime</p>
 <p><code>oren_read_bytes</code> still returns a boxed compatibility byte list, but now fills</p>
 <p>that list from bounded 64 KiB read chunks instead of allocating a second</p>
 <p>full-file temporary byte buffer before list materialization. Legacy C runtime</p>

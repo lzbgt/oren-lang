@@ -88,6 +88,8 @@
                         len = (uint32_t)(args[1].as.b->len < 0 ? 0 : args[1].as.b->len);
                     } else if (args[1].type == AVM_VAL_LIST && args[1].as.l) {
                         len = (uint32_t)(args[1].as.l->count < 0 ? 0 : args[1].as.l->count);
+                    } else if (args[1].type == AVM_VAL_LIST_INT && args[1].as.li) {
+                        len = (uint32_t)(args[1].as.li->count < 0 ? 0 : args[1].as.li->count);
                     } else {
                         return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, bytes|list)", domain, op);
                     }
@@ -104,6 +106,8 @@
                     if (args[1].type == AVM_VAL_BYTES) {
                         AvmBytes* b = args[1].as.b;
                         ok = avm_vfs_put(vm, path ? path : "", b ? b->data : NULL, len);
+                    } else if (args[1].type == AVM_VAL_LIST_INT) {
+                        ok = avm_vfs_put_list_int(vm, path ? path : "", args[1].as.li);
                     } else {
                         ok = avm_vfs_put_list(vm, path ? path : "", args[1].as.l);
                     }

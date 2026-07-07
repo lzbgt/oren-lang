@@ -415,11 +415,12 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         }
         case 17: { // oren_write_bytes
             if (nargs > 1 && args[0].type == AVM_VAL_STRING &&
-                (args[1].type == AVM_VAL_LIST || args[1].type == AVM_VAL_BYTES)) {
+                (args[1].type == AVM_VAL_LIST || args[1].type == AVM_VAL_LIST_INT || args[1].type == AVM_VAL_BYTES)) {
                 char* path = (char*)args[0].as.p;
                 uint8_t* buf = NULL;
                 int len = 0;
                 AvmList* list = NULL;
+                AvmListInt* list_int = NULL;
 
                 if (args[1].type == AVM_VAL_BYTES) {
                     AvmBytes* b = args[1].as.b;
@@ -428,6 +429,19 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     if (b->len > 0 && !b->data) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: u8_buf payload is nil"); break; }
                     buf = b->data;
                     len = b->len;
+                } else if (args[1].type == AVM_VAL_LIST_INT) {
+                    list_int = args[1].as.li;
+                    if (!list_int) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: list_int is nil"); break; }
+                    if (list_int->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: invalid list_int length"); break; }
+                    len = list_int->count;
+                    for (int i = 0; i < len; i++) {
+                        int64_t b = list_int->items ? list_int->items[i] : 0;
+                        if (b < 0 || b > 255) {
+                            res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: expected list<int 0..255>");
+                            break;
+                        }
+                    }
+                    if (avm_is_err_val(res)) break;
                 } else {
                     list = args[1].as.l;
                     if (!list) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: list is nil"); break; }
@@ -474,8 +488,14 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     while (off < len) {
                         size_t want = (size_t)(len - off);
                         if (want > sizeof(chunk)) want = sizeof(chunk);
-                        for (size_t i = 0; i < want; i++) {
-                            chunk[i] = (uint8_t)(list->items[off + (int)i].as.i & 255);
+                        if (list_int) {
+                            for (size_t i = 0; i < want; i++) {
+                                chunk[i] = (uint8_t)(list_int->items[off + (int)i] & 255);
+                            }
+                        } else {
+                            for (size_t i = 0; i < want; i++) {
+                                chunk[i] = (uint8_t)(list->items[off + (int)i].as.i & 255);
+                            }
                         }
                         size_t nw = fwrite(chunk, 1, want, f);
                         if (nw != want) { n = (size_t)off + nw; break; }

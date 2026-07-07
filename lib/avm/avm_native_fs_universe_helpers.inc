@@ -534,19 +534,10 @@ static int avm_vfs_append(AvmVM* vm, const char* path, const uint8_t* data, uint
     return 1;
 }
 
-static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
-    if (!vm || !path) return 0;
-    uint32_t len = 0;
-    if (list && list->count > 0) len = (uint32_t)list->count;
-    uint8_t* new_data = NULL;
-    if (len > 0) {
-        new_data = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_VFS);
-        if (!new_data) return 0;
-        for (uint32_t i = 0; i < len; i++) {
-            int64_t v = 0;
-            if (list && list->items && (int)i < list->count) v = list->items[i].as.i;
-            new_data[i] = (uint8_t)(v & 0xFF);
-        }
+static int avm_vfs_put_owned_data(AvmVM* vm, const char* path, uint8_t* new_data, uint32_t len) {
+    if (!vm || !path) {
+        if (new_data) avm_heap_free(new_data);
+        return 0;
     }
 
     AvmVfs* v = avm_vfs_get_or_create(vm);
@@ -582,6 +573,41 @@ static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
     e->data = new_data;
     e->len = len;
     return 1;
+}
+
+static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
+    if (!vm || !path) return 0;
+    uint32_t len = 0;
+    if (list && list->count > 0) len = (uint32_t)list->count;
+    uint8_t* new_data = NULL;
+    if (len > 0) {
+        new_data = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_VFS);
+        if (!new_data) return 0;
+        for (uint32_t i = 0; i < len; i++) {
+            int64_t v = 0;
+            if (list && list->items && (int)i < list->count) v = list->items[i].as.i;
+            new_data[i] = (uint8_t)(v & 0xFF);
+        }
+    }
+
+    return avm_vfs_put_owned_data(vm, path, new_data, len);
+}
+
+static int avm_vfs_put_list_int(AvmVM* vm, const char* path, const AvmListInt* list) {
+    if (!vm || !path) return 0;
+    uint32_t len = 0;
+    if (list && list->count > 0) len = (uint32_t)list->count;
+    uint8_t* new_data = NULL;
+    if (len > 0) {
+        new_data = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_VFS);
+        if (!new_data) return 0;
+        for (uint32_t i = 0; i < len; i++) {
+            int64_t v = (list && list->items && (int)i < list->count) ? list->items[i] : 0;
+            new_data[i] = (uint8_t)(v & 0xFF);
+        }
+    }
+
+    return avm_vfs_put_owned_data(vm, path, new_data, len);
 }
 
 static int avm_vfs_clone(AvmVM* dst, AvmVM* src) {

@@ -35,5 +35,13 @@ fn main() {
     if large_out[65535] != ((65535 * 37) & 255) { fail("large mismatch at 65535") }
     if large_out[69999] != ((69999 * 37) & 255) { fail("large mismatch at 69999") }
 
+    var copy_path = "build/avm_test_read_bytes_copy.bin"
+    oren_write_bytes(copy_path, large_out)
+    var copy = oren_read_u8_buf(copy_path)
+    if oren_bytes_len(copy) != 70000 { fail("copy length mismatch") }
+    if oren_bytes_get_u8(copy, 0) != 0 { fail("copy mismatch at 0") }
+    if oren_bytes_get_u8(copy, 65535) != ((65535 * 37) & 255) { fail("copy mismatch at 65535") }
+    if oren_bytes_get_u8(copy, 69999) != ((69999 * 37) & 255) { fail("copy mismatch at 69999") }
+
     print("avm read_bytes OK")
 }
