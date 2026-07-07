@@ -2502,9 +2502,10 @@
 <p>and <code>bytes_unpack</code>; the native and legacy C runtimes now route the same</p>
 <p>full-buffer string, slice, pack, and unpack family through shared byte-span</p>
 <p>helpers, keeping byte carriers on the optimized path without duplicated</p>
-<p>boxed-list copy loops. Legacy C runtime and AVM <code>oren_sha256_range</code> now hash</p>
-<p>boxed-list/list-int inputs through bounded 64 KiB stack chunks instead of</p>
-<p>invoking the SHA update routine once per byte. The iOS SDK now</p>
+<p>boxed-list copy loops. Native, legacy C runtime, and AVM <code>oren_sha256_range</code></p>
+<p>now hash boxed-list/list-int inputs through bounded 64 KiB stack chunks or</p>
+<p>shared 64-byte copy-span block fills instead of invoking the SHA update routine</p>
+<p>once per byte or rejecting optimized <code>LIST_INT</code> carriers. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>

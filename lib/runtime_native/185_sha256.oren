@@ -124,7 +124,7 @@ fn oren_sha256_range(bytes, start, length) {
     if start < 0 || length < 0 { oren_panic("sha256_range: negative range") }
 
     var n_total = oren_bytes_len(bytes)
-    if oren_is_err(n_total) { oren_panic("sha256_range expects list<int> or u8_buf") }
+    if oren_is_err(n_total) { oren_panic("sha256_range expects list<int>, LIST_INT, or u8_buf") }
     if start + length > n_total { oren_panic("sha256_range: out of bounds") }
 
     // Allocate state + scratch (freed before return).
@@ -145,30 +145,18 @@ fn oren_sha256_range(bytes, start, length) {
     ptr_set(state + 6 * 8, 528734635)
     ptr_set(state + 7 * 8, 1541459225)
 
-    // Fast path: avoid per-byte dynamic checks by handling list/u8_buf directly.
-    var is_list = native_bytes_is_list(bytes)
-    var is_u8buf = false
-    var list_buf = 0
+    // Fast path: u8_buf is contiguous; list/LIST_INT carriers share the checked copy-span helper.
+    var is_u8buf = native_bytes_is_u8_buf(bytes)
     var buf_ptr = 0
-    if is_list != true {
-        is_u8buf = native_bytes_is_u8_buf(bytes)
-    }
-    if is_list == true {
-        list_buf = ptr_get(bytes + 16)
-        if list_buf == 0 { oren_panic("sha256_range: list buffer is nil") }
-    } else {
-        if is_u8buf == true {
-            buf_ptr = native_buf_data_ptr(bytes)
-            if buf_ptr == 0 { oren_panic("sha256_range: buf payload is nil") }
-        } else {
-            oren_panic("sha256_range expects list<int 0..255> or u8_buf")
-        }
+    if is_u8buf == true {
+        buf_ptr = native_buf_data_ptr(bytes)
+        if buf_ptr == 0 { oren_panic("sha256_range: buf payload is nil") }
     }
 
     // Hash full 64-byte blocks first to avoid per-byte loop overhead on large inputs
     // (critical for compiler build cache: hashing compiler binaries + expanded runtime bundles).
     var off = 0
-    if is_list != true {
+    if is_u8buf == true {
         // u8_buf: contiguous bytes (fast path).
         var src_ptr = iadd(buf_ptr, start)
         while off + 64 <= length {
@@ -199,25 +187,17 @@ fn oren_sha256_range(bytes, start, length) {
         ptr_set_byte(data + 56, (bitlen >> 56) & 255)
         sha256_transform(state, data, k, w)
     } else {
-        // list<int>: build 64-byte blocks in `data`, then transform.
+        // list<int>/LIST_INT: build 64-byte blocks in `data`, then transform.
         while off + 64 <= length {
-            var j = 0
-            while j < 64 {
-                var byte = ptr_get(list_buf + (start + off + j) * 8)
-                if byte < 0 || byte > 255 { oren_panic("sha256_range: byte out of range") }
-                ptr_set_byte(data + j, byte)
-                j = j + 1
-            }
+            var rc = native_bytes_copy_span(bytes, start + off, 64, data)
+            if oren_is_err(rc) { oren_panic("sha256_range: byte out of range") }
             sha256_transform(state, data, k, w)
             off = off + 64
         }
         var rem2 = length - off
-        var k0 = 0
-        while k0 < rem2 {
-            var byte2 = ptr_get(list_buf + (start + off + k0) * 8)
-            if byte2 < 0 || byte2 > 255 { oren_panic("sha256_range: byte out of range") }
-            ptr_set_byte(data + k0, byte2)
-            k0 = k0 + 1
+        if rem2 > 0 {
+            var rc2 = native_bytes_copy_span(bytes, start + off, rem2, data)
+            if oren_is_err(rc2) { oren_panic("sha256_range: byte out of range") }
         }
         var bitlen2 = length * 8
         ptr_set_byte(data + rem2, 128)

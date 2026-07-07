@@ -2404,9 +2404,10 @@ mirror. AVM byte/string slice conversion now shares checked bytes/list/
 and `bytes_unpack`; the native and legacy C runtimes now route the same
 full-buffer string, slice, pack, and unpack family through shared byte-span
 helpers, keeping byte carriers on the optimized path without duplicated
-boxed-list copy loops. Legacy C runtime and AVM `oren_sha256_range` now hash
-boxed-list/list-int inputs through bounded 64 KiB stack chunks instead of
-invoking the SHA update routine once per byte. The iOS SDK now
+boxed-list copy loops. Native, legacy C runtime, and AVM `oren_sha256_range`
+now hash boxed-list/list-int inputs through bounded 64 KiB stack chunks or
+shared 64-byte copy-span block fills instead of invoking the SHA update routine
+once per byte or rejecting optimized `LIST_INT` carriers. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

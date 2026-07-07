@@ -300,6 +300,16 @@ if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$c_runtime_sha256_impl" ||
   exit 1
 fi
 
+native_sha256_impl="$(sed -n '/fn oren_sha256_range/,/fn oren_sha256_string/p' lib/runtime_native/185_sha256.oren)"
+if ! grep -Fq 'native_bytes_copy_span(bytes, start + off, 64, data)' <<<"$native_sha256_impl" ||
+  ! grep -Fq 'native_bytes_copy_span(bytes, start + off, rem2, data)' <<<"$native_sha256_impl" ||
+  grep -Fq 'ptr_get(list_buf + (start + off + j) * 8)' <<<"$native_sha256_impl" ||
+  grep -Fq 'ptr_get(list_buf + (start + off + k0) * 8)' <<<"$native_sha256_impl" ||
+  ! grep -Fq 'sha256 native long list_int range' tests/modules/test_crypto_sha256_c_list_chunks.oren; then
+  echo "ERROR: native sha256_range list/LIST_INT inputs must share checked byte copy-span block fills" >&2
+  exit 1
+fi
+
 avm_sha256_impl="$(sed -n '/case 120:.*oren_sha256_range/,/case 121:/p' lib/avm/avm_native_core_tail_cases.inc)"
 if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$avm_sha256_impl" ||
   ! grep -Fq 'avm_sha256_update(&ctx, chunk, want)' <<<"$avm_sha256_impl" ||

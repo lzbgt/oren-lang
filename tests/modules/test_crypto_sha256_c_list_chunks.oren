@@ -1,4 +1,4 @@
-// C backend regression: sha256_range must hash boxed list<int> inputs in bounded chunks.
+// Runtime regression: sha256_range must hash large list<int>/LIST_INT inputs in bounded chunks.
 
 fn fail(msg) {
     print("FAIL: " + msg)
@@ -28,9 +28,12 @@ fn assert_eq(got, want, label) {
 }
 
 var xs = []
+var xi = oren_new_list_int(0)
 var i = 0
 while i < 70000 {
-    oren_list_push(xs, (i * 37 + 11) & 255)
+    var b = (i * 37 + 11) & 255
+    oren_list_push(xs, b)
+    oren_list_int_push(xi, b)
     i = i + 1
 }
 
@@ -39,5 +42,10 @@ assert_eq(
     "3c43d02a5c493c6c534dda8983b3da6d13cf36f155491e4d6553c0a88f5b817d",
     "sha256 C long boxed list range"
 )
+assert_eq(
+    oren_bytes_to_hex(oren_sha256_range(xi, 0, 70000)),
+    "3c43d02a5c493c6c534dda8983b3da6d13cf36f155491e4d6553c0a88f5b817d",
+    "sha256 native long list_int range"
+)
 
-print("sha256 C list chunk OK")
+print("sha256 list chunk OK")
