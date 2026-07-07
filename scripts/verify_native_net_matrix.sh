@@ -78,6 +78,7 @@ LINUX_DOCKER_REF="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 LINUX_DOCKER_ID=""
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 STAGE2_BUILD_TIMEOUT_SECS="${OREN_NATIVE_STAGE2_BUILD_TIMEOUT_SECS:-120}"
+STAGE2_HTTP2_HEADERS_LOCAL_TIMEOUT_SECS="${OREN_NATIVE_STAGE2_HTTP2_HEADERS_LOCAL_TIMEOUT_SECS:-180}"
 STAGE2_BUILD_TIMEOUT_SECS_ARM64_LINUX="${OREN_NATIVE_STAGE2_BUILD_TIMEOUT_SECS_ARM64_LINUX:-900}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
 SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
@@ -126,6 +127,7 @@ Env overrides:
   OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c; container name, full ID, or unambiguous ID prefix)
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each stage1 `oren build ...` step (rolling hang guard)
   OREN_NATIVE_STAGE2_BUILD_TIMEOUT_SECS (default: 120) timeout floor for stage2 `oren build ...` steps
+  OREN_NATIVE_STAGE2_HTTP2_HEADERS_LOCAL_TIMEOUT_SECS (default: 180) local stage2 HTTP/2 headers fixture timeout floor
   OREN_NATIVE_STAGE2_BUILD_TIMEOUT_SECS_ARM64_LINUX (default: 900) stage2 arm64-linux cross-build timeout floor
   OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS (default: 15) timeout override for x64-windows cross builds (toolchain-heavy)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
@@ -401,6 +403,9 @@ build_native_bin_src() {
   local timeout_secs="$BUILD_TIMEOUT_SECS"
   if [[ "$(basename "$compiler")" == "oren_stage2" ]]; then
     timeout_secs="$STAGE2_BUILD_TIMEOUT_SECS"
+    if [[ "$platform" == "$LOCAL_PLATFORM" && "$src" == "$HTTP2_HEADERS_LOOPBACK_SRC" && "$timeout_secs" -lt "$STAGE2_HTTP2_HEADERS_LOCAL_TIMEOUT_SECS" ]]; then
+      timeout_secs="$STAGE2_HTTP2_HEADERS_LOCAL_TIMEOUT_SECS"
+    fi
     if [[ "$platform" == "arm64-linux" && "$timeout_secs" -lt "$STAGE2_BUILD_TIMEOUT_SECS_ARM64_LINUX" ]]; then
       timeout_secs="$STAGE2_BUILD_TIMEOUT_SECS_ARM64_LINUX"
     fi
