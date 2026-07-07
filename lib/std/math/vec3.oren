@@ -58,6 +58,27 @@ fn lerp(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, t: f64) {
     return [x, y, z]
 }
 
+fn abs(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.abs")
+    if oren_is_err(ok) { return ok }
+    return [math.fabs(x), math.fabs(y), math.fabs(z)]
+}
+
+fn sign(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.sign")
+    if oren_is_err(ok) { return ok }
+    var sx: f64 = x
+    var sy: f64 = y
+    var sz: f64 = z
+    if x > 0.0 { sx = 1.0 }
+    if x < 0.0 { sx = 0.0 - 1.0 }
+    if y > 0.0 { sy = 1.0 }
+    if y < 0.0 { sy = 0.0 - 1.0 }
+    if z > 0.0 { sz = 1.0 }
+    if z < 0.0 { sz = 0.0 - 1.0 }
+    return [sx, sy, sz]
+}
+
 fn min(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.min")
     if oren_is_err(ok) { return ok }

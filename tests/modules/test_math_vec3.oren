@@ -66,6 +66,18 @@ assert_close(l[0], 2.5, 0.0, 55, "lerp x")
 assert_close(l[1], 7.5, 0.0, 56, "lerp y")
 assert_close(l[2], 10.0, 0.0, 57, "lerp z")
 
+var ab = vec3.abs(0.0 - 3.0, 4.0, 0.0 - 5.0)
+assert_true(!oren_is_err(ab), 87, "abs ok")
+assert_close(ab[0], 3.0, 0.0, 88, "abs x")
+assert_close(ab[1], 4.0, 0.0, 89, "abs y")
+assert_close(ab[2], 5.0, 0.0, 90, "abs z")
+
+var sg = vec3.sign(0.0 - 3.0, 0.0, 5.0)
+assert_true(!oren_is_err(sg), 91, "sign ok")
+assert_close(sg[0], 0.0 - 1.0, 0.0, 92, "sign x")
+assert_close(sg[1], 0.0, 0.0, 93, "sign y")
+assert_close(sg[2], 1.0, 0.0, 94, "sign z")
+
 var mn = vec3.min(3.0, 0.0 - 4.0, 8.0, 2.0, 5.0, 7.0)
 assert_true(!oren_is_err(mn), 73, "min ok")
 assert_close(mn[0], 2.0, 0.0, 74, "min x")
@@ -113,6 +125,8 @@ assert_true(oren_is_err(vec3.reflect(1.0, 2.0, 3.0, 0.0, 0.0, 0.0)), 71, "reflec
 assert_true(oren_is_err(vec3.scale(1.0, 2.0, 3.0, math.inf())), 72, "scale inf errors")
 assert_true(oren_is_err(vec3.max(1.0, 2.0, 3.0, 4.0, math.inf(), 6.0)), 85, "max inf errors")
 assert_true(oren_is_err(vec3.clamp(1.0, 2.0, 3.0, 0.0, 5.0, 0.0, 4.0, 3.0, 5.0)), 86, "clamp bounds errors")
+assert_true(oren_is_err(vec3.abs(1.0, math.inf(), 2.0)), 95, "abs inf errors")
+assert_true(oren_is_err(vec3.sign(1.0, math.nan(), 2.0)), 96, "sign nan errors")
 
 print("module math vec3 OK")
 exit(0)
