@@ -32,6 +32,7 @@ for sym in \
   _avm_embed_set_net_fetch_callback \
   _avm_embed_set_net_session_callbacks \
   _avm_embed_set_net_session_write_typed_callback \
+  _avm_embed_set_net_session_read_typed_callback \
   _avm_embed_set_net_resolve_callback \
   _avm_embed_vproc_put \
   _avm_embed_vproc_set_default_exit \

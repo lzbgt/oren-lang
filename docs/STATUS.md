@@ -2034,7 +2034,9 @@ Facts from the 2026-05-28 implementation pass:
   protocol facades wrap the lower-level virtual socket module. Virtual socket/TCP/UDP
   sessions expose receiver methods (`session.read(...)`, `session.write(...)`,
   `listener.accept(...)`, `session.send(...)`, `session.recv(...)`, readiness waits,
-  and `session.close()`) while retaining raw integer session ids as the OBC ABI for
+  and `session.close()`), and AVM WebSocket sessions expose `recv_text` plus
+  byte-native `recv`/`recv_bytes` with opcode-specific host reads, while retaining
+  raw integer session ids as the OBC ABI for
   low memory overhead. The iOS verifier exercises TCP/UDP/WebSocket through live
   host-backed virtual sockets, so app code does not need to call `std:net/avm/socket`
   directly for common client/server flows.
@@ -2415,10 +2417,10 @@ buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while
 still copying mutable inputs defensively, and the package installer borrows
 stored ZIP entry slices from the release bundle during CRC/write instead of
-copying each stored entry. Host-backed WebSocket session writes use typed AVM
-embed payload callbacks so string writes emit opcode-1 text frames, byte writes
-emit opcode-2 binary frames, and both use small masked stack-first frames before
-heap fallback. Package-store hex decode, raw-deflate inflation, and publisher
+copying each stored entry. Host-backed WebSocket session writes and reads use typed AVM
+embed payload callbacks so string writes/`recv_text` use opcode-1 text frames,
+byte writes/`recv`/`recv_bytes` use opcode-2 binary frames, and outbound frames
+use small masked stack-first buffers before heap fallback. Package-store hex decode, raw-deflate inflation, and publisher
 signature message wrapping use raw/no-copy buffers instead of `NSMutableData` or
 string-to-`NSData` copy helpers, and CompilerKit `compileSource` encodes source
 strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
@@ -2649,8 +2651,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 				  kinds, and byte counts through scalar-key CF dictionaries instead of
 				  boxed `NSNumber` session state, and its host-backed WebSocket upgrade
 				  path uses raw stack-first key/request/response buffers instead of
-				  transient Objective-C data wrappers, and its typed AVM embed write
-				  callback preserves text-vs-binary WebSocket opcodes for string and
+				  transient Objective-C data wrappers, and its typed AVM embed write/read
+				  callbacks preserve text-vs-binary WebSocket opcodes for string and
 				  byte payloads. Native HTTP/2 client state now
 				  uses a typed `Client` receiver with `client.request(...).text()` /
 				  `.bytes()` response methods. Public fallible NET APIs now use normal

@@ -3970,10 +3970,11 @@
 <p>  ASCII upgrade request, and accumulates the response header through raw</p>
 <p>  stack-first buffers instead of transient <code>NSData</code>/<code>NSMutableData</code> wrappers.</p>
 <ul>
-<li>iOS host-backed WebSocket session writes now use typed AVM embed payload callbacks</li>
+<li>iOS host-backed WebSocket session writes and reads now use typed AVM embed</li>
 </ul>
-<p>  so string writes emit opcode-1 text frames, byte writes emit opcode-2 binary</p>
-<p>  frames, and both use small masked stack-first frames before heap fallback.</p>
+<p>  payload callbacks so string writes/<code>recv_text</code> use opcode-1 text frames,</p>
+<p>  byte writes/<code>recv</code>/<code>recv_bytes</code> use opcode-2 binary frames, and outbound</p>
+<p>  frames use small masked stack-first buffers before heap fallback.</p>
 <ul>
 <li><code>OrenAVMRunResult</code> now preserves immutable no-copy stdout data without</li>
 </ul>

@@ -2833,9 +2833,10 @@ design evidence lives under `project-doc/`.
 - The iOS SDK host-backed WebSocket handshake path now generates keys, sends the
   ASCII upgrade request, and accumulates the response header through raw
   stack-first buffers instead of transient `NSData`/`NSMutableData` wrappers.
-- iOS host-backed WebSocket session writes now use typed AVM embed payload callbacks
-  so string writes emit opcode-1 text frames, byte writes emit opcode-2 binary
-  frames, and both use small masked stack-first frames before heap fallback.
+- iOS host-backed WebSocket session writes and reads now use typed AVM embed
+  payload callbacks so string writes/`recv_text` use opcode-1 text frames,
+  byte writes/`recv`/`recv_bytes` use opcode-2 binary frames, and outbound
+  frames use small masked stack-first buffers before heap fallback.
 - `OrenAVMRunResult` now preserves immutable no-copy stdout data without
   recopying it, while still copying mutable inputs defensively.
 - The iOS package installer now borrows stored ZIP entry byte slices directly

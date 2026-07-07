@@ -315,11 +315,11 @@
                 return ret;
             }
 
-            case 3: { // session_read(session_id, max_len, timeout_ms) -> BYTES
+            case 3: { // session_read(session_id, max_len, timeout_ms, payload_kind?) -> BYTES
                 if (nargs < 2 || args[0].type != AVM_VAL_INT || args[1].type != AVM_VAL_INT) {
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "net.session_read expects (session_id: int, max_len: int, timeout_ms?: int)", domain, op);
                 }
-                if (!vm || vm->net_backend_kind != 1 || !vm->net_session_read_fn) {
+                if (!vm || vm->net_backend_kind != 1 || (!vm->net_session_read_fn && !vm->net_session_read_typed_fn)) {
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "vnet session read not implemented", domain, op);
                 }
                 uint64_t max_len64 = avm_value_u64(args[1], 0);
@@ -328,9 +328,17 @@
                 }
                 uint32_t timeout_ms = 0;
                 if (nargs >= 3) timeout_ms = (uint32_t)avm_value_u64(args[2], 0);
+                uint32_t payload_kind = AVM_NET_SESSION_PAYLOAD_ANY;
+                if (nargs >= 4) payload_kind = (uint32_t)avm_value_u64(args[3], AVM_NET_SESSION_PAYLOAD_ANY);
+                if (payload_kind > AVM_NET_SESSION_PAYLOAD_BYTES) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "vnet session read payload kind must be 0, 1, or 2", domain, op);
+                }
                 uint8_t* callback_body = NULL;
                 size_t callback_len = 0;
-                if (vm->net_session_read_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), (size_t)max_len64, timeout_ms, &callback_body, &callback_len) != 0) {
+                int read_rc = vm->net_session_read_typed_fn
+                    ? vm->net_session_read_typed_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), (size_t)max_len64, payload_kind, timeout_ms, &callback_body, &callback_len)
+                    : vm->net_session_read_fn(vm->net_session_user_data, (uint32_t)avm_value_u64(args[0], 0), (size_t)max_len64, timeout_ms, &callback_body, &callback_len);
+                if (read_rc != 0) {
                     return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet session read failed", domain, op);
                 }
                 if (callback_len > (size_t)UINT32_MAX || callback_len > (size_t)max_len64 || (callback_len > 0 && !callback_body)) {

@@ -15,6 +15,7 @@ trait WebSocketSession {
     fn send(self, data, timeout_ms);
     fn send_text(self, text, timeout_ms);
     fn recv(self, max_len, timeout_ms);
+    fn recv_bytes(self, max_len, timeout_ms);
     fn recv_text(self, max_len, timeout_ms);
     fn close(self);
     fn select(self, event_mask, timeout_ms);
@@ -51,11 +52,15 @@ fn send_text(session_id, text, timeout_ms) {
 }
 
 fn recv(session_id, max_len, timeout_ms) {
-    return socket.read(session_id, max_len, timeout_ms)
+    return recv_bytes(session_id, max_len, timeout_ms)
+}
+
+fn recv_bytes(session_id, max_len, timeout_ms) {
+    return socket.read_kind(session_id, max_len, 2, timeout_ms)
 }
 
 fn recv_text(session_id, max_len, timeout_ms) {
-    var data = recv(session_id, max_len, timeout_ms)
+    var data = socket.read_kind(session_id, max_len, 1, timeout_ms)
     if oren_is_err(data) { return data }
     return oren_string_from_bytes_slice(data, 0, oren_bytes_len(data))
 }
@@ -92,6 +97,7 @@ impl WebSocketSession for Session {
     fn send(self, data, timeout_ms) { return send(self, data, timeout_ms) }
     fn send_text(self, text, timeout_ms) { return send_text(self, text, timeout_ms) }
     fn recv(self, max_len, timeout_ms) { return recv(self, max_len, timeout_ms) }
+    fn recv_bytes(self, max_len, timeout_ms) { return recv_bytes(self, max_len, timeout_ms) }
     fn recv_text(self, max_len, timeout_ms) { return recv_text(self, max_len, timeout_ms) }
     fn close(self) { return close(self) }
     fn select(self, event_mask, timeout_ms) { return select(self, event_mask, timeout_ms) }

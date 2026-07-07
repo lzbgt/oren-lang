@@ -445,7 +445,7 @@ static int OrenAVMRuntimeWebSocketWriteFrame(int fd, uint8_t opcode, const uint8
     return rc;
 }
 
-static int OrenAVMRuntimeWebSocketReadPayload(int fd, size_t maxLen, uint8_t** outData, size_t* outLen) {
+static int OrenAVMRuntimeWebSocketReadPayload(int fd, size_t maxLen, uint32_t payloadKind, uint8_t** outData, size_t* outLen) {
     uint8_t head[2];
     if (OrenAVMRuntimeRecvExact(fd, head, sizeof(head)) != 0) return -1;
     uint8_t opcode = head[0] & 0x0Fu;
@@ -480,6 +480,11 @@ static int OrenAVMRuntimeWebSocketReadPayload(int fd, size_t maxLen, uint8_t** o
         return 0;
     }
     if (opcode != 1u && opcode != 2u) {
+        free(payload);
+        return -1;
+    }
+    if ((payloadKind == AVM_NET_SESSION_PAYLOAD_TEXT && opcode != 1u) ||
+        (payloadKind == AVM_NET_SESSION_PAYLOAD_BYTES && opcode != 2u)) {
         free(payload);
         return -1;
     }
@@ -783,7 +788,13 @@ static int OrenAVMRuntimeNetSessionWriteTyped(void* userData, uint32_t sessionId
     return 0;
 }
 
+static int OrenAVMRuntimeNetSessionReadTyped(void* userData, uint32_t sessionId, size_t maxLen, uint32_t payloadKind, uint32_t timeoutMs, uint8_t** outData, size_t* outLen);
+
 static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size_t maxLen, uint32_t timeoutMs, uint8_t** outData, size_t* outLen) {
+    return OrenAVMRuntimeNetSessionReadTyped(userData, sessionId, maxLen, AVM_NET_SESSION_PAYLOAD_ANY, timeoutMs, outData, outLen);
+}
+
+static int OrenAVMRuntimeNetSessionReadTyped(void* userData, uint32_t sessionId, size_t maxLen, uint32_t payloadKind, uint32_t timeoutMs, uint8_t** outData, size_t* outLen) {
     if (!userData || !outData || !outLen || maxLen > (16u * 1024u * 1024u)) return -1;
     *outData = NULL;
     *outLen = 0;
@@ -797,7 +808,7 @@ static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size
         uint8_t* payload = NULL;
         size_t payloadLen = 0;
         OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
-        if (OrenAVMRuntimeWebSocketReadPayload(fd, maxLen, &payload, &payloadLen) != 0) return -1;
+        if (OrenAVMRuntimeWebSocketReadPayload(fd, maxLen, payloadKind, &payload, &payloadLen) != 0) return -1;
         OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)payloadLen);
         *outData = payload;
         *outLen = payloadLen;
@@ -994,6 +1005,11 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
             return nil;
         }
         if (avm_embed_set_net_session_write_typed_callback(_handle, OrenAVMRuntimeNetSessionWriteTyped, &result) != AVM_EMBED_OK) {
+            avm_embed_close(_handle);
+            _handle = NULL;
+            return nil;
+        }
+        if (avm_embed_set_net_session_read_typed_callback(_handle, OrenAVMRuntimeNetSessionReadTyped, &result) != AVM_EMBED_OK) {
             avm_embed_close(_handle);
             _handle = NULL;
             return nil;
@@ -1292,6 +1308,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET session callbacks", &result);
     rc = avm_embed_set_net_session_write_typed_callback(_handle, OrenAVMRuntimeNetSessionWriteTyped, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live typed NET session write callback", &result);
+    rc = avm_embed_set_net_session_read_typed_callback(_handle, OrenAVMRuntimeNetSessionReadTyped, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live typed NET session read callback", &result);
     rc = avm_embed_set_net_resolve_callback(_handle, OrenAVMRuntimeNetResolve, (__bridge void*)self, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to set live NET resolve callback", &result);
     return YES;
@@ -1327,6 +1345,8 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET callback", &result);
     rc = avm_embed_set_net_session_write_typed_callback(_handle, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live typed NET session write callback", &result);
+    rc = avm_embed_set_net_session_read_typed_callback(_handle, NULL, &result);
+    if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live typed NET session read callback", &result);
     rc = avm_embed_set_net_session_callbacks(_handle, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &result);
     if (rc != AVM_EMBED_OK) return OrenAVMKitAssignError(error, @"failed to clear live NET session callbacks", &result);
     rc = avm_embed_set_net_resolve_callback(_handle, NULL, NULL, &result);

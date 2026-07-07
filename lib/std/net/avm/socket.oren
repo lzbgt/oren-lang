@@ -63,6 +63,10 @@ fn read(session_id, max_len, timeout_ms) {
     return oren_vnet_session_read(session_id, max_len, timeout_ms)
 }
 
+fn read_kind(session_id, max_len, payload_kind, timeout_ms) {
+    return oren_vnet_session_read_kind(session_id, max_len, timeout_ms, payload_kind)
+}
+
 fn poll(session_id, events, timeout_ms) {
     return oren_vnet_session_poll(session_id, events, timeout_ms)
 }

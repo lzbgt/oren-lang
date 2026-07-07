@@ -128,6 +128,7 @@ def run_ws_echo(args: argparse.Namespace) -> int:
         if opcode != 2 or payload != b"bin!":
             raise RuntimeError("unexpected websocket binary payload")
         conn.sendall(b"\x82\x04bong")
+        conn.sendall(b"\x81\x04text")
     finally:
         conn.close()
         srv.close()

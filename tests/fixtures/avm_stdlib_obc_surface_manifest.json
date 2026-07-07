@@ -394,7 +394,7 @@
       "alias": "net_avm_ws",
       "probes": [
         "if net_avm_ws.event_read_write() != 3 { fail(65) }",
-        "if false { var ws_s = net_avm_ws.connect_spec(\"ws://127.0.0.1:9/\", 1); ws_s.send_text(\"x\", 1); ws_s.recv_text(1, 1); ws_s.close() }"
+        "if false { var ws_s = net_avm_ws.connect_spec(\"ws://127.0.0.1:9/\", 1); ws_s.send_text(\"x\", 1); ws_s.recv_text(1, 1); ws_s.recv_bytes(1, 1); ws_s.close() }"
       ]
     },
     {

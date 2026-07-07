@@ -78,6 +78,8 @@ fn main() {
             var br = net_ws.recv(sid, 4, 5000)
             if oren_is_err(br) { oren_exit(70) }
             if bytes.to_string(br) != "bong" { oren_exit(71) }
+            var wrong = net_ws.recv(sid, 4, 5000)
+            if oren_is_err(wrong) != true { oren_exit(72) }
         } else {
             if bytes.to_string(rb) != "pong" { oren_exit(60) }
         }

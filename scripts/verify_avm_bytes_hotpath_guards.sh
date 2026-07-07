@@ -434,9 +434,20 @@ if ! grep -Fq 'avm_embed_set_net_session_write_typed_callback(_handle, OrenAVMRu
   echo "ERROR: iOS host-backed AVM WebSocket writes must preserve string-vs-bytes payload kinds as text-vs-binary frame opcodes" >&2
   exit 1
 fi
+if ! grep -Fq 'avm_embed_set_net_session_read_typed_callback(_handle, OrenAVMRuntimeNetSessionReadTyped' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  ! grep -Fq 'OrenAVMRuntimeWebSocketReadPayload(fd, maxLen, payloadKind' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  ! grep -Fq 'payloadKind == AVM_NET_SESSION_PAYLOAD_TEXT && opcode != 1u' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  ! grep -Fq 'payloadKind == AVM_NET_SESSION_PAYLOAD_BYTES && opcode != 2u' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
+  ! grep -Fq 'return socket.read_kind(session_id, max_len, 2, timeout_ms)' lib/std/net/avm/ws.oren ||
+  ! grep -Fq 'var data = socket.read_kind(session_id, max_len, 1, timeout_ms)' lib/std/net/avm/ws.oren; then
+  echo "ERROR: iOS host-backed AVM WebSocket reads must preserve text-vs-binary frame opcode expectations" >&2
+  exit 1
+fi
 if ! grep -Fq 'if opcode != 2 or payload != b"bin!"' scripts/libavm_ios_verify_net_helpers.py ||
+  ! grep -Fq 'conn.sendall(b"\x81\x04text")' scripts/libavm_ios_verify_net_helpers.py ||
   ! grep -Fq 'net_ws.send(sid, bin, 5000)' tests/fixtures/ios_avm/embed_chain.oren ||
-  ! grep -Fq 'net_ws.recv(sid, 4, 5000)' tests/fixtures/ios_avm/embed_chain.oren; then
+  ! grep -Fq 'net_ws.recv(sid, 4, 5000)' tests/fixtures/ios_avm/embed_chain.oren ||
+  ! grep -Fq 'if oren_is_err(wrong) != true' tests/fixtures/ios_avm/embed_chain.oren; then
   echo "ERROR: iOS AVM WebSocket verifier must exercise byte-native binary frame opcodes" >&2
   exit 1
 fi
