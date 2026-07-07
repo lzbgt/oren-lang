@@ -2527,12 +2527,13 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   upgrade headers read directly into reserved header storage without scratch
   copies, receive-side frame headers/ext lengths/masks parse through one
   receive-call prefix scratch buffer, unmasked frame sends stream raw payload spans after a
-  compact header, masked client sends stream fixed-size masked chunks instead
-  of allocating full payload-sized frames, native binary WebSocket sends validate
-  positive-length source backing storage, receive-side fragmented text/binary
-  frames accumulate through bounded exact-size `u8_buf` output, binary receives
-  expose opcode-2 payloads without string conversion, and
-  native WebSocket header slices plus frame payload reads
+	  compact header, masked client sends stream fixed-size masked chunks instead
+	  of allocating full payload-sized frames, native binary WebSocket sends validate
+	  positive-length source backing storage, receive-side fragmented text/binary
+	  frames accumulate through bounded exact-size `u8_buf` output, binary receives
+	  expose opcode-2 payloads without string conversion, `recv_bytes` control
+	  frames use scratch storage instead of managed byte-return buffers, and
+	  native WebSocket header slices plus frame payload reads
   copy with `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
 				  Base64/Base64URL encode reads inputs through shared byte views after one length

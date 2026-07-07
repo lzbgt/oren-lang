@@ -1023,7 +1023,9 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
 
         var out = 0
         var outp = 0
-        if want_bytes == 1 {
+        var out_is_bytes = 0
+        if want_bytes == 1 && opcode < 8 {
+            out_is_bytes = 1
             out = oren_u8_buf_new_uninit(plen)
             if oren_is_err(out) { free(frame_hdr); return {"ok": 0, "err": "ws.recv_bytes: alloc payload"} }
             if plen > 0 {
@@ -1037,7 +1039,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         }
         rc = _read_exact(conn, outp, plen, timeout_ms)
         if rc < 0 {
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ", masked=" + oren_int_to_string(masked) + ")"}
         }
@@ -1048,7 +1050,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             ptr_set_byte(outp + i2, b)
             i2 = i2 + 1
         }
-        if want_bytes != 1 { ptr_set_byte(out + plen, 0) }
+        if out_is_bytes != 1 { ptr_set_byte(out + plen, 0) }
 
         // RFC6455: client->server frames are masked; server->client are not.
         // Use the incoming masked bit as a heuristic for the role when responding.
@@ -1058,17 +1060,17 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         if opcode < 8 {
             if opcode == 0 {
                 if frag_active != 1 {
-                    if want_bytes != 1 { free(out) }
+                    if out_is_bytes != 1 { free(out) }
                     free(frame_hdr)
                     return {"ok": 0, "err": "ws.recv_text: unexpected continuation frame"}
                 }
                 if frag_opcode != want_opcode {
-                    if want_bytes != 1 { free(out) }
+                    if out_is_bytes != 1 { free(out) }
                     free(frame_hdr)
                     return {"ok": 0, "err": "ws.recv_text: continuation opcode mismatch"}
                 }
                 var arc0 = _frag_acc_append_raw(frag_acc, outp, plen)
-                if want_bytes != 1 { free(out) }
+                if out_is_bytes != 1 { free(out) }
                 if oren_is_err(arc0) {
                     free(frame_hdr)
                     return {"ok": 0, "err": "ws.recv_text: fragmented append failed: " + oren_err_msg(arc0)}
@@ -1080,12 +1082,12 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
                 continue
             }
             if opcode != want_opcode {
-                if want_bytes != 1 { free(out) }
+                if out_is_bytes != 1 { free(out) }
                 free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
             }
             if frag_active == 1 {
-                if want_bytes != 1 { free(out) }
+                if out_is_bytes != 1 { free(out) }
                 free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: nested fragmented data frame"}
             }
@@ -1095,12 +1097,12 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             }
             frag_acc = _frag_acc_new(plen + 64)
             if oren_is_err(frag_acc) {
-                if want_bytes != 1 { free(out) }
+                if out_is_bytes != 1 { free(out) }
                 free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: fragmented alloc failed: " + oren_err_msg(frag_acc)}
             }
             var arc1 = _frag_acc_append_raw(frag_acc, outp, plen)
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             if oren_is_err(arc1) {
                 free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: fragmented append failed: " + oren_err_msg(arc1)}
@@ -1111,12 +1113,12 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         }
 
         if fin != 1 {
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: fragmented control frame"}
         }
         if plen > 125 {
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: control payload too large"}
         }
@@ -1124,7 +1126,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         if opcode == 9 {
             // ping => pong + continue
             var prc = _send_frame_raw(conn, 10, outp, plen, timeout_ms, out_masked)
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             if prc < 0 {
                 free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: auto-pong failed (errno=" + oren_int_to_string(0 - prc) + ")"}
@@ -1133,13 +1135,13 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         }
         if opcode == 10 {
             // pong => ignore + continue
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             continue
         }
         if opcode == 8 {
             // close => echo close + return (caller may close the fd)
             var crc = _send_frame_raw(conn, 8, outp, plen, timeout_ms, out_masked)
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             if crc < 0 {
                 free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: close send failed (errno=" + oren_int_to_string(0 - crc) + ")"}
@@ -1148,7 +1150,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             return {"ok": 0, "err": "ws.recv_text: close"}
         }
         if opcode != want_opcode {
-            if want_bytes != 1 { free(out) }
+            if out_is_bytes != 1 { free(out) }
             free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
         }

@@ -446,6 +446,14 @@ fn run_one(listen_fd, url, resolver) {
 
         if rc == 0 {
             bytes = _make_binary_payload(4101)
+            var bprc = ws.send_ping_client(conn, "bytes", 5000)
+            if oren_is_err(bprc) {
+                print("ws_echo_loopback: FAIL ping before bytes: " + oren_err_msg(bprc))
+                rc = 26
+            }
+        }
+
+        if rc == 0 {
             var bwr = conn.send_bytes_client(bytes, 5000)
             if oren_is_err(bwr) {
                 print("ws_echo_loopback: FAIL send bytes: " + oren_err_msg(bwr))
