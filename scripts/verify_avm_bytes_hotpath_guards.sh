@@ -386,6 +386,16 @@ if ! grep -Fq 'var n = _io_read_into(conn, buf + used, read_cap, rem)' <<<"$ws_h
   echo "ERROR: native WebSocket HTTP upgrade header reads must fill reserved header storage directly without scratch-buffer copies" >&2
   exit 1
 fi
+if ! grep -Fq 'var frame_hdr = malloc(14)' lib/std/net/ws.oren ||
+  ! grep -Fq 'rc = _read_exact(conn, frame_hdr + 2, ext_len, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'rc = _read_exact(conn, frame_hdr + mask_off, 4, timeout_ms)' lib/std/net/ws.oren ||
+  grep -Fq 'var hdr2 = malloc(2)' lib/std/net/ws.oren ||
+  grep -Fq 'var ex = malloc(2)' lib/std/net/ws.oren ||
+  grep -Fq 'var ex8 = malloc(8)' lib/std/net/ws.oren ||
+  grep -Fq 'var mk = malloc(4)' lib/std/net/ws.oren; then
+  echo "ERROR: native WebSocket recv_text must use one fixed frame-prefix scratch buffer, not multiple small header/ext/mask allocations" >&2
+  exit 1
+fi
 
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||

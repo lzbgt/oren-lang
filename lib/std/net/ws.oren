@@ -828,14 +828,13 @@ fn recv_text(conn, timeout_ms) {
     // - pong => ignore + continue
     // - close => respond with close and return ok=0
     while 1 {
-        var hdr2 = malloc(2)
-        if hdr2 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc failed"} }
-        var rc = _read_exact(conn, hdr2, 2, timeout_ms)
-        if rc < 0 { free(hdr2); return {"ok": 0, "err": "ws.recv_text: read hdr failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+        var frame_hdr = malloc(14)
+        if frame_hdr == 0 { return {"ok": 0, "err": "ws.recv_text: malloc failed"} }
+        var rc = _read_exact(conn, frame_hdr, 2, timeout_ms)
+        if rc < 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: read hdr failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
 
-        var b0 = ptr_get_byte(hdr2 + 0) & 255
-        var b1 = ptr_get_byte(hdr2 + 1) & 255
-        free(hdr2)
+        var b0 = ptr_get_byte(frame_hdr + 0) & 255
+        var b1 = ptr_get_byte(frame_hdr + 1) & 255
 
         var fin = (b0 >> 7) & 1
         var opcode = b0 & 15
@@ -843,34 +842,33 @@ fn recv_text(conn, timeout_ms) {
         var plen7 = b1 & 127
 
         if fin != 1 {
+            free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: fragmented frames not supported"}
         }
 
         var plen = plen7
+        var ext_len = 0
         if plen7 == 126 {
-        var ex = malloc(2)
-        if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
-        rc = _read_exact(conn, ex, 2, timeout_ms)
-        if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
-        plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
-        free(ex)
-    } else if plen7 == 127 {
-        var ex8 = malloc(8)
-        if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
-        rc = _read_exact(conn, ex8, 8, timeout_ms)
-        if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
-        // u64 be (best-effort; reject huge sizes)
-        plen = 0
+            ext_len = 2
+            rc = _read_exact(conn, frame_hdr + 2, ext_len, timeout_ms)
+            if rc < 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
+            plen = ((ptr_get_byte(frame_hdr + 2) & 255) << 8) | (ptr_get_byte(frame_hdr + 3) & 255)
+        } else if plen7 == 127 {
+            ext_len = 8
+            rc = _read_exact(conn, frame_hdr + 2, ext_len, timeout_ms)
+            if rc < 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
+            // u64 be (best-effort; reject huge sizes)
+            plen = 0
             var i = 0
             while i < 8 {
-                plen = plen * 256 + (ptr_get_byte(ex8 + i) & 255)
+                plen = plen * 256 + (ptr_get_byte(frame_hdr + 2 + i) & 255)
                 i = i + 1
             }
-            free(ex8)
         }
 
         // Rolling safety: cap payload size.
         if plen < 0 || plen > 1048576 {
+            free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: payload too large"}
         }
 
@@ -879,16 +877,15 @@ fn recv_text(conn, timeout_ms) {
         var mask2 = 0
         var mask3 = 0
         if masked == 1 {
-            var mk = malloc(4)
-            if mk == 0 { return {"ok": 0, "err": "ws.recv_text: malloc mask"} }
-            rc = _read_exact(conn, mk, 4, timeout_ms)
-            if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ")"} }
-            mask0 = ptr_get_byte(mk + 0) & 255
-            mask1 = ptr_get_byte(mk + 1) & 255
-            mask2 = ptr_get_byte(mk + 2) & 255
-            mask3 = ptr_get_byte(mk + 3) & 255
-            free(mk)
+            var mask_off = 2 + ext_len
+            rc = _read_exact(conn, frame_hdr + mask_off, 4, timeout_ms)
+            if rc < 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ")"} }
+            mask0 = ptr_get_byte(frame_hdr + mask_off + 0) & 255
+            mask1 = ptr_get_byte(frame_hdr + mask_off + 1) & 255
+            mask2 = ptr_get_byte(frame_hdr + mask_off + 2) & 255
+            mask3 = ptr_get_byte(frame_hdr + mask_off + 3) & 255
         }
+        free(frame_hdr)
 
         var out = malloc(plen + 1)
         if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
