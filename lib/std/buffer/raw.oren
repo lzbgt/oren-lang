@@ -323,7 +323,34 @@ fn u8_pack(xs) {
 }
 
 fn u8_pack_into(out: []u8, xs) {
-    return _pack_list_like_into_with(out, xs, "buffer.u8_pack_into", _store_u8_direct, _validate_u8_or_err)
+    var ctx = "buffer.u8_pack_into"
+    var n = _list_len_like_or_err(xs, ctx)
+    if oren_is_err(n) { return n }
+    var no = _len_or_err(out, ctx)
+    if oren_is_err(no) { return no }
+    if no != n { return _err_invalid(ctx + ": length mismatch") }
+    var i = 0
+    while i < n {
+        var v = _validate_u8_or_err(xs[i], ctx)
+        if oren_is_err(v) { return v }
+        i = i + 1
+    }
+    if oren_is_u8_buf(out) == true {
+        var data = oren_buf_data_ptr_unchecked(out)
+        i = 0
+        while i < n {
+            ptr_set_byte(data + i, xs[i] & 255)
+            i = i + 1
+        }
+        return out
+    }
+    i = 0
+    while i < n {
+        var rc = _store_u8_direct(out, i, xs[i])
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
 }
 
 fn u8_unpack(buf: []u8) {

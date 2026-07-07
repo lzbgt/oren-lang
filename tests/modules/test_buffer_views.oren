@@ -34,6 +34,13 @@ assert_eq(oren_buf_load_i32(b, 5), 15, 21)
 fn buf_len_i32(x: []i32): i64 { return oren_buf_len(x) }
 var b_alias: []i32 = b
 assert_eq(buf_len_i32(b_alias), 6, 29)
+var u8_into: []u8 = buffer.u8_new(3)
+assert_true(!oren_is_err(u8_into), 86)
+assert_true(!oren_is_err(buffer.u8_pack_into(u8_into, [65, 66, 67])), 87)
+assert_eq(buffer.u8_to_string(u8_into), "ABC", 88)
+assert_true(oren_is_err(buffer.u8_pack_into(u8_into, [1, 2])), 89)
+assert_true(oren_is_err(buffer.u8_pack_into(u8_into, [1, 2, 300])), 90)
+assert_eq(buffer.u8_to_string(u8_into), "ABC", 91)
 var slice = buffer.slice_new(b, 2, 3)
 assert_true(!oren_is_err(slice), 30)
 assert_eq(buffer.slice_len(slice), 3, 31)
