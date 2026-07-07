@@ -1024,7 +1024,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         var out = 0
         var outp = 0
         var out_is_bytes = 0
-        if want_bytes == 1 && opcode < 8 {
+        if want_bytes == 1 && opcode < 8 && opcode != 0 && opcode == want_opcode && frag_active != 1 && fin == 1 {
             out_is_bytes = 1
             out = oren_u8_buf_new_uninit(plen)
             if oren_is_err(out) { free(frame_hdr); return {"ok": 0, "err": "ws.recv_bytes: alloc payload"} }

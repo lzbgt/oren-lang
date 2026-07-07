@@ -2636,9 +2636,10 @@
 <p>	  compact header, masked client sends stream fixed-size masked chunks instead</p>
 <p>	  of allocating full payload-sized frames, native binary WebSocket sends validate</p>
 <p>	  positive-length source backing storage, receive-side fragmented text/binary</p>
-<p>	  frames accumulate through bounded exact-size <code>u8_buf</code> output, binary receives</p>
-<p>	  expose opcode-2 payloads without string conversion, <code>recv_bytes</code> control</p>
-<p>	  frames use scratch storage instead of managed byte-return buffers, and</p>
+<p>	  frames use scratch/accumulator storage until producing bounded exact-size</p>
+<p>	  <code>u8_buf</code> output, unfragmented binary receives expose opcode-2 payloads</p>
+<p>	  without string conversion, <code>recv_bytes</code> control frames use scratch storage</p>
+<p>	  instead of managed byte-return buffers, and</p>
 <p>	  native WebSocket header slices plus frame payload reads</p>
 <p>  copy with <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>

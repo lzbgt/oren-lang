@@ -390,7 +390,7 @@ if ! grep -Fq '    var frame_hdr = malloc(14)' lib/std/net/ws.oren ||
   ! grep -Fq 'rc = _read_exact(conn, frame_hdr + 2, ext_len, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'rc = _read_exact(conn, frame_hdr + mask_off, 4, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'var out_is_bytes = 0' lib/std/net/ws.oren ||
-  ! grep -Fq 'if want_bytes == 1 && opcode < 8 {' lib/std/net/ws.oren ||
+  ! grep -Fq 'if want_bytes == 1 && opcode < 8 && opcode != 0 && opcode == want_opcode && frag_active != 1 && fin == 1 {' lib/std/net/ws.oren ||
   ! grep -Fq 'out = oren_u8_buf_new_uninit(plen)' lib/std/net/ws.oren ||
   ! grep -Fq 'fn _frag_acc_append_raw(acc, ptr0, n)' lib/std/net/ws.oren ||
   ! grep -Fq 'if opcode == 0 {' lib/std/net/ws.oren ||
