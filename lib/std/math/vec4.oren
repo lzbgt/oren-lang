@@ -204,6 +204,58 @@ fn remap_clamped(in0, in1, out0, out1, v) {
     ]
 }
 
+fn exp(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.exp")
+    if oren_is_err(ok) { return ok }
+    return [math.exp(x), math.exp(y), math.exp(z), math.exp(w)]
+}
+
+fn exp2(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.exp2")
+    if oren_is_err(ok) { return ok }
+    return [math.exp2(x), math.exp2(y), math.exp2(z), math.exp2(w)]
+}
+
+fn exp10(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.exp10")
+    if oren_is_err(ok) { return ok }
+    return [math.exp10(x), math.exp10(y), math.exp10(z), math.exp10(w)]
+}
+
+fn expm1(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.expm1")
+    if oren_is_err(ok) { return ok }
+    return [math.expm1(x), math.expm1(y), math.expm1(z), math.expm1(w)]
+}
+
+fn log(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.log")
+    if oren_is_err(ok) { return ok }
+    if x <= 0.0 || y <= 0.0 || z <= 0.0 || w <= 0.0 { return oren_err(4, "vec4.log: domain") }
+    return [math.log(x), math.log(y), math.log(z), math.log(w)]
+}
+
+fn log2(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.log2")
+    if oren_is_err(ok) { return ok }
+    if x <= 0.0 || y <= 0.0 || z <= 0.0 || w <= 0.0 { return oren_err(4, "vec4.log2: domain") }
+    return [math.log2(x), math.log2(y), math.log2(z), math.log2(w)]
+}
+
+fn log10(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.log10")
+    if oren_is_err(ok) { return ok }
+    if x <= 0.0 || y <= 0.0 || z <= 0.0 || w <= 0.0 { return oren_err(4, "vec4.log10: domain") }
+    return [math.log10(x), math.log10(y), math.log10(z), math.log10(w)]
+}
+
+fn log1p(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.log1p")
+    if oren_is_err(ok) { return ok }
+    if x <= -1.0 || y <= -1.0 || z <= -1.0 || w <= -1.0 { return oren_err(4, "vec4.log1p: domain") }
+    return [math.log1p(x), math.log1p(y), math.log1p(z), math.log1p(w)]
+}
+
 fn sin(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.sin")
     if oren_is_err(ok) { return ok }

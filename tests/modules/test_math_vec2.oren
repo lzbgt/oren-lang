@@ -137,6 +137,41 @@ assert_true(!oren_is_err(rc), 119, "remap_clamped ok")
 assert_close(rc[0], 200.0, 1e-12, 120, "remap_clamped x")
 assert_close(rc[1], 200.0, 1e-12, 121, "remap_clamped y")
 
+var ex = vec2.exp(0.0, 1.0)
+assert_true(!oren_is_err(ex), 200, "exp ok")
+assert_close(ex[0], 1.0, 1e-12, 201, "exp x")
+assert_close(ex[1], math.exp(1.0), 1e-12, 202, "exp y")
+
+var e2 = vec2.exp2(0.0, 3.0)
+assert_true(!oren_is_err(e2), 203, "exp2 ok")
+assert_close(e2[1], 8.0, 1e-12, 204, "exp2 y")
+
+var e10 = vec2.exp10(0.0, 2.0)
+assert_true(!oren_is_err(e10), 205, "exp10 ok")
+assert_close(e10[1], 100.0, 1e-10, 206, "exp10 y")
+
+var em1 = vec2.expm1(0.0, 1.0)
+assert_true(!oren_is_err(em1), 207, "expm1 ok")
+assert_close(em1[0], 0.0, 1e-12, 208, "expm1 x")
+assert_close(em1[1], math.expm1(1.0), 1e-12, 209, "expm1 y")
+
+var lg = vec2.log(1.0, math.exp(1.0))
+assert_true(!oren_is_err(lg), 210, "log ok")
+assert_close(lg[0], 0.0, 1e-12, 211, "log x")
+assert_close(lg[1], 1.0, 1e-10, 212, "log y")
+
+var lg2 = vec2.log2(1.0, 8.0)
+assert_true(!oren_is_err(lg2), 213, "log2 ok")
+assert_close(lg2[1], 3.0, 1e-12, 214, "log2 y")
+
+var lg10 = vec2.log10(1.0, 100.0)
+assert_true(!oren_is_err(lg10), 215, "log10 ok")
+assert_close(lg10[1], 2.0, 1e-10, 216, "log10 y")
+
+var l1p = vec2.log1p(0.0, math.exp(1.0) - 1.0)
+assert_true(!oren_is_err(l1p), 217, "log1p ok")
+assert_close(l1p[1], 1.0, 1e-10, 218, "log1p y")
+
 var sn = vec2.sin(0.0, math.pi() / 2.0)
 assert_true(!oren_is_err(sn), 125, "sin ok")
 assert_close(sn[0], 0.0, 1e-12, 126, "sin x")
@@ -256,6 +291,11 @@ assert_true(oren_is_err(vec2.smootherstep(0.0, 1.0, 1.0, 1.0, 0.5, 1.0)), 112, "
 assert_true(oren_is_err(vec2.inverse_lerp(0.0, 1.0, 0.0, 2.0, 0.5, 1.5)), 122, "inverse_lerp range errors")
 assert_true(oren_is_err(vec2.remap(0.0, 1.0, 1.0, 2.0, 0.0, math.inf(), 1.0, 2.0, 0.5, 1.5)), 123, "remap inf errors")
 assert_true(oren_is_err(vec2.remap_clamped(0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.5, 1.0)), 124, "remap_clamped range errors")
+assert_true(oren_is_err(vec2.exp(math.inf(), 0.0)), 219, "exp inf errors")
+assert_true(oren_is_err(vec2.exp10(0.0, math.nan())), 220, "exp10 nan errors")
+assert_true(oren_is_err(vec2.log(0.0, 1.0)), 221, "log domain errors")
+assert_true(oren_is_err(vec2.log2(1.0, 0.0 - 1.0)), 222, "log2 domain errors")
+assert_true(oren_is_err(vec2.log1p(0.0 - 1.0, 0.0)), 223, "log1p domain errors")
 assert_true(oren_is_err(vec2.sin(math.inf(), 0.0)), 134, "sin inf errors")
 assert_true(oren_is_err(vec2.tan(0.0, math.nan())), 135, "tan nan errors")
 assert_true(oren_is_err(vec2.sin_cos(math.inf(), 0.0)), 155, "sin_cos inf errors")

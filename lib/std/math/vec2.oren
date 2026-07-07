@@ -163,6 +163,58 @@ fn remap_clamped(in0_x: f64, in0_y: f64, in1_x: f64, in1_y: f64, out0_x: f64, ou
     return [math.remap_clamped(in0_x, in1_x, out0_x, out1_x, x), math.remap_clamped(in0_y, in1_y, out0_y, out1_y, y)]
 }
 
+fn exp(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.exp")
+    if oren_is_err(ok) { return ok }
+    return [math.exp(x), math.exp(y)]
+}
+
+fn exp2(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.exp2")
+    if oren_is_err(ok) { return ok }
+    return [math.exp2(x), math.exp2(y)]
+}
+
+fn exp10(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.exp10")
+    if oren_is_err(ok) { return ok }
+    return [math.exp10(x), math.exp10(y)]
+}
+
+fn expm1(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.expm1")
+    if oren_is_err(ok) { return ok }
+    return [math.expm1(x), math.expm1(y)]
+}
+
+fn log(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.log")
+    if oren_is_err(ok) { return ok }
+    if x <= 0.0 || y <= 0.0 { return oren_err(4, "vec2.log: domain") }
+    return [math.log(x), math.log(y)]
+}
+
+fn log2(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.log2")
+    if oren_is_err(ok) { return ok }
+    if x <= 0.0 || y <= 0.0 { return oren_err(4, "vec2.log2: domain") }
+    return [math.log2(x), math.log2(y)]
+}
+
+fn log10(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.log10")
+    if oren_is_err(ok) { return ok }
+    if x <= 0.0 || y <= 0.0 { return oren_err(4, "vec2.log10: domain") }
+    return [math.log10(x), math.log10(y)]
+}
+
+fn log1p(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.log1p")
+    if oren_is_err(ok) { return ok }
+    if x <= -1.0 || y <= -1.0 { return oren_err(4, "vec2.log1p: domain") }
+    return [math.log1p(x), math.log1p(y)]
+}
+
 fn sin(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.sin")
     if oren_is_err(ok) { return ok }
