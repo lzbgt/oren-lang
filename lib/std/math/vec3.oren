@@ -102,6 +102,20 @@ fn pow2i(nx, ny, nz) {
     return [math.pow2i(nx), math.pow2i(ny), math.pow2i(nz)]
 }
 
+fn ldexp(x: f64, y: f64, z: f64, nx, ny, nz) {
+    var ok = _finite3(x, y, z, "vec3.ldexp")
+    if oren_is_err(ok) { return ok }
+    return [math.ldexp(x, nx), math.ldexp(y, ny), math.ldexp(z, nz)]
+}
+
+fn scalbn(x: f64, y: f64, z: f64, nx, ny, nz) {
+    return ldexp(x, y, z, nx, ny, nz)
+}
+
+fn scalbln(x: f64, y: f64, z: f64, nx, ny, nz) {
+    return ldexp(x, y, z, nx, ny, nz)
+}
+
 fn pow(x: f64, y: f64, z: f64, ex: f64, ey: f64, ez: f64) {
     var ok = _finite6(x, y, z, ex, ey, ez, "vec3.pow")
     if oren_is_err(ok) { return ok }
