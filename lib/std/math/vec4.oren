@@ -222,6 +222,32 @@ fn tan(x: f64, y: f64, z: f64, w: f64) {
     return [math.tan(x), math.tan(y), math.tan(z), math.tan(w)]
 }
 
+fn asin(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.asin")
+    if oren_is_err(ok) { return ok }
+    if x < -1.0 || x > 1.0 || y < -1.0 || y > 1.0 || z < -1.0 || z > 1.0 || w < -1.0 || w > 1.0 { return oren_err(4, "vec4.asin: domain") }
+    return [math.asin(x), math.asin(y), math.asin(z), math.asin(w)]
+}
+
+fn acos(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.acos")
+    if oren_is_err(ok) { return ok }
+    if x < -1.0 || x > 1.0 || y < -1.0 || y > 1.0 || z < -1.0 || z > 1.0 || w < -1.0 || w > 1.0 { return oren_err(4, "vec4.acos: domain") }
+    return [math.acos(x), math.acos(y), math.acos(z), math.acos(w)]
+}
+
+fn atan(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.atan")
+    if oren_is_err(ok) { return ok }
+    return [math.atan(x), math.atan(y), math.atan(z), math.atan(w)]
+}
+
+fn atan2(yx: f64, yy: f64, yz: f64, yw: f64, xx: f64, xy: f64, xz: f64, xw: f64) {
+    var ok = _finite8(yx, yy, yz, yw, xx, xy, xz, xw, "vec4.atan2")
+    if oren_is_err(ok) { return ok }
+    return [math.atan2(yx, xx), math.atan2(yy, xy), math.atan2(yz, xz), math.atan2(yw, xw)]
+}
+
 fn min(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.min")
     if oren_is_err(ok) { return ok }
