@@ -229,6 +229,97 @@ fn server(listen_fd, mode) {
     return 0
 }
 
+fn server_chunked_binary(listen_fd) {
+    var fd = oren_tcp_accept(listen_fd, 5000)
+    if fd < 0 { return 71 }
+
+    var req_scratch = malloc(512)
+    if req_scratch != 0 {
+        oren_tcp_read_into(fd, req_scratch, 512, 100)
+        free(req_scratch)
+    }
+
+    var head = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n2\r\n"
+    if oren_tcp_write_from(fd, head, oren_string_len(head), 5000) != oren_string_len(head) {
+        oren_tcp_close(fd)
+        return 72
+    }
+    var chunk0 = malloc(2)
+    if chunk0 == 0 {
+        oren_tcp_close(fd)
+        return 73
+    }
+    ptr_set_byte(chunk0 + 0, 65) // 'A'
+    ptr_set_byte(chunk0 + 1, 0)
+    if oren_tcp_write_from(fd, chunk0, 2, 5000) != 2 {
+        free(chunk0)
+        oren_tcp_close(fd)
+        return 74
+    }
+    free(chunk0)
+    var mid = "\r\n2\r\nBC\r\n0\r\n\r\n"
+    if oren_tcp_write_from(fd, mid, oren_string_len(mid), 5000) != oren_string_len(mid) {
+        oren_tcp_close(fd)
+        return 75
+    }
+
+    oren_tcp_close(fd)
+    return 0
+}
+
+fn run_chunked_binary_bytes_case() {
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { return 80 }
+
+    var sa = malloc(32)
+    if sa == 0 { oren_tcp_close(listen_fd); return 81 }
+    var lenp = malloc(8)
+    if lenp == 0 { free(sa); oren_tcp_close(listen_fd); return 82 }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 {
+        free(sa)
+        free(lenp)
+        oren_tcp_close(listen_fd)
+        return 0 - grc
+    }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { oren_tcp_close(listen_fd); return 83 }
+
+    var h = spawn server_chunked_binary(listen_fd)
+    var url = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var r = http.get(url, 2000)
+    free(url)
+    if oren_is_err(r) {
+        print("http_get_loopback: FAIL chunked binary http.get: " + oren_err_msg(r))
+        oren_join_timeout(h, 5000)
+        oren_tcp_close(listen_fd)
+        return 84
+    }
+    var bs = r.bytes()
+    if oren_is_err(bs) || oren_is_u8_buf(bs) != true || oren_bytes_len(bs) != 4 {
+        print("http_get_loopback: FAIL chunked binary response bytes shape")
+        http.response_free(r)
+        oren_join_timeout(h, 5000)
+        oren_tcp_close(listen_fd)
+        return 85
+    }
+    if oren_bytes_get_u8(bs, 0) != 65 || oren_bytes_get_u8(bs, 1) != 0 || oren_bytes_get_u8(bs, 2) != 66 || oren_bytes_get_u8(bs, 3) != 67 {
+        print("http_get_loopback: FAIL chunked binary response bytes payload")
+        http.response_free(r)
+        oren_join_timeout(h, 5000)
+        oren_tcp_close(listen_fd)
+        return 86
+    }
+    http.response_free(r)
+    var sr = oren_join_timeout(h, 5000)
+    oren_tcp_close(listen_fd)
+    if sr != 0 { return 87 }
+    return 0
+}
+
 fn run_case(mode) {
     // Loopback-only, timeout-bounded, OS-neutral (no fork required).
     var listen_fd = oren_tcp_listen_local(0) // port 0 => ephemeral
@@ -513,6 +604,8 @@ fn main() {
     if rc0 != 0 { exit(rc0) }
     var rc1 = run_case(1)
     if rc1 != 0 { exit(rc1) }
+    var rc2 = run_chunked_binary_bytes_case()
+    if rc2 != 0 { exit(rc2) }
     print("http_get_loopback: OK")
     exit(0)
 }

@@ -355,6 +355,19 @@ if ! grep -Fq 'var _SHA256_K = nil' lib/std/crypto/sha256.oren ||
   exit 1
 fi
 
+chunked_http_impl="$(sed -n '/fn _decode_chunked_body/,/fn headers_get/p' lib/std/net/http.oren)"
+if ! grep -Fq 'fn _chunked_decoded_len(body_ptr, body_len)' lib/std/net/http.oren ||
+  ! grep -Fq 'var decoded_len = _chunked_decoded_len(body_ptr, body_len)' <<<"$chunked_http_impl" ||
+  ! grep -Fq 'var out = malloc(decoded_len + 1)' <<<"$chunked_http_impl" ||
+  ! grep -Fq 'var out_bytes = oren_u8_buf_new_uninit(decoded_len)' <<<"$chunked_http_impl" ||
+  ! grep -Fq 'out_bytes_ptr = native_buf_data_ptr(out_bytes)' <<<"$chunked_http_impl" ||
+  ! grep -Fq 'oren_memcpy(out_bytes_ptr + out_used, body_ptr + i, size)' <<<"$chunked_http_impl" ||
+  grep -Fq 'malloc(body_len + 1)' <<<"$chunked_http_impl" ||
+  grep -Fq '_u8_buf_from_ptr_range(out, 0, out_used)' <<<"$chunked_http_impl"; then
+  echo "ERROR: native HTTP chunked decode must allocate exact decoded text/bytes and fill body_bytes directly, not shrink-copy from framed body storage" >&2
+  exit 1
+fi
+
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||
   grep -Fq '_b64_char(' lib/std/encoding/base64.oren ||

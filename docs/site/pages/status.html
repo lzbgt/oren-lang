@@ -2585,7 +2585,8 @@
 <p>  requests plus AVM HTTP/session specs strip fragments at the NET boundary,</p>
 <p>  with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,</p>
 <p>  native <code>std:net/http</code> caches typed response body bytes for <code>.bytes()</code> on</p>
-<p>  content-length and chunked responses, <code>std:bytes.to_string</code> now uses direct</p>
+<p>  content-length responses and exact-sizes decoded chunked response bytes,</p>
+<p>  <code>std:bytes.to_string</code> now uses direct</p>
 <p>  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
 <p>  and <code>from_hex</code> plus kernel <code>oren_bytes_from_string</code> byte-native output,</p>
 <p>  direct lowercase <code>to_hex</code> emission, and <code>std:strings</code></p>
