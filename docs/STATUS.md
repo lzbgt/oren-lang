@@ -2587,6 +2587,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
   direct byte slice helpers reject out-of-bounds spans before native conversion.
+  Raw `u8_copy_from_string*` validates the destination and source span once,
+  then writes string bytes directly into `u8_buf` storage before falling back to
+  compatibility stores for non-optimized carriers.
   Contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string,
   flat-list, or row-list sources now use shared byte-span copy/direct byte-write
   paths before falling back to checked per-element view stores.

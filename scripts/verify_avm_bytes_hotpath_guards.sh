@@ -676,6 +676,13 @@ if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" 
   exit 1
 fi
 
+buffer_raw_string_impl="$(sed -n '/fn _u8_copy_from_string_range/,/fn u8_copy_from_string/p' lib/std/buffer/raw.oren)"
+if ! grep -Fq 'ptr_set_byte(data + j, oren_string_byte_at_unchecked(s, off + j) & 255)' <<<"$buffer_raw_string_impl" ||
+  ! grep -Fq 'var rc = _store_u8_direct(out, i, oren_string_byte_at_unchecked(s, off + i) & 255)' <<<"$buffer_raw_string_impl"; then
+  echo "ERROR: std:buffer raw u8 string copies must use direct byte writes before falling back to checked stores" >&2
+  exit 1
+fi
+
 buffer_u8_mat_impl="$(sed -n '/fn _u8_mat_copy_from_u8_buf/,/fn _u8_mat_copy_from_string_range/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'bytesm.copy_into(m[0], m[1], src, 0, total)' <<<"$buffer_u8_mat_impl" ||
   ! grep -Fq 'var v = raw._load_u8_direct(src, r * m[3] + c)' <<<"$buffer_u8_mat_impl"; then
