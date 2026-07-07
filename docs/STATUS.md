@@ -2508,7 +2508,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 					  HPACK header block encoding reuses Huffman string-literal lengths
 					  from sizing-pass `list_int` metadata during exact-size byte-buffer writes,
 					  and native HTTP/2 client DATA responses with `content-length` accumulate
-					  into exact-capacity `u8_buf` bodies with length mismatch checks,
+					  into exact-capacity `u8_buf` bodies with length mismatch checks while
+					  fragmented HEADERS writes stream raw header-block spans,
 				  full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
@@ -2597,10 +2598,11 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  literal-length metadata, or byte-slice conversion instead of building
 	  intermediate Oren byte lists; TLS ALPN
 		  decoded-byte strings also convert through byte slices. HTTP/2 client
-		  continuation/header-block and unknown-length DATA response buffers now
-		  accumulate through amortized `u8_buf` builders, `content-length` DATA
-		  bodies use exact-capacity accumulation with mismatch checks, including
-		  header-only response termination,
+			  continuation/header-block and unknown-length DATA response buffers now
+			  accumulate through amortized `u8_buf` builders, fragmented outbound
+			  HEADERS writes stream raw header-block spans instead of copied split
+			  buffers, `content-length` DATA bodies use exact-capacity accumulation
+			  with mismatch checks, including header-only response termination,
 	  and native WebSocket header slices/unmasked frame payloads plus DNS QNAME
 	  labels use the same native copy path. PEM relaxed decode passes body slices
 	  to Base64 directly, and strict decode concatenates body lines through raw

@@ -414,6 +414,7 @@ if ! grep -Fq 'var literal_lens = list.int_new(list.len(headers) * 2)' <<<"$hpac
 fi
 
 http2_client_impl="$(sed -n '/fn _parse_content_length_value/,/fn _request_value/p' lib/std/net/http2_client.oren)"
+http2_send_headers_impl="$(sed -n '/fn _send_headers_fragmented/,/fn _new_record/p' lib/std/net/http2_client.oren)"
 if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
   ! grep -Fq 'fn _headers_content_length(hs)' <<<"$http2_client_impl" ||
   ! grep -Fq 'var body_expected_len = _headers_content_length(hs)' <<<"$http2_client_impl" ||
@@ -425,6 +426,15 @@ if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
   ! grep -Fq '{"name": "content-length", "value": "5", "index": "no"}' tests/native/test_http2_headers_loopback.oren ||
   grep -Fq 'var body_acc = _u8_acc_new(0)' <<<"$http2_client_impl"; then
   echo "ERROR: HTTP/2 response bodies with content-length must use exact-capacity u8 accumulation and validate DATA length" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'fn _send_frame_raw_payload(conn, typ, flags, stream_id, payload_ptr, payload_len, timeout_ms)' lib/std/net/http2_client.oren ||
+  ! grep -Fq '_send_frame_raw_payload(conn, h2.FRAME_HEADERS, headers_flags, stream_id, p, split_at, timeout_ms)' <<<"$http2_send_headers_impl" ||
+  ! grep -Fq '_send_frame_raw_payload(conn, h2.FRAME_CONTINUATION, h2.FLAG_END_HEADERS, stream_id, p + split_at, n - split_at, timeout_ms)' <<<"$http2_send_headers_impl" ||
+  grep -Fq 'oren_u8_buf_new_uninit(split_at)' <<<"$http2_send_headers_impl" ||
+  grep -Fq 'oren_memcpy(p0, p, split_at)' <<<"$http2_send_headers_impl"; then
+  echo "ERROR: HTTP/2 fragmented HEADERS must write raw header-block spans instead of allocating copied split buffers" >&2
   exit 1
 fi
 

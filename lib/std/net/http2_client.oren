@@ -224,18 +224,30 @@ fn _read_frame(conn, timeout_ms) {
     return {"ok": 1, "type": fh["type"], "flags": fh["flags"], "stream": fh["stream"], "payload": payload}
 }
 
-fn _send_frame(conn, typ, flags, stream_id, payload_bytes, timeout_ms) {
-    if payload_bytes == nil { payload_bytes = oren_u8_buf_new(0) }
-    var plen = oren_buf_len(payload_bytes)
-    if oren_is_err(plen) { return 0 - 22 }
+fn _send_frame_raw_payload(conn, typ, flags, stream_id, payload_ptr, payload_len, timeout_ms) {
+    if payload_len < 0 { return 0 - 22 }
+    if payload_len > 0 && payload_ptr == 0 { return 0 - 22 }
     var hdr = malloc(16)
     if hdr == 0 { return 0 - 12 }
-    var rc0 = h2.write_frame_header_raw(hdr, plen, typ, flags, stream_id)
+    var rc0 = h2.write_frame_header_raw(hdr, payload_len, typ, flags, stream_id)
     if rc0 != 0 { free(hdr); return rc0 }
     var wr0 = _write_all_ptr(conn, hdr, 9, timeout_ms)
     free(hdr)
     if wr0 != 0 { return wr0 }
-    return _write_all_bytes(conn, payload_bytes, timeout_ms)
+    if payload_len == 0 { return 0 }
+    return _write_all_ptr(conn, payload_ptr, payload_len, timeout_ms)
+}
+
+fn _send_frame(conn, typ, flags, stream_id, payload_bytes, timeout_ms) {
+    if payload_bytes == nil { payload_bytes = oren_u8_buf_new(0) }
+    var plen = oren_buf_len(payload_bytes)
+    if oren_is_err(plen) { return 0 - 22 }
+    var ptr0 = 0
+    if plen > 0 {
+        ptr0 = native_buf_data_ptr(payload_bytes)
+        if ptr0 == 0 { return 0 - 22 }
+    }
+    return _send_frame_raw_payload(conn, typ, flags, stream_id, ptr0, plen, timeout_ms)
 }
 
 fn _read_header_block(conn, first_fr, timeout_ms) {
@@ -280,17 +292,9 @@ fn _send_headers_fragmented(conn, stream_id, headers_flags, header_block, split_
     }
     var p = native_buf_data_ptr(header_block)
     if p == 0 { return 0 - 22 }
-    var b0 = oren_u8_buf_new_uninit(split_at)
-    var b1 = oren_u8_buf_new_uninit(n - split_at)
-    if oren_is_err(b0) || oren_is_err(b1) { return 0 - 12 }
-    var p0 = native_buf_data_ptr(b0)
-    var p1 = native_buf_data_ptr(b1)
-    if p0 == 0 || p1 == 0 { return 0 - 12 }
-    oren_memcpy(p0, p, split_at)
-    oren_memcpy(p1, p + split_at, n - split_at)
-    var rc = _send_frame(conn, h2.FRAME_HEADERS, headers_flags, stream_id, b0, timeout_ms)
+    var rc = _send_frame_raw_payload(conn, h2.FRAME_HEADERS, headers_flags, stream_id, p, split_at, timeout_ms)
     if rc != 0 { return rc }
-    return _send_frame(conn, h2.FRAME_CONTINUATION, h2.FLAG_END_HEADERS, stream_id, b1, timeout_ms)
+    return _send_frame_raw_payload(conn, h2.FRAME_CONTINUATION, h2.FLAG_END_HEADERS, stream_id, p + split_at, n - split_at, timeout_ms)
 }
 
 fn _new_record(conn, timeout_ms, opts) {
