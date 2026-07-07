@@ -62,6 +62,55 @@ fn lerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, 
     return [x, y, z, w]
 }
 
+fn min(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.min")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax
+    var y: f64 = ay
+    var z: f64 = az
+    var w: f64 = aw
+    if bx < x { x = bx }
+    if by < y { y = by }
+    if bz < z { z = bz }
+    if bw < w { w = bw }
+    return [x, y, z, w]
+}
+
+fn max(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.max")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax
+    var y: f64 = ay
+    var z: f64 = az
+    var w: f64 = aw
+    if bx > x { x = bx }
+    if by > y { y = by }
+    if bz > z { z = bz }
+    if bw > w { w = bw }
+    return [x, y, z, w]
+}
+
+fn clamp(x: f64, y: f64, z: f64, w: f64, lo_x: f64, lo_y: f64, lo_z: f64, lo_w: f64, hi_x: f64, hi_y: f64, hi_z: f64, hi_w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.clamp")
+    if oren_is_err(ok) { return ok }
+    ok = _finite8(lo_x, lo_y, lo_z, lo_w, hi_x, hi_y, hi_z, hi_w, "vec4.clamp")
+    if oren_is_err(ok) { return ok }
+    if hi_x < lo_x || hi_y < lo_y || hi_z < lo_z || hi_w < lo_w { return oren_err(4, "vec4.clamp: hi < lo") }
+    var ox: f64 = x
+    var oy: f64 = y
+    var oz: f64 = z
+    var ow: f64 = w
+    if ox < lo_x { ox = lo_x }
+    if ox > hi_x { ox = hi_x }
+    if oy < lo_y { oy = lo_y }
+    if oy > hi_y { oy = hi_y }
+    if oz < lo_z { oz = lo_z }
+    if oz > hi_z { oz = hi_z }
+    if ow < lo_w { ow = lo_w }
+    if ow > hi_w { ow = hi_w }
+    return [ox, oy, oz, ow]
+}
+
 fn length_sq(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.length_sq")
     if oren_is_err(ok) { return ok }

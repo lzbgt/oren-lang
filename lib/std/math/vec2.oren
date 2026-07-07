@@ -54,6 +54,41 @@ fn lerp(ax: f64, ay: f64, bx: f64, by: f64, t: f64) {
     return [x, y]
 }
 
+fn min(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.min")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax
+    var y: f64 = ay
+    if bx < x { x = bx }
+    if by < y { y = by }
+    return [x, y]
+}
+
+fn max(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.max")
+    if oren_is_err(ok) { return ok }
+    var x: f64 = ax
+    var y: f64 = ay
+    if bx > x { x = bx }
+    if by > y { y = by }
+    return [x, y]
+}
+
+fn clamp(x: f64, y: f64, lo_x: f64, lo_y: f64, hi_x: f64, hi_y: f64) {
+    var ok = _finite2(x, y, "vec2.clamp")
+    if oren_is_err(ok) { return ok }
+    ok = _finite4(lo_x, lo_y, hi_x, hi_y, "vec2.clamp")
+    if oren_is_err(ok) { return ok }
+    if hi_x < lo_x || hi_y < lo_y { return oren_err(4, "vec2.clamp: hi < lo") }
+    var ox: f64 = x
+    var oy: f64 = y
+    if ox < lo_x { ox = lo_x }
+    if ox > hi_x { ox = hi_x }
+    if oy < lo_y { oy = lo_y }
+    if oy > hi_y { oy = hi_y }
+    return [ox, oy]
+}
+
 fn length_sq(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.length_sq")
     if oren_is_err(ok) { return ok }
