@@ -1,6 +1,7 @@
 import ws "std:net/ws"
 import dns "std:net/dns"
 import udp "std:net/udp"
+import tcp "std:net/tcp"
 
 fn u16be_at(p, off) {
     var hi = ptr_get_byte(p + off) & 255
@@ -53,6 +54,105 @@ fn _bytes_equal(a, b) {
         i = i + 1
     }
     return 1
+}
+
+fn _write_all_raw(fd, ptr0, n, timeout_ms) {
+    var off = 0
+    while off < n {
+        var w = tcp.write_from_raw(fd, ptr0 + off, n - off, timeout_ms)
+        if w < 0 { return w }
+        if w == 0 { return 0 - 104 }
+        off = off + w
+    }
+    return 0
+}
+
+fn _ws_mask_byte(m0, m1, m2, m3, i) {
+    var r = i % 4
+    if r == 1 { return m1 & 255 }
+    if r == 2 { return m2 & 255 }
+    if r == 3 { return m3 & 255 }
+    return m0 & 255
+}
+
+fn _send_masked_frame_raw(fd, fin, opcode, ptr0, n, timeout_ms, seed) {
+    var hdr = malloc(14)
+    if hdr == 0 { return 0 - 12 }
+    var ext = 0
+    if n < 126 { ext = 0 }
+    else if n < 65536 { ext = 2 }
+    else { ext = 8 }
+    var hdr_len = 2 + ext + 4
+    var b0 = opcode & 15
+    if fin == 1 { b0 = b0 | 128 }
+    ptr_set_byte(hdr + 0, b0)
+    if ext == 0 {
+        ptr_set_byte(hdr + 1, 128 | (n & 127))
+    } else if ext == 2 {
+        ptr_set_byte(hdr + 1, 128 | 126)
+        ptr_set_byte(hdr + 2, (n >> 8) & 255)
+        ptr_set_byte(hdr + 3, n & 255)
+    } else {
+        ptr_set_byte(hdr + 1, 128 | 127)
+        var idx8 = 0
+        while idx8 < 8 {
+            var shift = (7 - idx8) * 8
+            ptr_set_byte(hdr + 2 + idx8, (n >> shift) & 255)
+            idx8 = idx8 + 1
+        }
+    }
+    var mask_off = 2 + ext
+    var m0 = (seed + 17) & 255
+    var m1 = (seed + 53) & 255
+    var m2 = (seed + 97) & 255
+    var m3 = (seed + 193) & 255
+    ptr_set_byte(hdr + mask_off + 0, m0)
+    ptr_set_byte(hdr + mask_off + 1, m1)
+    ptr_set_byte(hdr + mask_off + 2, m2)
+    ptr_set_byte(hdr + mask_off + 3, m3)
+
+    var rc = _write_all_raw(fd, hdr, hdr_len, timeout_ms)
+    free(hdr)
+    if rc < 0 { return rc }
+    if n <= 0 { return 0 }
+
+    var payload = malloc(n)
+    if payload == 0 { return 0 - 12 }
+    var i = 0
+    while i < n {
+        var b = ptr_get_byte(ptr0 + i) & 255
+        ptr_set_byte(payload + i, b ^ _ws_mask_byte(m0, m1, m2, m3, i))
+        i = i + 1
+    }
+    rc = _write_all_raw(fd, payload, n, timeout_ms)
+    free(payload)
+    return rc
+}
+
+fn _send_fragmented_text_client(conn, text, n, timeout_ms) {
+    var fd = conn["fd"]
+    var a = 2
+    var b = (n - a) / 2
+    var c = n - a - b
+    var rc = _send_masked_frame_raw(fd, 0, 1, text, a, timeout_ms, 11)
+    if rc < 0 { return rc }
+    rc = _send_masked_frame_raw(fd, 0, 0, text + a, b, timeout_ms, 29)
+    if rc < 0 { return rc }
+    return _send_masked_frame_raw(fd, 1, 0, text + a + b, c, timeout_ms, 47)
+}
+
+fn _send_fragmented_bytes_client(conn, bytes, timeout_ms) {
+    var n = oren_bytes_len(bytes)
+    var p = native_buf_data_ptr(bytes)
+    var a = 3
+    var b = (n - a) / 2
+    var c = n - a - b
+    var fd = conn["fd"]
+    var rc = _send_masked_frame_raw(fd, 0, 2, p, a, timeout_ms, 71)
+    if rc < 0 { return rc }
+    rc = _send_masked_frame_raw(fd, 0, 0, p + a, b, timeout_ms, 89)
+    if rc < 0 { return rc }
+    return _send_masked_frame_raw(fd, 1, 0, p + a + b, c, timeout_ms, 107)
 }
 
 fn _ensure_workers_for_spawned_servers(test_name) {
@@ -205,7 +305,7 @@ fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
 }
 
 fn server(listen_fd) {
-    // Accept + handshake, then echo one text frame and one binary frame.
+    // Accept + handshake, then echo single-frame and fragmented text/binary frames.
     // Keep timeouts a bit generous on remote Win11 hosts (rolling: avoid flaky scheduling timeouts).
     var conn = ws.accept(listen_fd, 10000)
     if oren_is_err(conn) {
@@ -241,6 +341,31 @@ fn server(listen_fd) {
         return 17
     }
 
+    var fs = conn.recv_text(10000)
+    if oren_is_err(fs) {
+        print("ws_echo_loopback: server recv fragmented text FAIL: " + oren_err_msg(fs))
+        return 18
+    }
+    if fs == 0 { return 19 }
+    wr = conn.send_text_server(fs, 10000)
+    free(fs)
+    if oren_is_err(wr) {
+        print("ws_echo_loopback: server send fragmented text FAIL: " + oren_err_msg(wr))
+        return 20
+    }
+
+    var fbs = conn.recv_bytes(10000)
+    if oren_is_err(fbs) {
+        print("ws_echo_loopback: server recv fragmented bytes FAIL: " + oren_err_msg(fbs))
+        return 21
+    }
+    if oren_is_u8_buf(fbs) != true { return 22 }
+    wr = conn.send_bytes_server(fbs, 10000)
+    if oren_is_err(wr) {
+        print("ws_echo_loopback: server send fragmented bytes FAIL: " + oren_err_msg(wr))
+        return 23
+    }
+
     conn.close()
     return 0
 }
@@ -254,6 +379,7 @@ fn run_one(listen_fd, url, resolver) {
     var conn = 0
     var text = 0
     var bytes = nil
+    var frag_bytes = nil
 
     var c = 0
     if resolver != nil {
@@ -332,6 +458,50 @@ fn run_one(listen_fd, url, resolver) {
                 } else if _bytes_equal(body_bytes, bytes) != 1 {
                     print("ws_echo_loopback: FAIL bytes mismatch")
                     rc = 28
+                }
+            }
+        }
+
+        if rc == 0 {
+            text = _make_text_payload(257)
+            if text == 0 {
+                print("ws_echo_loopback: FAIL fragmented payload alloc")
+                rc = 29
+            } else {
+                var fwr = _send_fragmented_text_client(conn, text, 257, 5000)
+                if fwr < 0 {
+                    print("ws_echo_loopback: FAIL send fragmented text (errno=" + oren_int_to_string(0 - fwr) + ")")
+                    rc = 31
+                } else {
+                    var fbody = conn.recv_text(10000)
+                    if oren_is_err(fbody) {
+                        print("ws_echo_loopback: FAIL recv fragmented text: " + oren_err_msg(fbody))
+                        rc = 32
+                    } else if strcmp(fbody, text) != 0 {
+                        print("ws_echo_loopback: FAIL fragmented text mismatch")
+                        rc = 33
+                    }
+                    if fbody != 0 && oren_is_err(fbody) != true { free(fbody) }
+                }
+                free(text)
+                text = 0
+            }
+        }
+
+        if rc == 0 {
+            frag_bytes = _make_binary_payload(257)
+            var fbwr = _send_fragmented_bytes_client(conn, frag_bytes, 5000)
+            if fbwr < 0 {
+                print("ws_echo_loopback: FAIL send fragmented bytes (errno=" + oren_int_to_string(0 - fbwr) + ")")
+                rc = 34
+            } else {
+                var fbody_bytes = conn.recv_bytes(10000)
+                if oren_is_err(fbody_bytes) {
+                    print("ws_echo_loopback: FAIL recv fragmented bytes: " + oren_err_msg(fbody_bytes))
+                    rc = 35
+                } else if _bytes_equal(fbody_bytes, frag_bytes) != 1 {
+                    print("ws_echo_loopback: FAIL fragmented bytes mismatch")
+                    rc = 36
                 }
             }
         }

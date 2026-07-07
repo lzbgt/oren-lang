@@ -2635,8 +2635,9 @@
 <p>  receive-call prefix scratch buffer, unmasked frame sends stream raw payload spans after a</p>
 <p>  compact header, masked client sends stream fixed-size masked chunks instead</p>
 <p>  of allocating full payload-sized frames, native binary WebSocket sends validate</p>
-<p>  positive-length source backing storage, receives expose opcode-2 payloads as</p>
-<p>  exact-size validated <code>u8_buf</code> without string conversion, and</p>
+<p>  positive-length source backing storage, receive-side fragmented text/binary</p>
+<p>  frames accumulate through bounded exact-size <code>u8_buf</code> output, binary receives</p>
+<p>  expose opcode-2 payloads without string conversion, and</p>
 <p>  native WebSocket header slices plus frame payload reads</p>
 <p>  copy with <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>

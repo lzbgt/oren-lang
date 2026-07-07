@@ -7,7 +7,7 @@
 //     - pass an explicit resolver config (`ws.connect_resolver`)
 //     - or use `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
 // - wss://<host>[:port][/path] (TLS wrapper; provider availability is OS-dependent; see docs/DESIGN.md#tls-provider-availability)
-// - Text frames (opcode=1) for small messages
+// - Text (opcode=1) and binary (opcode=2) frames with bounded receive-side fragmentation
 // - Client frames are masked (required by RFC6455); server frames are unmasked
 //
 // This module is intentionally small and syscall-first. Production maturity work
@@ -702,6 +702,74 @@ fn _mask_byte(mask0, mask1, mask2, mask3, i) {
     return m & 255
 }
 
+fn _frag_acc_new(initial_cap) {
+    if initial_cap < 64 { initial_cap = 64 }
+    if initial_cap > 1048576 { initial_cap = 1048576 }
+    var buf = oren_u8_buf_new_uninit(initial_cap)
+    if oren_is_err(buf) { return buf }
+    return {"buf": buf, "len": 0, "cap": initial_cap}
+}
+
+fn _frag_acc_reserve(acc, extra) {
+    if extra < 0 { return oren_err(4, "ws.recv_text: fragmented negative size") }
+    var len = acc["len"]
+    var cap = acc["cap"]
+    var need = len + extra
+    if need > 1048576 { return oren_err(4, "ws.recv_text: fragmented payload too large") }
+    if need <= cap { return 0 }
+    var new_cap = cap
+    if new_cap < 64 { new_cap = 64 }
+    while new_cap < need {
+        new_cap = new_cap * 2
+        if new_cap > 1048576 { new_cap = 1048576 }
+    }
+    var nb = oren_u8_buf_new_uninit(new_cap)
+    if oren_is_err(nb) { return nb }
+    if len > 0 {
+        var oldp = native_buf_data_ptr(acc["buf"])
+        var newp = native_buf_data_ptr(nb)
+        if oldp == 0 || newp == 0 { return oren_err(4, "ws.recv_text: fragmented grow nil ptr") }
+        oren_memcpy(newp, oldp, len)
+    }
+    acc["buf"] = nb
+    acc["cap"] = new_cap
+    return 0
+}
+
+fn _frag_acc_append_raw(acc, ptr0, n) {
+    if n == 0 { return 0 }
+    var rc = _frag_acc_reserve(acc, n)
+    if oren_is_err(rc) { return rc }
+    var dst = native_buf_data_ptr(acc["buf"])
+    if ptr0 == 0 || dst == 0 { return oren_err(4, "ws.recv_text: fragmented append nil ptr") }
+    oren_memcpy(dst + acc["len"], ptr0, n)
+    acc["len"] = acc["len"] + n
+    return 0
+}
+
+fn _frag_acc_finish(acc) {
+    var len = acc["len"]
+    if len == acc["cap"] { return acc["buf"] }
+    var out = oren_u8_buf_new_uninit(len)
+    if oren_is_err(out) { return out }
+    if len > 0 {
+        var src = native_buf_data_ptr(acc["buf"])
+        var dst = native_buf_data_ptr(out)
+        if src == 0 || dst == 0 { return oren_err(4, "ws.recv_text: fragmented finish nil ptr") }
+        oren_memcpy(dst, src, len)
+    }
+    return out
+}
+
+fn _frag_acc_result(acc, want_bytes) {
+    var buf = _frag_acc_finish(acc)
+    if oren_is_err(buf) { return {"ok": 0, "err": "ws.recv_text: fragmented finish failed: " + oren_err_msg(buf)} }
+    if want_bytes == 1 { return {"ok": 1, "v": buf} }
+    var s = oren_string_from_bytes(buf)
+    if oren_is_err(s) { return {"ok": 0, "err": "ws.recv_text: fragmented string failed: " + oren_err_msg(s)} }
+    return {"ok": 1, "v": s}
+}
+
 fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     // Low-level “build a single frame and write it”. Used by text/ping/pong/close.
     //
@@ -893,6 +961,9 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
 
     var frame_hdr = malloc(14)
     if frame_hdr == 0 { return {"ok": 0, "err": "ws.recv_text: malloc frame header failed"} }
+    var frag_active = 0
+    var frag_opcode = 0
+    var frag_acc = nil
 
     // Ping/pong and close are handled internally and do not escape to callers:
     // - ping => auto-pong + continue
@@ -909,11 +980,6 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         var opcode = b0 & 15
         var masked = (b1 >> 7) & 1
         var plen7 = b1 & 127
-
-        if fin != 1 {
-            free(frame_hdr)
-            return {"ok": 0, "err": "ws.recv_text: fragmented frames not supported"}
-        }
 
         var plen = plen7
         var ext_len = 0
@@ -988,6 +1054,72 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
         // Use the incoming masked bit as a heuristic for the role when responding.
         var out_masked = 0
         if masked == 0 { out_masked = 1 }
+
+        if opcode < 8 {
+            if opcode == 0 {
+                if frag_active != 1 {
+                    if want_bytes != 1 { free(out) }
+                    free(frame_hdr)
+                    return {"ok": 0, "err": "ws.recv_text: unexpected continuation frame"}
+                }
+                if frag_opcode != want_opcode {
+                    if want_bytes != 1 { free(out) }
+                    free(frame_hdr)
+                    return {"ok": 0, "err": "ws.recv_text: continuation opcode mismatch"}
+                }
+                var arc0 = _frag_acc_append_raw(frag_acc, outp, plen)
+                if want_bytes != 1 { free(out) }
+                if oren_is_err(arc0) {
+                    free(frame_hdr)
+                    return {"ok": 0, "err": "ws.recv_text: fragmented append failed: " + oren_err_msg(arc0)}
+                }
+                if fin == 1 {
+                    free(frame_hdr)
+                    return _frag_acc_result(frag_acc, want_bytes)
+                }
+                continue
+            }
+            if opcode != want_opcode {
+                if want_bytes != 1 { free(out) }
+                free(frame_hdr)
+                return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
+            }
+            if frag_active == 1 {
+                if want_bytes != 1 { free(out) }
+                free(frame_hdr)
+                return {"ok": 0, "err": "ws.recv_text: nested fragmented data frame"}
+            }
+            if fin == 1 {
+                free(frame_hdr)
+                return {"ok": 1, "v": out}
+            }
+            frag_acc = _frag_acc_new(plen + 64)
+            if oren_is_err(frag_acc) {
+                if want_bytes != 1 { free(out) }
+                free(frame_hdr)
+                return {"ok": 0, "err": "ws.recv_text: fragmented alloc failed: " + oren_err_msg(frag_acc)}
+            }
+            var arc1 = _frag_acc_append_raw(frag_acc, outp, plen)
+            if want_bytes != 1 { free(out) }
+            if oren_is_err(arc1) {
+                free(frame_hdr)
+                return {"ok": 0, "err": "ws.recv_text: fragmented append failed: " + oren_err_msg(arc1)}
+            }
+            frag_active = 1
+            frag_opcode = opcode
+            continue
+        }
+
+        if fin != 1 {
+            if want_bytes != 1 { free(out) }
+            free(frame_hdr)
+            return {"ok": 0, "err": "ws.recv_text: fragmented control frame"}
+        }
+        if plen > 125 {
+            if want_bytes != 1 { free(out) }
+            free(frame_hdr)
+            return {"ok": 0, "err": "ws.recv_text: control payload too large"}
+        }
 
         if opcode == 9 {
             // ping => pong + continue
