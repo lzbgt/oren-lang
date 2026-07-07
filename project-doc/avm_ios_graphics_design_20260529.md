@@ -339,8 +339,10 @@ Required gates before Note integration should be called production-ready:
    `LibAVM.xcframework`.
 4. iOS SDK smoke compiles a UIKit/CoreGraphics `OrenAVMGraphicsView` adapter for
    device/simulator targets. Done for compile/link coverage.
-5. Note-side Swift smoke mounts `OrenAVMGraphicsView` or `MTKView`, runs a bundled
-   OBC, renders one 2D frame, and injects one touch event.
+5. Repo-local SDK Objective-C smoke mounts `OrenAVMGraphicsView` and
+   `OrenAVMMetalView`, runs a bundled OBC, renders/prepares frames, and injects
+   pointer/resize/media events. Note-side Swift UX wiring remains a host-app
+   integration task rather than a missing repo-local SDK gate.
 6. Deterministic headless raster test compares software raster output for geometry-only ops.
    Done: `test_ui_2d_conformance_v0.oren` now hashes one combined retained
    image/text/atlas/geometry scene in the AVM release manifest.
@@ -372,9 +374,14 @@ Required gates before Note integration should be called production-ready:
     current `fill_rect`/`push_clip_rect`/`pop_clip`/`push_translate`/`pop_transform`/`push_opacity`/`pop_opacity`/`stroke_line`/`stroke_rect`/`round_rect`/`circle`/`ellipse`/`polyline`/`fill_triangle` geometry records plus
     retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text
     upload/draw/destroy records.
-13. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView` or
-    `OrenAVMMetalView`, runs a bundled OBC, renders one frame, and injects one touch.
-14. Add IME/composition helpers.
+13. Done: repo-local SDK Objective-C bridge smoke mounts `OrenAVMGraphicsView`
+    and `OrenAVMMetalView`, runs a bundled OBC, renders/prepares frames, injects
+    pointer batches, resize, screen-state, and media events, and verifies empty
+    mailbox reload semantics in `make verify-libavm-ios`.
+14. Note-side Swift UX wiring remains tracked as production app integration in
+    `docs/STATUS.md`, not as a missing repo-local SDK smoke; the next host-app
+    gap is richer IME/composition UX integration beyond the current repo-local
+    SDK event encoder/verifier coverage.
 15. Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel
     limits and counters.
 16. Done: add a balanced OBC-visible `push_clip_rect` / `pop_clip` scissor stack

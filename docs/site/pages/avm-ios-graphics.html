@@ -385,9 +385,11 @@ fn main() {
 </ol>
 <p>   device/simulator targets. Done for compile/link coverage.</p>
 <ol>
-<li>Note-side Swift smoke mounts <code>OrenAVMGraphicsView</code> or <code>MTKView</code>, runs a bundled</li>
+<li>Repo-local SDK Objective-C smoke mounts <code>OrenAVMGraphicsView</code> and</li>
 </ol>
-<p>   OBC, renders one 2D frame, and injects one touch event.</p>
+<p>   <code>OrenAVMMetalView</code>, runs a bundled OBC, renders/prepares frames, and injects</p>
+<p>   pointer/resize/media events. Note-side Swift UX wiring remains a host-app</p>
+<p>   integration task rather than a missing repo-local SDK gate.</p>
 <ol>
 <li>Deterministic headless raster test compares software raster output for geometry-only ops.</li>
 </ol>
@@ -430,11 +432,18 @@ fn main() {
 <p>    retained image upload/draw/destroy/sub-rect/batched-atlas records and retained text</p>
 <p>    upload/draw/destroy records.</p>
 <ol>
-<li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code> or</li>
+<li>Done: repo-local SDK Objective-C bridge smoke mounts <code>OrenAVMGraphicsView</code></li>
 </ol>
-<p>    <code>OrenAVMMetalView</code>, runs a bundled OBC, renders one frame, and injects one touch.</p>
+<p>    and <code>OrenAVMMetalView</code>, runs a bundled OBC, renders/prepares frames, injects</p>
+<p>    pointer batches, resize, screen-state, and media events, and verifies empty</p>
+<p>    mailbox reload semantics in <code>make verify-libavm-ios</code>.</p>
 <ol>
-<li>Add IME/composition helpers.</li>
+<li>Note-side Swift UX wiring remains tracked as production app integration in</li>
+</ol>
+<p>    <code>docs/STATUS.md</code>, not as a missing repo-local SDK smoke; the next host-app</p>
+<p>    gap is richer IME/composition UX integration beyond the current repo-local</p>
+<p>    SDK event encoder/verifier coverage.</p>
+<ol>
 <li>Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel</li>
 </ol>
 <p>    limits and counters.</p>
