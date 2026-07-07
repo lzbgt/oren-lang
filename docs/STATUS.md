@@ -2587,6 +2587,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower
   through `u8_buf` byte slices instead of unpacking to Oren lists first, and
   direct byte slice helpers reject out-of-bounds spans before native conversion.
+  Contiguous u8 slice copies from `u8_buf` now use the shared byte-span
+  `bytes.copy_into` path before falling back to checked per-element view stores.
   Codec and byte APIs now expose trait-backed method surfaces for the rolling
   stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
   `cbor.cint(7).bytes().cbor()`, `"hi".bytes().text()`,

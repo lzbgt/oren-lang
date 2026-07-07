@@ -666,4 +666,12 @@ if grep -q 'fn _read_u16be\|fn _read_u32be\|fn _read_u64be' lib/std/cbor.oren; t
   exit 1
 fi
 
+buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
+if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'return _u8_view_copy_from_u8_buf(slice_store_u8, s, s[2], src, ctx)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct' lib/std/buffer/view.oren; then
+  echo "ERROR: std:buffer contiguous u8 slice copies from u8_buf must use direct byte-span copy before falling back to checked per-element view stores" >&2
+  exit 1
+fi
+
 echo "OK: AVM bytes hotpath source guards passed"

@@ -410,6 +410,19 @@ fn _slice_copy_from_bytes_direct(s, bytes, off, n, ctx) {
     return _u8_view_copy_from_bytes_slice(slice_store_u8, s, s[2], bytes, off, n, ctx)
 }
 
+fn _slice_copy_from_u8_buf_direct(s, src, ctx) {
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    var ns = oren_buf_len(src)
+    if ns == nil || oren_is_err(ns) { return _err_invalid(ctx + ": src must be []u8") }
+    if ns != s[2] { return _err_invalid(ctx + ": length mismatch") }
+    if oren_is_u8_buf(s[0]) == true && oren_is_u8_buf(src) == true {
+        var rc = bytesm.copy_into(s[0], s[1], src, 0, ns)
+        if oren_is_err(rc) { return rc }
+        return s[0]
+    }
+    return _u8_view_copy_from_u8_buf(slice_store_u8, s, s[2], src, ctx)
+}
+
 fn _strided_load_i32_unchecked(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
 fn strided_load_i32(s, idx) { return _checked_view_load(_strided_load_i32_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_i32") }
 fn _strided_store_i32_unchecked(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
@@ -511,7 +524,7 @@ fn slice_copy_from_bytes_slice(s, bytes, off, n) {
     if !_is_int(n) { return oren_err(4, ctx + ": n must be int") }
     return _slice_copy_from_bytes_direct(s, bytes, off, n, ctx)
 }
-fn slice_copy_from_u8_buf(s, src) { return _checked_u8_view_copy_from_u8_buf(slice_store_u8, _slice_is_list, "slice", s, src, "buffer.slice_copy_from_u8_buf") }
+fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct(s, src, "buffer.slice_copy_from_u8_buf") }
 fn slice_copy_from_string(s, text) { return _checked_u8_view_copy_from_string(slice_store_u8, _slice_is_list, "slice", s, text, "buffer.slice_copy_from_string") }
 fn slice_copy_from_string_slice(s, text, off, n) { return _checked_u8_view_copy_from_string_slice(slice_store_u8, _slice_is_list, "slice", s, text, off, n, "buffer.slice_copy_from_string_slice") }
 

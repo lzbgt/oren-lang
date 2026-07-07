@@ -77,6 +77,7 @@
 <li>Native HTTP/2 header-only <code>END_STREAM</code> responses now return an exact empty <code>u8_buf</code> before allocating DATA accumulators, while content-length DATA bodies still use exact-capacity accumulation with mismatch checks.</li>
 <li>Native WebSocket masked client sends now write the header/mask prefix and stream payloads through fixed-size masked chunks instead of allocating full payload-sized frame buffers.</li>
 <li>Native WebSocket binary sends/receives now expose unfragmented opcode-2 payloads as validated byte-backed <code>u8_buf</code> values, while fragmented binary assembly and ping/pong/close control payloads use scratch/accumulator storage until the exact-size returned byte buffer is required; &gt;4096-byte masked binary plus fragmented text/binary loopback fixtures guard the byte-native path.</li>
+<li><code>std:buffer</code> contiguous u8 slice copies from <code>u8_buf</code> now route through the shared byte-span <code>bytes.copy_into</code> path before falling back to checked per-element view stores for strided or non-u8 carriers.</li>
 <li>Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.</li>
 <li>Parallel module parsing now emits setup and per-module worker phase markers under</li>
 </ul>
