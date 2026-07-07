@@ -356,6 +356,7 @@ if ! grep -Fq 'var _SHA256_K = nil' lib/std/crypto/sha256.oren ||
 fi
 
 chunked_http_impl="$(sed -n '/fn _decode_chunked_body/,/fn headers_get/p' lib/std/net/http.oren)"
+http_fetch_impl="$(sed -n '/fn _fetch_response_resolver_opts/,/fn request_resolver_opts/p' lib/std/net/http.oren)"
 if ! grep -Fq 'fn _chunked_decoded_len(body_ptr, body_len)' lib/std/net/http.oren ||
   ! grep -Fq 'var decoded_len = _chunked_decoded_len(body_ptr, body_len)' <<<"$chunked_http_impl" ||
   ! grep -Fq 'var out = malloc(decoded_len + 1)' <<<"$chunked_http_impl" ||
@@ -365,6 +366,14 @@ if ! grep -Fq 'fn _chunked_decoded_len(body_ptr, body_len)' lib/std/net/http.ore
   grep -Fq 'malloc(body_len + 1)' <<<"$chunked_http_impl" ||
   grep -Fq '_u8_buf_from_ptr_range(out, 0, out_used)' <<<"$chunked_http_impl"; then
   echo "ERROR: native HTTP chunked decode must allocate exact decoded text/bytes and fill body_bytes directly, not shrink-copy from framed body storage" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'tls.read_into_raw(tls_conn, buf + used, read_cap, timeout_ms)' <<<"$http_fetch_impl" ||
+  ! grep -Fq 'tcp.read_into_raw(fd, buf + used, read_cap, timeout_ms)' <<<"$http_fetch_impl" ||
+  grep -Fq 'var tmp = malloc(2048)' <<<"$http_fetch_impl" ||
+  grep -Fq 'oren_memcpy(buf + used, tmp, n)' <<<"$http_fetch_impl"; then
+  echo "ERROR: native HTTP receive loop must read directly into reserved response storage without per-read temp buffers" >&2
   exit 1
 fi
 

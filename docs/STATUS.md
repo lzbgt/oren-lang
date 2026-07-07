@@ -2478,8 +2478,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   native HTTP/WebSocket Host headers preserve parsed authority and native wire
   requests plus AVM HTTP/session specs strip fragments at the NET boundary,
   with native IPv4/DNS-A connectors explicitly rejecting IPv6 literals,
-  native `std:net/http` caches typed response body bytes for `.bytes()` on
-  content-length responses and exact-sizes decoded chunked response bytes,
+  native `std:net/http` reads response chunks directly into reserved response
+  storage, caches typed response body bytes for `.bytes()` on content-length
+  responses, and exact-sizes decoded chunked response bytes,
   `std:bytes.to_string` now uses direct
   byte-slice conversion instead of list materialization, `std:bytes.from_string`
   and `from_hex` plus kernel `oren_bytes_from_string` byte-native output,

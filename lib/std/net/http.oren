@@ -527,7 +527,7 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     var used = 0
     var buf = malloc(cap)
     if buf == 0 {
-        tcp.close_raw(fd)
+        if is_tls == 1 { tls.close_raw(tls_conn) } else { tcp.close_raw(fd) }
         return {"ok": 0, "err": "http.request: malloc failed"}
     }
 
@@ -539,37 +539,33 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
     var content_len = -1
     var is_chunked = 0
     var last_n = 0
+    var recv_err = nil
 
     while 1 {
-        var tmp = malloc(2048)
-        if tmp == 0 { break }
-        var n = 0
-        if is_tls == 1 { n = tls.read_into_raw(tls_conn, tmp, 2048, timeout_ms) }
-        else { n = tcp.read_into_raw(fd, tmp, 2048, timeout_ms) }
-        last_n = n
-        if n == 0 {
-            free(tmp)
-            break
-        }
-        if n < 0 {
-            free(tmp)
-            break
-        }
-
-        while used + n > cap {
+        var read_cap = 2048
+        while cap - used < read_cap {
             var new_cap = cap * 2
-            if new_cap < used + n { new_cap = used + n }
+            if new_cap < used + read_cap { new_cap = used + read_cap }
             var new_buf = malloc(new_cap)
-            if new_buf == 0 { break }
+            if new_buf == 0 {
+                last_n = 0 - 12
+                recv_err = "http.request: response buffer grow failed"
+                break
+            }
             oren_memcpy(new_buf, buf, used)
             free(buf)
             buf = new_buf
             cap = new_cap
         }
+        if last_n == 0 - 12 { break }
 
-        oren_memcpy(buf + used, tmp, n)
+        var n = 0
+        if is_tls == 1 { n = tls.read_into_raw(tls_conn, buf + used, read_cap, timeout_ms) }
+        else { n = tcp.read_into_raw(fd, buf + used, read_cap, timeout_ms) }
+        last_n = n
+        if n == 0 { break }
+        if n < 0 { break }
         used = used + n
-        free(tmp)
 
         if header_done == 0 {
             body_off = _find_header_body_split(buf, used)
@@ -660,6 +656,11 @@ fn _fetch_response_resolver_opts(url, timeout_ms, resolver, opts) {
 
     if is_tls == 1 { tls.close_raw(tls_conn) } else { tcp.close_raw(fd) }
 
+    if recv_err != nil {
+        free(buf)
+        response_free({"headers": headers, "body": nil})
+        return {"ok": 0, "err": recv_err}
+    }
     if header_done == 0 {
         free(buf)
         response_free({"headers": headers, "body": nil})
