@@ -7,6 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m"
+GEOMETRY_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsGeometry.h"
+GEOMETRY_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsGeometry.m"
 RESOURCE_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsResources.h"
 RESOURCE_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsResources.m"
 
@@ -18,8 +20,9 @@ def fail(message: str) -> None:
 
 def main() -> int:
     view_text = SOURCE.read_text()
+    geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
-    text = view_text + "\n" + resource_text
+    text = view_text + "\n" + geometry_text + "\n" + resource_text
     required = [
         "OrenAVMGfxTriangleOrder",
         "OrenAVMGfxTriangleOrderBuffer",
@@ -50,7 +53,7 @@ def main() -> int:
         fail("CoreGraphics immediate primitive colors must not allocate UIColor wrappers")
     if "CGContextSetFillColorWithColor(ctx, color.CGColor)" in text or "CGContextSetStrokeColorWithColor(ctx, color.CGColor)" in text:
         fail("CoreGraphics immediate primitive colors must use direct byte/scalar setters")
-    if "OrenAVMGfxSetFillColorBytes(ctx, payload + 16)" not in text or "OrenAVMGfxSetStrokeColorBytes(ctx, payload + 20)" not in text:
+    if "OrenAVMGfxGeometrySetFillColor(ctx, payload + 16)" not in geometry_text or "OrenAVMGfxGeometrySetStrokeColor(ctx, payload + 20)" not in geometry_text:
         fail("CoreGraphics immediate primitive color fast path is missing")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, id>*>* orenMeshes' in text:
         fail("CoreGraphics retained meshes must not use dictionary payload records")

@@ -1,5 +1,6 @@
 #import "OrenAVMKit.h"
 #import "OrenAVMGFXInput.h"
+#import "OrenAVMGraphicsGeometry.h"
 #import "OrenAVMGraphicsResources.h"
 
 #import <TargetConditionals.h>
@@ -38,30 +39,6 @@ static uint32_t OrenAVMGfxRGBAValue(const uint8_t* rgba) {
         ((uint32_t)rgba[1] << 8) |
         ((uint32_t)rgba[2] << 16) |
         ((uint32_t)rgba[3] << 24);
-}
-
-static void OrenAVMGfxSetFillColorValue(CGContextRef ctx, uint32_t rgbaValue) {
-    CGContextSetRGBFillColor(ctx,
-                             (CGFloat)(rgbaValue & 255u) / 255.0,
-                             (CGFloat)((rgbaValue >> 8) & 255u) / 255.0,
-                             (CGFloat)((rgbaValue >> 16) & 255u) / 255.0,
-                             (CGFloat)((rgbaValue >> 24) & 255u) / 255.0);
-}
-
-static void OrenAVMGfxSetFillColorBytes(CGContextRef ctx, const uint8_t* rgba) {
-    CGContextSetRGBFillColor(ctx,
-                             (CGFloat)rgba[0] / 255.0,
-                             (CGFloat)rgba[1] / 255.0,
-                             (CGFloat)rgba[2] / 255.0,
-                             (CGFloat)rgba[3] / 255.0);
-}
-
-static void OrenAVMGfxSetStrokeColorBytes(CGContextRef ctx, const uint8_t* rgba) {
-    CGContextSetRGBStrokeColor(ctx,
-                               (CGFloat)rgba[0] / 255.0,
-                               (CGFloat)rgba[1] / 255.0,
-                               (CGFloat)rgba[2] / 255.0,
-                               (CGFloat)rgba[3] / 255.0);
 }
 
 static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
@@ -349,14 +326,11 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
         if (off + (size_t)payloadLen > len) return;
         const uint8_t* payload = data + off;
 
-        if (opcode == 1 && payloadLen == 20) {
-            uint32_t x = OrenAVMGfxReadU32LE(payload);
-            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-            OrenAVMGfxSetFillColorBytes(ctx, payload + 16);
-            CGContextFillRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
-        } else if (opcode == 16 && payloadLen == 16) {
+        if (OrenAVMGfxDrawImmediatePrimitive(ctx, opcode, payload, payloadLen)) {
+            off += payloadLen;
+            continue;
+        }
+        if (opcode == 16 && payloadLen == 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
@@ -415,123 +389,6 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 nearZ = nearZStack[cameraDepth];
                 farZ = farZStack[cameraDepth];
                 stateDepth--;
-            }
-        } else if (opcode == 3 && payloadLen == 24) {
-            uint32_t x1 = OrenAVMGfxReadU32LE(payload);
-            uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t x2 = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t y2 = OrenAVMGfxReadU32LE(payload + 12);
-            uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
-            OrenAVMGfxSetStrokeColorBytes(ctx, payload + 20);
-            CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
-            CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
-            CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
-            CGContextStrokePath(ctx);
-        } else if (opcode == 6 && payloadLen == 24) {
-            uint32_t x = OrenAVMGfxReadU32LE(payload);
-            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-            uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
-            OrenAVMGfxSetStrokeColorBytes(ctx, payload + 20);
-            CGContextStrokeRectWithWidth(ctx,
-                                         CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h),
-                                         (CGFloat)(width == 0 ? 1 : width));
-        } else if (opcode == 9 && payloadLen == 32) {
-            uint32_t x = OrenAVMGfxReadU32LE(payload);
-            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-            uint32_t radius = OrenAVMGfxReadU32LE(payload + 16);
-            uint32_t width = OrenAVMGfxReadU32LE(payload + 20);
-            uint32_t flags = OrenAVMGfxReadU32LE(payload + 24);
-            UIBezierPath* path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)
-                                                             cornerRadius:(CGFloat)radius];
-            if ((flags & 1u) != 0) {
-                OrenAVMGfxSetFillColorBytes(ctx, payload + 28);
-                [path fill];
-            } else {
-                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 28);
-                path.lineWidth = (CGFloat)(width == 0 ? 1 : width);
-                [path stroke];
-            }
-        } else if (opcode == 4 && payloadLen == 20) {
-            uint32_t cx = OrenAVMGfxReadU32LE(payload);
-            uint32_t cy = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t radius = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t flags = OrenAVMGfxReadU32LE(payload + 12);
-            int32_t ox = (int32_t)cx - (int32_t)radius;
-            int32_t oy = (int32_t)cy - (int32_t)radius;
-            CGRect oval = CGRectMake((CGFloat)ox,
-                                     (CGFloat)oy,
-                                     (CGFloat)(radius * 2u),
-                                     (CGFloat)(radius * 2u));
-            if ((flags & 1u) != 0) {
-                OrenAVMGfxSetFillColorBytes(ctx, payload + 16);
-                CGContextFillEllipseInRect(ctx, oval);
-            } else {
-                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 16);
-                CGContextStrokeEllipseInRect(ctx, oval);
-            }
-        } else if (opcode == 7 && payloadLen == 28) {
-            uint32_t x = OrenAVMGfxReadU32LE(payload);
-            uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-            uint32_t width = OrenAVMGfxReadU32LE(payload + 16);
-            uint32_t flags = OrenAVMGfxReadU32LE(payload + 20);
-            CGRect oval = CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h);
-            if ((flags & 1u) != 0) {
-                OrenAVMGfxSetFillColorBytes(ctx, payload + 24);
-                CGContextFillEllipseInRect(ctx, oval);
-            } else {
-                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 24);
-                CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
-                CGContextStrokeEllipseInRect(ctx, oval);
-            }
-        } else if (opcode == 8 && payloadLen >= 28 && ((payloadLen - 12) % 8) == 0) {
-            uint32_t width = OrenAVMGfxReadU32LE(payload);
-            uint32_t pointCount = OrenAVMGfxReadU32LE(payload + 4);
-            if (pointCount == ((uint32_t)payloadLen - 12u) / 8u && pointCount >= 2) {
-                OrenAVMGfxSetStrokeColorBytes(ctx, payload + 8);
-                CGContextSetLineWidth(ctx, (CGFloat)(width == 0 ? 1 : width));
-                const uint8_t* points = payload + 12;
-                CGContextBeginPath(ctx);
-                CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(points), (CGFloat)OrenAVMGfxReadU32LE(points + 4));
-                for (uint32_t pi = 1; pi < pointCount; pi++) {
-                    const uint8_t* point = points + ((size_t)pi * 8u);
-                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(point), (CGFloat)OrenAVMGfxReadU32LE(point + 4));
-                }
-                CGContextStrokePath(ctx);
-            }
-        } else if (opcode == 5 && payloadLen == 28) {
-            uint32_t x1 = OrenAVMGfxReadU32LE(payload);
-            uint32_t y1 = OrenAVMGfxReadU32LE(payload + 4);
-            uint32_t x2 = OrenAVMGfxReadU32LE(payload + 8);
-            uint32_t y2 = OrenAVMGfxReadU32LE(payload + 12);
-            uint32_t x3 = OrenAVMGfxReadU32LE(payload + 16);
-            uint32_t y3 = OrenAVMGfxReadU32LE(payload + 20);
-            OrenAVMGfxSetFillColorBytes(ctx, payload + 24);
-            CGContextBeginPath(ctx);
-            CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
-            CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
-            CGContextAddLineToPoint(ctx, (CGFloat)x3, (CGFloat)y3);
-            CGContextClosePath(ctx);
-            CGContextFillPath(ctx);
-        } else if (opcode == 10 && payloadLen >= 32 && ((payloadLen - 8) % 24) == 0) {
-            uint32_t triangleCount = OrenAVMGfxReadU32LE(payload);
-            const uint8_t* tris = payload + 8;
-            if (triangleCount == ((uint32_t)payloadLen - 8u) / 24u) {
-                OrenAVMGfxSetFillColorBytes(ctx, payload + 4);
-                for (uint32_t ti = 0; ti < triangleCount; ti++) {
-                    const uint8_t* tri = tris + ((size_t)ti * 24u);
-                    CGContextBeginPath(ctx);
-                    CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri), (CGFloat)OrenAVMGfxReadU32LE(tri + 4));
-                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 8), (CGFloat)OrenAVMGfxReadU32LE(tri + 12));
-                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 16), (CGFloat)OrenAVMGfxReadU32LE(tri + 20));
-                    CGContextClosePath(ctx);
-                    CGContextFillPath(ctx);
-                }
             }
         } else if (opcode == 80 && payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);

@@ -140,6 +140,7 @@ verify-libavm-ios: oren avm
 	@python3 ./scripts/verify_ios_package_store_bytes.py
 	@python3 ./scripts/verify_ios_sdk_network_sessions.py
 	@python3 ./scripts/verify_ios_gfx_input_events.py
+	@python3 ./scripts/verify_ios_graphics_geometry.py
 	@python3 ./scripts/verify_ios_graphics_resources.py
 	@python3 ./scripts/verify_ios_gfx_retained_painter.py
 	@python3 ./scripts/verify_ios_metal_vertex_uploads.py

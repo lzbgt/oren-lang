@@ -2802,6 +2802,9 @@ Working evidence:
   CoreGraphics retained 3D mesh/model/material draw payload expansion now lives
   in `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to 761 lines
   while keeping retained 3D opcode routing in the view.
+  CoreGraphics immediate primitive payload expansion now lives in
+  `OrenAVMGraphicsGeometry`, reducing `OrenAVMGraphicsView.m` to 615 lines
+  while keeping frame state stacks and retained resource routing in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

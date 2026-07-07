@@ -2921,6 +2921,9 @@
 <p>  CoreGraphics retained 3D mesh/model/material draw payload expansion now lives</p>
 <p>  in <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 761 lines</p>
 <p>  while keeping retained 3D opcode routing in the view.</p>
+<p>  CoreGraphics immediate primitive payload expansion now lives in</p>
+<p>  <code>OrenAVMGraphicsGeometry</code>, reducing <code>OrenAVMGraphicsView.m</code> to 615 lines</p>
+<p>  while keeping frame state stacks and retained resource routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>
