@@ -63,6 +63,71 @@ static int avm_native_byte_span_ok(int64_t len, int64_t idx, int width) {
     return (uint64_t)width <= (uint64_t)len - (uint64_t)idx;
 }
 
+static int avm_native_byte_range_ok(int64_t len, int64_t start, int64_t n) {
+    if (len < 0 || start < 0 || n < 0) return 0;
+    if ((uint64_t)start > (uint64_t)len) return 0;
+    return (uint64_t)n <= (uint64_t)len - (uint64_t)start;
+}
+
+static int avm_native_bytes_len_checked(AvmValue bytes, int64_t* out, const char** err_msg, const char* bytes_msg, const char* list_msg, const char* list_int_msg, const char* expected_msg) {
+    if (!out || !err_msg) return 0;
+    *out = 0;
+    *err_msg = NULL;
+    if (bytes.type == AVM_VAL_BYTES) {
+        AvmBytes* b = bytes.as.b;
+        if (!b || b->len < 0 || (b->len > 0 && !b->data)) { *err_msg = bytes_msg; return 0; }
+        *out = (int64_t)b->len;
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST) {
+        AvmList* list = bytes.as.l;
+        if (!list || list->count < 0 || (list->count > 0 && !list->items)) { *err_msg = list_msg; return 0; }
+        *out = (int64_t)list->count;
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST_INT) {
+        AvmListInt* list = bytes.as.li;
+        if (!list || list->count < 0 || (list->count > 0 && !list->items)) { *err_msg = list_int_msg; return 0; }
+        *out = (int64_t)list->count;
+        return 1;
+    }
+    *err_msg = expected_msg;
+    return 0;
+}
+
+static int avm_native_bytes_copy_span(AvmValue bytes, int64_t start, int64_t n, uint8_t* dst, const char** err_msg, const char* bounds_msg, const char* expected_msg, const char* list_range_msg, const char* list_int_range_msg) {
+    if (!dst || !err_msg) return 0;
+    *err_msg = NULL;
+    int64_t total = 0;
+    if (!avm_native_bytes_len_checked(bytes, &total, err_msg, bounds_msg, bounds_msg, bounds_msg, expected_msg)) return 0;
+    if (!avm_native_byte_range_ok(total, start, n)) { *err_msg = bounds_msg; return 0; }
+    if (n == 0) return 1;
+    if (bytes.type == AVM_VAL_BYTES) {
+        memcpy(dst, bytes.as.b->data + (size_t)start, (size_t)n);
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST) {
+        AvmList* list = bytes.as.l;
+        for (int64_t i = 0; i < n; i++) {
+            AvmValue it = list->items[(int)(start + i)];
+            if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) { *err_msg = list_range_msg; return 0; }
+            dst[(size_t)i] = (uint8_t)it.as.i;
+        }
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST_INT) {
+        AvmListInt* list = bytes.as.li;
+        for (int64_t i = 0; i < n; i++) {
+            int64_t it = list->items[(int)(start + i)];
+            if (it < 0 || it > 255) { *err_msg = list_int_range_msg; return 0; }
+            dst[(size_t)i] = (uint8_t)it;
+        }
+        return 1;
+    }
+    *err_msg = expected_msg;
+    return 0;
+}
+
 static int avm_native_bytes_read_u64_span(AvmValue bytes, int64_t idx, int width, int little, uint64_t* out, const char** err_msg, const char* bounds_msg, const char* expected_msg, const char* range_msg) {
     if (!out || !err_msg) return 0;
     *out = 0;

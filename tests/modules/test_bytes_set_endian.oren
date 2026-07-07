@@ -68,7 +68,17 @@ if li_xs[2] != 67 { exit(39) }
 var li_s = oren_string_from_bytes_slice(li, 1, 2)
 if oren_is_err(li_s) { exit(40) }
 if li_s != "BC" { exit(41) }
-if oren_is_err(oren_u8_buf_from_bytes_slice(li, 3, 2)) == false { exit(42) }
+var li_buf = oren_u8_buf_from_bytes_slice(li, 1, 3)
+if oren_is_err(li_buf) { exit(42) }
+if oren_bytes_len(li_buf) != 3 { exit(43) }
+if oren_bytes_get_u8(li_buf, 0) != 66 || oren_bytes_get_u8(li_buf, 2) != 68 { exit(44) }
+if oren_is_err(oren_u8_buf_from_bytes_slice(li, 3, 2)) == false { exit(45) }
+
+var bad_li = oren_new_list_int(0)
+oren_list_int_push(bad_li, 65)
+oren_list_int_push(bad_li, 300)
+if oren_is_err(oren_string_from_bytes_slice(bad_li, 0, 2)) == false { exit(46) }
+if oren_is_err(oren_u8_buf_from_bytes_slice(bad_li, 0, 2)) == false { exit(47) }
 
 print("module bytes_set_endian OK")
 exit(0)

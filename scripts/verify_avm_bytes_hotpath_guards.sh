@@ -177,10 +177,29 @@ if ! grep -Fq 'assert_eq(oren_bytes_set_u8(li, 0, 170), 170)' tests/avm/test_byt
 fi
 
 string_from_bytes_impl="$(sed -n '/case 44:.*oren_string_from_bytes/,/case 161:/p' lib/avm/avm_native_byte_iter_cases.inc)"
+byte_copy_helper="$(sed -n '/static int avm_native_bytes_copy_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
+if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_copy_helper" ||
+  ! grep -Fq 'memcpy(dst, bytes.as.b->data + (size_t)start, (size_t)n)' <<<"$byte_copy_helper" ||
+  ! grep -Fq 'dst[(size_t)i] = (uint8_t)it' <<<"$byte_copy_helper"; then
+  echo "ERROR: AVM byte slice/string helpers must share one checked bytes/list/LIST_INT copy-span helper" >&2
+  exit 1
+fi
+
 if ! grep -Fq 'args[0].type == AVM_VAL_LIST_INT' <<<"$string_from_bytes_impl" ||
   ! grep -Fq 'string_from_bytes: expected list_int bytes 0..255' <<<"$string_from_bytes_impl" ||
+  ! grep -Fq 'avm_native_bytes_copy_span(args[0], 0, n, (uint8_t*)out' <<<"$string_from_bytes_impl" ||
   ! grep -Fq 'if oren_string_from_bytes(from_s_xs) != "ok"' tests/avm/test_bytes_basic.oren; then
   echo "ERROR: AVM string_from_bytes must accept optimized LIST_INT byte carriers without boxed-list reconstruction" >&2
+  exit 1
+fi
+
+string_from_bytes_slice_impl="$(sed -n '/case 161:.*oren_string_from_bytes_slice/,/case 162:/p' lib/avm/avm_native_byte_iter_cases.inc)"
+u8_buf_from_bytes_slice_impl="$(sed -n '/case 162:.*oren_u8_buf_from_bytes_slice/,/case 163:/p' lib/avm/avm_native_byte_iter_cases.inc)"
+if ! grep -Fq 'avm_native_bytes_copy_span(args[0], start, n, (uint8_t*)out' <<<"$string_from_bytes_slice_impl" ||
+  ! grep -Fq 'avm_native_bytes_copy_span(args[0], start, n, bv.as.b->data' <<<"$u8_buf_from_bytes_slice_impl" ||
+  grep -Fq 'args[0].as.li->items[(int)(start + i)]' <<<"$string_from_bytes_slice_impl$u8_buf_from_bytes_slice_impl" ||
+  grep -Fq 'args[0].as.l->items[(int)(start + i)]' <<<"$string_from_bytes_slice_impl$u8_buf_from_bytes_slice_impl"; then
+  echo "ERROR: AVM byte slice natives must use the shared copy-span helper instead of duplicating list/LIST_INT copy loops" >&2
   exit 1
 fi
 
