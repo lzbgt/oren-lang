@@ -29,6 +29,32 @@ fn _make_text_payload(n) {
     return s
 }
 
+fn _make_binary_payload(n) {
+    var b = oren_u8_buf_new_uninit(n)
+    var p = native_buf_data_ptr(b)
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, (i * 37 + 11) & 255)
+        i = i + 1
+    }
+    return b
+}
+
+fn _bytes_equal(a, b) {
+    if oren_is_u8_buf(a) != true { return 0 }
+    if oren_is_u8_buf(b) != true { return 0 }
+    var n = oren_bytes_len(a)
+    if oren_bytes_len(b) != n { return 0 }
+    var ap = native_buf_data_ptr(a)
+    var bp = native_buf_data_ptr(b)
+    var i = 0
+    while i < n {
+        if (ptr_get_byte(ap + i) & 255) != (ptr_get_byte(bp + i) & 255) { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
 fn _ensure_workers_for_spawned_servers(test_name) {
     // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
     if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
@@ -179,7 +205,7 @@ fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
 }
 
 fn server(listen_fd) {
-    // Accept + handshake, then echo one text frame.
+    // Accept + handshake, then echo one text frame and one binary frame.
     // Keep timeouts a bit generous on remote Win11 hosts (rolling: avoid flaky scheduling timeouts).
     var conn = ws.accept(listen_fd, 10000)
     if oren_is_err(conn) {
@@ -202,6 +228,19 @@ fn server(listen_fd) {
         return 14
     }
 
+    var bs = conn.recv_bytes(10000)
+    if oren_is_err(bs) {
+        print("ws_echo_loopback: server recv bytes FAIL: " + oren_err_msg(bs))
+        return 15
+    }
+    if oren_is_u8_buf(bs) != true { return 16 }
+
+    wr = conn.send_bytes_server(bs, 10000)
+    if oren_is_err(wr) {
+        print("ws_echo_loopback: server send bytes FAIL: " + oren_err_msg(wr))
+        return 17
+    }
+
     conn.close()
     return 0
 }
@@ -214,6 +253,7 @@ fn run_one(listen_fd, url, resolver) {
     var rc = 0
     var conn = 0
     var text = 0
+    var bytes = nil
 
     var c = 0
     if resolver != nil {
@@ -276,6 +316,24 @@ fn run_one(listen_fd, url, resolver) {
             }
             free(text)
             text = 0
+        }
+
+        if rc == 0 {
+            bytes = _make_binary_payload(4101)
+            var bwr = conn.send_bytes_client(bytes, 5000)
+            if oren_is_err(bwr) {
+                print("ws_echo_loopback: FAIL send bytes: " + oren_err_msg(bwr))
+                rc = 26
+            } else {
+                var body_bytes = conn.recv_bytes(10000)
+                if oren_is_err(body_bytes) {
+                    print("ws_echo_loopback: FAIL recv bytes: " + oren_err_msg(body_bytes))
+                    rc = 27
+                } else if _bytes_equal(body_bytes, bytes) != 1 {
+                    print("ws_echo_loopback: FAIL bytes mismatch")
+                    rc = 28
+                }
+            }
         }
     }
 

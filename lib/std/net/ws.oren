@@ -30,7 +30,10 @@ struct Conn {
 trait WebSocketConn {
     fn send_text_client(self, text, timeout_ms);
     fn send_text_server(self, text, timeout_ms);
+    fn send_bytes_client(self, bytes, timeout_ms);
+    fn send_bytes_server(self, bytes, timeout_ms);
     fn recv_text(self, timeout_ms);
+    fn recv_bytes(self, timeout_ms);
     fn close(self);
 }
 
@@ -822,6 +825,15 @@ fn _send_frame_text(conn, text, timeout_ms, masked) {
     return _send_frame_str(conn, 1, text, timeout_ms, masked)
 }
 
+fn _send_frame_bytes(conn, opcode, bytes, timeout_ms, masked) {
+    if bytes == nil { return 0 - 22 } // EINVAL
+    if oren_is_u8_buf(bytes) != true { return 0 - 22 } // EINVAL
+    var n = oren_bytes_len(bytes)
+    var p = 0
+    if n > 0 { p = native_buf_data_ptr(bytes) }
+    return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)
+}
+
 fn send_text_client(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 1)
 }
@@ -842,6 +854,26 @@ fn _send_text_server_value(conn, text, timeout_ms) {
     return _err_from_errno(rc, "ws.send_text_server failed")
 }
 
+fn send_bytes_client(conn, bytes, timeout_ms) {
+    return _send_frame_bytes(conn, 2, bytes, timeout_ms, 1)
+}
+
+fn _send_bytes_client_value(conn, bytes, timeout_ms) {
+    var rc = send_bytes_client(conn, bytes, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_bytes_client failed")
+}
+
+fn send_bytes_server(conn, bytes, timeout_ms) {
+    return _send_frame_bytes(conn, 2, bytes, timeout_ms, 0)
+}
+
+fn _send_bytes_server_value(conn, bytes, timeout_ms) {
+    var rc = send_bytes_server(conn, bytes, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_bytes_server failed")
+}
+
 fn send_ping_client(conn, payload, timeout_ms) {
     // Client-to-server ping must be masked.
     return _send_frame_str(conn, 9, payload, timeout_ms, 1)
@@ -852,8 +884,8 @@ fn send_ping_server(conn, payload, timeout_ms) {
     return _send_frame_str(conn, 9, payload, timeout_ms, 0)
 }
 
-fn recv_text(conn, timeout_ms) {
-    // Returns {"ok":1,"v":string} or {"ok":0,"err":string}.
+fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
+    // Returns {"ok":1,"v":string/u8_buf} or {"ok":0,"err":string}.
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     // Ping/pong and close are handled internally and do not escape to callers:
@@ -920,18 +952,29 @@ fn recv_text(conn, timeout_ms) {
         }
         free(frame_hdr)
 
-        var out = malloc(plen + 1)
-        if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
-        rc = _read_exact(conn, out, plen, timeout_ms)
-        if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ", masked=" + oren_int_to_string(masked) + ")"} }
+        var out = 0
+        var outp = 0
+        if want_bytes == 1 {
+            out = oren_u8_buf_new_uninit(plen)
+            if plen > 0 { outp = native_buf_data_ptr(out) }
+        } else {
+            out = malloc(plen + 1)
+            if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
+            outp = out
+        }
+        rc = _read_exact(conn, outp, plen, timeout_ms)
+        if rc < 0 {
+            if want_bytes != 1 { free(out) }
+            return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ", masked=" + oren_int_to_string(masked) + ")"}
+        }
         var i2 = 0
         while masked == 1 && i2 < plen {
-            var b = ptr_get_byte(out + i2) & 255
+            var b = ptr_get_byte(outp + i2) & 255
             b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i2)
-            ptr_set_byte(out + i2, b)
+            ptr_set_byte(outp + i2, b)
             i2 = i2 + 1
         }
-        ptr_set_byte(out + plen, 0)
+        if want_bytes != 1 { ptr_set_byte(out + plen, 0) }
 
         // RFC6455: client->server frames are masked; server->client are not.
         // Use the incoming masked bit as a heuristic for the role when responding.
@@ -940,8 +983,8 @@ fn recv_text(conn, timeout_ms) {
 
         if opcode == 9 {
             // ping => pong + continue
-            var prc = _send_frame_raw(conn, 10, out, plen, timeout_ms, out_masked)
-            free(out)
+            var prc = _send_frame_raw(conn, 10, outp, plen, timeout_ms, out_masked)
+            if want_bytes != 1 { free(out) }
             if prc < 0 {
                 return {"ok": 0, "err": "ws.recv_text: auto-pong failed (errno=" + oren_int_to_string(0 - prc) + ")"}
             }
@@ -949,26 +992,29 @@ fn recv_text(conn, timeout_ms) {
         }
         if opcode == 10 {
             // pong => ignore + continue
-            free(out)
+            if want_bytes != 1 { free(out) }
             continue
         }
         if opcode == 8 {
             // close => echo close + return (caller may close the fd)
-            var crc = _send_frame_raw(conn, 8, out, plen, timeout_ms, out_masked)
-            free(out)
+            var crc = _send_frame_raw(conn, 8, outp, plen, timeout_ms, out_masked)
+            if want_bytes != 1 { free(out) }
             if crc < 0 {
                 return {"ok": 0, "err": "ws.recv_text: close send failed (errno=" + oren_int_to_string(0 - crc) + ")"}
             }
             return {"ok": 0, "err": "ws.recv_text: close"}
         }
-        if opcode != 1 {
-            free(out)
+        if opcode != want_opcode {
+            if want_bytes != 1 { free(out) }
             return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
         }
 
-        // Text
         return {"ok": 1, "v": out}
     }
+}
+
+fn recv_text(conn, timeout_ms) {
+    return _recv_payload(conn, timeout_ms, 1, 0)
 }
 
 fn _recv_text_value(conn, timeout_ms) {
@@ -977,9 +1023,22 @@ fn _recv_text_value(conn, timeout_ms) {
     return _err_from_record(r, "ws.recv_text failed")
 }
 
+fn recv_bytes(conn, timeout_ms) {
+    return _recv_payload(conn, timeout_ms, 2, 1)
+}
+
+fn _recv_bytes_value(conn, timeout_ms) {
+    var r = recv_bytes(conn, timeout_ms)
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
+    return _err_from_record(r, "ws.recv_bytes failed")
+}
+
 impl WebSocketConn for Conn {
     fn send_text_client(self, text, timeout_ms) { return _send_text_client_value(self, text, timeout_ms) }
     fn send_text_server(self, text, timeout_ms) { return _send_text_server_value(self, text, timeout_ms) }
+    fn send_bytes_client(self, bytes, timeout_ms) { return _send_bytes_client_value(self, bytes, timeout_ms) }
+    fn send_bytes_server(self, bytes, timeout_ms) { return _send_bytes_server_value(self, bytes, timeout_ms) }
     fn recv_text(self, timeout_ms) { return _recv_text_value(self, timeout_ms) }
+    fn recv_bytes(self, timeout_ms) { return _recv_bytes_value(self, timeout_ms) }
     fn close(self) { return close(self) }
 }

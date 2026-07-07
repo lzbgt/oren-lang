@@ -2525,7 +2525,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   copies, receive-side frame headers/ext lengths/masks parse through one fixed
   prefix scratch buffer, unmasked frame sends stream raw payload spans after a
   compact header, masked client sends stream fixed-size masked chunks instead
-  of allocating full payload-sized frames, and native WebSocket header slices plus frame payload reads
+  of allocating full payload-sized frames, native binary WebSocket sends and
+  receives expose opcode-2 payloads as `u8_buf` without string conversion, and
+  native WebSocket header slices plus frame payload reads
   copy with `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
 				  Base64/Base64URL encode reads inputs through shared byte views after one length

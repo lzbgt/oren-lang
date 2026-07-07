@@ -389,11 +389,15 @@ fi
 if ! grep -Fq 'var frame_hdr = malloc(14)' lib/std/net/ws.oren ||
   ! grep -Fq 'rc = _read_exact(conn, frame_hdr + 2, ext_len, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'rc = _read_exact(conn, frame_hdr + mask_off, 4, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'out = oren_u8_buf_new_uninit(plen)' lib/std/net/ws.oren ||
+  ! grep -Fq 'if plen > 0 { outp = native_buf_data_ptr(out) }' lib/std/net/ws.oren ||
+  ! grep -Fq 'fn send_bytes_client(conn, bytes, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'fn recv_bytes(conn, timeout_ms)' lib/std/net/ws.oren ||
   grep -Fq 'var hdr2 = malloc(2)' lib/std/net/ws.oren ||
   grep -Fq 'var ex = malloc(2)' lib/std/net/ws.oren ||
   grep -Fq 'var ex8 = malloc(8)' lib/std/net/ws.oren ||
   grep -Fq 'var mk = malloc(4)' lib/std/net/ws.oren; then
-  echo "ERROR: native WebSocket recv_text must use one fixed frame-prefix scratch buffer, not multiple small header/ext/mask allocations" >&2
+  echo "ERROR: native WebSocket receive paths must use one fixed frame-prefix scratch buffer and expose byte-native binary frames" >&2
   exit 1
 fi
 ws_send_impl="$(sed -n '/fn _send_frame_raw/,/fn _send_frame_str/p' lib/std/net/ws.oren)"
@@ -413,6 +417,12 @@ if ! grep -Fq 'if masked != 1 {' <<<"$ws_send_impl" ||
 fi
 if ! grep -Fq 'text = _make_text_payload(5003)' tests/native/test_ws_echo_loopback.oren; then
   echo "ERROR: native WebSocket loopback must exercise masked sends larger than the fixed 4096-byte chunk" >&2
+  exit 1
+fi
+if ! grep -Fq 'bytes = _make_binary_payload(4101)' tests/native/test_ws_echo_loopback.oren ||
+  ! grep -Fq 'conn.send_bytes_client(bytes, 5000)' tests/native/test_ws_echo_loopback.oren ||
+  ! grep -Fq 'conn.recv_bytes(10000)' tests/native/test_ws_echo_loopback.oren; then
+  echo "ERROR: native WebSocket loopback must exercise byte-native binary frames larger than the fixed 4096-byte masked chunk" >&2
   exit 1
 fi
 
