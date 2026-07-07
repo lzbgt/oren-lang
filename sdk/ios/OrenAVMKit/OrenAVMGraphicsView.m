@@ -33,22 +33,6 @@ static uint32_t OrenAVMGfxReadU32LE(const uint8_t* p) {
         ((uint32_t)p[3] << 24);
 }
 
-static UIColor* OrenAVMGfxColorValue(uint32_t rgbaValue) {
-    return [UIColor colorWithRed:(CGFloat)(rgbaValue & 255u) / 255.0
-                           green:(CGFloat)((rgbaValue >> 8) & 255u) / 255.0
-                            blue:(CGFloat)((rgbaValue >> 16) & 255u) / 255.0
-                           alpha:(CGFloat)((rgbaValue >> 24) & 255u) / 255.0];
-}
-
-static UIFont* OrenAVMGfxTextFont(void) {
-    static UIFont* font;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        font = [UIFont systemFontOfSize:14.0];
-    });
-    return font;
-}
-
 static uint32_t OrenAVMGfxRGBAValue(const uint8_t* rgba) {
     return (uint32_t)rgba[0] |
         ((uint32_t)rgba[1] << 8) |
@@ -80,13 +64,6 @@ static void OrenAVMGfxSetStrokeColorBytes(CGContextRef ctx, const uint8_t* rgba)
                                (CGFloat)rgba[3] / 255.0);
 }
 
-static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributes(uint32_t rgbaValue) {
-    return @{
-        NSForegroundColorAttributeName: OrenAVMGfxColorValue(rgbaValue),
-        NSFontAttributeName: OrenAVMGfxTextFont()
-    };
-}
-
 static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (frame.length < 24) return NO;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -98,10 +75,6 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     return OrenAVMGfxReadU32LE(data + 8) != 0 && OrenAVMGfxReadU32LE(data + 12) != 0;
 }
 
-static const void* OrenAVMGfxTextAttributeKey(uint32_t rgbaValue) {
-    return (const void*)(uintptr_t)((uint64_t)rgbaValue + 1ull);
-}
-
 @interface OrenAVMGraphicsView () {
     CFMutableDictionaryRef _orenTouchIDs;
     CFMutableDictionaryRef _orenTextAttributes;
@@ -110,30 +83,14 @@ static const void* OrenAVMGfxTextAttributeKey(uint32_t rgbaValue) {
     CFMutableDictionaryRef _orenMaterials3DByID;
     CFMutableDictionaryRef _orenModels3DByID;
     CFMutableDictionaryRef _orenImagesByID;
+    uint32_t _orenLastTextAttributesRGBA;
+    NSDictionary<NSAttributedStringKey, id>* _orenLastTextAttributes;
 }
 @property(nonatomic) uint32_t orenNextTouchID;
-@property(nonatomic) CFMutableDictionaryRef orenTextAttributes;
-@property(nonatomic) uint32_t orenLastTextAttributesRGBA;
-@property(nonatomic, strong) NSDictionary<NSAttributedStringKey, id>* orenLastTextAttributes;
 @property(nonatomic, readwrite) NSUInteger retainedImagePixelCount;
 @property(nonatomic, strong) id orenGraphicsFrameObserverToken;
 @property(nonatomic) BOOL orenFrameReloadScheduled;
 @end
-
-static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(OrenAVMGraphicsView* view, uint32_t rgbaValue) {
-    if (view.orenLastTextAttributes && view.orenLastTextAttributesRGBA == rgbaValue) return view.orenLastTextAttributes;
-    if (!view.orenTextAttributes) view.orenTextAttributes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    const void* key = OrenAVMGfxTextAttributeKey(rgbaValue);
-    NSDictionary<NSAttributedStringKey, id>* attrs = view.orenTextAttributes ?
-        (__bridge NSDictionary<NSAttributedStringKey, id>*)CFDictionaryGetValue(view.orenTextAttributes, key) : nil;
-    if (!attrs) {
-        attrs = OrenAVMGfxTextAttributes(rgbaValue);
-        if (view.orenTextAttributes) CFDictionarySetValue(view.orenTextAttributes, key, (__bridge const void*)attrs);
-    }
-    view.orenLastTextAttributesRGBA = rgbaValue;
-    view.orenLastTextAttributes = attrs;
-    return attrs;
-}
 
 @implementation OrenAVMGraphicsView
 
@@ -834,53 +791,34 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
             uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t textLen = OrenAVMGfxReadU32LE(payload + 12);
             if (textLen <= (uint32_t)payloadLen - 16u) {
-                NSString* text = [[NSString alloc] initWithBytes:payload + 16
-                                                          length:(NSUInteger)textLen
-                                                        encoding:NSUTF8StringEncoding];
-                if (text) {
-                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForView(self, OrenAVMGfxRGBAValue(payload + 8));
-                    [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
-                }
+                NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(&_orenTextAttributes,
+                                                                                                  &_orenLastTextAttributesRGBA,
+                                                                                                  &_orenLastTextAttributes,
+                                                                                                  OrenAVMGfxRGBAValue(payload + 8));
+                OrenAVMGfxDrawTextBytes(payload + 16, textLen, x, y, attrs);
             }
         } else if (opcode == 68 && payloadLen >= 12) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             uint32_t textLen = OrenAVMGfxReadU32LE(payload + 8);
             if (textLen == (uint32_t)payloadLen - 12u) {
-                NSString* text = [[NSString alloc] initWithBytes:payload + 12
-                                                          length:(NSUInteger)textLen
-                                                        encoding:NSUTF8StringEncoding];
-                if (text) {
-                    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
-                    resource.attributedText = [[NSAttributedString alloc] initWithString:text
-                                                                               attributes:OrenAVMGfxTextAttributesForView(self, OrenAVMGfxRGBAValue(payload + 4))];
-                    if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-                    if (_orenTextResourcesByID) {
-                        CFDictionarySetValue(_orenTextResourcesByID, OrenAVMGfxRetainedTextKey(textID), (__bridge const void*)resource);
-                    }
-                }
+                NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(&_orenTextAttributes,
+                                                                                                  &_orenLastTextAttributesRGBA,
+                                                                                                  &_orenLastTextAttributes,
+                                                                                                  OrenAVMGfxRGBAValue(payload + 4));
+                (void)OrenAVMGfxPutTextResource(&_orenTextResourcesByID, textID, payload + 12, textLen, attrs);
             }
         } else if (opcode == 69 && payloadLen == 12) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             uint32_t x = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t y = OrenAVMGfxReadU32LE(payload + 8);
-            OrenAVMGfxTextResource* resource = OrenAVMGfxRetainedTextResource(_orenTextResourcesByID, textID);
-            if (resource.attributedText) {
-                [resource.attributedText drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y)];
-            }
+            OrenAVMGfxDrawTextResource(_orenTextResourcesByID, textID, x, y);
         } else if (opcode == 72 && payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
             uint32_t posCount = OrenAVMGfxReadU32LE(payload + 4);
-            OrenAVMGfxTextResource* resource = OrenAVMGfxRetainedTextResource(_orenTextResourcesByID, textID);
-            if (resource.attributedText && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
-                for (uint32_t pi = 0; pi < posCount; pi++) {
-                    const uint8_t* p = payload + 8 + ((size_t)pi * 8u);
-                    [resource.attributedText drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxReadU32LE(p),
-                                                                    (CGFloat)OrenAVMGfxReadU32LE(p + 4))];
-                }
-            }
+            if (posCount == ((uint32_t)payloadLen - 8u) / 8u) OrenAVMGfxDrawTextResourcePositions(_orenTextResourcesByID, textID, payload + 8, posCount);
         } else if (opcode == 70 && payloadLen == 4) {
             uint32_t textID = OrenAVMGfxReadU32LE(payload);
-            if (_orenTextResourcesByID) CFDictionaryRemoveValue(_orenTextResourcesByID, OrenAVMGfxRetainedTextKey(textID));
+            OrenAVMGfxRemoveTextResource(_orenTextResourcesByID, textID);
         } else if (opcode == 64 && payloadLen >= 16) {
             uint32_t imageID = OrenAVMGfxReadU32LE(payload);
             uint32_t iw = OrenAVMGfxReadU32LE(payload + 4);

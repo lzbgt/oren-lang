@@ -73,6 +73,26 @@ void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
                                 uint32_t h);
 const void* OrenAVMGfxRetainedTextKey(uint32_t textID);
 OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
+NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForRGBA(CFMutableDictionaryRef* attrsByRGBA,
+                                                                         uint32_t* lastRGBA,
+                                                                         NSDictionary<NSAttributedStringKey, id>* __strong* lastAttributes,
+                                                                         uint32_t rgbaValue);
+void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
+                             uint32_t textLen,
+                             uint32_t x,
+                             uint32_t y,
+                             NSDictionary<NSAttributedStringKey, id>* attrs);
+BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
+                               uint32_t textID,
+                               const uint8_t* textBytes,
+                               uint32_t textLen,
+                               NSDictionary<NSAttributedStringKey, id>* attrs);
+void OrenAVMGfxDrawTextResource(CFDictionaryRef texts, uint32_t textID, uint32_t x, uint32_t y);
+void OrenAVMGfxDrawTextResourcePositions(CFDictionaryRef texts,
+                                         uint32_t textID,
+                                         const uint8_t* positions,
+                                         uint32_t posCount);
+void OrenAVMGfxRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID);
 const void* OrenAVMGfxRetainedMeshKey(uint32_t meshID);
 OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource(CFDictionaryRef meshes, uint32_t meshID);
 const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID);

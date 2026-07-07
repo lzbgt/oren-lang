@@ -2,6 +2,7 @@
 
 #if TARGET_OS_IPHONE
 
+#import <dispatch/dispatch.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -158,6 +159,99 @@ const void* OrenAVMGfxRetainedTextKey(uint32_t textID) {
 OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource(CFDictionaryRef texts, uint32_t textID) {
     if (!texts || textID == 0) return nil;
     return (__bridge OrenAVMGfxTextResource*)CFDictionaryGetValue(texts, OrenAVMGfxRetainedTextKey(textID));
+}
+
+static UIColor* OrenAVMGfxColorValue(uint32_t rgbaValue) {
+    return [UIColor colorWithRed:(CGFloat)(rgbaValue & 255u) / 255.0
+                           green:(CGFloat)((rgbaValue >> 8) & 255u) / 255.0
+                            blue:(CGFloat)((rgbaValue >> 16) & 255u) / 255.0
+                           alpha:(CGFloat)((rgbaValue >> 24) & 255u) / 255.0];
+}
+
+static UIFont* OrenAVMGfxTextFont(void) {
+    static UIFont* font;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        font = [UIFont systemFontOfSize:14.0];
+    });
+    return font;
+}
+
+static const void* OrenAVMGfxTextAttributeKey(uint32_t rgbaValue) {
+    return OrenAVMGfxRetainedKey(rgbaValue);
+}
+
+static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributes(uint32_t rgbaValue) {
+    return @{
+        NSForegroundColorAttributeName: OrenAVMGfxColorValue(rgbaValue),
+        NSFontAttributeName: OrenAVMGfxTextFont()
+    };
+}
+
+NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForRGBA(CFMutableDictionaryRef* attrsByRGBA,
+                                                                         uint32_t* lastRGBA,
+                                                                         NSDictionary<NSAttributedStringKey, id>* __strong* lastAttributes,
+                                                                         uint32_t rgbaValue) {
+    if (lastRGBA && lastAttributes && *lastAttributes && *lastRGBA == rgbaValue) return *lastAttributes;
+    if (attrsByRGBA && !*attrsByRGBA) *attrsByRGBA = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    const void* key = OrenAVMGfxTextAttributeKey(rgbaValue);
+    NSDictionary<NSAttributedStringKey, id>* attrs = attrsByRGBA && *attrsByRGBA ?
+        (__bridge NSDictionary<NSAttributedStringKey, id>*)CFDictionaryGetValue(*attrsByRGBA, key) : nil;
+    if (!attrs) {
+        attrs = OrenAVMGfxTextAttributes(rgbaValue);
+        if (attrsByRGBA && *attrsByRGBA) CFDictionarySetValue(*attrsByRGBA, key, (__bridge const void*)attrs);
+    }
+    if (lastRGBA) *lastRGBA = rgbaValue;
+    if (lastAttributes) *lastAttributes = attrs;
+    return attrs;
+}
+
+void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
+                             uint32_t textLen,
+                             uint32_t x,
+                             uint32_t y,
+                             NSDictionary<NSAttributedStringKey, id>* attrs) {
+    if (!textBytes || !attrs) return;
+    NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
+    if (text) [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
+}
+
+BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
+                               uint32_t textID,
+                               const uint8_t* textBytes,
+                               uint32_t textLen,
+                               NSDictionary<NSAttributedStringKey, id>* attrs) {
+    if (!texts || textID == 0 || !textBytes || !attrs) return NO;
+    NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
+    if (!text) return NO;
+    OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
+    resource.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
+    if (!*texts) *texts = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*texts) return NO;
+    CFDictionarySetValue(*texts, OrenAVMGfxRetainedTextKey(textID), (__bridge const void*)resource);
+    return YES;
+}
+
+void OrenAVMGfxDrawTextResource(CFDictionaryRef texts, uint32_t textID, uint32_t x, uint32_t y) {
+    OrenAVMGfxTextResource* resource = OrenAVMGfxRetainedTextResource(texts, textID);
+    if (resource.attributedText) [resource.attributedText drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y)];
+}
+
+void OrenAVMGfxDrawTextResourcePositions(CFDictionaryRef texts,
+                                         uint32_t textID,
+                                         const uint8_t* positions,
+                                         uint32_t posCount) {
+    OrenAVMGfxTextResource* resource = OrenAVMGfxRetainedTextResource(texts, textID);
+    if (!resource.attributedText || !positions) return;
+    for (uint32_t pi = 0; pi < posCount; pi++) {
+        const uint8_t* p = positions + ((size_t)pi * 8u);
+        [resource.attributedText drawAtPoint:CGPointMake((CGFloat)OrenAVMGfxResourceReadU32LE(p),
+                                                        (CGFloat)OrenAVMGfxResourceReadU32LE(p + 4))];
+    }
+}
+
+void OrenAVMGfxRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID) {
+    if (texts && textID != 0) CFDictionaryRemoveValue(texts, OrenAVMGfxRetainedTextKey(textID));
 }
 
 const void* OrenAVMGfxRetainedMeshKey(uint32_t meshID) {

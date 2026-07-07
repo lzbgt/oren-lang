@@ -41,6 +41,11 @@ def main() -> int:
         "OrenAVMGfxRemoveImageResource",
         "OrenAVMGfxDrawImageSubrect",
         "OrenAVMGfxRetainedTextKey",
+        "OrenAVMGfxTextAttributesForRGBA",
+        "OrenAVMGfxDrawTextBytes",
+        "OrenAVMGfxPutTextResource",
+        "OrenAVMGfxDrawTextResourcePositions",
+        "OrenAVMGfxRemoveTextResource",
         "OrenAVMGfxRetainedMeshKey",
         "OrenAVMGfxRetainedMaterialKey",
         "OrenAVMGfxRetainedMaterialRGBA",
@@ -65,6 +70,10 @@ def main() -> int:
         "static void OrenAVMGfxDrawImageSubrect",
         "static const void* OrenAVMGfxRetainedTextKey",
         "static OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource",
+        "static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributes",
+        "static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView",
+        "CFDictionarySetValue(_orenTextResourcesByID",
+        "CFDictionaryRemoveValue(_orenTextResourcesByID",
         "static const void* OrenAVMGfxRetainedMeshKey",
         "static OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource",
         "static const void* OrenAVMGfxRetainedMaterialKey",
@@ -78,6 +87,12 @@ def main() -> int:
         fail("CoreGraphics retained image uploads must delegate map mutation to OrenAVMGraphicsResources")
     if "OrenAVMGfxRemoveImageResource(_orenImagesByID, imageID, &_retainedImagePixelCount)" not in view_text:
         fail("CoreGraphics retained image removals must delegate pixel accounting to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutTextResource(&_orenTextResourcesByID," not in view_text:
+        fail("CoreGraphics retained text uploads must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawTextResourcePositions(_orenTextResourcesByID" not in view_text:
+        fail("CoreGraphics retained text batched draws must delegate payload traversal to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveTextResource(_orenTextResourcesByID, textID)" not in view_text:
+        fail("CoreGraphics retained text removals must delegate resource mutation to OrenAVMGraphicsResources")
 
     print("OK: CoreGraphics retained resource helpers live in OrenAVMGraphicsResources")
     return 0

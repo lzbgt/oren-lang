@@ -93,8 +93,12 @@ def main() -> int:
         fail("CoreGraphics retained text lookups must avoid boxed NSNumber text IDs")
     if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:
         fail("CoreGraphics retained text resources must use a scalar-key CF dictionary")
-    if "OrenAVMGfxRetainedTextResource(_orenTextResourcesByID, textID)" not in text:
+    if "OrenAVMGfxRetainedTextResource(texts, textID)" not in resource_text:
         fail("CoreGraphics retained text draws must use the typed scalar-map resource helper")
+    if "OrenAVMGfxDrawTextResource(_orenTextResourcesByID, textID, x, y)" not in view_text:
+        fail("CoreGraphics retained text draws must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawTextResourcePositions(_orenTextResourcesByID, textID, payload + 8, posCount)" not in view_text:
+        fail("CoreGraphics retained text batched draws must delegate to OrenAVMGraphicsResources")
     if "@(textID)" in text:
         fail("CoreGraphics retained text upload/draw paths must not box text IDs")
     if 'self.orenTextResources[@(textID)] = @{@"text": text, @"color": color}' in text:
@@ -107,20 +111,20 @@ def main() -> int:
         fail("CoreGraphics retained text draws must not use dictionary casts")
     if "CFMutableDictionaryRef _orenTextAttributes" not in text:
         fail("CoreGraphics text draws must cache UIKit text attributes in a scalar-key CF dictionary")
-    if "OrenAVMGfxTextAttributesForView" not in text:
+    if "OrenAVMGfxTextAttributesForRGBA" not in text:
         fail("CoreGraphics text draws must use the per-view text attribute cache")
-    attr_helper_start = text.find("static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView")
-    attr_helper_end = text.find("@implementation OrenAVMGraphicsView", attr_helper_start)
+    attr_helper_start = resource_text.rfind("NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForRGBA")
+    attr_helper_end = resource_text.find("void OrenAVMGfxDrawTextBytes", attr_helper_start)
     if attr_helper_start < 0 or attr_helper_end < 0:
         fail("missing CoreGraphics text attribute helper body")
-    attr_helper = text[attr_helper_start:attr_helper_end]
-    mru_pos = attr_helper.find("view.orenLastTextAttributes && view.orenLastTextAttributesRGBA == rgbaValue")
+    attr_helper = resource_text[attr_helper_start:attr_helper_end]
+    mru_pos = attr_helper.find("lastRGBA && lastAttributes && *lastAttributes && *lastRGBA == rgbaValue")
     scalar_key_pos = attr_helper.find("const void* key = OrenAVMGfxTextAttributeKey(rgbaValue)")
     if mru_pos < 0 or scalar_key_pos < 0 or mru_pos > scalar_key_pos:
         fail("CoreGraphics text attribute cache must check the scalar MRU before scalar-map lookup")
     if "NSNumber* key = @(rgbaValue)" in attr_helper or "NSMutableDictionary<NSNumber*, NSDictionary<NSAttributedStringKey, id>*>* orenTextAttributes" in text:
         fail("CoreGraphics text attribute cache must not box RGBA keys")
-    if "CFDictionaryGetValue(view.orenTextAttributes, key)" not in attr_helper or "CFDictionarySetValue(view.orenTextAttributes, key" not in attr_helper:
+    if "CFDictionaryGetValue(*attrsByRGBA, key)" not in attr_helper or "CFDictionarySetValue(*attrsByRGBA, key" not in attr_helper:
         fail("CoreGraphics text attribute cache must use scalar-key CF dictionary lookup/storage")
     if "OrenAVMGfxTextAttributes(OrenAVMGfxRGBAValue(payload + 8))" in text:
         fail("CoreGraphics immediate text draws must not rebuild text attributes per draw")
