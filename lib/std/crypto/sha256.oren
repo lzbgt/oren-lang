@@ -17,6 +17,8 @@ trait Sha256Bytes {
     fn sha256_hex(self);
 }
 
+var _SHA256_K = nil
+
 fn _input_view_or_err(input_bytes, ctx) {
     if input_bytes == nil { input_bytes = oren_u8_buf_new(0) }
     var v = bytesm.view(input_bytes, ctx)
@@ -109,6 +111,77 @@ fn _store_u32_be(out, off, x) {
     return off + 4
 }
 
+fn _round_constants() {
+    if _SHA256_K != nil { return _SHA256_K }
+    var k = list.int_new(64)
+    list.int_push(k, 1116352408)
+    list.int_push(k, 1899447441)
+    list.int_push(k, 3049323471)
+    list.int_push(k, 3921009573)
+    list.int_push(k, 961987163)
+    list.int_push(k, 1508970993)
+    list.int_push(k, 2453635748)
+    list.int_push(k, 2870763221)
+    list.int_push(k, 3624381080)
+    list.int_push(k, 310598401)
+    list.int_push(k, 607225278)
+    list.int_push(k, 1426881987)
+    list.int_push(k, 1925078388)
+    list.int_push(k, 2162078206)
+    list.int_push(k, 2614888103)
+    list.int_push(k, 3248222580)
+    list.int_push(k, 3835390401)
+    list.int_push(k, 4022224774)
+    list.int_push(k, 264347078)
+    list.int_push(k, 604807628)
+    list.int_push(k, 770255983)
+    list.int_push(k, 1249150122)
+    list.int_push(k, 1555081692)
+    list.int_push(k, 1996064986)
+    list.int_push(k, 2554220882)
+    list.int_push(k, 2821834349)
+    list.int_push(k, 2952996808)
+    list.int_push(k, 3210313671)
+    list.int_push(k, 3336571891)
+    list.int_push(k, 3584528711)
+    list.int_push(k, 113926993)
+    list.int_push(k, 338241895)
+    list.int_push(k, 666307205)
+    list.int_push(k, 773529912)
+    list.int_push(k, 1294757372)
+    list.int_push(k, 1396182291)
+    list.int_push(k, 1695183700)
+    list.int_push(k, 1986661051)
+    list.int_push(k, 2177026350)
+    list.int_push(k, 2456956037)
+    list.int_push(k, 2730485921)
+    list.int_push(k, 2820302411)
+    list.int_push(k, 3259730800)
+    list.int_push(k, 3345764771)
+    list.int_push(k, 3516065817)
+    list.int_push(k, 3600352804)
+    list.int_push(k, 4094571909)
+    list.int_push(k, 275423344)
+    list.int_push(k, 430227734)
+    list.int_push(k, 506948616)
+    list.int_push(k, 659060556)
+    list.int_push(k, 883997877)
+    list.int_push(k, 958139571)
+    list.int_push(k, 1322822218)
+    list.int_push(k, 1537002063)
+    list.int_push(k, 1747873779)
+    list.int_push(k, 1955562222)
+    list.int_push(k, 2024104815)
+    list.int_push(k, 2227730452)
+    list.int_push(k, 2361852424)
+    list.int_push(k, 2428436474)
+    list.int_push(k, 2756734187)
+    list.int_push(k, 3204031479)
+    list.int_push(k, 3329325298)
+    _SHA256_K = k
+    return k
+}
+
 fn sha256_bytes(input_bytes) {
     // Returns BYTES (len=32).
     var input_view = _input_view_or_err(input_bytes, "sha256.digest")
@@ -127,25 +200,7 @@ fn sha256_bytes(input_bytes) {
     var h6 = 528734635
     var h7 = 1541459225
 
-    // Round constants
-    var K = [
-        1116352408, 1899447441, 3049323471, 3921009573,
-        961987163, 1508970993, 2453635748, 2870763221,
-        3624381080, 310598401, 607225278, 1426881987,
-        1925078388, 2162078206, 2614888103, 3248222580,
-        3835390401, 4022224774, 264347078, 604807628,
-        770255983, 1249150122, 1555081692, 1996064986,
-        2554220882, 2821834349, 2952996808, 3210313671,
-        3336571891, 3584528711, 113926993, 338241895,
-        666307205, 773529912, 1294757372, 1396182291,
-        1695183700, 1986661051, 2177026350, 2456956037,
-        2730485921, 2820302411, 3259730800, 3345764771,
-        3516065817, 3600352804, 4094571909, 275423344,
-        430227734, 506948616, 659060556, 883997877,
-        958139571, 1322822218, 1537002063, 1747873779,
-        1955562222, 2024104815, 2227730452, 2361852424,
-        2428436474, 2756734187, 3204031479, 3329325298
-    ]
+    var K = _round_constants()
 
     var off = 0
     while off < total_len {
@@ -175,7 +230,7 @@ fn sha256_bytes(input_bytes) {
 
         t = 0
         while t < 64 {
-            var t1 = _u32(h + _bsig1(e) + _ch(e, f, g) + K[t] + list.int_get(w, t))
+            var t1 = _u32(h + _bsig1(e) + _ch(e, f, g) + list.int_get(K, t) + list.int_get(w, t))
             var t2 = _u32(_bsig0(a) + _maj(a, b, c))
             h = g
             g = f
@@ -232,24 +287,7 @@ fn sha256_string(s) {
     var h6 = 528734635
     var h7 = 1541459225
 
-    var K = [
-        1116352408, 1899447441, 3049323471, 3921009573,
-        961987163, 1508970993, 2453635748, 2870763221,
-        3624381080, 310598401, 607225278, 1426881987,
-        1925078388, 2162078206, 2614888103, 3248222580,
-        3835390401, 4022224774, 264347078, 604807628,
-        770255983, 1249150122, 1555081692, 1996064986,
-        2554220882, 2821834349, 2952996808, 3210313671,
-        3336571891, 3584528711, 113926993, 338241895,
-        666307205, 773529912, 1294757372, 1396182291,
-        1695183700, 1986661051, 2177026350, 2456956037,
-        2730485921, 2820302411, 3259730800, 3345764771,
-        3516065817, 3600352804, 4094571909, 275423344,
-        430227734, 506948616, 659060556, 883997877,
-        958139571, 1322822218, 1537002063, 1747873779,
-        1955562222, 2024104815, 2227730452, 2361852424,
-        2428436474, 2756734187, 3204031479, 3329325298
-    ]
+    var K = _round_constants()
 
     var off = 0
     while off < total_len {
@@ -276,7 +314,7 @@ fn sha256_string(s) {
 
         t = 0
         while t < 64 {
-            var t1 = _u32(h + _bsig1(e) + _ch(e, f, g) + K[t] + list.int_get(w, t))
+            var t1 = _u32(h + _bsig1(e) + _ch(e, f, g) + list.int_get(K, t) + list.int_get(w, t))
             var t2 = _u32(_bsig0(a) + _maj(a, b, c))
             h = g
             g = f

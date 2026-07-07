@@ -345,6 +345,16 @@ if grep -Fq 'while i < n' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
   exit 1
 fi
 
+if ! grep -Fq 'var _SHA256_K = nil' lib/std/crypto/sha256.oren ||
+  ! grep -Fq 'fn _round_constants()' lib/std/crypto/sha256.oren ||
+  ! grep -Fq 'var k = list.int_new(64)' lib/std/crypto/sha256.oren ||
+  ! grep -Fq 'list.int_get(K, t)' lib/std/crypto/sha256.oren ||
+  grep -Fq 'var K = [' lib/std/crypto/sha256.oren ||
+  grep -Fq 'K[t]' lib/std/crypto/sha256.oren; then
+  echo "ERROR: pure Oren SHA-256 round constants must use one cached list_int table, not per-call boxed lists" >&2
+  exit 1
+fi
+
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||
   grep -Fq '_b64_char(' lib/std/encoding/base64.oren ||
