@@ -17,6 +17,7 @@
 #include "runtime/021_channels.inc"
 #include "runtime/025_entropy.inc"
 #include "runtime/030_ops_compare.inc"
+#include "runtime/039_byte_copy_helpers.inc"
 #include "runtime/040_lists_maps.inc"
 #include "runtime/041_err_helpers.inc"
 #include "runtime/042_generator_objects.inc"

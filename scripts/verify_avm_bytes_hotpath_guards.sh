@@ -260,8 +260,8 @@ if ! grep -Fq 'oren_string_from_bytes_slice(bytes, 0, total)' <<<"$native_string
   exit 1
 fi
 
-c_runtime_copy_helper="$(sed -n '/static int runtime_bytes_copy_span(OrenValue bytes/,/^}/p' lib/runtime/040_lists_maps.inc)"
-c_runtime_copy_list_helper="$(sed -n '/static int runtime_bytes_copy_span_to_list(OrenValue bytes/,/^}/p' lib/runtime/040_lists_maps.inc)"
+c_runtime_copy_helper="$(sed -n '/static int runtime_bytes_copy_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+c_runtime_copy_list_helper="$(sed -n '/static int runtime_bytes_copy_span_to_list(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
 c_runtime_unpack_impl="$(sed -n '/OrenValue oren_bytes_unpack/,/OrenValue oren_bytes_get_u16_be/p' lib/runtime/040_lists_maps.inc)"
 c_runtime_pack_impl="$(sed -n '/OrenValue oren_bytes_pack/,/^}/p' lib/runtime/045_bytes_helpers.inc)"
 c_runtime_string_impl="$(sed -n '/OrenValue oren_string_from_bytes(OrenValue bytes)/,/OrenValue oren_string_from_bytes_slice/p' lib/runtime/050_io_misc.inc)"
