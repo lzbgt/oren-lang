@@ -888,13 +888,14 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
     // Returns {"ok":1,"v":string/u8_buf} or {"ok":0,"err":string}.
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
+    var frame_hdr = malloc(14)
+    if frame_hdr == 0 { return {"ok": 0, "err": "ws.recv_text: malloc frame header failed"} }
+
     // Ping/pong and close are handled internally and do not escape to callers:
     // - ping => auto-pong + continue
     // - pong => ignore + continue
     // - close => respond with close and return ok=0
     while 1 {
-        var frame_hdr = malloc(14)
-        if frame_hdr == 0 { return {"ok": 0, "err": "ws.recv_text: malloc failed"} }
         var rc = _read_exact(conn, frame_hdr, 2, timeout_ms)
         if rc < 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: read hdr failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
 
@@ -950,7 +951,6 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             mask2 = ptr_get_byte(frame_hdr + mask_off + 2) & 255
             mask3 = ptr_get_byte(frame_hdr + mask_off + 3) & 255
         }
-        free(frame_hdr)
 
         var out = 0
         var outp = 0
@@ -959,12 +959,13 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             if plen > 0 { outp = native_buf_data_ptr(out) }
         } else {
             out = malloc(plen + 1)
-            if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
+            if out == 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
             outp = out
         }
         rc = _read_exact(conn, outp, plen, timeout_ms)
         if rc < 0 {
             if want_bytes != 1 { free(out) }
+            free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ", masked=" + oren_int_to_string(masked) + ")"}
         }
         var i2 = 0
@@ -986,6 +987,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             var prc = _send_frame_raw(conn, 10, outp, plen, timeout_ms, out_masked)
             if want_bytes != 1 { free(out) }
             if prc < 0 {
+                free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: auto-pong failed (errno=" + oren_int_to_string(0 - prc) + ")"}
             }
             continue
@@ -1000,15 +1002,19 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             var crc = _send_frame_raw(conn, 8, outp, plen, timeout_ms, out_masked)
             if want_bytes != 1 { free(out) }
             if crc < 0 {
+                free(frame_hdr)
                 return {"ok": 0, "err": "ws.recv_text: close send failed (errno=" + oren_int_to_string(0 - crc) + ")"}
             }
+            free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: close"}
         }
         if opcode != want_opcode {
             if want_bytes != 1 { free(out) }
+            free(frame_hdr)
             return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
         }
 
+        free(frame_hdr)
         return {"ok": 1, "v": out}
     }
 }

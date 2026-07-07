@@ -2525,8 +2525,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   source-string byte reads instead of repeated input byte-list materialization.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,
   upgrade headers read directly into reserved header storage without scratch
-  copies, receive-side frame headers/ext lengths/masks parse through one fixed
-  prefix scratch buffer, unmasked frame sends stream raw payload spans after a
+	  copies, receive-side frame headers/ext lengths/masks parse through one
+	  receive-call prefix scratch buffer, unmasked frame sends stream raw payload spans after a
   compact header, masked client sends stream fixed-size masked chunks instead
   of allocating full payload-sized frames, native binary WebSocket sends and
   receives expose opcode-2 payloads as `u8_buf` without string conversion, and
