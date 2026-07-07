@@ -86,6 +86,42 @@ fn sign(x: f64, y: f64, z: f64, w: f64) {
     return [sx, sy, sz, sw]
 }
 
+fn floor(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.floor")
+    if oren_is_err(ok) { return ok }
+    return [math.floor(x), math.floor(y), math.floor(z), math.floor(w)]
+}
+
+fn ceil(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.ceil")
+    if oren_is_err(ok) { return ok }
+    return [math.ceil(x), math.ceil(y), math.ceil(z), math.ceil(w)]
+}
+
+fn round(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.round")
+    if oren_is_err(ok) { return ok }
+    return [math.round(x), math.round(y), math.round(z), math.round(w)]
+}
+
+fn trunc(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.trunc")
+    if oren_is_err(ok) { return ok }
+    return [math.trunc(x), math.trunc(y), math.trunc(z), math.trunc(w)]
+}
+
+fn fract(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.fract")
+    if oren_is_err(ok) { return ok }
+    return [math.fract(x), math.fract(y), math.fract(z), math.fract(w)]
+}
+
+fn saturate(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.saturate")
+    if oren_is_err(ok) { return ok }
+    return [math.saturate(x), math.saturate(y), math.saturate(z), math.saturate(w)]
+}
+
 fn min(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.min")
     if oren_is_err(ok) { return ok }

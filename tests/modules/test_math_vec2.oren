@@ -77,6 +77,36 @@ assert_true(!oren_is_err(sg), 76, "sign ok")
 assert_close(sg[0], 0.0 - 1.0, 0.0, 77, "sign x")
 assert_close(sg[1], 0.0, 0.0, 78, "sign y")
 
+var fl = vec2.floor(1.9, 0.0 - 1.1)
+assert_true(!oren_is_err(fl), 81, "floor ok")
+assert_close(fl[0], 1.0, 0.0, 82, "floor x")
+assert_close(fl[1], 0.0 - 2.0, 0.0, 83, "floor y")
+
+var ce = vec2.ceil(1.1, 0.0 - 1.9)
+assert_true(!oren_is_err(ce), 84, "ceil ok")
+assert_close(ce[0], 2.0, 0.0, 85, "ceil x")
+assert_close(ce[1], 0.0 - 1.0, 0.0, 86, "ceil y")
+
+var rd = vec2.round(1.5, 0.0 - 1.5)
+assert_true(!oren_is_err(rd), 87, "round ok")
+assert_close(rd[0], 2.0, 0.0, 88, "round x")
+assert_close(rd[1], 0.0 - 2.0, 0.0, 89, "round y")
+
+var tr = vec2.trunc(1.9, 0.0 - 1.9)
+assert_true(!oren_is_err(tr), 90, "trunc ok")
+assert_close(tr[0], 1.0, 0.0, 91, "trunc x")
+assert_close(tr[1], 0.0 - 1.0, 0.0, 92, "trunc y")
+
+var fr = vec2.fract(3.75, 0.0 - 1.25)
+assert_true(!oren_is_err(fr), 93, "fract ok")
+assert_close(fr[0], 0.75, 1e-12, 94, "fract x")
+assert_close(fr[1], 0.75, 1e-12, 95, "fract y")
+
+var sat = vec2.saturate(0.0 - 0.5, 1.5)
+assert_true(!oren_is_err(sat), 96, "saturate ok")
+assert_close(sat[0], 0.0, 0.0, 97, "saturate x")
+assert_close(sat[1], 1.0, 0.0, 98, "saturate y")
+
 var mn = vec2.min(3.0, 0.0 - 4.0, 2.0, 5.0)
 assert_true(!oren_is_err(mn), 50, "min ok")
 assert_close(mn[0], 2.0, 0.0, 51, "min x")
@@ -118,6 +148,8 @@ assert_true(oren_is_err(vec2.min(1.0, 2.0, math.nan(), 3.0)), 71, "min nan error
 assert_true(oren_is_err(vec2.clamp(1.0, 2.0, 5.0, 0.0, 4.0, 3.0)), 72, "clamp bounds errors")
 assert_true(oren_is_err(vec2.abs(math.inf(), 1.0)), 79, "abs inf errors")
 assert_true(oren_is_err(vec2.sign(1.0, math.nan())), 80, "sign nan errors")
+assert_true(oren_is_err(vec2.fract(math.inf(), 1.0)), 99, "fract inf errors")
+assert_true(oren_is_err(vec2.saturate(1.0, math.nan())), 100, "saturate nan errors")
 
 print("module math vec2 OK")
 exit(0)

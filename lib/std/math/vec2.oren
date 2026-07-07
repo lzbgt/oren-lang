@@ -72,6 +72,42 @@ fn sign(x: f64, y: f64) {
     return [sx, sy]
 }
 
+fn floor(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.floor")
+    if oren_is_err(ok) { return ok }
+    return [math.floor(x), math.floor(y)]
+}
+
+fn ceil(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.ceil")
+    if oren_is_err(ok) { return ok }
+    return [math.ceil(x), math.ceil(y)]
+}
+
+fn round(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.round")
+    if oren_is_err(ok) { return ok }
+    return [math.round(x), math.round(y)]
+}
+
+fn trunc(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.trunc")
+    if oren_is_err(ok) { return ok }
+    return [math.trunc(x), math.trunc(y)]
+}
+
+fn fract(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.fract")
+    if oren_is_err(ok) { return ok }
+    return [math.fract(x), math.fract(y)]
+}
+
+fn saturate(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.saturate")
+    if oren_is_err(ok) { return ok }
+    return [math.saturate(x), math.saturate(y)]
+}
+
 fn min(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.min")
     if oren_is_err(ok) { return ok }
