@@ -1059,6 +1059,11 @@ func inferConstructedFieldType(expr *ast.MemberExpression, env memberTypeEnv, st
 			return typeName
 		}
 	}
+	if fields := inferExpressionFieldTypes(expr.Left, env, stack); len(fields) != 0 {
+		if typeName := fields[expr.Property.Value]; typeName != "" {
+			return typeName
+		}
+	}
 	call, ok := expr.Left.(*ast.CallExpression)
 	if !ok {
 		return ""
@@ -1113,7 +1118,32 @@ func inferExpressionFieldTypes(expr ast.Expression, env memberTypeEnv, stack []m
 	case *ast.IfExpression:
 		return inferIfExpressionFieldTypes(expr, env, stack)
 	case *ast.IndexExpression:
-		return inferIterableElementFieldTypes(expr.Left, env, stack)
+		containerType := inferExpressionType(expr.Left, env, stack)
+		if strings.HasPrefix(containerType, inferredListPrefix) {
+			return inferIterableElementFieldTypes(expr.Left, env, stack)
+		}
+		if strings.HasPrefix(containerType, inferredMapPrefix) {
+			return inferMapValueFieldTypes(expr.Left, env, stack)
+		}
+	case *ast.MemberExpression:
+		if !validMemberIdentifier(expr.Property) {
+			return nil
+		}
+		fields := inferExpressionFieldTypes(expr.Left, env, stack)
+		if len(fields) == 0 {
+			return nil
+		}
+		prefix := expr.Property.Value + "."
+		out := map[string]string{}
+		for field, typeName := range fields {
+			if strings.HasPrefix(field, prefix) && typeName != "" {
+				out[strings.TrimPrefix(field, prefix)] = typeName
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
 	}
 	return nil
 }
@@ -1149,6 +1179,86 @@ func inferArrayElementFieldTypes(expr *ast.ArrayLiteral, env memberTypeEnv, stac
 			continue
 		}
 		inferred = mergeFieldTypeFacts(inferred, fields)
+		if len(inferred) == 0 {
+			return nil
+		}
+	}
+	return inferred
+}
+
+func inferMapValueFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map[string]string) map[string]string {
+	switch expr := expr.(type) {
+	case *ast.HashLiteral:
+		return inferHashValueFieldTypes(expr, env, stack)
+	case *ast.Identifier, *ast.MemberExpression:
+		if path := memberExpressionPath(expr); path != "" {
+			return inferredMapValueFieldTypes(path, stack)
+		}
+	case *ast.IfExpression:
+		return inferIfExpressionMapValueFieldTypes(expr, env, stack)
+	}
+	return nil
+}
+
+func inferHashValueFieldTypes(expr *ast.HashLiteral, env memberTypeEnv, stack []map[string]string) map[string]string {
+	if expr == nil || len(expr.Pairs) == 0 {
+		return nil
+	}
+	var inferred map[string]string
+	for _, value := range expr.Pairs {
+		fields := inferExpressionFieldTypes(value, env, stack)
+		if len(fields) == 0 {
+			return nil
+		}
+		if inferred == nil {
+			inferred = cloneFieldTypes(fields)
+			continue
+		}
+		inferred = mergeFieldTypeFacts(inferred, fields)
+		if len(inferred) == 0 {
+			return nil
+		}
+	}
+	return inferred
+}
+
+func inferIfExpressionMapValueFieldTypes(expr *ast.IfExpression, env memberTypeEnv, stack []map[string]string) map[string]string {
+	if expr == nil || expr.Consequence == nil || expr.Alternative == nil {
+		return nil
+	}
+	consequenceStack := cloneTypeStack(stack)
+	consequence := inferBlockReturnMapValueFieldTypes(expr.Consequence, env, &consequenceStack)
+	alternativeStack := cloneTypeStack(stack)
+	alternative := inferBlockReturnMapValueFieldTypes(expr.Alternative, env, &alternativeStack)
+	return mergeFieldTypeFacts(consequence, alternative)
+}
+
+func inferBlockReturnMapValueFieldTypes(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) map[string]string {
+	if block == nil {
+		return nil
+	}
+	*stack = append(*stack, map[string]string{})
+	defer func() { *stack = (*stack)[:len(*stack)-1] }()
+
+	var inferred map[string]string
+	for _, stmt := range block.Statements {
+		var next map[string]string
+		switch stmt := stmt.(type) {
+		case *ast.VarStatement:
+			setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+		case *ast.AssignStatement:
+			setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+		case *ast.ReturnStatement:
+			next = inferMapValueFieldTypes(stmt.ReturnValue, env, *stack)
+		}
+		if len(next) == 0 {
+			continue
+		}
+		if inferred == nil {
+			inferred = cloneFieldTypes(next)
+			continue
+		}
+		inferred = mergeFieldTypeFacts(inferred, next)
 		if len(inferred) == 0 {
 			return nil
 		}
@@ -1328,12 +1438,14 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	setInferredNameType(ident.Value, typeName, stack)
 	clearInferredFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredElementFieldTypes(ident.Value, stack[len(stack)-1])
+	clearInferredMapValueFieldTypes(ident.Value, stack[len(stack)-1])
 	if typeName == "" {
 		return
 	}
 	if sourcePath := memberExpressionPath(expr); sourcePath != "" {
 		copyInferredFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredElementFieldTypes(ident.Value, sourcePath, stack)
+		copyInferredMapValueFieldTypes(ident.Value, sourcePath, stack)
 		return
 	}
 	if fields := inferExpressionFieldTypes(expr, env, stack); len(fields) != 0 {
@@ -1341,6 +1453,9 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	}
 	if fields := inferIterableElementFieldTypes(expr, env, stack); len(fields) != 0 {
 		setInferredElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
+	}
+	if fields := inferMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
+		setInferredMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
 	}
 }
 
@@ -1362,6 +1477,17 @@ func setInferredElementFieldTypes(name string, fields map[string]string, scope m
 	for field, typeName := range fields {
 		if field != "" && typeName != "" {
 			scope[inferredElementFieldKey(name, field)] = typeName
+		}
+	}
+}
+
+func setInferredMapValueFieldTypes(name string, fields map[string]string, scope map[string]string) {
+	if name == "" || len(fields) == 0 || len(scope) == 0 {
+		return
+	}
+	for field, typeName := range fields {
+		if field != "" && typeName != "" {
+			scope[inferredMapValueFieldKey(name, field)] = typeName
 		}
 	}
 }
@@ -1388,6 +1514,22 @@ func copyInferredElementFieldTypes(dst, src string, stack []map[string]string) {
 	}
 	srcPrefix := src + "[]."
 	dstPrefix := dst + "[]."
+	scope := stack[len(stack)-1]
+	for _, frame := range stack {
+		for key, typeName := range frame {
+			if strings.HasPrefix(key, srcPrefix) && typeName != "" {
+				scope[dstPrefix+strings.TrimPrefix(key, srcPrefix)] = typeName
+			}
+		}
+	}
+}
+
+func copyInferredMapValueFieldTypes(dst, src string, stack []map[string]string) {
+	if dst == "" || src == "" || len(stack) == 0 {
+		return
+	}
+	srcPrefix := src + "{}."
+	dstPrefix := dst + "{}."
 	scope := stack[len(stack)-1]
 	for _, frame := range stack {
 		for key, typeName := range frame {
@@ -1436,6 +1578,25 @@ func inferredElementFieldTypes(name string, stack []map[string]string) map[strin
 	return out
 }
 
+func inferredMapValueFieldTypes(name string, stack []map[string]string) map[string]string {
+	if name == "" || len(stack) == 0 {
+		return nil
+	}
+	prefix := name + "{}."
+	out := map[string]string{}
+	for _, frame := range stack {
+		for key, typeName := range frame {
+			if strings.HasPrefix(key, prefix) && typeName != "" {
+				out[strings.TrimPrefix(key, prefix)] = typeName
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func setInferredNameType(name, typeName string, stack []map[string]string) {
 	if name == "" || len(stack) == 0 {
 		return
@@ -1443,6 +1604,7 @@ func setInferredNameType(name, typeName string, stack []map[string]string) {
 	scope := stack[len(stack)-1]
 	clearInferredFieldTypes(name, scope)
 	clearInferredElementFieldTypes(name, scope)
+	clearInferredMapValueFieldTypes(name, scope)
 	if typeName == "" {
 		delete(scope, name)
 		return
@@ -1474,6 +1636,18 @@ func clearInferredElementFieldTypes(name string, scope map[string]string) {
 	}
 }
 
+func clearInferredMapValueFieldTypes(name string, scope map[string]string) {
+	if name == "" || len(scope) == 0 {
+		return
+	}
+	prefix := name + "{}."
+	for key := range scope {
+		if strings.HasPrefix(key, prefix) {
+			delete(scope, key)
+		}
+	}
+}
+
 func inferredFieldKey(name, field string) string {
 	if name == "" || field == "" {
 		return ""
@@ -1486,6 +1660,13 @@ func inferredElementFieldKey(name, field string) string {
 		return ""
 	}
 	return name + "[]." + field
+}
+
+func inferredMapValueFieldKey(name, field string) string {
+	if name == "" || field == "" {
+		return ""
+	}
+	return name + "{}." + field
 }
 
 func memberExpressionPath(expr ast.Expression) string {

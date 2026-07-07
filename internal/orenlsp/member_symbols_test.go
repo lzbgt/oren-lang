@@ -816,6 +816,88 @@ func TestInferExpressionTypeUsesIndexedContainers(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesIndexedMapValueFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"fn main() {",
+		"  var by = {\"home\": Outer(Inner(Leaf(1, 2))), \"away\": Outer(Inner(Leaf(3, 4)))}",
+		"  var mixed = {\"home\": Outer(Inner(Leaf(5, 6))), \"bad\": Outer(Other(7))}",
+		"  var selected = by[\"home\"]",
+		"  var c0 = by[\"home\"].inner.leaf.",
+		"  var d0 = by[\"away\"].inner.leaf.x",
+		"  var d1 = selected.inner.leaf.y",
+		"  return mixed[\"bad\"].inner.leaf.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-indexed-map-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      821,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 8, "character": len([]rune(lines[8]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      822,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 9, "character": strings.LastIndex(lines[9], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      823,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 10, "character": strings.LastIndex(lines[10], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      824,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 11, "character": strings.LastIndex(lines[11], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 821)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("indexed map value field-chain completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 822)["result"].([]any), uri, 0, 14, 15)
+	assertDefinition(t, messageByID(t, msgs, 823)["result"].([]any), uri, 0, 17, 18)
+	defs := messageByID(t, msgs, 824)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed indexed map value field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestInferFunctionReturnTypeUsesForInElements(t *testing.T) {
 	text := strings.Join([]string{
 		"struct Point { x, y }",
