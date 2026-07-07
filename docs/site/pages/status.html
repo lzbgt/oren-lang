@@ -2630,7 +2630,8 @@
 <p>  upgrade headers read directly into reserved header storage without scratch</p>
 <p>  copies, receive-side frame headers/ext lengths/masks parse through one fixed</p>
 <p>  prefix scratch buffer, unmasked frame sends stream raw payload spans after a</p>
-<p>  compact header, and native WebSocket header slices plus frame payload reads</p>
+<p>  compact header, masked client sends stream fixed-size masked chunks instead</p>
+<p>  of allocating full payload-sized frames, and native WebSocket header slices plus frame payload reads</p>
 <p>  copy with <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
 <p>				  Base64/Base64URL encode reads inputs through shared byte views after one length</p>
@@ -2715,9 +2716,9 @@
 <p>			  buffers, single-CONTINUATION inbound header blocks exact-combine without</p>
 <p>			  an overcapacity finish copy, <code>content-length</code> DATA bodies use exact-capacity accumulation</p>
 <p>			  with mismatch checks, including header-only response termination,</p>
-<p>	  and native WebSocket upgrade headers read into reserved storage while</p>
-<p>	  receive-side frame prefixes share one scratch buffer, unmasked sends stream</p>
-<p>	  raw payload spans, and header slices/frame payload reads plus DNS QNAME</p>
+<p>          and native WebSocket upgrade headers read into reserved storage while</p>
+<p>          receive-side frame prefixes share one scratch buffer, unmasked sends stream</p>
+<p>          raw payload spans, masked sends stream fixed-size masked chunks, and header slices/frame payload reads plus DNS QNAME</p>
 <p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
 <p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>	  exact-size <code>u8_buf</code> writes instead of a byte list. JSON, YAML, CBOR,</p>

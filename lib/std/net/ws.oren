@@ -741,21 +741,20 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     }
 
     var mask_bytes = 4
-    var total = 2 + ext + mask_bytes + payload_len
-    total = native_canon_i32_arg(total)
-    var buf = malloc(total)
-    if buf == 0 { return 0 - 12 } // ENOMEM
+    var hdr_len = 2 + ext + mask_bytes
+    var hdr = malloc(14)
+    if hdr == 0 { return 0 - 12 } // ENOMEM
 
     // FIN=1, opcode
-    ptr_set_byte(buf + 0, 128 | (opcode & 15))
+    ptr_set_byte(hdr + 0, 128 | (opcode & 15))
     if ext == 0 {
-        ptr_set_byte(buf + 1, 128 | (payload_len & 127))
+        ptr_set_byte(hdr + 1, 128 | (payload_len & 127))
     } else if ext == 2 {
-        ptr_set_byte(buf + 1, 128 | 126)
-        _write_u16_be(buf, 2, payload_len)
+        ptr_set_byte(hdr + 1, 128 | 126)
+        _write_u16_be(hdr, 2, payload_len)
     } else {
-        ptr_set_byte(buf + 1, 128 | 127)
-        _write_u64_be(buf, 2, payload_len)
+        ptr_set_byte(hdr + 1, 128 | 127)
+        _write_u64_be(hdr, 2, payload_len)
     }
 
     // Best-effort mask (v0.1): not constant.
@@ -764,34 +763,52 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     var mask2 = 0
     var mask3 = 0
 
-    var payload_off = 2 + ext
-    var rc_r = rand.fill_raw(buf + payload_off, 4)
-    if rc_r < 0 { free(buf); return rc_r }
-    mask0 = ptr_get_byte(buf + payload_off + 0) & 255
-    mask1 = ptr_get_byte(buf + payload_off + 1) & 255
-    mask2 = ptr_get_byte(buf + payload_off + 2) & 255
-    mask3 = ptr_get_byte(buf + payload_off + 3) & 255
-    payload_off = payload_off + 4
-
-    var i = 0
-    while i < payload_len {
-        var b = ptr_get_byte(payload_ptr + i) & 255
-        b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i)
-        ptr_set_byte(buf + payload_off + i, b)
-        i = i + 1
-    }
+    var mask_off = 2 + ext
+    var rc_r = rand.fill_raw(hdr + mask_off, 4)
+    if rc_r < 0 { free(hdr); return rc_r }
+    mask0 = ptr_get_byte(hdr + mask_off + 0) & 255
+    mask1 = ptr_get_byte(hdr + mask_off + 1) & 255
+    mask2 = ptr_get_byte(hdr + mask_off + 2) & 255
+    mask3 = ptr_get_byte(hdr + mask_off + 3) & 255
 
     // Rolling correctness guard (Win64 bring-up):
     // copy critical args to fresh locals before calling into the NET runtime so local-slot overlap
     // bugs in the native backend are less likely to corrupt the send length/pointers.
     var fd2 = conn
-    var buf2 = buf
-    var total2 = total
+    var buf2 = hdr
+    var total2 = hdr_len
     var tm2 = timeout_ms
     var wr = _io_write_from(fd2, buf2, total2, tm2)
-    free(buf)
+    free(hdr)
     if wr < 0 { return wr }
     if wr != total2 { return 0 - 5 } // EIO
+    if payload_len <= 0 { return 0 }
+
+    var scratch_len = payload_len
+    if scratch_len > 4096 { scratch_len = 4096 }
+    var scratch = malloc(scratch_len)
+    if scratch == 0 { return 0 - 12 } // ENOMEM
+    var sent = 0
+    while sent < payload_len {
+        var take = payload_len - sent
+        if take > scratch_len { take = scratch_len }
+        var i = 0
+        while i < take {
+            var b = ptr_get_byte(payload_ptr + sent + i) & 255
+            b = b ^ _mask_byte(mask0, mask1, mask2, mask3, sent + i)
+            ptr_set_byte(scratch + i, b)
+            i = i + 1
+        }
+        var fd3 = conn
+        var buf3 = scratch
+        var take3 = take
+        var tm3 = timeout_ms
+        wr = _io_write_from(fd3, buf3, take3, tm3)
+        if wr < 0 { free(scratch); return wr }
+        if wr != take3 { free(scratch); return 0 - 5 } // EIO
+        sent = sent + take
+    }
+    free(scratch)
     return 0
 }
 

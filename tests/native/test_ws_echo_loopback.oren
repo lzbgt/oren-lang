@@ -17,6 +17,18 @@ fn _env_truthy(name) {
     return 1
 }
 
+fn _make_text_payload(n) {
+    var s = malloc_k(n + 1, 1)
+    if s == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(s + i, 65 + (i % 26))
+        i = i + 1
+    }
+    ptr_set_byte(s + n, 0)
+    return s
+}
+
 fn _ensure_workers_for_spawned_servers(test_name) {
     // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
     if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
@@ -201,6 +213,7 @@ fn run_one(listen_fd, url, resolver) {
     // Keep a single exit path so we always join the server thread.
     var rc = 0
     var conn = 0
+    var text = 0
 
     var c = 0
     if resolver != nil {
@@ -232,7 +245,14 @@ fn run_one(listen_fd, url, resolver) {
         }
 
         if rc == 0 {
-            var text = "PING"
+            text = _make_text_payload(5003)
+            if text == 0 {
+                print("ws_echo_loopback: FAIL payload alloc")
+                rc = 25
+            }
+        }
+
+        if rc == 0 {
             var wr = conn.send_text_client(text, 5000)
             if oren_is_err(wr) {
                 print("ws_echo_loopback: FAIL send: " + oren_err_msg(wr))
@@ -244,7 +264,7 @@ fn run_one(listen_fd, url, resolver) {
                     rc = 22
                 } else {
                     if body == 0 { rc = 23 }
-                    else if strcmp(body, "PING") != 0 {
+                    else if strcmp(body, text) != 0 {
                         print("ws_echo_loopback: FAIL mismatch")
                         print(body)
                         free(body)
@@ -254,9 +274,12 @@ fn run_one(listen_fd, url, resolver) {
                     }
                 }
             }
+            free(text)
+            text = 0
         }
     }
 
+    if text != 0 { free(text) }
     if conn != 0 { conn.close() }
 
     var sr = oren_join_timeout(h, 15000)
