@@ -204,6 +204,44 @@ fn sin_cos(x: f64, y: f64, z: f64) {
     return [sx, sy, sz, cx, cy, cz]
 }
 
+fn sinh(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.sinh")
+    if oren_is_err(ok) { return ok }
+    return [math.sinh(x), math.sinh(y), math.sinh(z)]
+}
+
+fn cosh(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.cosh")
+    if oren_is_err(ok) { return ok }
+    return [math.cosh(x), math.cosh(y), math.cosh(z)]
+}
+
+fn tanh(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.tanh")
+    if oren_is_err(ok) { return ok }
+    return [math.tanh(x), math.tanh(y), math.tanh(z)]
+}
+
+fn asinh(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.asinh")
+    if oren_is_err(ok) { return ok }
+    return [math.asinh(x), math.asinh(y), math.asinh(z)]
+}
+
+fn acosh(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.acosh")
+    if oren_is_err(ok) { return ok }
+    if x < 1.0 || y < 1.0 || z < 1.0 { return oren_err(4, "vec3.acosh: domain") }
+    return [math.acosh(x), math.acosh(y), math.acosh(z)]
+}
+
+fn atanh(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.atanh")
+    if oren_is_err(ok) { return ok }
+    if x <= -1.0 || x >= 1.0 || y <= -1.0 || y >= 1.0 || z <= -1.0 || z >= 1.0 { return oren_err(4, "vec3.atanh: domain") }
+    return [math.atanh(x), math.atanh(y), math.atanh(z)]
+}
+
 fn asin(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.asin")
     if oren_is_err(ok) { return ok }

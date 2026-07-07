@@ -236,6 +236,44 @@ fn sin_cos(x: f64, y: f64, z: f64, w: f64) {
     return [sx, sy, sz, sw, cx, cy, cz, cw]
 }
 
+fn sinh(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.sinh")
+    if oren_is_err(ok) { return ok }
+    return [math.sinh(x), math.sinh(y), math.sinh(z), math.sinh(w)]
+}
+
+fn cosh(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.cosh")
+    if oren_is_err(ok) { return ok }
+    return [math.cosh(x), math.cosh(y), math.cosh(z), math.cosh(w)]
+}
+
+fn tanh(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.tanh")
+    if oren_is_err(ok) { return ok }
+    return [math.tanh(x), math.tanh(y), math.tanh(z), math.tanh(w)]
+}
+
+fn asinh(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.asinh")
+    if oren_is_err(ok) { return ok }
+    return [math.asinh(x), math.asinh(y), math.asinh(z), math.asinh(w)]
+}
+
+fn acosh(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.acosh")
+    if oren_is_err(ok) { return ok }
+    if x < 1.0 || y < 1.0 || z < 1.0 || w < 1.0 { return oren_err(4, "vec4.acosh: domain") }
+    return [math.acosh(x), math.acosh(y), math.acosh(z), math.acosh(w)]
+}
+
+fn atanh(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.atanh")
+    if oren_is_err(ok) { return ok }
+    if x <= -1.0 || x >= 1.0 || y <= -1.0 || y >= 1.0 || z <= -1.0 || z >= 1.0 || w <= -1.0 || w >= 1.0 { return oren_err(4, "vec4.atanh: domain") }
+    return [math.atanh(x), math.atanh(y), math.atanh(z), math.atanh(w)]
+}
+
 fn asin(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.asin")
     if oren_is_err(ok) { return ok }

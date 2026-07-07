@@ -191,6 +191,44 @@ fn sin_cos(x: f64, y: f64) {
     return [sx, sy, cx, cy]
 }
 
+fn sinh(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.sinh")
+    if oren_is_err(ok) { return ok }
+    return [math.sinh(x), math.sinh(y)]
+}
+
+fn cosh(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.cosh")
+    if oren_is_err(ok) { return ok }
+    return [math.cosh(x), math.cosh(y)]
+}
+
+fn tanh(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.tanh")
+    if oren_is_err(ok) { return ok }
+    return [math.tanh(x), math.tanh(y)]
+}
+
+fn asinh(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.asinh")
+    if oren_is_err(ok) { return ok }
+    return [math.asinh(x), math.asinh(y)]
+}
+
+fn acosh(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.acosh")
+    if oren_is_err(ok) { return ok }
+    if x < 1.0 || y < 1.0 { return oren_err(4, "vec2.acosh: domain") }
+    return [math.acosh(x), math.acosh(y)]
+}
+
+fn atanh(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.atanh")
+    if oren_is_err(ok) { return ok }
+    if x <= -1.0 || x >= 1.0 || y <= -1.0 || y >= 1.0 { return oren_err(4, "vec2.atanh: domain") }
+    return [math.atanh(x), math.atanh(y)]
+}
+
 fn asin(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.asin")
     if oren_is_err(ok) { return ok }
