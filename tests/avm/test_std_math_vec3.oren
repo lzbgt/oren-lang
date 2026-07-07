@@ -20,6 +20,17 @@ fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
     fail(code, msg)
 }
 
+var cls_nan3 = vec3.is_nan(math.nan(), 1.0, math.nan())
+assert_true(cls_nan3[0] && !cls_nan3[1] && cls_nan3[2], 1000, "is_nan components")
+var cls_inf3 = vec3.isinf(math.inf(), math.nan(), 0.0)
+assert_true(cls_inf3[0] && !cls_inf3[1] && !cls_inf3[2], 1001, "isinf alias")
+var cls_fin3 = vec3.isfinite(1.0, math.inf(), math.pow2i(0 - 1074))
+assert_true(cls_fin3[0] && !cls_fin3[1] && cls_fin3[2], 1002, "isfinite alias")
+var cls_sub3 = vec3.is_subnormal(0.0, math.pow2i(0 - 1074), 1.0)
+assert_true(!cls_sub3[0] && cls_sub3[1] && !cls_sub3[2], 1003, "is_subnormal components")
+var cls_name3 = vec3.fpclassify(math.nan(), math.inf(), 0.0)
+assert_true(cls_name3[0] == "nan" && cls_name3[1] == "infinite" && cls_name3[2] == "zero", 1004, "fpclassify components")
+
 assert_close(vec3.length(2.0, 3.0, 6.0), 7.0, 1e-12, 10, "length")
 assert_close(vec3.distance(1.0, 2.0, 3.0, 3.0, 6.0, 9.0), math.sqrt(56.0), 1e-12, 11, "distance")
 assert_close(vec3.dot(1.0, 2.0, 3.0, 4.0, 5.0, 6.0), 32.0, 1e-12, 12, "dot")

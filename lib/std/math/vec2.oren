@@ -18,6 +18,46 @@ fn _finite_scalar(x: f64, ctx) {
     return 0
 }
 
+fn is_nan(x: f64, y: f64) {
+    return [math.is_nan(x), math.is_nan(y)]
+}
+
+fn isnan(x: f64, y: f64) {
+    return is_nan(x, y)
+}
+
+fn is_inf(x: f64, y: f64) {
+    return [math.is_inf(x), math.is_inf(y)]
+}
+
+fn isinf(x: f64, y: f64) {
+    return is_inf(x, y)
+}
+
+fn is_finite(x: f64, y: f64) {
+    return [math.is_finite(x), math.is_finite(y)]
+}
+
+fn isfinite(x: f64, y: f64) {
+    return is_finite(x, y)
+}
+
+fn is_subnormal(x: f64, y: f64) {
+    return [math.is_subnormal(x), math.is_subnormal(y)]
+}
+
+fn is_normal(x: f64, y: f64) {
+    return [math.is_normal(x), math.is_normal(y)]
+}
+
+fn isnormal(x: f64, y: f64) {
+    return is_normal(x, y)
+}
+
+fn fpclassify(x: f64, y: f64) {
+    return [math.fpclassify(x), math.fpclassify(y)]
+}
+
 fn add(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.add")
     if oren_is_err(ok) { return ok }

@@ -23,6 +23,46 @@ fn _finite_scalar(x: f64, ctx) {
     return 0
 }
 
+fn is_nan(x: f64, y: f64, z: f64, w: f64) {
+    return [math.is_nan(x), math.is_nan(y), math.is_nan(z), math.is_nan(w)]
+}
+
+fn isnan(x: f64, y: f64, z: f64, w: f64) {
+    return is_nan(x, y, z, w)
+}
+
+fn is_inf(x: f64, y: f64, z: f64, w: f64) {
+    return [math.is_inf(x), math.is_inf(y), math.is_inf(z), math.is_inf(w)]
+}
+
+fn isinf(x: f64, y: f64, z: f64, w: f64) {
+    return is_inf(x, y, z, w)
+}
+
+fn is_finite(x: f64, y: f64, z: f64, w: f64) {
+    return [math.is_finite(x), math.is_finite(y), math.is_finite(z), math.is_finite(w)]
+}
+
+fn isfinite(x: f64, y: f64, z: f64, w: f64) {
+    return is_finite(x, y, z, w)
+}
+
+fn is_subnormal(x: f64, y: f64, z: f64, w: f64) {
+    return [math.is_subnormal(x), math.is_subnormal(y), math.is_subnormal(z), math.is_subnormal(w)]
+}
+
+fn is_normal(x: f64, y: f64, z: f64, w: f64) {
+    return [math.is_normal(x), math.is_normal(y), math.is_normal(z), math.is_normal(w)]
+}
+
+fn isnormal(x: f64, y: f64, z: f64, w: f64) {
+    return is_normal(x, y, z, w)
+}
+
+fn fpclassify(x: f64, y: f64, z: f64, w: f64) {
+    return [math.fpclassify(x), math.fpclassify(y), math.fpclassify(z), math.fpclassify(w)]
+}
+
 fn add(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.add")
     if oren_is_err(ok) { return ok }
