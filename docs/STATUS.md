@@ -2609,10 +2609,10 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 			  `ppm.write_rgba_ppm`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
   internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now read inputs through shared byte views and write exact-size `u8_buf` output instead of materializing an
-		  intermediate Oren list, and their decode paths reject malformed padding,
-		  third-character padding without fourth-character padding, and nonzero
-			  trailing pad bits before returning exact-size `u8_buf` decoded bytes. NET cleanup now covers native and AVM session
-			  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,
+			  intermediate Oren list, and their decode paths reject malformed padding,
+			  third-character padding without fourth-character padding, and nonzero
+				  trailing pad bits before returning exact-size `u8_buf` decoded bytes; strict Base64 decode now sizes exactly and validates inline instead of pre-scanning then delegating to the whitespace-tolerant path. NET cleanup now covers native and AVM session
+				  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,
 			  `.write_from(...)`, `.send_to(...)`, `.recv_from_into(...)`,
 			  TLS certificate/ALPN methods, and `.close()`, native WebSocket records
 			  expose `.recv_text(...)` / `.send_text_client(...)`, and AVM virtual

@@ -43,6 +43,8 @@ assert_true(bytes.get_u8(decoded_ws, 0) == 77, 32, "parse_bytes whitespace byte"
 var strict_ok = base64.decode_bytes_strict("TQ==")
 assert_true(oren_is_err(strict_ok) != true, 40, "parse_bytes_strict ok")
 assert_true(bytes.get_u8(strict_ok, 0) == 77, 41, "parse_bytes_strict byte")
+assert_true(base64.decode_strict("TWFu").text() == "Man", 78, "parse_bytes_strict full group")
+assert_true(base64.decode_strict("TWFueQ==").text() == "Many", 79, "parse_bytes_strict padded groups")
 assert_true(base64.decode("TWFu").text() == "Man", 42, "decode canonical text")
 assert_true("TWFu".base64_bytes().text() == "Man", 43, "string base64 bytes method")
 assert_true("TWFu".base64_bytes_strict().text() == "Man", 44, "string base64 strict method")
@@ -76,6 +78,9 @@ assert_err(base64.decode_bytes("TR=="), 72, "parse_bytes rejects nonzero one-byt
 assert_err(base64.decode_bytes("TWH="), 73, "parse_bytes rejects nonzero two-byte padding bits")
 assert_err(base64.decode_url("TR"), 74, "base64url rejects nonzero one-byte padding bits")
 assert_err(base64.decode_url("TWH"), 75, "base64url rejects nonzero two-byte padding bits")
+assert_err(base64.decode_bytes_strict("TR=="), 80, "parse_bytes_strict rejects nonzero one-byte padding bits")
+assert_err(base64.decode_bytes_strict("TWH="), 81, "parse_bytes_strict rejects nonzero two-byte padding bits")
+assert_err(base64.decode_bytes_strict("TW=u"), 82, "parse_bytes_strict rejects interior padding")
 
 print("module base64 OK")
 exit(0)

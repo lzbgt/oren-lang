@@ -385,6 +385,19 @@ if ! grep -Fq 'var _B64_DECODE = nil' lib/std/encoding/base64.oren ||
   exit 1
 fi
 
+strict_b64_impl="$(sed -n '/fn decode_bytes_strict(s)/,/fn decode_strict/p' lib/std/encoding/base64.oren)"
+if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'var v0 = _b64_val(_str_byte(s, si))' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'if v0 == -2 || v1 == -2 || v2 == -2 || v3 == -2' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'var rc = _store_decoded_triple(out, outi, out_len, triple, count)' <<<"$strict_b64_impl" ||
+  grep -Fq 'return decode_bytes(s)' <<<"$strict_b64_impl" ||
+  grep -Fq 'while i < n' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'parse_bytes_strict padded groups' tests/modules/test_base64.oren ||
+  ! grep -Fq 'parse_bytes_strict rejects nonzero one-byte padding bits' tests/modules/test_base64.oren; then
+  echo "ERROR: strict Base64 decode must size exactly and validate/decode inline instead of pre-scanning then delegating to tolerant decode" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||
