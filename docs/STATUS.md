@@ -2216,8 +2216,9 @@ Facts from the 2026-05-28 implementation pass:
 	      target frame budget, budget-usage permille, over-budget status, geometry vertex count, and text-run count. Retained image resources are now available for sprite-like upload/draw/destroy/sub-rect and packed batched-atlas lifetimes, retained 2D and first retained 3D mesh resources avoid resending repeated triangle geometry, Metal geometry vertex builders reserve a small op-count-bounded initial capacity only on first append and transfer raw buffers into vertex-run ownership, retained Metal material override draws resolve material RGBA once before triangle loops, and Oren-side image upload budgets plus SDK retained image count/pixel budgets bound sprite memory; CoreGraphics and Metal retained image, text, mesh, material, and model lookups use scalar IDs instead of boxed dictionary keys; retained text upload/draw/destroy and packed retained text batching now avoid resending repeated UTF-8 labels, CoreGraphics caches text attributes by RGBA for immediate and retained text paths with a scalar one-entry MRU before scalar-key cache lookup/storage, and Metal packs rendered labels into bounded atlas textures, coalesces adjacent same-atlas/scissor/opacity runs, and shares a typed text-attribute cache with scalar-key lookup/storage to reduce repeated text-color miss overhead. UIKit/CoreGraphics
   and Metal views now forward every touch in a UIKit touch set, assign stable compact
   pointer IDs for each active touch, release IDs on end/cancel, and expose batch
-  pointer-event helpers, so multi-finger input reaches OBC as multiple virtual
-  pointer events instead of dropping all but one touch. CoreGraphics and Metal
+  pointer-event plus text/composition helpers, so multi-finger input and host
+  text/IME updates reach OBC through mounted views instead of dropping all but
+  one touch or requiring apps to reach around to the runtime. CoreGraphics and Metal
   touch tracking keep active pointer IDs as raw scalar values instead of
   per-touch `NSNumber` boxes. The `OGE0` stream also has
   compact gamepad/controller state records, coalesced high-rate motion records,
@@ -2335,10 +2336,11 @@ into caller-owned run buffers instead of allocating tiny `NSData`
 wrappers from stack vertices. Metal text texture cache lookups now use typed
 immutable cache keys instead of formatted strings that copy the full label into
 every lookup key. iOS SDK typed GFX input helpers now build
-fixed-size `OGE0` events on stack and enqueue raw bytes directly; text and
-composition events use segmented stack-first construction, encode UTF-8 directly
-into the final event buffer, and use one raw heap event fallback, not an
-Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking
+fixed-size `OGE0` events on stack and enqueue raw bytes directly; CoreGraphics
+and Metal views expose text plus composition forwarding helpers over the same
+runtime encoders; text and composition events use segmented stack-first
+construction, encode UTF-8 directly into the final event buffer, and use one
+raw heap event fallback, not an Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking
 keep active pointer IDs in scalar pointer maps instead of retaining per-touch
 `NSNumber` boxes, and both renderers share `OrenAVMGFXInput` touch forwarding
 helpers while keeping per-view maps. CoreGraphics retained resource models,

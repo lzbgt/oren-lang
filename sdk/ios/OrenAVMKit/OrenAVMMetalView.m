@@ -297,6 +297,30 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                            error);
 }
 
+- (BOOL)sendTextInputString:(NSString*)text error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                       @"metal view has no AVM runtime");
+    }
+    return [self.runtime putGraphicsTextInputString:text error:error];
+}
+
+- (BOOL)sendCompositionEventWithKind:(uint8_t)kind
+                                text:(NSString*)text
+                      selectionStart:(uint32_t)selectionStart
+                        selectionEnd:(uint32_t)selectionEnd
+                               error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                       @"metal view has no AVM runtime");
+    }
+    return [self.runtime putGraphicsCompositionEventWithKind:kind
+                                                        text:text
+                                              selectionStart:selectionStart
+                                                selectionEnd:selectionEnd
+                                                       error:error];
+}
+
 - (BOOL)publishScreenStateWithError:(NSError**)error {
     if (!self.runtime) {
         return OrenAVMMetalAssignError(error, AVM_EMBED_ERR_INVALID_ARG,

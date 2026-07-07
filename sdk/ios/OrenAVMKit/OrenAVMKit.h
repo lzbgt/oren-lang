@@ -457,6 +457,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                         pointerIDs:(NSArray<NSNumber*>*)pointerIDs
                              error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)sendResizeEventWithScaleMilli:(uint32_t)scaleMilli error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendTextInputString:(NSString*)text error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendCompositionEventWithKind:(uint8_t)kind
+                                text:(NSString*)text
+                      selectionStart:(uint32_t)selectionStart
+                        selectionEnd:(uint32_t)selectionEnd
+                               error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)sendMediaEventWithTargetHzMilli:(uint32_t)targetHzMilli
                                   flags:(uint32_t)flags
                                   error:(NSError* _Nullable* _Nullable)error;
@@ -504,6 +510,12 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                             points:(NSArray<NSValue*>*)points
                         pointerIDs:(NSArray<NSNumber*>*)pointerIDs
                              error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendTextInputString:(NSString*)text error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)sendCompositionEventWithKind:(uint8_t)kind
+                                text:(NSString*)text
+                      selectionStart:(uint32_t)selectionStart
+                        selectionEnd:(uint32_t)selectionEnd
+                               error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)publishScreenStateWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)sendMediaEventWithError:(NSError* _Nullable* _Nullable)error;
 

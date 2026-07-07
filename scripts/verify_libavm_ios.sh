@@ -1027,6 +1027,8 @@ int main(void) {
         if (![graphicsView sendResizeEventWithScaleMilli:1000 error:&error]) return 57;
         if (![graphicsView publishScreenStateWithTargetHzMilli:120000 flags:5 error:&error]) return 123;
         if (![graphicsView sendMediaEventWithTargetHzMilli:120000 flags:5 error:&error]) return 124;
+        if (![graphicsView sendTextInputString:@"view-hi" error:&error]) return 194;
+        if (![graphicsView sendCompositionEventWithKind:128 text:@"view-ime" selectionStart:1 selectionEnd:3 error:&error]) return 195;
         OrenAVMMetalView* metalView = [[OrenAVMMetalView alloc] initWithRuntime:runtime];
         if (!metalView) return 127;
         metalView.frameData = frame;
@@ -1069,6 +1071,8 @@ int main(void) {
                                                              [NSValue valueWithCGPoint:CGPointMake(3.0, 2.0)]]
                                        pointerIDs:@[@(10u), @(11u)]
                                             error:&error]) return 135;
+        if (![metalView sendTextInputString:@"metal-hi" error:&error]) return 196;
+        if (![metalView sendCompositionEventWithKind:129 text:@"metal-ime" selectionStart:0 selectionEnd:5 error:&error]) return 197;
         [metalView clearTextTextureCache];
         if (![metalView publishScreenStateWithError:&error]) return 128;
 #endif

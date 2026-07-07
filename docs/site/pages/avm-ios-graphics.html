@@ -388,8 +388,8 @@ fn main() {
 <li>Repo-local SDK Objective-C smoke mounts <code>OrenAVMGraphicsView</code> and</li>
 </ol>
 <p>   <code>OrenAVMMetalView</code>, runs a bundled OBC, renders/prepares frames, and injects</p>
-<p>   pointer/resize/media events. Note-side Swift UX wiring remains a host-app</p>
-<p>   integration task rather than a missing repo-local SDK gate.</p>
+<p>   pointer/resize/media/text/composition events. Note-side Swift UX wiring</p>
+<p>   remains a host-app integration task rather than a missing repo-local SDK gate.</p>
 <ol>
 <li>Deterministic headless raster test compares software raster output for geometry-only ops.</li>
 </ol>
@@ -435,14 +435,14 @@ fn main() {
 <li>Done: repo-local SDK Objective-C bridge smoke mounts <code>OrenAVMGraphicsView</code></li>
 </ol>
 <p>    and <code>OrenAVMMetalView</code>, runs a bundled OBC, renders/prepares frames, injects</p>
-<p>    pointer batches, resize, screen-state, and media events, and verifies empty</p>
-<p>    mailbox reload semantics in <code>make verify-libavm-ios</code>.</p>
+<p>    pointer batches, resize, screen-state, media, text, and composition events,</p>
+<p>    and verifies empty mailbox reload semantics in <code>make verify-libavm-ios</code>.</p>
 <ol>
 <li>Note-side Swift UX wiring remains tracked as production app integration in</li>
 </ol>
-<p>    <code>docs/STATUS.md</code>, not as a missing repo-local SDK smoke; the next host-app</p>
-<p>    gap is richer IME/composition UX integration beyond the current repo-local</p>
-<p>    SDK event encoder/verifier coverage.</p>
+<p>    <code>docs/STATUS.md</code>, not as a missing repo-local SDK smoke; view-level SDK</p>
+<p>    helpers now cover text input plus IME/composition event forwarding, while</p>
+<p>    richer Note IME UX integration remains host-app work.</p>
 <ol>
 <li>Done: add Oren-side image upload budgets plus iOS SDK retained image count/pixel</li>
 </ol>

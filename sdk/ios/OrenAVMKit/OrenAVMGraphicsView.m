@@ -200,7 +200,31 @@ static const NSUInteger OrenAVMDefaultRetainedImageCountLimit = 1024u;
     return [self.runtime putGraphicsResizeEventWithWidth:(uint32_t)llround((double)size.width)
                                                   height:(uint32_t)llround((double)size.height)
                                               scaleMilli:scaleMilli
-                                                   error:error];
+                                                  error:error];
+}
+
+- (BOOL)sendTextInputString:(NSString*)text error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMGraphicsViewAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics view has no AVM runtime");
+    }
+    return [self.runtime putGraphicsTextInputString:text error:error];
+}
+
+- (BOOL)sendCompositionEventWithKind:(uint8_t)kind
+                                text:(NSString*)text
+                      selectionStart:(uint32_t)selectionStart
+                        selectionEnd:(uint32_t)selectionEnd
+                               error:(NSError**)error {
+    if (!self.runtime) {
+        return OrenAVMGraphicsViewAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                        @"graphics view has no AVM runtime");
+    }
+    return [self.runtime putGraphicsCompositionEventWithKind:kind
+                                                        text:text
+                                              selectionStart:selectionStart
+                                                selectionEnd:selectionEnd
+                                                       error:error];
 }
 
 - (BOOL)sendMediaEventWithTargetHzMilli:(uint32_t)targetHzMilli flags:(uint32_t)flags error:(NSError**)error {
