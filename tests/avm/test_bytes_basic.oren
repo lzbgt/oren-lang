@@ -5,6 +5,9 @@ fn main() {
     if oren_bytes_get_u8(from_s, 0) != 111 { oren_exit(103) }
     if oren_bytes_get_u8(from_s, 1) != 107 { oren_exit(104) }
     if oren_string_from_bytes(from_s) != "ok" { oren_exit(105) }
+    var from_s_xs = oren_bytes_unpack(from_s)
+    if oren_is_err(from_s_xs) { oren_exit(113) }
+    if oren_string_from_bytes(from_s_xs) != "ok" { oren_exit(114) }
     var empty_s = oren_bytes_from_string("")
     if oren_is_u8_buf(empty_s) != true { oren_exit(106) }
     if oren_bytes_len(empty_s) != 0 { oren_exit(107) }

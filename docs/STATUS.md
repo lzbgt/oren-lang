@@ -2385,7 +2385,9 @@ instead of first building a full-size temporary byte mirror and then copying it
 into VFS storage. AVM native `oren_bytes_set_u8` plus endian setters now mutate
 `LIST_INT` carriers through the same shared byte write-span helper used for
 `bytes` and boxed lists, so optimized `read_bytes`/`bytes_unpack` results do not
-need boxed-list reconstruction before in-place byte writes. Legacy C runtime
+need boxed-list reconstruction before in-place byte writes; `oren_string_from_bytes`
+now accepts the same optimized `LIST_INT` byte carriers directly for full-buffer
+string conversion. Legacy C runtime
 `oren_read_bytes` still returns a boxed compatibility byte list, but now fills
 that list from bounded 64 KiB read chunks instead of allocating a second
 full-file temporary byte buffer before list materialization. Legacy C runtime
