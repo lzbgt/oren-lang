@@ -387,13 +387,16 @@ fi
 
 hpack_len_impl="$(sed -n '/fn _encoded_header_block_len/,/fn _encode_header_block_write/p' lib/std/net/hpack.oren)"
 hpack_write_impl="$(sed -n '/fn _encode_header_block_write/,/fn encode_header_block/p' lib/std/net/hpack.oren)"
-if ! grep -Fq 'var literal_lens = []' <<<"$hpack_len_impl" ||
+if ! grep -Fq 'var literal_lens = list.int_new(list.len(headers) * 2)' <<<"$hpack_len_impl" ||
+  ! grep -Fq 'list.int_push(literal_lens, n)' lib/std/net/hpack.oren ||
+  ! grep -Fq 'return list.int_get(lens, i)' lib/std/net/hpack.oren ||
   ! grep -Fq 'return {"ok": 1, "n": out_len, "literal_lens": literal_lens}' <<<"$hpack_len_impl" ||
   ! grep -Fq 'fn _next_literal_len(meta)' lib/std/net/hpack.oren ||
   ! grep -Fq 'var literal_meta = {"lens": literal_lens, "i": 0}' <<<"$hpack_write_impl" ||
   ! grep -Fq '_encode_string_write_known_len(dst, pos, value, use_huffman, _next_literal_len(literal_meta))' <<<"$hpack_write_impl" ||
-  ! grep -Fq 'lr["literal_lens"]' lib/std/net/hpack.oren; then
-  echo "ERROR: HPACK header encode must reuse sizing-pass string literal lengths during write, not rescan Huffman literals" >&2
+  ! grep -Fq 'lr["literal_lens"]' lib/std/net/hpack.oren ||
+  grep -Fq 'list.push(literal_lens, n)' lib/std/net/hpack.oren; then
+  echo "ERROR: HPACK header encode must reuse sizing-pass string literal lengths through list_int metadata during write, not rescan or box Huffman literals" >&2
   exit 1
 fi
 

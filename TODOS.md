@@ -2392,9 +2392,9 @@ design evidence lives under `project-doc/`.
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.
 - HPACK header block encoding now carries Huffman string-literal byte lengths
-  from the exact-size sizing pass into the write pass, avoiding a second
-  length-only scan of emitted literals while preserving exact-size `u8_buf`
-  output and dynamic-table simulation.
+  from the exact-size sizing pass into the write pass through `list_int`
+  metadata, avoiding a second length-only scan and boxed per-literal length
+  metadata while preserving exact-size `u8_buf` output and dynamic-table simulation.
 - `std:ui/avm` frame payload appends now copy `u8_buf` command payloads directly
   into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for
   non-u8 byte carriers.

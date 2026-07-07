@@ -2505,7 +2505,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 					  encoding writes growable `u8_buf` output while byte-string
 					  encoding plus recursive/sequence decode use shared `std:bytes` byte views,
 					  HPACK header block encoding reuses Huffman string-literal lengths
-					  from the sizing pass during exact-size byte-buffer writes,
+					  from sizing-pass `list_int` metadata during exact-size byte-buffer writes,
 				  full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
@@ -2590,8 +2590,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  result byte lists. Native crypto RNG now fills its result `u8_buf`
 	  directly. HPACK plain literal decode now slices the header block directly,
 	  while Huffman string encode/decode, decoded-string boundaries, and full
-	  header-block encoding use exact-size `u8_buf` payloads or byte-slice
-	  conversion instead of building intermediate Oren byte lists; TLS ALPN
+	  header-block encoding use exact-size `u8_buf` payloads, `list_int`
+	  literal-length metadata, or byte-slice conversion instead of building
+	  intermediate Oren byte lists; TLS ALPN
 	  decoded-byte strings also convert through byte slices. HTTP/2 client
 	  continuation/header-block and DATA response buffers now accumulate through
 	  amortized `u8_buf` builders, including header-only response termination,

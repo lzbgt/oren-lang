@@ -957,7 +957,7 @@ fn _encode_string_len_record(s, use_huffman, literal_lens) {
     } else {
         n = oren_string_len(s)
     }
-    if literal_lens != nil { list.push(literal_lens, n) }
+    if literal_lens != nil { list.int_push(literal_lens, n) }
     return _encode_int_len(7, n) + n
 }
 
@@ -996,14 +996,14 @@ fn _next_literal_len(meta) {
     if lens == nil { return -1 }
     var i = meta["i"]
     if oren_type_tag(i) == 0 { i = 0 }
-    if i < 0 || i >= list.len(lens) { return -1 }
+    if i < 0 || i >= list.int_len(lens) { return -1 }
     meta["i"] = i + 1
-    return lens[i]
+    return list.int_get(lens, i)
 }
 
 fn _encoded_header_block_len(table, headers, use_huffman, tmax) {
     var out_len = 0
-    var literal_lens = []
+    var literal_lens = list.int_new(list.len(headers) * 2)
     if tmax != nil {
         out_len = out_len + _encode_int_len(5, tmax)
         table["max"] = tmax
@@ -1104,7 +1104,7 @@ fn _encode_header_block_write(table, headers, use_huffman, tmax, dst, literal_le
         pos = _encode_string_write_known_len(dst, pos, value, use_huffman, _next_literal_len(literal_meta))
         i = i + 1
     }
-    if literal_lens != nil && literal_meta["i"] != list.len(literal_lens) {
+    if literal_lens != nil && literal_meta["i"] != list.int_len(literal_lens) {
         return {"ok": 0, "err": "hpack.encode_header_block: literal length metadata mismatch"}
     }
     return {"ok": 1, "n": pos}

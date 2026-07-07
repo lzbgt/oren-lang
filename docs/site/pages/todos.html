@@ -3262,9 +3262,9 @@
 <ul>
 <li>HPACK header block encoding now carries Huffman string-literal byte lengths</li>
 </ul>
-<p>  from the exact-size sizing pass into the write pass, avoiding a second</p>
-<p>  length-only scan of emitted literals while preserving exact-size <code>u8_buf</code></p>
-<p>  output and dynamic-table simulation.</p>
+<p>  from the exact-size sizing pass into the write pass through <code>list_int</code></p>
+<p>  metadata, avoiding a second length-only scan and boxed per-literal length</p>
+<p>  metadata while preserving exact-size <code>u8_buf</code> output and dynamic-table simulation.</p>
 <ul>
 <li><code>std:ui/avm</code> frame payload appends now copy <code>u8_buf</code> command payloads directly</li>
 </ul>
