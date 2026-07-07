@@ -13,9 +13,18 @@ fn test_roundtrip() {
     var bs2 = oren_bytes_from_string("hi")
     var s2 = oren_string_from_bytes(bs2)
     assert(s2 == "hi", "bytes_from_string inverse")
+
+    var long_bs = []
+    var want = ""
+    var i = 0
+    while i < 4096 {
+        oren_list_push(long_bs, 65)
+        want = want + "A"
+        i = i + 1
+    }
+    assert(oren_string_from_bytes(long_bs) == want, "string_from_bytes long boxed list")
 }
 
 test_roundtrip()
 print("ok")
 exit(0)
-

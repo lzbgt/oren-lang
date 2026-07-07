@@ -867,43 +867,22 @@ OrenValue oren_bytes_from_string(OrenValue s) {
 }
 
 OrenValue oren_string_from_bytes(OrenValue bytes) {
-    if (!(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF)) {
-        oren_panic("string_from_bytes expects list<int 0..255> or u8_buf");
-        return OREN_NIL; // Should not be reached
-    }
     size_t n = 0;
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || b->elem_size != 1u || (b->len > 0 && !b->data)) {
-            oren_panic("string_from_bytes: invalid u8_buf");
-            return OREN_NIL; // Should not be reached
-        }
-        n = (size_t)b->len;
-    } else {
-        OrenList* list = bytes.as.list_val;
-        if (!list || list->count < 0) {
-            oren_panic("string_from_bytes: invalid list");
-            return OREN_NIL; // Should not be reached
-        }
-        n = (size_t)list->count;
+    const char* err_msg = NULL;
+    if (!runtime_bytes_len_checked(bytes, &n, &err_msg)) {
+        oren_panic(err_msg ? err_msg : "string_from_bytes expects list<int 0..255> or u8_buf");
+        return OREN_NIL; // Should not be reached
     }
     char* buf = (char*)malloc(n + 1);
     if (!buf) {
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes: out of memory"));
     }
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (n > 0) memcpy(buf, b->data, n);
-    } else {
-        OrenList* list = bytes.as.list_val;
-        for (size_t i = 0; i < n; i++) {
-            OrenValue it = list->items[i];
-            if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
-                free(buf);
-                return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes: expected list<int 0..255>"));
-            }
-            buf[i] = (char)(unsigned char)it.as.int_val;
-        }
+    lock_collections();
+    int ok = runtime_bytes_copy_span(bytes, 0u, n, (uint8_t*)buf, &err_msg);
+    unlock_collections();
+    if (!ok) {
+        free(buf);
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "string_from_bytes: expected list<int 0..255>"));
     }
     buf[n] = 0;
     OrenValue v;
