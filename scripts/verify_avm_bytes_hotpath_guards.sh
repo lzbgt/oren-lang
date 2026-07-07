@@ -373,6 +373,18 @@ if grep -Fq 'while j < core_len' lib/std/encoding/base64.oren ||
   exit 1
 fi
 
+if ! grep -Fq 'var _B64_DECODE = nil' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'var _B64URL_DECODE = nil' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'fn _new_decode_table(default_value)' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'return list.int_get(_b64_decode_table(), c)' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'return list.int_get(_b64url_decode_table(), c)' lib/std/encoding/base64.oren ||
+  grep -Fq 'if c >= 65 && c <= 90' lib/std/encoding/base64.oren ||
+  grep -Fq 'if c >= 97 && c <= 122' lib/std/encoding/base64.oren ||
+  grep -Fq 'if c >= 48 && c <= 57' lib/std/encoding/base64.oren; then
+  echo "ERROR: Base64 decode value mapping must use cached list_int decode maps, not per-character range branches" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||

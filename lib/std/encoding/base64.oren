@@ -12,6 +12,7 @@
 // - `decode_url(b64url_string)` / `b64url_string.base64_url_bytes()` -> bytes
 
 import bytesm "std:bytes"
+import list "std:list"
 import raw "std:buffer/raw"
 
 trait Base64Bytes {
@@ -24,6 +25,9 @@ trait Base64Text {
     fn base64_bytes_strict(self): bytes;
     fn base64_url_bytes(self): bytes;
 }
+
+var _B64_DECODE = nil
+var _B64URL_DECODE = nil
 
 fn _str_byte(s, i) {
     return oren_string_byte_at_unchecked(s, i) & 255
@@ -53,6 +57,54 @@ fn _set_out(out, idx, v) {
 
 fn _input_byte(input_view, idx) {
     return bytesm.view_get_u8_unchecked(input_view, idx)
+}
+
+fn _new_decode_table(default_value) {
+    var t = list.int_new(128)
+    var i = 0
+    while i < 128 {
+        list.int_push(t, default_value)
+        i = i + 1
+    }
+    return t
+}
+
+fn _set_decode_range(t, lo, hi, base) {
+    var i = lo
+    while i <= hi {
+        list.int_set(t, i, base + (i - lo))
+        i = i + 1
+    }
+    return t
+}
+
+fn _b64_decode_table() {
+    if _B64_DECODE != nil { return _B64_DECODE }
+    var t = _new_decode_table(-3)
+    _set_decode_range(t, 65, 90, 0)   // 'A'..'Z'
+    _set_decode_range(t, 97, 122, 26) // 'a'..'z'
+    _set_decode_range(t, 48, 57, 52)  // '0'..'9'
+    list.int_set(t, 43, 62) // '+'
+    list.int_set(t, 47, 63) // '/'
+    list.int_set(t, 61, -1) // '='
+    list.int_set(t, 9, -2)
+    list.int_set(t, 10, -2)
+    list.int_set(t, 13, -2)
+    list.int_set(t, 32, -2)
+    _B64_DECODE = t
+    return t
+}
+
+fn _b64url_decode_table() {
+    if _B64URL_DECODE != nil { return _B64URL_DECODE }
+    var t = _new_decode_table(-1)
+    _set_decode_range(t, 65, 90, 0)   // 'A'..'Z'
+    _set_decode_range(t, 97, 122, 26) // 'a'..'z'
+    _set_decode_range(t, 48, 57, 52)  // '0'..'9'
+    list.int_set(t, 45, 62) // '-'
+    list.int_set(t, 95, 63) // '_'
+    _B64URL_DECODE = t
+    return t
 }
 
 fn encode_bytes(input_bytes) {
@@ -181,23 +233,13 @@ fn _b64_val(c) {
     // - -1 for '=' padding
     // - -2 for whitespace (caller may skip)
     // - -3 for invalid
-    if b64_is_ws(c) == 1 { return -2 }
-    if c == 61 { return -1 } // '='
-    if c >= 65 && c <= 90 { return c - 65 } // 'A'..'Z'
-    if c >= 97 && c <= 122 { return 26 + (c - 97) } // 'a'..'z'
-    if c >= 48 && c <= 57 { return 52 + (c - 48) } // '0'..'9'
-    if c == 43 { return 62 } // '+'
-    if c == 47 { return 63 } // '/'
-    return -3
+    if c < 0 || c >= 128 { return -3 }
+    return list.int_get(_b64_decode_table(), c)
 }
 
 fn _b64url_val(c) {
-    if c >= 65 && c <= 90 { return c - 65 } // 'A'..'Z'
-    if c >= 97 && c <= 122 { return 26 + (c - 97) } // 'a'..'z'
-    if c >= 48 && c <= 57 { return 52 + (c - 48) } // '0'..'9'
-    if c == 45 { return 62 } // '-'
-    if c == 95 { return 63 } // '_'
-    return -1
+    if c < 0 || c >= 128 { return -1 }
+    return list.int_get(_b64url_decode_table(), c)
 }
 
 fn _b64_count_clean_chars(s) {
