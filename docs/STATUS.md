@@ -2754,7 +2754,11 @@ Working evidence:
   `OrenAVMMetalView.m` to 676 lines while keeping per-frame resource/text/image
   command routing in the view. Metal full-frame clear-color detection now lives
   in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
-  keeping per-frame resource/text/image command routing in the view.
+  keeping per-frame resource/text/image command routing in the view. Metal
+  prepared geometry/image/text draw submission now lives in
+  `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
+  MTKView lifecycle, prepared-run orchestration, and input forwarding in the
+  view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

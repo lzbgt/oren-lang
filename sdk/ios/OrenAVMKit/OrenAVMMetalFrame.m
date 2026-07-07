@@ -286,4 +286,60 @@ BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
     return YES;
 }
 
+void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
+                                    id<MTLDevice> device,
+                                    id<MTLRenderPipelineState> geometryPipeline,
+                                    id<MTLRenderPipelineState> textPipeline,
+                                    id<MTLTexture> drawableTexture,
+                                    NSArray<OrenAVMMetalVertexRun*>* vertexRuns,
+                                    NSArray<OrenAVMMetalImageRun*>* imageRuns,
+                                    NSArray<OrenAVMMetalTextRun*>* textRuns,
+                                    NSMutableArray<id<MTLBuffer>>** transientBuffers) {
+    if (!encoder || !device || !drawableTexture) return;
+    MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawableTexture.width, (NSUInteger)drawableTexture.height};
+    if (geometryPipeline) {
+        [encoder setRenderPipelineState:geometryPipeline];
+        for (OrenAVMMetalVertexRun* run in vertexRuns) {
+            if (!run.vertices || run.vertexBytes == 0) continue;
+            MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
+            if (scissor.width == 0 || scissor.height == 0) continue;
+            [encoder setScissorRect:scissor];
+            if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, run.vertices, run.vertexBytes)) continue;
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                         vertexStart:0
+                         vertexCount:run.vertexBytes / sizeof(OrenAVMMetalVertex)];
+        }
+    }
+    if (textPipeline) {
+        [encoder setRenderPipelineState:textPipeline];
+        for (OrenAVMMetalImageRun* run in imageRuns) {
+            if (!run.texture) continue;
+            MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
+            if (scissor.width == 0 || scissor.height == 0) continue;
+            [encoder setScissorRect:scissor];
+            if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, run->vertices, sizeof(run->vertices))) continue;
+            [encoder setFragmentTexture:run.texture atIndex:0];
+            float opacity = run.opacity;
+            [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                         vertexStart:0
+                         vertexCount:6];
+        }
+        for (OrenAVMMetalTextRun* run in textRuns) {
+            NSUInteger vertexBytes = OrenAVMMetalTextRunVertexBytesLength(run);
+            if (!run.texture || vertexBytes == 0) continue;
+            MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
+            if (scissor.width == 0 || scissor.height == 0) continue;
+            [encoder setScissorRect:scissor];
+            if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalTextRunVertexBytes(run), vertexBytes)) continue;
+            [encoder setFragmentTexture:run.texture atIndex:0];
+            float opacity = run.opacity;
+            [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                         vertexStart:0
+                         vertexCount:OrenAVMMetalTextRunVertexCount(run)];
+        }
+    }
+}
+
 #endif

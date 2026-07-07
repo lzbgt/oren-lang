@@ -517,6 +517,29 @@ def main() -> int:
             fail("Metal view must not own frame state stacks directly")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
+    if "OrenAVMMetalEncodePreparedRuns(encoder," not in text:
+        fail("Metal view must delegate prepared-run draw submission to the frame helper")
+    if "void OrenAVMMetalEncodePreparedRuns" not in frame_text:
+        fail("Metal prepared-run draw submission helper must live in OrenAVMMetalFrame")
+    encode_runs = frame_text[frame_text.find("void OrenAVMMetalEncodePreparedRuns") :]
+    for token in (
+        "MTLScissorRect fullScissor",
+        "for (OrenAVMMetalVertexRun* run in vertexRuns)",
+        "for (OrenAVMMetalImageRun* run in imageRuns)",
+        "for (OrenAVMMetalTextRun* run in textRuns)",
+        "OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers",
+        "[encoder drawPrimitives:MTLPrimitiveTypeTriangle",
+    ):
+        if token not in encode_runs:
+            fail(f"Metal prepared-run draw submission helper missing expected path: {token}")
+    for token in (
+        "[encoder drawPrimitives:MTLPrimitiveTypeTriangle",
+        "[encoder setFragmentTexture:",
+        "OrenAVMMetalBindVertexPayload(encoder, self.device",
+        "MTLScissorRect fullScissor",
+    ):
+        if token in text:
+            fail("Metal view must not own prepared-run encoder draw loops")
     if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:
@@ -562,9 +585,8 @@ def main() -> int:
             if saw_helper_body and helper_depth <= 0:
                 in_helper = False
 
+    helper_bind_calls = frame_text.count("OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers")
     for lineno, line in enumerate(text.splitlines(), start=1):
-        if "OrenAVMMetalBindVertexPayload(" in line:
-            helper_bind_calls += 1
         if "setVertexBytes:" in line:
             direct_calls.append(f"{SOURCE}:{lineno}: {line.strip()}")
 

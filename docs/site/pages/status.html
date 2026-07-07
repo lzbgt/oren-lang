@@ -2873,7 +2873,11 @@
 <p>  <code>OrenAVMMetalView.m</code> to 676 lines while keeping per-frame resource/text/image</p>
 <p>  command routing in the view. Metal full-frame clear-color detection now lives</p>
 <p>  in <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 663 lines while</p>
-<p>  keeping per-frame resource/text/image command routing in the view.</p>
+<p>  keeping per-frame resource/text/image command routing in the view. Metal</p>
+<p>  prepared geometry/image/text draw submission now lives in</p>
+<p>  <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 628 lines while keeping</p>
+<p>  MTKView lifecycle, prepared-run orchestration, and input forwarding in the</p>
+<p>  view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

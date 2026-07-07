@@ -3716,6 +3716,11 @@
 <p>  reducing <code>OrenAVMMetalView.m</code> to 663 lines while keeping per-frame</p>
 <p>  resource/text/image command routing in the view.</p>
 <ul>
+<li>Metal prepared geometry/image/text draw submission now lives in</li>
+</ul>
+<p>  <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 628 lines while keeping</p>
+<p>  MTKView lifecycle, prepared-run orchestration, and input forwarding in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

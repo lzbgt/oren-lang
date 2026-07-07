@@ -99,5 +99,14 @@ BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
                                    NSMutableArray<id<MTLBuffer>>** transientBuffers,
                                    const void* bytes,
                                    NSUInteger length);
+void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
+                                    id<MTLDevice> device,
+                                    id<MTLRenderPipelineState> geometryPipeline,
+                                    id<MTLRenderPipelineState> textPipeline,
+                                    id<MTLTexture> drawableTexture,
+                                    NSArray<OrenAVMMetalVertexRun*>* vertexRuns,
+                                    NSArray<OrenAVMMetalImageRun*>* imageRuns,
+                                    NSArray<OrenAVMMetalTextRun*>* textRuns,
+                                    NSMutableArray<id<MTLBuffer>>** transientBuffers);
 
 #endif
