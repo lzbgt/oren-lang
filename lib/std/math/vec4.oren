@@ -162,6 +162,62 @@ fn scalbln(x: f64, y: f64, z: f64, w: f64, nx, ny, nz, nw) {
     return ldexp(x, y, z, w, nx, ny, nz, nw)
 }
 
+fn frexp(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.frexp")
+    if oren_is_err(ok) { return ok }
+    var fx = math.frexp(x)
+    if oren_is_err(fx) { return fx }
+    var fy = math.frexp(y)
+    if oren_is_err(fy) { return fy }
+    var fz = math.frexp(z)
+    if oren_is_err(fz) { return fz }
+    var fw = math.frexp(w)
+    if oren_is_err(fw) { return fw }
+    return [fx[0], fy[0], fz[0], fw[0], fx[1], fy[1], fz[1], fw[1]]
+}
+
+fn ilogb(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.ilogb")
+    if oren_is_err(ok) { return ok }
+    var ex = math.ilogb(x)
+    if oren_is_err(ex) { return ex }
+    var ey = math.ilogb(y)
+    if oren_is_err(ey) { return ey }
+    var ez = math.ilogb(z)
+    if oren_is_err(ez) { return ez }
+    var ew = math.ilogb(w)
+    if oren_is_err(ew) { return ew }
+    return [ex, ey, ez, ew]
+}
+
+fn logb(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.logb")
+    if oren_is_err(ok) { return ok }
+    var ex = math.logb(x)
+    if oren_is_err(ex) { return ex }
+    var ey = math.logb(y)
+    if oren_is_err(ey) { return ey }
+    var ez = math.logb(z)
+    if oren_is_err(ez) { return ez }
+    var ew = math.logb(w)
+    if oren_is_err(ew) { return ew }
+    return [ex, ey, ez, ew]
+}
+
+fn modf(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.modf")
+    if oren_is_err(ok) { return ok }
+    var mx = math.modf(x)
+    if oren_is_err(mx) { return mx }
+    var my = math.modf(y)
+    if oren_is_err(my) { return my }
+    var mz = math.modf(z)
+    if oren_is_err(mz) { return mz }
+    var mw = math.modf(w)
+    if oren_is_err(mw) { return mw }
+    return [mx[0], my[0], mz[0], mw[0], mx[1], my[1], mz[1], mw[1]]
+}
+
 fn fdim(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.fdim")
     if oren_is_err(ok) { return ok }

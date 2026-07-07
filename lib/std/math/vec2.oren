@@ -135,6 +135,46 @@ fn scalbln(x: f64, y: f64, nx, ny) {
     return ldexp(x, y, nx, ny)
 }
 
+fn frexp(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.frexp")
+    if oren_is_err(ok) { return ok }
+    var fx = math.frexp(x)
+    if oren_is_err(fx) { return fx }
+    var fy = math.frexp(y)
+    if oren_is_err(fy) { return fy }
+    return [fx[0], fy[0], fx[1], fy[1]]
+}
+
+fn ilogb(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.ilogb")
+    if oren_is_err(ok) { return ok }
+    var ex = math.ilogb(x)
+    if oren_is_err(ex) { return ex }
+    var ey = math.ilogb(y)
+    if oren_is_err(ey) { return ey }
+    return [ex, ey]
+}
+
+fn logb(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.logb")
+    if oren_is_err(ok) { return ok }
+    var ex = math.logb(x)
+    if oren_is_err(ex) { return ex }
+    var ey = math.logb(y)
+    if oren_is_err(ey) { return ey }
+    return [ex, ey]
+}
+
+fn modf(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.modf")
+    if oren_is_err(ok) { return ok }
+    var mx = math.modf(x)
+    if oren_is_err(mx) { return mx }
+    var my = math.modf(y)
+    if oren_is_err(my) { return my }
+    return [mx[0], my[0], mx[1], my[1]]
+}
+
 fn fdim(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.fdim")
     if oren_is_err(ok) { return ok }

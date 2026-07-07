@@ -146,6 +146,54 @@ fn scalbln(x: f64, y: f64, z: f64, nx, ny, nz) {
     return ldexp(x, y, z, nx, ny, nz)
 }
 
+fn frexp(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.frexp")
+    if oren_is_err(ok) { return ok }
+    var fx = math.frexp(x)
+    if oren_is_err(fx) { return fx }
+    var fy = math.frexp(y)
+    if oren_is_err(fy) { return fy }
+    var fz = math.frexp(z)
+    if oren_is_err(fz) { return fz }
+    return [fx[0], fy[0], fz[0], fx[1], fy[1], fz[1]]
+}
+
+fn ilogb(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.ilogb")
+    if oren_is_err(ok) { return ok }
+    var ex = math.ilogb(x)
+    if oren_is_err(ex) { return ex }
+    var ey = math.ilogb(y)
+    if oren_is_err(ey) { return ey }
+    var ez = math.ilogb(z)
+    if oren_is_err(ez) { return ez }
+    return [ex, ey, ez]
+}
+
+fn logb(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.logb")
+    if oren_is_err(ok) { return ok }
+    var ex = math.logb(x)
+    if oren_is_err(ex) { return ex }
+    var ey = math.logb(y)
+    if oren_is_err(ey) { return ey }
+    var ez = math.logb(z)
+    if oren_is_err(ez) { return ez }
+    return [ex, ey, ez]
+}
+
+fn modf(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.modf")
+    if oren_is_err(ok) { return ok }
+    var mx = math.modf(x)
+    if oren_is_err(mx) { return mx }
+    var my = math.modf(y)
+    if oren_is_err(my) { return my }
+    var mz = math.modf(z)
+    if oren_is_err(mz) { return mz }
+    return [mx[0], my[0], mz[0], mx[1], my[1], mz[1]]
+}
+
 fn fdim(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.fdim")
     if oren_is_err(ok) { return ok }
