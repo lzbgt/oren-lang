@@ -110,6 +110,13 @@ fn _u8_acc_new(initial_cap) {
     return {"buf": buf, "len": 0, "cap": initial_cap}
 }
 
+fn _u8_acc_new_exact(capacity) {
+    if capacity < 0 { return oren_err(4, "http2_client: acc negative capacity") }
+    var buf = oren_u8_buf_new_uninit(capacity)
+    if oren_is_err(buf) { return buf }
+    return {"buf": buf, "len": 0, "cap": capacity}
+}
+
 fn _u8_acc_reserve(acc, extra) {
     if extra < 0 { return oren_err(4, "http2_client: acc negative extra") }
     var len = acc["len"]
@@ -117,6 +124,7 @@ fn _u8_acc_reserve(acc, extra) {
     var need = len + extra
     if need <= cap { return 0 }
     var new_cap = cap
+    if new_cap < 64 { new_cap = 64 }
     while new_cap < need {
         new_cap = new_cap * 2
     }
@@ -160,6 +168,40 @@ fn _u8_acc_finish(acc) {
         oren_memcpy(dst, src, len)
     }
     return out
+}
+
+fn _parse_content_length_value(v) {
+    if v == nil { return 0 - 2 }
+    var n = oren_string_len(v)
+    if n <= 0 { return 0 - 2 }
+    var out = 0
+    var i = 0
+    while i < n {
+        var c = oren_string_byte_at_unchecked(v, i) & 255
+        if c < 48 || c > 57 { return 0 - 2 }
+        var d = c - 48
+        if out > 214748364 { return 0 - 2 }
+        if out == 214748364 && d > 7 { return 0 - 2 }
+        out = out * 10 + d
+        i = i + 1
+    }
+    return out
+}
+
+fn _headers_content_length(hs) {
+    var found = 0 - 1
+    var i = 0
+    while i < oren_list_len(hs) {
+        var h = hs[i]
+        if h != nil && h["name"] != nil && h["value"] != nil && _str_eq_bytes(h["name"], "content-length") == true {
+            var v = _parse_content_length_value(h["value"])
+            if v < 0 { return 0 - 2 }
+            if found >= 0 && found != v { return 0 - 2 }
+            found = v
+        }
+        i = i + 1
+    }
+    return found
 }
 
 fn _read_frame(conn, timeout_ms) {
@@ -381,23 +423,37 @@ fn _request_state(c, headers, body_bytes, opts) {
         }
         i = i + 1
     }
+    var body_expected_len = _headers_content_length(hs)
+    if body_expected_len < -1 { return _err("http2_client.request: bad content-length") }
 
     // Read DATA frames until END_STREAM on our stream. Header-only responses
     // terminate on the response HEADERS frame and do not require a DATA frame.
-    var body_acc = _u8_acc_new(0)
+    var body_acc = nil
+    if body_expected_len >= 0 {
+        body_acc = _u8_acc_new_exact(body_expected_len)
+    } else {
+        body_acc = _u8_acc_new(0)
+    }
     if oren_is_err(body_acc) { return _err("http2_client.request: alloc body") }
     var body = oren_u8_buf_new_uninit(0)
     if oren_is_err(body) { return _err("http2_client.request: alloc empty body") }
     if (hb2["flags"] & h2.FLAG_END_STREAM) != 0 {
+        if body_expected_len > 0 { return _err("http2_client.request: content-length mismatch") }
         return {"ok": 1, "status": status, "headers": hs, "body": body}
     }
     while true {
         var frd = _read_frame(conn, timeout_ms)
         if frd["ok"] != 1 { return _err("http2_client.request: read DATA") }
         if frd["type"] == h2.FRAME_DATA && frd["stream"] == sid {
+            if body_expected_len >= 0 {
+                var pn = oren_buf_len(frd["payload"])
+                if oren_is_err(pn) { return _err("http2_client.request: bad DATA payload") }
+                if body_acc["len"] + pn > body_expected_len { return _err("http2_client.request: content-length overflow") }
+            }
             var brc = _u8_acc_append(body_acc, frd["payload"])
             if oren_is_err(brc) { return _err("http2_client.request: append body") }
             if (frd["flags"] & h2.FLAG_END_STREAM) != 0 {
+                if body_expected_len >= 0 && body_acc["len"] != body_expected_len { return _err("http2_client.request: content-length mismatch") }
                 body = _u8_acc_finish(body_acc)
                 if oren_is_err(body) { return _err("http2_client.request: finish body") }
                 break

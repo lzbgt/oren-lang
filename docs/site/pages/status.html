@@ -2613,6 +2613,8 @@
 <p>					  encoding plus recursive/sequence decode use shared <code>std:bytes</code> byte views,</p>
 <p>					  HPACK header block encoding reuses Huffman string-literal lengths</p>
 <p>					  from sizing-pass <code>list_int</code> metadata during exact-size byte-buffer writes,</p>
+<p>					  and native HTTP/2 client DATA responses with <code>content-length</code> accumulate</p>
+<p>					  into exact-capacity <code>u8_buf</code> bodies with length mismatch checks,</p>
 <p>				  full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>
 <p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>
@@ -2700,9 +2702,11 @@
 <p>	  header-block encoding use exact-size <code>u8_buf</code> payloads, <code>list_int</code></p>
 <p>	  literal-length metadata, or byte-slice conversion instead of building</p>
 <p>	  intermediate Oren byte lists; TLS ALPN</p>
-<p>	  decoded-byte strings also convert through byte slices. HTTP/2 client</p>
-<p>	  continuation/header-block and DATA response buffers now accumulate through</p>
-<p>	  amortized <code>u8_buf</code> builders, including header-only response termination,</p>
+<p>		  decoded-byte strings also convert through byte slices. HTTP/2 client</p>
+<p>		  continuation/header-block and unknown-length DATA response buffers now</p>
+<p>		  accumulate through amortized <code>u8_buf</code> builders, <code>content-length</code> DATA</p>
+<p>		  bodies use exact-capacity accumulation with mismatch checks, including</p>
+<p>		  header-only response termination,</p>
 <p>	  and native WebSocket header slices/unmasked frame payloads plus DNS QNAME</p>
 <p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
 <p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>

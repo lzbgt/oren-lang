@@ -413,6 +413,21 @@ if ! grep -Fq 'var literal_lens = list.int_new(list.len(headers) * 2)' <<<"$hpac
   exit 1
 fi
 
+http2_client_impl="$(sed -n '/fn _parse_content_length_value/,/fn _request_value/p' lib/std/net/http2_client.oren)"
+if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
+  ! grep -Fq 'fn _headers_content_length(hs)' <<<"$http2_client_impl" ||
+  ! grep -Fq 'var body_expected_len = _headers_content_length(hs)' <<<"$http2_client_impl" ||
+  ! grep -Fq 'body_acc = _u8_acc_new_exact(body_expected_len)' <<<"$http2_client_impl" ||
+  ! grep -Fq 'body_acc["len"] + pn > body_expected_len' <<<"$http2_client_impl" ||
+  ! grep -Fq 'body_acc["len"] != body_expected_len' <<<"$http2_client_impl" ||
+  ! grep -Fq '_expect_binary_body(rr3.bytes())' tests/native/test_http2_headers_loopback.oren ||
+  ! grep -Fq 'if oren_is_err(rr4) != true' tests/native/test_http2_headers_loopback.oren ||
+  ! grep -Fq '{"name": "content-length", "value": "5", "index": "no"}' tests/native/test_http2_headers_loopback.oren ||
+  grep -Fq 'var body_acc = _u8_acc_new(0)' <<<"$http2_client_impl"; then
+  echo "ERROR: HTTP/2 response bodies with content-length must use exact-capacity u8 accumulation and validate DATA length" >&2
+  exit 1
+fi
+
 strict_b64_impl="$(sed -n '/fn _decode_bytes_strict_range_impl/,/fn decode_strict/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" ||
   ! grep -Fq 'v0 = _b64_val(_str_byte(s, start + si))' <<<"$strict_b64_impl" ||
