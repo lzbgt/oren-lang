@@ -255,6 +255,33 @@ if ! grep -Fq 'native_bytes_copy_span(bytes, start, len, out)' <<<"$native_strin
   exit 1
 fi
 
+c_runtime_copy_helper="$(sed -n '/static int runtime_bytes_copy_span(OrenValue bytes/,/^}/p' lib/runtime/040_lists_maps.inc)"
+c_runtime_copy_list_helper="$(sed -n '/static int runtime_bytes_copy_span_to_list(OrenValue bytes/,/^}/p' lib/runtime/040_lists_maps.inc)"
+c_runtime_unpack_impl="$(sed -n '/OrenValue oren_bytes_unpack/,/OrenValue oren_bytes_get_u16_be/p' lib/runtime/040_lists_maps.inc)"
+c_runtime_pack_impl="$(sed -n '/OrenValue oren_bytes_pack/,/^}/p' lib/runtime/045_bytes_helpers.inc)"
+c_runtime_string_slice_impl="$(sed -n '/OrenValue oren_string_from_bytes_slice/,/OrenValue oren_u8_buf_from_bytes_slice/p' lib/runtime/050_io_misc.inc)"
+c_runtime_u8_slice_impl="$(sed -n '/OrenValue oren_u8_buf_from_bytes_slice/,/OrenValue oren_string_join/p' lib/runtime/050_io_misc.inc)"
+if ! grep -Fq 'memcpy(dst, b->data + start, n)' <<<"$c_runtime_copy_helper" ||
+  ! grep -Fq 'dst[i] = (uint8_t)it.as.int_val' <<<"$c_runtime_copy_helper"; then
+  echo "ERROR: C runtime byte slice/pack helpers must share one checked list/u8_buf copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'dst->items[i] = oren_int((int64_t)b->data[start + i])' <<<"$c_runtime_copy_list_helper" ||
+  ! grep -Fq 'dst->items[i] = oren_int(it.as.int_val)' <<<"$c_runtime_copy_list_helper"; then
+  echo "ERROR: C runtime bytes_unpack must share one checked list/u8_buf to list copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'runtime_bytes_copy_span_to_list(bytes, 0u, count_size, list' <<<"$c_runtime_unpack_impl" ||
+  ! grep -Fq 'runtime_bytes_copy_span(xs, 0u, (size_t)list->count, out->data' <<<"$c_runtime_pack_impl" ||
+  ! grep -Fq 'runtime_bytes_copy_span(bytes, s, n, (uint8_t*)out' <<<"$c_runtime_string_slice_impl" ||
+  ! grep -Fq 'runtime_bytes_copy_span(bytes, s, n, (uint8_t*)out->data' <<<"$c_runtime_u8_slice_impl" ||
+  grep -Fq 'OrenValue it = list->items[s + i]' <<<"$c_runtime_string_slice_impl$c_runtime_u8_slice_impl" ||
+  grep -Fq 'OrenValue v = src->items[i]' <<<"$c_runtime_unpack_impl" ||
+  grep -Fq 'OrenValue v = list->items[i]' <<<"$c_runtime_pack_impl"; then
+  echo "ERROR: C runtime byte slice/pack/unpack helpers must route through shared copy-span helpers instead of duplicating list/u8_buf loops" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||

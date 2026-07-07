@@ -150,15 +150,12 @@ OrenValue oren_bytes_pack(OrenValue xs) {
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("bytes_pack: u8_buf payload is nil"));
     }
 
+    const char* err_msg = NULL;
     lock_collections();
-    for (int i = 0; i < list->count; i++) {
-        OrenValue v = list->items[i];
-        if (v.type != OREN_TYPE_INT || v.as.int_val < 0 || v.as.int_val > 255) {
-            unlock_collections();
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_pack: byte out of range"));
-        }
-        out->data[i] = (uint8_t)v.as.int_val;
-    }
+    int ok = runtime_bytes_copy_span(xs, 0u, (size_t)list->count, out->data, &err_msg);
     unlock_collections();
+    if (!ok) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "bytes_pack: byte out of range"));
+    }
     return outv;
 }

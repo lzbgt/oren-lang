@@ -913,11 +913,6 @@ OrenValue oren_string_from_bytes(OrenValue bytes) {
     return v;
 }
 
-static int oren_bytes_range_ok_size(size_t total, size_t start, size_t len) {
-    if (start > total) return 0;
-    return len <= total - start;
-}
-
 OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len) {
     if (start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice expects (bytes, int start, int len)"));
@@ -934,63 +929,33 @@ OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
     size_t s = (size_t)s0;
     size_t n = (size_t)n0;
 
-    // u8_buf fast path (preferred for astbin decoding).
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || (b->len > 0 && !b->data)) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: invalid u8_buf"));
-        }
-        size_t bn = (size_t)b->len;
-        if (!oren_bytes_range_ok_size(bn, s, n)) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: out of bounds"));
-        }
-        char* out = (char*)malloc(n + 1u);
-        if (!out) {
-            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes_slice: out of memory"));
-        }
-        memcpy(out, b->data + s, n);
-        out[n] = 0;
-        lock_collections();
-        oren_register_alloc(out, OREN_ALLOC_STRING);
-        unlock_collections();
-        OrenValue v;
-        v.type = OREN_TYPE_STRING;
-        v.as.string_val = out;
-        return v;
+    size_t total = 0;
+    const char* err_msg = NULL;
+    if (!runtime_bytes_len_checked(bytes, &total, &err_msg)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "string_from_bytes_slice expects list<int 0..255> or u8_buf"));
     }
-
-    // list<int> slow path
-    if (bytes.type != OREN_TYPE_LIST) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice expects list<int 0..255> or u8_buf"));
-    }
-    OrenList* list = bytes.as.list_val;
-    if (!list || list->count < 0) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: invalid list"));
-    }
-    size_t bn2 = (size_t)list->count;
-    if (!oren_bytes_range_ok_size(bn2, s, n)) {
+    if (!runtime_bytes_range_ok_size(total, s, n)) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: out of bounds"));
     }
-    char* out2 = (char*)malloc(n + 1u);
-    if (!out2) {
+    char* out = (char*)malloc(n + 1u);
+    if (!out) {
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes_slice: out of memory"));
     }
-    for (size_t i = 0; i < n; i++) {
-        OrenValue it = list->items[s + i];
-        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
-            free(out2);
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: expected bytes list<int 0..255>"));
-        }
-        out2[i] = (char)(unsigned char)it.as.int_val;
-    }
-    out2[n] = 0;
     lock_collections();
-    oren_register_alloc(out2, OREN_ALLOC_STRING);
+    int ok = runtime_bytes_copy_span(bytes, s, n, (uint8_t*)out, &err_msg);
     unlock_collections();
-    OrenValue v2;
-    v2.type = OREN_TYPE_STRING;
-    v2.as.string_val = out2;
-    return v2;
+    if (!ok) {
+        free(out);
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "string_from_bytes_slice: expected bytes list<int 0..255>"));
+    }
+    out[n] = 0;
+    lock_collections();
+    oren_register_alloc(out, OREN_ALLOC_STRING);
+    unlock_collections();
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = out;
+    return v;
 }
 
 OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len) {
@@ -1009,25 +974,13 @@ OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
     size_t s = (size_t)s0;
     size_t n = (size_t)n0;
 
-    // Determine source length.
     size_t total = 0;
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || b->elem_size != 1u || (b->len > 0 && !b->data)) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: invalid u8_buf"));
-        }
-        total = (size_t)b->len;
-    } else if (bytes.type == OREN_TYPE_LIST) {
-        OrenList* list = bytes.as.list_val;
-        if (!list || list->count < 0) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: invalid list"));
-        }
-        total = (size_t)list->count;
-    } else {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice expects list<int 0..255> or u8_buf"));
+    const char* err_msg = NULL;
+    if (!runtime_bytes_len_checked(bytes, &total, &err_msg)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "u8_buf_from_bytes_slice expects list<int 0..255> or u8_buf"));
     }
 
-    if (!oren_bytes_range_ok_size(total, s, n)) {
+    if (!runtime_bytes_range_ok_size(total, s, n)) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: out of bounds"));
     }
 
@@ -1048,20 +1001,11 @@ OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
 
     if (n == 0) return outv;
 
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        memcpy(out->data, b->data + s, n);
-        return outv;
-    }
-
-    // list<int> slow path
-    OrenList* list = bytes.as.list_val;
-    for (size_t i = 0; i < n; i++) {
-        OrenValue it = list->items[s + i];
-        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: expected bytes list<int 0..255>"));
-        }
-        ((unsigned char*)out->data)[i] = (unsigned char)it.as.int_val;
+    lock_collections();
+    int ok = runtime_bytes_copy_span(bytes, s, n, (uint8_t*)out->data, &err_msg);
+    unlock_collections();
+    if (!ok) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "u8_buf_from_bytes_slice: expected bytes list<int 0..255>"));
     }
     return outv;
 }
