@@ -2871,7 +2871,9 @@
 <p>  windows, and vertex output in the view. Metal clip/transform/opacity/camera</p>
 <p>  state stacks and opcodes now live in <code>OrenAVMMetalFrame</code>, reducing</p>
 <p>  <code>OrenAVMMetalView.m</code> to 676 lines while keeping per-frame resource/text/image</p>
-<p>  command routing in the view.</p>
+<p>  command routing in the view. Metal full-frame clear-color detection now lives</p>
+<p>  in <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 663 lines while</p>
+<p>  keeping per-frame resource/text/image command routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

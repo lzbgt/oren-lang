@@ -58,6 +58,13 @@ NSMutableArray* OrenAVMMetalEnsureRunArray(NSMutableArray** runs, NSUInteger cap
 uint64_t OrenAVMMetalNowNs(void);
 uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli);
 void OrenAVMMetalFrameStateInit(OrenAVMMetalFrameState* state);
+BOOL OrenAVMMetalApplyClearColorCommand(uint8_t opcode,
+                                        const uint8_t* payload,
+                                        uint16_t payloadLen,
+                                        uint32_t logicalW,
+                                        uint32_t logicalH,
+                                        float opacity,
+                                        MTLClearColor* clearColor);
 BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
                                          const uint8_t* payload,
                                          uint16_t payloadLen,

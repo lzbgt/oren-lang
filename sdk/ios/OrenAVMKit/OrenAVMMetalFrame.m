@@ -49,6 +49,28 @@ void OrenAVMMetalFrameStateInit(OrenAVMMetalFrameState* state) {
     state->opacity = 1.0f;
 }
 
+BOOL OrenAVMMetalApplyClearColorCommand(uint8_t opcode,
+                                        const uint8_t* payload,
+                                        uint16_t payloadLen,
+                                        uint32_t logicalW,
+                                        uint32_t logicalH,
+                                        float opacity,
+                                        MTLClearColor* clearColor) {
+    if (opcode != 1 || payloadLen != 20 || !payload || !clearColor || opacity < 0.999f) return NO;
+    uint32_t x = OrenAVMMetalReadU32LE(payload);
+    uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
+    uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
+    uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
+    if (x != 0 || y != 0 || w < logicalW || h < logicalH) return NO;
+    uint8_t clearRGBA[4];
+    OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, clearRGBA);
+    *clearColor = MTLClearColorMake((double)clearRGBA[0] / 255.0,
+                                    (double)clearRGBA[1] / 255.0,
+                                    (double)clearRGBA[2] / 255.0,
+                                    (double)clearRGBA[3] / 255.0);
+    return YES;
+}
+
 BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
                                          const uint8_t* payload,
                                          uint16_t payloadLen,

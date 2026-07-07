@@ -2752,7 +2752,9 @@ Working evidence:
   windows, and vertex output in the view. Metal clip/transform/opacity/camera
   state stacks and opcodes now live in `OrenAVMMetalFrame`, reducing
   `OrenAVMMetalView.m` to 676 lines while keeping per-frame resource/text/image
-  command routing in the view.
+  command routing in the view. Metal full-frame clear-color detection now lives
+  in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
+  keeping per-frame resource/text/image command routing in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

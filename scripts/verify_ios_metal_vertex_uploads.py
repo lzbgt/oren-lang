@@ -478,6 +478,22 @@ def main() -> int:
         fail("retained Metal model draws must not use string-key dictionary lookups")
     if "OrenAVMMetalFrameState frameState" not in text or "OrenAVMMetalFrameStateInit(&frameState)" not in text:
         fail("Metal view must use the frame-owned state container")
+    if "OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor)" not in text:
+        fail("Metal full-frame clear-color detection must delegate to the frame helper")
+    if "BOOL OrenAVMMetalApplyClearColorCommand" not in frame_text:
+        fail("Metal clear-color command helper must live in OrenAVMMetalFrame")
+    clear_command = frame_text[frame_text.find("BOOL OrenAVMMetalApplyClearColorCommand") :]
+    for token in (
+        "opcode != 1",
+        "payloadLen != 20",
+        "opacity < 0.999f",
+        "OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, clearRGBA)",
+        "MTLClearColorMake",
+    ):
+        if token not in clear_command:
+            fail(f"Metal clear-color command helper missing expected path: {token}")
+    if "uint8_t clearRGBA[4]" in text or "OrenAVMMetalRGBAWithOpacity(payload + 16" in text:
+        fail("Metal view must not inline clear-color payload decoding")
     if "OrenAVMMetalHandleFrameStateCommand(opcode," not in text:
         fail("Metal state-stack opcodes must delegate to the frame-owned command helper")
     if "BOOL OrenAVMMetalHandleFrameStateCommand" not in frame_text:

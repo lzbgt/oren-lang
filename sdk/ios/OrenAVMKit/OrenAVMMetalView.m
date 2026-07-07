@@ -380,20 +380,7 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
         off += 4;
         if (off + (size_t)payloadLen > frame.length) break;
         const uint8_t* payload = data + off;
-        if (opcode == 1 && payloadLen == 20) {
-            uint32_t x = OrenAVMMetalReadU32LE(payload);
-            uint32_t y = OrenAVMMetalReadU32LE(payload + 4);
-            uint32_t w = OrenAVMMetalReadU32LE(payload + 8);
-            uint32_t h = OrenAVMMetalReadU32LE(payload + 12);
-            if (x == 0 && y == 0 && w >= logicalW && h >= logicalH && clearColor && frameState.opacity >= 0.999f) {
-                uint8_t clearRGBA[4];
-                OrenAVMMetalRGBAWithOpacity(payload + 16, frameState.opacity, clearRGBA);
-                *clearColor = MTLClearColorMake((double)clearRGBA[0] / 255.0,
-                                                (double)clearRGBA[1] / 255.0,
-                                                (double)clearRGBA[2] / 255.0,
-                                                (double)clearRGBA[3] / 255.0);
-            }
-        }
+        OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
         BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,
                                                                    payload,
                                                                    payloadLen,
