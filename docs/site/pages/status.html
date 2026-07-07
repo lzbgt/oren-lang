@@ -2448,7 +2448,8 @@
 <p>retained 2D/3D mesh, material, and model upload/remove helpers also live there,</p>
 <p>keeping typed resource construction and raw payload ownership with the resource</p>
 <p>model types; retained 2D mesh draw payload expansion now lives there too,</p>
-<p>matching the Metal retained 2D mesh draw boundary. The</p>
+<p>matching the Metal retained 2D mesh draw boundary, and retained 3D</p>
+<p>mesh/model/material draw payload expansion now lives there too. The</p>
 <p>iOS SDK symbol verifier</p>
 <p>now caches <code>nm</code> output once per archive and greps files instead of SIGPIPE-prone</p>
 <p><code>nm | grep -q</code> pipelines. AVM</p>
@@ -2917,6 +2918,9 @@
 <p>  CoreGraphics retained 2D mesh draw payload expansion now lives in</p>
 <p>  <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 876 lines</p>
 <p>  while keeping retained draw opcode routing in the view.</p>
+<p>  CoreGraphics retained 3D mesh/model/material draw payload expansion now lives</p>
+<p>  in <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 761 lines</p>
+<p>  while keeping retained 3D opcode routing in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

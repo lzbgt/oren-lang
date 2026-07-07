@@ -2704,6 +2704,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained 2D mesh draw payload expansion now lives in
   `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to 876 lines
   while keeping retained draw opcode routing in the view.
+- CoreGraphics retained 3D mesh/model/material draw payload expansion now lives
+  in `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to 761 lines
+  while keeping retained 3D opcode routing in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
@@ -2846,6 +2849,8 @@ design evidence lives under `project-doc/`.
   payload ownership with the resource model types.
 - CoreGraphics retained 2D mesh drawing now also lives in
   `OrenAVMGraphicsResources`, matching the Metal retained 2D mesh draw boundary.
+- CoreGraphics retained 3D mesh/model/material drawing now also lives in
+  `OrenAVMGraphicsResources`, matching the Metal retained 3D draw boundary.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the

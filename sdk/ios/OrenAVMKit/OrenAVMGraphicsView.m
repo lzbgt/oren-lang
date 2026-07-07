@@ -566,130 +566,15 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
                    (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
                    (opcode == 94 && payloadLen == 4)) {
-            uint32_t meshID = OrenAVMGfxReadU32LE(payload);
-            uint32_t materialID = 0;
-            int32_t modelX = 0;
-            int32_t modelY = 0;
-            int32_t modelZ = 0;
-            uint32_t scaleMilli = 1000u;
-            if (opcode == 94) {
-                OrenAVMGfxModelResource* model = OrenAVMGfxRetainedModelResource(_orenModels3DByID, meshID);
-                if (!model) {
-                    off += payloadLen;
-                    continue;
-                }
-                meshID = model.meshID;
-                materialID = model.materialID;
-                modelX = model.x;
-                modelY = model.y;
-                modelZ = model.z;
-                scaleMilli = model.scaleMilli;
-            }
-            OrenAVMGfxMeshResource* mesh = OrenAVMGfxRetainedMeshResource(_orenMeshesByID, meshID);
-            BOOL hasMaterialRGBA = NO;
-            uint32_t materialRGBAOverride = 0;
-            if (opcode == 90 || opcode == 91) {
-                materialID = OrenAVMGfxReadU32LE(payload + 4);
-            }
-            if (materialID != 0) {
-                hasMaterialRGBA = OrenAVMGfxRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride);
-                if (!hasMaterialRGBA) {
-                    off += payloadLen;
-                    continue;
-                }
-            }
-            const uint8_t* tris = mesh.triangles;
-            const uint8_t* verts = mesh.vertices;
-            const uint8_t* idx = mesh.indices;
-            uint32_t meshStride = mesh.stride;
-            uint32_t triangleCount = mesh.triangleCount;
-            uint32_t rgbaValue = hasMaterialRGBA ? materialRGBAOverride : mesh.rgbaValue;
-            if (opcode == 87) {
-                modelX = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
-                modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
-                modelZ = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
-                scaleMilli = OrenAVMGfxReadU32LE(payload + 16);
-            } else if (opcode == 91) {
-                modelX = (int32_t)OrenAVMGfxReadU32LE(payload + 8);
-                modelY = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
-                modelZ = (int32_t)OrenAVMGfxReadU32LE(payload + 16);
-                scaleMilli = OrenAVMGfxReadU32LE(payload + 20);
-            }
-            if (verts && idx && scaleMilli != 0 && triangleCount == mesh.indexBytes / 12u && mesh.vertexBytes % 12u == 0) {
-                OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity];
-                OrenAVMGfxTriangleOrder* heapOrder = NULL;
-                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount,
-                                                                               inlineOrder,
-                                                                               OrenAVMGfxInlineTriangleOrderCapacity,
-                                                                               &heapOrder);
-                if (!order) {
-                    off += payloadLen;
-                    continue;
-                }
-                uint32_t visibleCount = 0;
-                for (uint32_t ti = 0; ti < triangleCount; ti++) {
-                    int64_t z = OrenAVMGfxMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
-                    if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                    order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
-                }
-                OrenAVMGfxSortTriangleOrder(order, visibleCount);
-                OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
-                for (uint32_t oi = 0; oi < visibleCount; oi++) {
-                    const uint8_t* tri = idx + ((size_t)order[oi].triangle * 12u);
-                    const uint8_t* v1 = verts + ((size_t)OrenAVMGfxReadU32LE(tri) * 12u);
-                    const uint8_t* v2 = verts + ((size_t)OrenAVMGfxReadU32LE(tri + 4) * 12u);
-                    const uint8_t* v3 = verts + ((size_t)OrenAVMGfxReadU32LE(tri + 8) * 12u);
-                    CGContextBeginPath(ctx);
-                    CGContextMoveToPoint(ctx,
-                                         OrenAVMGfxMesh3DModelCoord(v1, modelX, scaleMilli),
-                                         OrenAVMGfxMesh3DModelCoord(v1 + 4, modelY, scaleMilli));
-                    CGContextAddLineToPoint(ctx,
-                                            OrenAVMGfxMesh3DModelCoord(v2, modelX, scaleMilli),
-                                            OrenAVMGfxMesh3DModelCoord(v2 + 4, modelY, scaleMilli));
-                    CGContextAddLineToPoint(ctx,
-                                            OrenAVMGfxMesh3DModelCoord(v3, modelX, scaleMilli),
-                                            OrenAVMGfxMesh3DModelCoord(v3 + 4, modelY, scaleMilli));
-                    CGContextClosePath(ctx);
-                    CGContextFillPath(ctx);
-                }
-                free(heapOrder);
-            } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && triangleCount == mesh.triangleBytes / meshStride) {
-                OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity];
-                OrenAVMGfxTriangleOrder* heapOrder = NULL;
-                OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount,
-                                                                               inlineOrder,
-                                                                               OrenAVMGfxInlineTriangleOrderCapacity,
-                                                                               &heapOrder);
-                if (!order) {
-                    off += payloadLen;
-                    continue;
-                }
-                uint32_t visibleCount = 0;
-                for (uint32_t ti = 0; ti < triangleCount; ti++) {
-                    int64_t z = OrenAVMGfxMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
-                    if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-                    order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
-                }
-                OrenAVMGfxSortTriangleOrder(order, visibleCount);
-                if (hasMaterialRGBA || !mesh.hasRGBA) OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
-                for (uint32_t oi = 0; oi < visibleCount; oi++) {
-                    const uint8_t* tri = tris + ((size_t)order[oi].triangle * meshStride);
-                    if (!hasMaterialRGBA && mesh.hasRGBA) OrenAVMGfxSetFillColorBytes(ctx, tri + 36);
-                    CGContextBeginPath(ctx);
-                    CGContextMoveToPoint(ctx,
-                                         OrenAVMGfxMesh3DModelCoord(tri, modelX, scaleMilli),
-                                         OrenAVMGfxMesh3DModelCoord(tri + 4, modelY, scaleMilli));
-                    CGContextAddLineToPoint(ctx,
-                                            OrenAVMGfxMesh3DModelCoord(tri + 12, modelX, scaleMilli),
-                                            OrenAVMGfxMesh3DModelCoord(tri + 16, modelY, scaleMilli));
-                    CGContextAddLineToPoint(ctx,
-                                            OrenAVMGfxMesh3DModelCoord(tri + 24, modelX, scaleMilli),
-                                            OrenAVMGfxMesh3DModelCoord(tri + 28, modelY, scaleMilli));
-                    CGContextClosePath(ctx);
-                    CGContextFillPath(ctx);
-                }
-                free(heapOrder);
-            }
+            OrenAVMGfxDrawMesh3DResource(ctx,
+                                         _orenMeshesByID,
+                                         _orenMaterials3DByID,
+                                         _orenModels3DByID,
+                                         opcode,
+                                         payload,
+                                         depthEnabled,
+                                         nearZ,
+                                         farZ);
         } else if (opcode == 85 && payloadLen == 4) {
             OrenAVMGfxRemoveMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 89 && payloadLen == 8) {

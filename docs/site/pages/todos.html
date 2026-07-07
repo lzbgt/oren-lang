@@ -3761,6 +3761,11 @@
 <p>  <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 876 lines</p>
 <p>  while keeping retained draw opcode routing in the view.</p>
 <ul>
+<li>CoreGraphics retained 3D mesh/model/material draw payload expansion now lives</li>
+</ul>
+<p>  in <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to 761 lines</p>
+<p>  while keeping retained 3D opcode routing in the view.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>
@@ -4000,6 +4005,10 @@
 <li>CoreGraphics retained 2D mesh drawing now also lives in</li>
 </ul>
 <p>  <code>OrenAVMGraphicsResources</code>, matching the Metal retained 2D mesh draw boundary.</p>
+<ul>
+<li>CoreGraphics retained 3D mesh/model/material drawing now also lives in</li>
+</ul>
+<p>  <code>OrenAVMGraphicsResources</code>, matching the Metal retained 3D draw boundary.</p>
 <ul>
 <li>Bytecode final artifact writes now report the original <code>u8_buf</code></li>
 </ul>
