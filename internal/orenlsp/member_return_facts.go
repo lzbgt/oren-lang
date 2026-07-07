@@ -50,6 +50,30 @@ func collectFunctionReturnFieldTypes(program *ast.Program, prefix string, env me
 	return out
 }
 
+func collectFunctionReturnElementFieldTypes(program *ast.Program, prefix string, env memberTypeEnv) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if program == nil {
+		return out
+	}
+	env.Prefix = prefix
+	if env.FunctionElementFields == nil {
+		env.FunctionElementFields = map[string]map[string]string{}
+	}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn == nil || fn.Name == "" {
+			continue
+		}
+		fields := inferFunctionReturnElementFieldTypes(fn, env)
+		if len(fields) != 0 {
+			key := prefix + fn.Name
+			out[key] = fields
+			env.FunctionElementFields[key] = fields
+		}
+	}
+	return out
+}
+
 func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv, functions map[string]*ast.FunctionLiteral) map[string]map[string]string {
 	out := map[string]map[string]string{}
 	if program == nil {
@@ -106,6 +130,12 @@ func inferFunctionReturnFieldTypes(fn *ast.FunctionLiteral, env memberTypeEnv) m
 	var stack []map[string]string
 	stack = append(stack, inferredParamFrame(fn, env))
 	return inferBlockReturnFieldTypes(fn.Body, env, &stack)
+}
+
+func inferFunctionReturnElementFieldTypes(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
+	var stack []map[string]string
+	stack = append(stack, inferredParamFrame(fn, env))
+	return inferBlockReturnElementFieldTypes(fn.Body, env, &stack)
 }
 
 func inferBlockReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) string {

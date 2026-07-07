@@ -1137,6 +1137,101 @@ func TestServerNavigationUsesForInElementFieldChains(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesReturnedListElementFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"fn identity_list(items) {",
+		"  return items",
+		"}",
+		"fn identity_bad(items) {",
+		"  return items",
+		"}",
+		"var outers = [Outer(Inner(Leaf(1, 2))), Outer(Inner(Leaf(3, 4)))]",
+		"var mixed = [Outer(Inner(Leaf(5, 6))), Outer(Other(7))]",
+		"var returned = identity_list(outers)",
+		"var bad = identity_bad(mixed)",
+		"fn main() {",
+		"  for item in identity_list(outers) {",
+		"    var comp = item.inner.leaf.",
+		"    var direct = item.inner.leaf.x",
+		"  }",
+		"  for from_return in returned {",
+		"    var assigned = from_return.inner.leaf.y",
+		"  }",
+		"  for bad_item in bad {",
+		"    var blocked = bad_item.inner.leaf.x",
+		"  }",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-returned-list-element-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      767,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 16, "character": len([]rune(lines[16]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      768,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 17, "character": strings.LastIndex(lines[17], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      769,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 20, "character": strings.LastIndex(lines[20], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      770,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 23, "character": strings.LastIndex(lines[23], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 767)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("returned-list element field-chain completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 768)["result"].([]any), uri, 0, 14, 15)
+	assertDefinition(t, messageByID(t, msgs, 769)["result"].([]any), uri, 0, 17, 18)
+	defs := messageByID(t, msgs, 770)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed returned-list element field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesConstructedFieldReceiverTypes(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

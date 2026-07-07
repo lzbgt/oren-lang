@@ -21,11 +21,12 @@ type typeInfo struct {
 }
 
 type memberTypeEnv struct {
-	Types          map[string]typeInfo
-	Functions      map[string]string
-	FunctionFields map[string]map[string]string
-	Params         map[string]map[string]string
-	Prefix         string
+	Types                 map[string]typeInfo
+	Functions             map[string]string
+	FunctionFields        map[string]map[string]string
+	FunctionElementFields map[string]map[string]string
+	Params                map[string]map[string]string
+	Prefix                string
 }
 
 func typedMemberSymbolAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) (resolvedSymbol, bool) {
@@ -182,7 +183,11 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 	if program == nil {
 		return nil, memberTypeEnv{}
 	}
-	env := memberTypeEnv{Types: collectTypeInfos(program, uri, ""), FunctionFields: map[string]map[string]string{}}
+	env := memberTypeEnv{
+		Types:                 collectTypeInfos(program, uri, ""),
+		FunctionFields:        map[string]map[string]string{},
+		FunctionElementFields: map[string]map[string]string{},
+	}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
 		if alias == "" {
@@ -217,6 +222,21 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		importEnv.Prefix = alias + "."
 		for key, fields := range collectFunctionReturnFieldTypes(importProgram, alias+".", importEnv) {
 			env.FunctionFields[key] = fields
+		}
+	}
+	for key, fields := range collectFunctionReturnElementFieldTypes(program, "", env) {
+		env.FunctionElementFields[key] = fields
+	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		importEnv := env
+		importEnv.Prefix = alias + "."
+		for key, fields := range collectFunctionReturnElementFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionElementFields[key] = fields
 		}
 	}
 	functions := collectNamedFunctionLiterals(program, "")
@@ -257,6 +277,21 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		importEnv.Prefix = alias + "."
 		for key, fields := range collectFunctionReturnFieldTypes(importProgram, alias+".", importEnv) {
 			env.FunctionFields[key] = fields
+		}
+	}
+	for key, fields := range collectFunctionReturnElementFieldTypes(program, "", env) {
+		env.FunctionElementFields[key] = fields
+	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		importEnv := env
+		importEnv.Prefix = alias + "."
+		for key, fields := range collectFunctionReturnElementFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionElementFields[key] = fields
 		}
 	}
 	return program, env
@@ -889,7 +924,7 @@ func inferForInElementFrame(stmt *ast.ForStatement, env memberTypeEnv, stack []m
 		return nil, false
 	}
 	frame := map[string]string{userName: typeName}
-	if fields := inferIterableElementFieldTypes(iterable, env, stack); len(fields) != 0 {
+	if fields := inferForInElementFieldTypes(stmt, iterable, env, stack); len(fields) != 0 {
 		setInferredFieldTypes(userName, fields, frame)
 	}
 	return frame, true
@@ -959,6 +994,19 @@ func inferForInContainerType(stmt *ast.ForStatement, iterable ast.Expression, en
 		}
 	}
 	return inferExpressionType(iterable, env, stack)
+}
+
+func inferForInElementFieldTypes(stmt *ast.ForStatement, iterable ast.Expression, env memberTypeEnv, stack []map[string]string) map[string]string {
+	if indexed, ok := iterable.(*ast.IndexExpression); ok && literalIntValue(indexed.Index) == 0 {
+		if state, ok := indexed.Left.(*ast.Identifier); ok && state.Value != "" {
+			if init, ok := stmt.Init.(*ast.VarStatement); ok && init.Name != nil && init.Name.Value == state.Value {
+				if literal, ok := init.Value.(*ast.ArrayLiteral); ok && len(literal.Elements) > 0 {
+					return inferIterableElementFieldTypes(literal.Elements[0], env, stack)
+				}
+			}
+		}
+	}
+	return inferIterableElementFieldTypes(iterable, env, stack)
 }
 
 func rawIdentifierName(expr ast.Expression) string {
@@ -1074,6 +1122,8 @@ func inferIterableElementFieldTypes(expr ast.Expression, env memberTypeEnv, stac
 	switch expr := expr.(type) {
 	case *ast.ArrayLiteral:
 		return inferArrayElementFieldTypes(expr, env, stack)
+	case *ast.CallExpression:
+		return functionElementFieldTypesForCall(expr, env)
 	case *ast.Identifier, *ast.MemberExpression:
 		if path := memberExpressionPath(expr); path != "" {
 			return inferredElementFieldTypes(path, stack)
@@ -1174,6 +1224,23 @@ func functionFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[
 	}
 	if env.Prefix != "" {
 		return env.FunctionFields[env.Prefix+typeKey]
+	}
+	return nil
+}
+
+func functionElementFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
+	if call == nil || len(env.FunctionElementFields) == 0 {
+		return nil
+	}
+	typeKey := constructorTypeKey(call.Function)
+	if typeKey == "" {
+		return nil
+	}
+	if fields := env.FunctionElementFields[typeKey]; len(fields) != 0 {
+		return fields
+	}
+	if env.Prefix != "" {
+		return env.FunctionElementFields[env.Prefix+typeKey]
 	}
 	return nil
 }
