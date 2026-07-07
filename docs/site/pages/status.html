@@ -2480,7 +2480,10 @@
 <p>VFS list-backed <code>write_bytes</code> now stores boxed-list and <code>LIST_INT</code> bytes</p>
 <p>directly into the final VFS entry buffer through a shared owned-data path</p>
 <p>instead of first building a full-size temporary byte mirror and then copying it</p>
-<p>into VFS storage. Legacy C runtime</p>
+<p>into VFS storage. AVM native <code>oren_bytes_set_u8</code> plus endian setters now mutate</p>
+<p><code>LIST_INT</code> carriers through the same shared byte write-span helper used for</p>
+<p><code>bytes</code> and boxed lists, so optimized <code>read_bytes</code>/<code>bytes_unpack</code> results do not</p>
+<p>need boxed-list reconstruction before in-place byte writes. Legacy C runtime</p>
 <p><code>oren_read_bytes</code> still returns a boxed compatibility byte list, but now fills</p>
 <p>that list from bounded 64 KiB read chunks instead of allocating a second</p>
 <p>full-file temporary byte buffer before list materialization. Legacy C runtime</p>

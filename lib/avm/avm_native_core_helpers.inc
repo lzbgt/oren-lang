@@ -117,3 +117,37 @@ static int avm_native_bytes_read_u64_span(AvmValue bytes, int64_t idx, int width
     *err_msg = expected_msg;
     return 0;
 }
+
+static int avm_native_bytes_write_span(AvmValue bytes, int64_t idx, const uint8_t* src, int width, const char** err_msg, const char* bounds_msg, const char* expected_msg) {
+    if (!src || !err_msg) return 0;
+    *err_msg = NULL;
+    if (bytes.type == AVM_VAL_BYTES) {
+        AvmBytes* b = bytes.as.b;
+        if (!b || !avm_native_byte_span_ok((int64_t)b->len, idx, width) || (width > 0 && !b->data)) {
+            *err_msg = bounds_msg;
+            return 0;
+        }
+        for (int i = 0; i < width; i++) b->data[(int)idx + i] = src[i];
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST) {
+        AvmList* list = bytes.as.l;
+        if (!list || !avm_native_byte_span_ok((int64_t)list->count, idx, width) || (width > 0 && !list->items)) {
+            *err_msg = bounds_msg;
+            return 0;
+        }
+        for (int i = 0; i < width; i++) list->items[(int)idx + i] = avm_int((int64_t)src[i]);
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST_INT) {
+        AvmListInt* list = bytes.as.li;
+        if (!list || !avm_native_byte_span_ok((int64_t)list->count, idx, width) || (width > 0 && !list->items)) {
+            *err_msg = bounds_msg;
+            return 0;
+        }
+        for (int i = 0; i < width; i++) list->items[(int)idx + i] = (int64_t)src[i];
+        return 1;
+    }
+    *err_msg = expected_msg;
+    return 0;
+}

@@ -2382,7 +2382,10 @@ stack chunks instead of allocating a full-size AVM heap byte mirror. Legacy AVM
 VFS list-backed `write_bytes` now stores boxed-list and `LIST_INT` bytes
 directly into the final VFS entry buffer through a shared owned-data path
 instead of first building a full-size temporary byte mirror and then copying it
-into VFS storage. Legacy C runtime
+into VFS storage. AVM native `oren_bytes_set_u8` plus endian setters now mutate
+`LIST_INT` carriers through the same shared byte write-span helper used for
+`bytes` and boxed lists, so optimized `read_bytes`/`bytes_unpack` results do not
+need boxed-list reconstruction before in-place byte writes. Legacy C runtime
 `oren_read_bytes` still returns a boxed compatibility byte list, but now fills
 that list from bounded 64 KiB read chunks instead of allocating a second
 full-file temporary byte buffer before list materialization. Legacy C runtime
