@@ -181,6 +181,16 @@ fn tan(x: f64, y: f64) {
     return [math.tan(x), math.tan(y)]
 }
 
+fn sin_cos(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.sin_cos")
+    if oren_is_err(ok) { return ok }
+    var sx: f64 = math.sin(x)
+    var sy: f64 = math.sin(y)
+    var cx: f64 = math.cos(x)
+    var cy: f64 = math.cos(y)
+    return [sx, sy, cx, cy]
+}
+
 fn asin(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.asin")
     if oren_is_err(ok) { return ok }

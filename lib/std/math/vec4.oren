@@ -222,6 +222,20 @@ fn tan(x: f64, y: f64, z: f64, w: f64) {
     return [math.tan(x), math.tan(y), math.tan(z), math.tan(w)]
 }
 
+fn sin_cos(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.sin_cos")
+    if oren_is_err(ok) { return ok }
+    var sx: f64 = math.sin(x)
+    var sy: f64 = math.sin(y)
+    var sz: f64 = math.sin(z)
+    var sw: f64 = math.sin(w)
+    var cx: f64 = math.cos(x)
+    var cy: f64 = math.cos(y)
+    var cz: f64 = math.cos(z)
+    var cw: f64 = math.cos(w)
+    return [sx, sy, sz, sw, cx, cy, cz, cw]
+}
+
 fn asin(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.asin")
     if oren_is_err(ok) { return ok }
