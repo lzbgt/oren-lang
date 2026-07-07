@@ -90,27 +90,6 @@ fn _line_has_colon(s, start, end) {
     return false
 }
 
-fn _validate_strict_body_lines(pem_text, start, end, ctx) {
-    var i = start
-    while i < end {
-        var le = _find_line_end(pem_text, i)
-        if le > end { le = end }
-        if le > i {
-            if _line_has_colon(pem_text, i, le) == true {
-                return oren_err(4, ctx + ": headers are not supported in v0 (line contains ':')")
-            }
-            var k = i
-            while k < le {
-                var b = oren_string_byte_at_unchecked(pem_text, k) & 255
-                if base64.b64_is_ws(b) == 1 { return oren_err(4, ctx + ": whitespace not allowed in base64") }
-                k = k + 1
-            }
-        }
-        i = _skip_line_break(pem_text, le)
-    }
-    return true
-}
-
 fn decode_blocks(pem_text) {
     if pem_text == nil { return oren_err(4, "pem.decode_blocks: pem_text is nil") }
     var n = oren_string_len(pem_text)
@@ -209,13 +188,16 @@ fn decode_blocks_strict(pem_text) {
                 }
 
                 var le = _find_line_end(pem_text, i)
+                if le > i {
+                    if _line_has_colon(pem_text, i, le) == true {
+                        return oren_err(4, "pem.decode_blocks_strict: headers are not supported in v0 (line contains ':')")
+                    }
+                }
                 i = _skip_line_break(pem_text, le)
             }
 
             if found_end != true { return oren_err(4, "pem.decode_blocks_strict: missing END for type " + block_type) }
 
-            var body_ok = _validate_strict_body_lines(pem_text, body_start, body_end, "pem.decode_blocks_strict")
-            if oren_is_err(body_ok) { return body_ok }
             var decoded = base64.decode_bytes_strict_lines_range(pem_text, body_start, body_end - body_start)
             if oren_is_err(decoded) { return decoded }
             oren_list_push(out, {"type": block_type, "bytes": decoded})

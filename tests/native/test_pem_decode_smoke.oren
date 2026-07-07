@@ -38,5 +38,7 @@ fn main() {
     var wrapped_strict = pem.decode_blocks_strict(wrapped)
     _expect(!oren_is_err(wrapped_strict), 27)
     _expect(oren_buf_len(wrapped_strict[0]["bytes"]) == 4, 28)
+    var strict_header = pem.decode_blocks_strict("-----BEGIN TEST-----\nProc-Type: 4,ENCRYPTED\nAQIDBA==\n-----END TEST-----\n")
+    _expect(oren_is_err(strict_header), 29)
     exit(0)
 }

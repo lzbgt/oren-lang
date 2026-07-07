@@ -431,11 +431,14 @@ pem_impl="$(sed -n '/fn decode_blocks(pem_text)/,/^}/p' lib/std/crypto/pem.oren)
 pem_strict_impl="$(sed -n '/fn decode_blocks_strict(pem_text)/,/^}/p' lib/std/crypto/pem.oren)"
 if ! grep -Fq 'base64.decode_bytes_range(pem_text, body_start, body_end - body_start)' <<<"$pem_impl" ||
   ! grep -Fq 'base64.decode_bytes_strict_lines_range(pem_text, body_start, body_end - body_start)' <<<"$pem_strict_impl" ||
+  ! grep -Fq 'headers are not supported in v0' <<<"$pem_strict_impl" ||
   grep -Fq 'var b64_str = oren_string_slice(pem_text, body_start, body_end)' lib/std/crypto/pem.oren ||
   grep -Fq 'fn _strict_body_string' lib/std/crypto/pem.oren ||
+  grep -Fq 'fn _validate_strict_body_lines' lib/std/crypto/pem.oren ||
   grep -Fq 'ptr_set_byte(iadd(outp, oi)' lib/std/crypto/pem.oren ||
   ! grep -Fq 'parse_bytes_strict_lines_range newline span' tests/modules/test_base64.oren ||
-  ! grep -Fq 'var wrapped = "prefix' tests/native/test_pem_decode_smoke.oren; then
+  ! grep -Fq 'var wrapped = "prefix' tests/native/test_pem_decode_smoke.oren ||
+  ! grep -Fq 'Proc-Type: 4,ENCRYPTED' tests/native/test_pem_decode_smoke.oren; then
   echo "ERROR: PEM body decode must use Base64 range decoders directly, not slice or compact body text into temporary strings" >&2
   exit 1
 fi

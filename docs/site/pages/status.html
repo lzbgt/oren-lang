@@ -2626,8 +2626,9 @@
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
 <p>				  Base64/Base64URL encode reads inputs through shared byte views after one length</p>
 <p>				  check, tolerant Base64 decode derives clean length plus trailing padding from one</p>
-<p>				  metadata pass, Base64 range decoders let PEM decode body spans without slicing or</p>
-<p>				  compacting temporary strings, and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
+<p>				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,</p>
+<p>				  compacting temporary strings, or doing a separate strict-body validation pass,</p>
+<p>				  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
 <p>	  directly from shared byte views, OGE0 event headers and little-endian</p>
 <p>	  payload fields read through shared byte-view readers, UI command validation</p>
 <p>	  reads geometry/text-position/image-rect payload fields through shared</p>
@@ -2724,7 +2725,7 @@
 <p>				  intermediate Oren list, tolerant Base64 decode now computes whitespace-stripped length</p>
 <p>				  plus trailing padding in one pass, and their decode paths reject malformed padding,</p>
 <p>			  third-character padding without fourth-character padding, and nonzero</p>
-<p>					  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes; strict Base64 decode now sizes exactly and validates inline instead of pre-scanning then delegating to the whitespace-tolerant path, and PEM decoding now feeds Base64 directly from the original body span, with a line-strict range path for multiline PEM bodies. NET cleanup now covers native and AVM session</p>
+<p>					  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes; strict Base64 decode now sizes exactly and validates inline instead of pre-scanning then delegating to the whitespace-tolerant path, and PEM decoding now feeds Base64 directly from the original body span, with a line-strict range path for multiline PEM bodies and unsupported-header rejection folded into the existing END-line scan. NET cleanup now covers native and AVM session</p>
 <p>				  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>
 <p>			  <code>.write_from(...)</code>, <code>.send_to(...)</code>, <code>.recv_from_into(...)</code>,</p>
 <p>			  TLS certificate/ALPN methods, and <code>.close()</code>, native WebSocket records</p>
