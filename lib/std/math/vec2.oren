@@ -85,6 +85,16 @@ fn cbrt(x: f64, y: f64) {
     return [math.cbrt(x), math.cbrt(y)]
 }
 
+fn powi(x: f64, y: f64, nx, ny) {
+    var ok = _finite2(x, y, "vec2.powi")
+    if oren_is_err(ok) { return ok }
+    return [math.powi(x, nx), math.powi(y, ny)]
+}
+
+fn pow2i(nx, ny) {
+    return [math.pow2i(nx), math.pow2i(ny)]
+}
+
 fn pow(x: f64, y: f64, ex: f64, ey: f64) {
     var ok = _finite4(x, y, ex, ey, "vec2.pow")
     if oren_is_err(ok) { return ok }
