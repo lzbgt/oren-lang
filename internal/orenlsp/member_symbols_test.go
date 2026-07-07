@@ -898,6 +898,81 @@ func TestServerNavigationUsesIndexedMapValueFieldChains(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesReturnedMapValueFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"fn identity_map(items) { return items }",
+		"fn identity_map_bad(items) { return items }",
+		"fn main() {",
+		"  var by = {\"home\": Outer(Inner(Leaf(1, 2))), \"away\": Outer(Inner(Leaf(3, 4)))}",
+		"  var mixed = {\"home\": Outer(Inner(Leaf(5, 6))), \"bad\": Outer(Other(7))}",
+		"  var returned = identity_map(by)",
+		"  var returned_mixed = identity_map_bad(mixed)",
+		"  var selected = returned[\"home\"]",
+		"  var c0 = returned[\"away\"].inner.leaf.",
+		"  var d0 = selected.inner.leaf.x",
+		"  return returned_mixed[\"bad\"].inner.leaf.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-returned-map-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      825,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 12, "character": len([]rune(lines[12]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      826,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 13, "character": strings.LastIndex(lines[13], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      827,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 14, "character": strings.LastIndex(lines[14], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 825)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("returned map value field-chain completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 826)["result"].([]any), uri, 0, 14, 15)
+	defs := messageByID(t, msgs, 827)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed returned map value field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestInferFunctionReturnTypeUsesForInElements(t *testing.T) {
 	text := strings.Join([]string{
 		"struct Point { x, y }",
@@ -916,6 +991,30 @@ func TestInferFunctionReturnTypeUsesForInElements(t *testing.T) {
 	}
 	if got := inferExpressionType(parseMemberReceiverExpression("picked"), env, []map[string]string{{"picked": env.Functions["first"]}}); got != "Point" {
 		t.Fatalf("picked inferred type=%q want Point", got)
+	}
+}
+
+func TestInferFunctionReturnMapValueFieldTypesUsesParams(t *testing.T) {
+	text := strings.Join([]string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"fn identity_map(items) { return items }",
+		"var by = {\"home\": Outer(Inner(Leaf(1, 2))), \"away\": Outer(Inner(Leaf(3, 4)))}",
+		"var returned = identity_map(by)",
+		"",
+	}, "\n")
+	_, env := typedMemberAnalysisEnv(text, "file:///infer-returned-map-values.oren", nil, nil)
+	if got := env.Params["identity_map"]["items{}.inner.leaf"]; got != "Leaf" {
+		t.Fatalf("identity_map param map-value leaf=%q want Leaf; params=%#v", got, env.Params["identity_map"])
+	}
+	if got := env.FunctionMapValueFields["identity_map"]["inner.leaf"]; got != "Leaf" {
+		t.Fatalf("identity_map returned map-value leaf=%q want Leaf; fields=%#v", got, env.FunctionMapValueFields["identity_map"])
+	}
+	stack := []map[string]string{{"returned": env.Functions["identity_map"]}}
+	setInferredMapValueFieldTypes("returned", env.FunctionMapValueFields["identity_map"], stack[0])
+	if got := inferExpressionType(parseMemberReceiverExpression("returned[\"home\"].inner.leaf"), env, stack); got != "Leaf" {
+		t.Fatalf("returned map nested value type=%q want Leaf", got)
 	}
 }
 

@@ -74,6 +74,30 @@ func collectFunctionReturnElementFieldTypes(program *ast.Program, prefix string,
 	return out
 }
 
+func collectFunctionReturnMapValueFieldTypes(program *ast.Program, prefix string, env memberTypeEnv) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if program == nil {
+		return out
+	}
+	env.Prefix = prefix
+	if env.FunctionMapValueFields == nil {
+		env.FunctionMapValueFields = map[string]map[string]string{}
+	}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn == nil || fn.Name == "" {
+			continue
+		}
+		fields := inferFunctionReturnMapValueFieldTypes(fn, env)
+		if len(fields) != 0 {
+			key := prefix + fn.Name
+			out[key] = fields
+			env.FunctionMapValueFields[key] = fields
+		}
+	}
+	return out
+}
+
 func collectFunctionParamTypes(program *ast.Program, env memberTypeEnv, functions map[string]*ast.FunctionLiteral) map[string]map[string]string {
 	out := map[string]map[string]string{}
 	if program == nil {
@@ -136,6 +160,12 @@ func inferFunctionReturnElementFieldTypes(fn *ast.FunctionLiteral, env memberTyp
 	var stack []map[string]string
 	stack = append(stack, inferredParamFrame(fn, env))
 	return inferBlockReturnElementFieldTypes(fn.Body, env, &stack)
+}
+
+func inferFunctionReturnMapValueFieldTypes(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
+	var stack []map[string]string
+	stack = append(stack, inferredParamFrame(fn, env))
+	return inferBlockReturnMapValueFieldTypes(fn.Body, env, &stack)
 }
 
 func inferBlockReturnType(block *ast.BlockStatement, env memberTypeEnv, stack *[]map[string]string) string {
@@ -582,11 +612,13 @@ func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, function
 			out[fnName][param.Value] = typeName
 			mergeCallParamFieldTypes(fnName, param.Value, typeName, inferExpressionFieldTypes(arg, env, stack), env, out, conflicts)
 			mergeCallParamElementFieldTypes(fnName, param.Value, typeName, inferIterableElementFieldTypes(arg, env, stack), out, conflicts)
+			mergeCallParamMapValueFieldTypes(fnName, param.Value, typeName, inferMapValueFieldTypes(arg, env, stack), out, conflicts)
 			continue
 		}
 		delete(out[fnName], param.Value)
 		deleteCallParamFieldTypes(param.Value, out[fnName])
 		deleteCallParamElementFieldTypes(param.Value, out[fnName])
+		deleteCallParamMapValueFieldTypes(param.Value, out[fnName])
 		conflicts[paramKey] = true
 	}
 }
@@ -658,6 +690,51 @@ func mergeCallParamElementFieldTypes(fnName, paramName, typeName string, fields 
 	}
 }
 
+func mergeCallParamMapValueFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredMapPrefix) {
+		return
+	}
+	if out[fnName] == nil {
+		out[fnName] = map[string]string{}
+	}
+	dropMissingCallParamMapValueFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
+	for field, typeName := range fields {
+		if field == "" || typeName == "" {
+			continue
+		}
+		paramField := inferredMapValueFieldKey(paramName, field)
+		conflictKey := fnName + "\x00" + paramField
+		if conflicts[conflictKey] {
+			continue
+		}
+		existing := out[fnName][paramField]
+		if existing == "" || existing == typeName {
+			out[fnName][paramField] = typeName
+			continue
+		}
+		delete(out[fnName], paramField)
+		conflicts[conflictKey] = true
+	}
+}
+
+func dropMissingCallParamMapValueFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "{}."
+	for key := range params {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		field := strings.TrimPrefix(key, prefix)
+		if field == "" || fields[field] != "" {
+			continue
+		}
+		delete(params, key)
+		conflicts[fnName+"\x00"+key] = true
+	}
+}
+
 func dropMissingCallParamElementFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
 	if fnName == "" || paramName == "" || len(params) == 0 {
 		return
@@ -711,6 +788,18 @@ func deleteCallParamElementFieldTypes(paramName string, params map[string]string
 		return
 	}
 	prefix := paramName + "[]."
+	for key := range params {
+		if strings.HasPrefix(key, prefix) {
+			delete(params, key)
+		}
+	}
+}
+
+func deleteCallParamMapValueFieldTypes(paramName string, params map[string]string) {
+	if paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "{}."
 	for key := range params {
 		if strings.HasPrefix(key, prefix) {
 			delete(params, key)

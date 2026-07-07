@@ -21,12 +21,13 @@ type typeInfo struct {
 }
 
 type memberTypeEnv struct {
-	Types                 map[string]typeInfo
-	Functions             map[string]string
-	FunctionFields        map[string]map[string]string
-	FunctionElementFields map[string]map[string]string
-	Params                map[string]map[string]string
-	Prefix                string
+	Types                  map[string]typeInfo
+	Functions              map[string]string
+	FunctionFields         map[string]map[string]string
+	FunctionElementFields  map[string]map[string]string
+	FunctionMapValueFields map[string]map[string]string
+	Params                 map[string]map[string]string
+	Prefix                 string
 }
 
 func typedMemberSymbolAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) (resolvedSymbol, bool) {
@@ -184,9 +185,10 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		return nil, memberTypeEnv{}
 	}
 	env := memberTypeEnv{
-		Types:                 collectTypeInfos(program, uri, ""),
-		FunctionFields:        map[string]map[string]string{},
-		FunctionElementFields: map[string]map[string]string{},
+		Types:                  collectTypeInfos(program, uri, ""),
+		FunctionFields:         map[string]map[string]string{},
+		FunctionElementFields:  map[string]map[string]string{},
+		FunctionMapValueFields: map[string]map[string]string{},
 	}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
@@ -237,6 +239,21 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		importEnv.Prefix = alias + "."
 		for key, fields := range collectFunctionReturnElementFieldTypes(importProgram, alias+".", importEnv) {
 			env.FunctionElementFields[key] = fields
+		}
+	}
+	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, "", env) {
+		env.FunctionMapValueFields[key] = fields
+	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		importEnv := env
+		importEnv.Prefix = alias + "."
+		for key, fields := range collectFunctionReturnMapValueFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionMapValueFields[key] = fields
 		}
 	}
 	functions := collectNamedFunctionLiterals(program, "")
@@ -292,6 +309,21 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		importEnv.Prefix = alias + "."
 		for key, fields := range collectFunctionReturnElementFieldTypes(importProgram, alias+".", importEnv) {
 			env.FunctionElementFields[key] = fields
+		}
+	}
+	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, "", env) {
+		env.FunctionMapValueFields[key] = fields
+	}
+	for _, doc := range importedDocs {
+		alias := aliasByURI[doc.URI]
+		if alias == "" {
+			continue
+		}
+		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
+		importEnv := env
+		importEnv.Prefix = alias + "."
+		for key, fields := range collectFunctionReturnMapValueFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionMapValueFields[key] = fields
 		}
 	}
 	return program, env
@@ -1190,6 +1222,8 @@ func inferMapValueFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map
 	switch expr := expr.(type) {
 	case *ast.HashLiteral:
 		return inferHashValueFieldTypes(expr, env, stack)
+	case *ast.CallExpression:
+		return functionMapValueFieldTypesForCall(expr, env)
 	case *ast.Identifier, *ast.MemberExpression:
 		if path := memberExpressionPath(expr); path != "" {
 			return inferredMapValueFieldTypes(path, stack)
@@ -1351,6 +1385,23 @@ func functionElementFieldTypesForCall(call *ast.CallExpression, env memberTypeEn
 	}
 	if env.Prefix != "" {
 		return env.FunctionElementFields[env.Prefix+typeKey]
+	}
+	return nil
+}
+
+func functionMapValueFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
+	if call == nil || len(env.FunctionMapValueFields) == 0 {
+		return nil
+	}
+	typeKey := constructorTypeKey(call.Function)
+	if typeKey == "" {
+		return nil
+	}
+	if fields := env.FunctionMapValueFields[typeKey]; len(fields) != 0 {
+		return fields
+	}
+	if env.Prefix != "" {
+		return env.FunctionMapValueFields[env.Prefix+typeKey]
 	}
 	return nil
 }
