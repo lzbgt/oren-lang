@@ -104,6 +104,10 @@ fn main() {
     if oren_is_err(sha1_bad) != true {
         fail("sha1_bytes bad input should return err")
     }
+    var sha1_bad_list = sha1.sha1_bytes([0, 256])
+    if oren_is_err(sha1_bad_list) != true {
+        fail("sha1_bytes bad list should return err")
+    }
     var sha1_bad_string = sha1.sha1_string(123)
     if oren_is_err(sha1_bad_string) != true {
         fail("sha1_string bad input should return err")

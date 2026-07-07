@@ -23,16 +23,6 @@ fn _input_view_or_err(input_bytes, ctx) {
     if oren_is_err(v) {
         return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
     }
-    var n = bytesm.view_len(v)
-    if oren_is_u8_buf(input_bytes) == true { return v }
-    var i = 0
-    while i < n {
-        var b = bytesm.view_get_u8_unchecked(v, i)
-        if oren_is_err(b) {
-            return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
-        }
-        i = i + 1
-    }
     return v
 }
 
@@ -78,10 +68,18 @@ fn _padded_byte_at(input_view, orig_len, bit_len, pos) {
 }
 
 fn _u32_be_at(input_view, orig_len, bit_len, pos) {
-    var b0 = _padded_byte_at(input_view, orig_len, bit_len, pos + 0) & 255
-    var b1 = _padded_byte_at(input_view, orig_len, bit_len, pos + 1) & 255
-    var b2 = _padded_byte_at(input_view, orig_len, bit_len, pos + 2) & 255
-    var b3 = _padded_byte_at(input_view, orig_len, bit_len, pos + 3) & 255
+    var b0 = _padded_byte_at(input_view, orig_len, bit_len, pos + 0)
+    if oren_is_err(b0) { return b0 }
+    var b1 = _padded_byte_at(input_view, orig_len, bit_len, pos + 1)
+    if oren_is_err(b1) { return b1 }
+    var b2 = _padded_byte_at(input_view, orig_len, bit_len, pos + 2)
+    if oren_is_err(b2) { return b2 }
+    var b3 = _padded_byte_at(input_view, orig_len, bit_len, pos + 3)
+    if oren_is_err(b3) { return b3 }
+    b0 = b0 & 255
+    b1 = b1 & 255
+    b2 = b2 & 255
+    b3 = b3 & 255
     return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 }
 
@@ -155,7 +153,9 @@ fn sha256_bytes(input_bytes) {
         var w = list.int_new(64)
         var t = 0
         while t < 16 {
-            list.int_push(w, _u32_be_at(input_view, orig_len, bit_len, off + t * 4))
+            var word = _u32_be_at(input_view, orig_len, bit_len, off + t * 4)
+            if oren_is_err(word) { return oren_err(4, "sha256.digest: expected list<int 0..255> or u8_buf") }
+            list.int_push(w, word)
             t = t + 1
         }
         while t < 64 {

@@ -331,6 +331,20 @@ if ! grep -Fq 'var w = list.int_new(80)' lib/std/crypto/sha1.oren ||
   exit 1
 fi
 
+sha1_input_view_impl="$(sed -n '/fn _input_view_or_err/,/fn _u32/p' lib/std/crypto/sha1.oren)"
+sha256_input_view_impl="$(sed -n '/fn _input_view_or_err/,/fn _u32/p' lib/std/crypto/sha256.oren)"
+sha1_u32_be_impl="$(sed -n '/fn _u32_be_at(input_view/,/fn _padded_string_byte_at/p' lib/std/crypto/sha1.oren)"
+sha256_u32_be_impl="$(sed -n '/fn _u32_be_at(input_view/,/fn _padded_string_byte_at/p' lib/std/crypto/sha256.oren)"
+if grep -Fq 'while i < n' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
+  grep -Fq 'view_get_u8_unchecked(v, i)' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
+  ! grep -Fq 'if oren_is_err(word) { return oren_err(4, "sha1.digest: expected list<int 0..255> or u8_buf") }' lib/std/crypto/sha1.oren ||
+  ! grep -Fq 'if oren_is_err(word) { return oren_err(4, "sha256.digest: expected list<int 0..255> or u8_buf") }' lib/std/crypto/sha256.oren ||
+  ! grep -Fq 'if oren_is_err(b0) { return b0 }' <<<"$sha1_u32_be_impl$sha256_u32_be_impl" ||
+  ! grep -Fq 'sha1_bytes bad list should return err' tests/avm/test_crypto_sha256_vectors.oren; then
+  echo "ERROR: pure Oren SHA byte inputs must validate during schedule loads, not through a separate full pre-scan" >&2
+  exit 1
+fi
+
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||
   grep -Fq '_b64_char(' lib/std/encoding/base64.oren ||
