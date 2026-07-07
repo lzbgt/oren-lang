@@ -505,6 +505,23 @@ fn _strided_copy_from_string_range_direct(s, text, off, n, ctx) {
     return _u8_view_copy_from_string_range(strided_store_u8, s, s[2], text, off, n, ctx)
 }
 
+fn _strided_to_u8_buf_direct(s, ctx) {
+    if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }
+    if oren_is_u8_buf(s[0]) == true {
+        var out: []u8 = raw.u8_new_uninit(s[2])
+        if oren_is_err(out) { return out }
+        var src = oren_buf_data_ptr_unchecked(s[0])
+        var dst = oren_buf_data_ptr_unchecked(out)
+        var i = 0
+        while i < s[2] {
+            ptr_set_byte(dst + i, ptr_get_byte(src + s[1] + i * s[3]) & 255)
+            i = i + 1
+        }
+        return out
+    }
+    return _checked_u8_view_to_u8_buf(strided_load_u8, _strided_is_list, "strided", s, ctx)
+}
+
 fn _strided_load_i32_unchecked(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
 fn strided_load_i32(s, idx) { return _checked_view_load(_strided_load_i32_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_i32") }
 fn _strided_store_i32_unchecked(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
@@ -519,10 +536,14 @@ fn _strided_load_u8_unchecked(s, idx) { return _view_load_with(_strided_is_list,
 fn strided_load_u8(s, idx) { return _checked_view_load(_strided_load_u8_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_u8") }
 fn _strided_store_u8_unchecked(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_u8, s, idx, v, "strided_store_u8") }
 fn strided_store_u8(s, idx, v) { return _checked_view_store(_strided_store_u8_unchecked, _validate_u8_or_err, _strided_is_list, "strided", s, idx, v, "buffer.strided_store_u8") }
-fn strided_to_bytes(s) { return _checked_u8_view_to_bytes(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_to_bytes") }
+fn strided_to_bytes(s) { return _strided_to_u8_buf_direct(s, "buffer.strided_to_bytes") }
 fn strided_unpack_u8(s) { return _checked_u8_view_unpack(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_unpack_u8") }
-fn strided_to_u8_buf(s) { return _checked_u8_view_to_u8_buf(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_to_u8_buf") }
-fn strided_to_string(s) { return _checked_u8_view_to_string(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_to_string") }
+fn strided_to_u8_buf(s) { return _strided_to_u8_buf_direct(s, "buffer.strided_to_u8_buf") }
+fn strided_to_string(s) {
+    var bs = _strided_to_u8_buf_direct(s, "buffer.strided_to_string")
+    if oren_is_err(bs) { return bs }
+    return bytesm.to_string(bs)
+}
 fn strided_copy_from_bytes(s, bytes) {
     var ctx = "buffer.strided_copy_from_bytes"
     if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }

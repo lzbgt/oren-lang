@@ -2701,7 +2701,8 @@
 <p>  compatibility stores for non-optimized carriers.</p>
 <p>  Strided u8 view copies from byte carriers, <code>u8_buf</code>, and strings validate the</p>
 <p>  source span once, then write directly into strided <code>u8_buf</code> storage before</p>
-<p>  falling back to checked per-element view stores.</p>
+<p>  falling back to checked per-element view stores; strided <code>u8_buf</code> exports now</p>
+<p>  gather directly into exact-size <code>u8_buf</code> output before string conversion.</p>
 <p>  Contiguous u8 slice and dense u8 matrix copies from <code>u8_buf</code>, string,</p>
 <p>  flat-list, or row-list sources now use shared byte-span copy/direct byte-write</p>
 <p>  paths before falling back to checked per-element view stores.</p>
