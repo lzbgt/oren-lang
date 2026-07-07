@@ -2593,6 +2593,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   Raw `u8_copy_from_string*` validates the destination and source span once,
   then writes string bytes directly into `u8_buf` storage before falling back to
   compatibility stores for non-optimized carriers.
+  Strided u8 view copies from byte carriers, `u8_buf`, and strings validate the
+  source span once, then write directly into strided `u8_buf` storage before
+  falling back to checked per-element view stores.
   Contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string,
   flat-list, or row-list sources now use shared byte-span copy/direct byte-write
   paths before falling back to checked per-element view stores.

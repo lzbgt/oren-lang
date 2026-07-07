@@ -669,10 +669,15 @@ fi
 buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
 if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_unchecked(bv, off + i) & 255)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], raw._load_u8_direct(src, i) & 255)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'return _u8_view_copy_from_u8_buf(slice_store_u8, s, s[2], src, ctx)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'return _u8_view_copy_from_string_range(slice_store_u8, s, s[2], text, off, n, ctx)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'return _u8_view_copy_from_u8_buf(strided_store_u8, s, s[2], src, ctx)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'return _u8_view_copy_from_string_range(strided_store_u8, s, s[2], text, off, n, ctx)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct' lib/std/buffer/view.oren; then
-  echo "ERROR: std:buffer contiguous u8 slice copies from u8_buf/string sources must use direct byte-span writes before falling back to checked per-element view stores" >&2
+  echo "ERROR: std:buffer contiguous/strided u8 copies from byte/string sources must use direct byte writes before falling back to checked per-element view stores" >&2
   exit 1
 fi
 

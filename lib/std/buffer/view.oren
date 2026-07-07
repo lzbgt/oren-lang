@@ -446,6 +446,65 @@ fn _slice_copy_from_string_range_direct(s, text, off, n, ctx) {
     return _u8_view_copy_from_string_range(slice_store_u8, s, s[2], text, off, n, ctx)
 }
 
+fn _strided_copy_from_bytes_direct(s, bytes, off, n, ctx) {
+    if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }
+    var bv = bytesm.view(bytes, ctx)
+    if oren_is_err(bv) { return bv }
+    var nb = bytesm.view_len(bv)
+    if off < 0 || n < 0 || off + n > nb { return oren_err(4, ctx + ": slice out of bounds") }
+    if n != s[2] { return _err_invalid(ctx + ": length mismatch") }
+    if oren_is_u8_buf(s[0]) == true {
+        var data = oren_buf_data_ptr_unchecked(s[0])
+        var i = 0
+        while i < n {
+            ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_unchecked(bv, off + i) & 255)
+            i = i + 1
+        }
+        return s[0]
+    }
+    return _u8_view_copy_from_bytes_slice(strided_store_u8, s, s[2], bytes, off, n, ctx)
+}
+
+fn _strided_copy_from_u8_buf_direct(s, src, ctx) {
+    if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }
+    var ns = oren_buf_len(src)
+    if ns == nil || oren_is_err(ns) { return _err_invalid(ctx + ": src must be []u8") }
+    if ns != s[2] { return _err_invalid(ctx + ": length mismatch") }
+    if oren_is_u8_buf(s[0]) == true && oren_is_u8_buf(src) == true {
+        var data = oren_buf_data_ptr_unchecked(s[0])
+        var i = 0
+        while i < ns {
+            ptr_set_byte(data + s[1] + i * s[3], raw._load_u8_direct(src, i) & 255)
+            i = i + 1
+        }
+        return s[0]
+    }
+    return _u8_view_copy_from_u8_buf(strided_store_u8, s, s[2], src, ctx)
+}
+
+fn _strided_copy_from_string_range_direct(s, text, off, n, ctx) {
+    if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }
+    if oren_type_tag(text) != 4 { return oren_err(4, ctx + ": s must be string") }
+    var ok_off = _check_nonneg_int(off, ctx, "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, ctx, "len")
+    if oren_is_err(ok_n) { return ok_n }
+    if n != s[2] { return _err_invalid(ctx + ": length mismatch") }
+    var text_len = oren_string_len(text)
+    if oren_is_err(text_len) { return text_len }
+    if off + n > text_len { return oren_err(4, ctx + ": slice out of bounds") }
+    if oren_is_u8_buf(s[0]) == true {
+        var data = oren_buf_data_ptr_unchecked(s[0])
+        var i = 0
+        while i < n {
+            ptr_set_byte(data + s[1] + i * s[3], oren_string_byte_at_unchecked(text, off + i) & 255)
+            i = i + 1
+        }
+        return s[0]
+    }
+    return _u8_view_copy_from_string_range(strided_store_u8, s, s[2], text, off, n, ctx)
+}
+
 fn _strided_load_i32_unchecked(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
 fn strided_load_i32(s, idx) { return _checked_view_load(_strided_load_i32_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_i32") }
 fn _strided_store_i32_unchecked(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
@@ -464,11 +523,31 @@ fn strided_to_bytes(s) { return _checked_u8_view_to_bytes(strided_load_u8, _stri
 fn strided_unpack_u8(s) { return _checked_u8_view_unpack(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_unpack_u8") }
 fn strided_to_u8_buf(s) { return _checked_u8_view_to_u8_buf(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_to_u8_buf") }
 fn strided_to_string(s) { return _checked_u8_view_to_string(strided_load_u8, _strided_is_list, "strided", s, "buffer.strided_to_string") }
-fn strided_copy_from_bytes(s, bytes) { return _checked_u8_view_copy_from_bytes(strided_store_u8, _strided_is_list, "strided", s, bytes, "buffer.strided_copy_from_bytes") }
-fn strided_copy_from_bytes_slice(s, bytes, off, n) { return _checked_u8_view_copy_from_bytes_slice(strided_store_u8, _strided_is_list, "strided", s, bytes, off, n, "buffer.strided_copy_from_bytes_slice") }
-fn strided_copy_from_u8_buf(s, src) { return _checked_u8_view_copy_from_u8_buf(strided_store_u8, _strided_is_list, "strided", s, src, "buffer.strided_copy_from_u8_buf") }
-fn strided_copy_from_string(s, text) { return _checked_u8_view_copy_from_string(strided_store_u8, _strided_is_list, "strided", s, text, "buffer.strided_copy_from_string") }
-fn strided_copy_from_string_slice(s, text, off, n) { return _checked_u8_view_copy_from_string_slice(strided_store_u8, _strided_is_list, "strided", s, text, off, n, "buffer.strided_copy_from_string_slice") }
+fn strided_copy_from_bytes(s, bytes) {
+    var ctx = "buffer.strided_copy_from_bytes"
+    if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }
+    var n = bytesm.len(bytes)
+    if oren_is_err(n) { return n }
+    return _strided_copy_from_bytes_direct(s, bytes, 0, n, ctx)
+}
+fn strided_copy_from_bytes_slice(s, bytes, off, n) {
+    var ctx = "buffer.strided_copy_from_bytes_slice"
+    if !_strided_is_list(s) { return _err_invalid(ctx + ": expects strided") }
+    if !_is_int(off) { return oren_err(4, ctx + ": off must be int") }
+    if !_is_int(n) { return oren_err(4, ctx + ": n must be int") }
+    return _strided_copy_from_bytes_direct(s, bytes, off, n, ctx)
+}
+fn strided_copy_from_u8_buf(s, src) { return _strided_copy_from_u8_buf_direct(s, src, "buffer.strided_copy_from_u8_buf") }
+fn strided_copy_from_string(s, text) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.strided_copy_from_string: expects strided") }
+    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.strided_copy_from_string: s must be string") }
+    var n = oren_string_len(text)
+    if oren_is_err(n) { return n }
+    return _strided_copy_from_string_range_direct(s, text, 0, n, "buffer.strided_copy_from_string")
+}
+fn strided_copy_from_string_slice(s, text, off, n) {
+    return _strided_copy_from_string_range_direct(s, text, off, n, "buffer.strided_copy_from_string_slice")
+}
 
 fn _strided_load_f32_unchecked(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_f32, s, idx, "strided_load_f32") }
 fn strided_load_f32(s, idx) { return _checked_view_load(_strided_load_f32_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_f32") }
