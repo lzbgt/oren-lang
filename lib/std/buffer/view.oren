@@ -423,6 +423,29 @@ fn _slice_copy_from_u8_buf_direct(s, src, ctx) {
     return _u8_view_copy_from_u8_buf(slice_store_u8, s, s[2], src, ctx)
 }
 
+fn _slice_copy_from_string_range_direct(s, text, off, n, ctx) {
+    if !_slice_is_list(s) { return _err_invalid(ctx + ": expects slice") }
+    if oren_type_tag(text) != 4 { return oren_err(4, ctx + ": s must be string") }
+    var ok_off = _check_nonneg_int(off, ctx, "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, ctx, "len")
+    if oren_is_err(ok_n) { return ok_n }
+    if n != s[2] { return _err_invalid(ctx + ": length mismatch") }
+    var text_len = oren_string_len(text)
+    if oren_is_err(text_len) { return text_len }
+    if off + n > text_len { return oren_err(4, ctx + ": slice out of bounds") }
+    if oren_is_u8_buf(s[0]) == true {
+        var data = oren_buf_data_ptr_unchecked(s[0])
+        var i = 0
+        while i < n {
+            ptr_set_byte(data + s[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)
+            i = i + 1
+        }
+        return s[0]
+    }
+    return _u8_view_copy_from_string_range(slice_store_u8, s, s[2], text, off, n, ctx)
+}
+
 fn _strided_load_i32_unchecked(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
 fn strided_load_i32(s, idx) { return _checked_view_load(_strided_load_i32_unchecked, _strided_is_list, "strided", s, idx, "buffer.strided_load_i32") }
 fn _strided_store_i32_unchecked(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
@@ -525,8 +548,14 @@ fn slice_copy_from_bytes_slice(s, bytes, off, n) {
     return _slice_copy_from_bytes_direct(s, bytes, off, n, ctx)
 }
 fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct(s, src, "buffer.slice_copy_from_u8_buf") }
-fn slice_copy_from_string(s, text) { return _checked_u8_view_copy_from_string(slice_store_u8, _slice_is_list, "slice", s, text, "buffer.slice_copy_from_string") }
-fn slice_copy_from_string_slice(s, text, off, n) { return _checked_u8_view_copy_from_string_slice(slice_store_u8, _slice_is_list, "slice", s, text, off, n, "buffer.slice_copy_from_string_slice") }
+fn slice_copy_from_string(s, text) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.slice_copy_from_string: expects slice") }
+    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.slice_copy_from_string: s must be string") }
+    var n = oren_string_len(text)
+    if oren_is_err(n) { return n }
+    return _slice_copy_from_string_range_direct(s, text, 0, n, "buffer.slice_copy_from_string")
+}
+fn slice_copy_from_string_slice(s, text, off, n) { return _slice_copy_from_string_range_direct(s, text, off, n, "buffer.slice_copy_from_string_slice") }
 
 fn _slice_load_f32_unchecked(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_f32, s, idx, "slice_load_f32") }
 fn slice_load_f32(s, idx) { return _checked_view_load(_slice_load_f32_unchecked, _slice_is_list, "slice", s, idx, "buffer.slice_load_f32") }

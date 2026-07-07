@@ -668,9 +668,11 @@ fi
 
 buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
 if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + s[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'return _u8_view_copy_from_u8_buf(slice_store_u8, s, s[2], src, ctx)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'return _u8_view_copy_from_string_range(slice_store_u8, s, s[2], text, off, n, ctx)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct' lib/std/buffer/view.oren; then
-  echo "ERROR: std:buffer contiguous u8 slice copies from u8_buf must use direct byte-span copy before falling back to checked per-element view stores" >&2
+  echo "ERROR: std:buffer contiguous u8 slice copies from u8_buf/string sources must use direct byte-span writes before falling back to checked per-element view stores" >&2
   exit 1
 fi
 
@@ -678,6 +680,13 @@ buffer_u8_mat_impl="$(sed -n '/fn _u8_mat_copy_from_u8_buf/,/fn _u8_mat_copy_fro
 if ! grep -Fq 'bytesm.copy_into(m[0], m[1], src, 0, total)' <<<"$buffer_u8_mat_impl" ||
   ! grep -Fq 'var v = raw._load_u8_direct(src, r * m[3] + c)' <<<"$buffer_u8_mat_impl"; then
   echo "ERROR: std:buffer dense u8 matrix copies from u8_buf must use direct byte-span copy before falling back to checked row stores" >&2
+  exit 1
+fi
+
+buffer_u8_mat_string_impl="$(sed -n '/fn _u8_mat_copy_from_string_range/,/fn u8_mat_copy_from_bytes/p' lib/std/buffer/mat_u8.oren)"
+if ! grep -Fq 'ptr_set_byte(data + m[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_u8_mat_string_impl" ||
+  ! grep -Fq 'var rc = view.slice_store_u8(row, c, oren_string_byte_at_unchecked(text, idx) & 255)' <<<"$buffer_u8_mat_string_impl"; then
+  echo "ERROR: std:buffer dense u8 matrix copies from strings must use direct byte writes before falling back to checked row stores" >&2
   exit 1
 fi
 
