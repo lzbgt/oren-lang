@@ -2340,7 +2340,8 @@ composition events use segmented stack-first construction, encode UTF-8 directly
 into the final event buffer, and use one raw heap event fallback, not an
 Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking
 keep active pointer IDs in scalar pointer maps instead of retaining per-touch
-`NSNumber` boxes. The
+`NSNumber` boxes, and both renderers share `OrenAVMGFXInput` touch forwarding
+helpers while keeping per-view maps. The
 iOS SDK symbol verifier
 now caches `nm` output once per archive and greps files instead of SIGPIPE-prone
 `nm | grep -q` pipelines. AVM
@@ -2766,7 +2767,10 @@ Working evidence:
   view. Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
   context struct that carries view-owned caches and retained resource maps,
   reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,
-  prepared-run orchestration, and input forwarding in the view.
+  prepared-run orchestration, and input forwarding in the view. CoreGraphics
+  and Metal UIKit touch forwarding now share `OrenAVMGFXInput` scalar touch-ID
+  helpers, reducing `OrenAVMMetalView.m` to 510 lines and
+  `OrenAVMGraphicsView.m` to 1249 lines while keeping view-owned maps.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

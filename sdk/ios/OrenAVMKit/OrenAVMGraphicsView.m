@@ -1,4 +1,5 @@
 #import "OrenAVMKit.h"
+#import "OrenAVMGFXInput.h"
 
 #import <TargetConditionals.h>
 #if TARGET_OS_IPHONE
@@ -541,31 +542,22 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
 }
 
 - (BOOL)sendPointerEventWithKind:(uint8_t)kind point:(CGPoint)point pointerId:(uint32_t)pointerId error:(NSError**)error {
-    if (!self.runtime) {
-        return OrenAVMGraphicsViewAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                        @"graphics view has no AVM runtime");
-    }
-    return [self.runtime putGraphicsPointerEventWithKind:kind
-                                                       x:(int32_t)llround((double)point.x)
-                                                       y:(int32_t)llround((double)point.y)
-                                               pointerId:pointerId
-                                                   error:error];
+    return OrenAVMGFXInputSendPointerEvent(self.runtime,
+                                           kind,
+                                           point,
+                                           pointerId,
+                                           @"graphics view has no AVM runtime",
+                                           error);
 }
 
 - (BOOL)sendPointerEventsWithKind:(uint8_t)kind points:(NSArray<NSValue*>*)points pointerIDs:(NSArray<NSNumber*>*)pointerIDs error:(NSError**)error {
-    if (points.count != pointerIDs.count) {
-        return OrenAVMGraphicsViewAssignError(error, AVM_EMBED_ERR_INVALID_ARG,
-                                        @"graphics pointer batch point/id count mismatch");
-    }
-    for (NSUInteger i = 0; i < points.count; i++) {
-        if (![self sendPointerEventWithKind:kind
-                                      point:points[i].CGPointValue
-                                  pointerId:pointerIDs[i].unsignedIntValue
-                                      error:error]) {
-            return NO;
-        }
-    }
-    return YES;
+    return OrenAVMGFXInputSendPointerEvents(self.runtime,
+                                           kind,
+                                           points,
+                                           pointerIDs,
+                                           @"graphics view has no AVM runtime",
+                                           @"graphics pointer batch point/id count mismatch",
+                                           error);
 }
 
 - (BOOL)sendResizeEventWithScaleMilli:(uint32_t)scaleMilli error:(NSError**)error {
@@ -1228,54 +1220,28 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView(
     }
 }
 
-- (uint32_t)orenPointerIDForTouch:(UITouch*)touch {
-    const void* stored = NULL;
-    if (_orenTouchIDs && CFDictionaryGetValueIfPresent(_orenTouchIDs, (__bridge const void*)touch, &stored)) {
-        return (uint32_t)(uintptr_t)stored;
-    }
-    uint32_t pointerID = self.orenNextTouchID == 0 ? 1u : self.orenNextTouchID;
-    self.orenNextTouchID = pointerID + 1u;
-    if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
-    if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    if (_orenTouchIDs) {
-        CFDictionarySetValue(_orenTouchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID);
-    }
-    return pointerID;
-}
-
-- (void)orenSendTouches:(NSSet<UITouch*>*)touches kind:(uint8_t)kind releaseAfterSend:(BOOL)releaseAfterSend {
-    for (UITouch* touch in touches) {
-        CGPoint p = [touch locationInView:self];
-        uint32_t pointerID = [self orenPointerIDForTouch:touch];
-        NSError* error = nil;
-        (void)[self sendPointerEventWithKind:kind
-                                       point:p
-                                   pointerId:pointerID
-                                       error:&error];
-        if (releaseAfterSend && _orenTouchIDs) {
-            CFDictionaryRemoveValue(_orenTouchIDs, (__bridge const void*)touch);
-        }
-    }
-}
-
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:1 releaseAfterSend:NO];
+    OrenAVMGFXInputSendTouches(self.runtime, self, &_orenTouchIDs, &_orenNextTouchID,
+                               touches, 1, NO, @"graphics view has no AVM runtime");
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:2 releaseAfterSend:NO];
+    OrenAVMGFXInputSendTouches(self.runtime, self, &_orenTouchIDs, &_orenNextTouchID,
+                               touches, 2, NO, @"graphics view has no AVM runtime");
 }
 
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:3 releaseAfterSend:YES];
+    OrenAVMGFXInputSendTouches(self.runtime, self, &_orenTouchIDs, &_orenNextTouchID,
+                               touches, 3, YES, @"graphics view has no AVM runtime");
 }
 
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     (void)event;
-    [self orenSendTouches:touches kind:4 releaseAfterSend:YES];
+    OrenAVMGFXInputSendTouches(self.runtime, self, &_orenTouchIDs, &_orenNextTouchID,
+                               touches, 4, YES, @"graphics view has no AVM runtime");
 }
 
 @end

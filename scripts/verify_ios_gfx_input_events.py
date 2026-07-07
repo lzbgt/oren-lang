@@ -57,10 +57,20 @@ def main() -> int:
         fail("iOS renderer touch tracking must not retain per-touch NSNumber IDs")
     if "setObject:@(pointerID) forKey:touch" in renderer_text or "NSNumber* existing = [self.orenTouchIDs objectForKey:touch]" in renderer_text:
         fail("iOS renderer touch tracking must keep pointer IDs as raw scalars")
-    if renderer_text.count("CFDictionarySetValue(_orenTouchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID)") != 2:
-        fail("CoreGraphics and Metal touch tracking must use pointer-keyed scalar maps")
+    if "OrenAVMGFXInputPointerIDForTouch" not in input_text or "OrenAVMGFXInputSendTouches" not in input_text:
+        fail("CoreGraphics and Metal touch forwarding must share OrenAVMGFXInput helpers")
+    if "CFDictionarySetValue(*touchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID)" not in input_text:
+        fail("shared iOS touch tracking must use pointer-keyed scalar maps")
+    if "CFDictionarySetValue(_orenTouchIDs" in renderer_text or "orenPointerIDForTouch" in renderer_text:
+        fail("iOS renderer touch map mutation must stay in OrenAVMGFXInput")
+    if renderer_text.count("OrenAVMGFXInputSendPointerEvent(self.runtime,") != 2:
+        fail("CoreGraphics and Metal pointer sends must delegate to the shared helper")
+    if renderer_text.count("OrenAVMGFXInputSendPointerEvents(self.runtime,") != 2:
+        fail("CoreGraphics and Metal pointer batches must delegate to the shared helper")
+    if renderer_text.count("OrenAVMGFXInputSendTouches(self.runtime, self, &_orenTouchIDs, &_orenNextTouchID,") != 8:
+        fail("CoreGraphics and Metal touch handlers must delegate to the shared helper")
 
-    print("OK: iOS GFX input events use stack-first byte enqueue")
+    print("OK: iOS GFX input events use stack-first byte enqueue and shared scalar touch helpers")
     return 0
 
 

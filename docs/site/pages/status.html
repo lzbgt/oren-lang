@@ -2438,7 +2438,8 @@
 <p>into the final event buffer, and use one raw heap event fallback, not an</p>
 <p>Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking</p>
 <p>keep active pointer IDs in scalar pointer maps instead of retaining per-touch</p>
-<p><code>NSNumber</code> boxes. The</p>
+<p><code>NSNumber</code> boxes, and both renderers share <code>OrenAVMGFXInput</code> touch forwarding</p>
+<p>helpers while keeping per-view maps. The</p>
 <p>iOS SDK symbol verifier</p>
 <p>now caches <code>nm</code> output once per archive and greps files instead of SIGPIPE-prone</p>
 <p><code>nm | grep -q</code> pipelines. AVM</p>
@@ -2885,7 +2886,10 @@
 <p>  view. Metal OGF0 command traversal now lives in <code>OrenAVMMetalFrame</code> behind a</p>
 <p>  context struct that carries view-owned caches and retained resource maps,</p>
 <p>  reducing <code>OrenAVMMetalView.m</code> to 544 lines while keeping MTKView lifecycle,</p>
-<p>  prepared-run orchestration, and input forwarding in the view.</p>
+<p>  prepared-run orchestration, and input forwarding in the view. CoreGraphics</p>
+<p>  and Metal UIKit touch forwarding now share <code>OrenAVMGFXInput</code> scalar touch-ID</p>
+<p>  helpers, reducing <code>OrenAVMMetalView.m</code> to 510 lines and</p>
+<p>  <code>OrenAVMGraphicsView.m</code> to 1249 lines while keeping view-owned maps.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

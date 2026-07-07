@@ -1,5 +1,6 @@
-#import "OrenAVMKit.h"
+#import "OrenAVMGFXInput.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -49,6 +50,89 @@ static BOOL OrenAVMGFXInputSDKError(NSError** error, NSInteger code, NSString* m
     }
     return NO;
 }
+
+#if TARGET_OS_IPHONE
+
+BOOL OrenAVMGFXInputSendPointerEvent(OrenAVMRuntime* runtime,
+                                     uint8_t kind,
+                                     CGPoint point,
+                                     uint32_t pointerID,
+                                     NSString* missingRuntimeMessage,
+                                     NSError** error) {
+    if (!runtime) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                      missingRuntimeMessage ?: @"graphics view has no AVM runtime");
+    }
+    return [runtime putGraphicsPointerEventWithKind:kind
+                                                  x:(int32_t)llround((double)point.x)
+                                                  y:(int32_t)llround((double)point.y)
+                                          pointerId:pointerID
+                                              error:error];
+}
+
+BOOL OrenAVMGFXInputSendPointerEvents(OrenAVMRuntime* runtime,
+                                      uint8_t kind,
+                                      NSArray<NSValue*>* points,
+                                      NSArray<NSNumber*>* pointerIDs,
+                                      NSString* missingRuntimeMessage,
+                                      NSString* mismatchMessage,
+                                      NSError** error) {
+    if (points.count != pointerIDs.count) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG,
+                                      mismatchMessage ?: @"graphics pointer batch point/id count mismatch");
+    }
+    for (NSUInteger i = 0; i < points.count; i++) {
+        if (!OrenAVMGFXInputSendPointerEvent(runtime,
+                                            kind,
+                                            points[i].CGPointValue,
+                                            pointerIDs[i].unsignedIntValue,
+                                            missingRuntimeMessage,
+                                            error)) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+uint32_t OrenAVMGFXInputPointerIDForTouch(CFMutableDictionaryRef* touchIDs,
+                                          uint32_t* nextTouchID,
+                                          UITouch* touch) {
+    const void* stored = NULL;
+    if (touchIDs && *touchIDs && CFDictionaryGetValueIfPresent(*touchIDs, (__bridge const void*)touch, &stored)) {
+        return (uint32_t)(uintptr_t)stored;
+    }
+    uint32_t pointerID = (nextTouchID && *nextTouchID != 0) ? *nextTouchID : 1u;
+    if (nextTouchID) {
+        *nextTouchID = pointerID + 1u;
+        if (*nextTouchID == 0) *nextTouchID = 1u;
+    }
+    if (touchIDs && !*touchIDs) *touchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    if (touchIDs && *touchIDs) {
+        CFDictionarySetValue(*touchIDs, (__bridge const void*)touch, (const void*)(uintptr_t)pointerID);
+    }
+    return pointerID;
+}
+
+void OrenAVMGFXInputSendTouches(OrenAVMRuntime* runtime,
+                                UIView* view,
+                                CFMutableDictionaryRef* touchIDs,
+                                uint32_t* nextTouchID,
+                                NSSet<UITouch*>* touches,
+                                uint8_t kind,
+                                BOOL releaseAfterSend,
+                                NSString* missingRuntimeMessage) {
+    for (UITouch* touch in touches) {
+        CGPoint p = [touch locationInView:view];
+        uint32_t pointerID = OrenAVMGFXInputPointerIDForTouch(touchIDs, nextTouchID, touch);
+        NSError* error = nil;
+        (void)OrenAVMGFXInputSendPointerEvent(runtime, kind, p, pointerID, missingRuntimeMessage, &error);
+        if (releaseAfterSend && touchIDs && *touchIDs) {
+            CFDictionaryRemoveValue(*touchIDs, (__bridge const void*)touch);
+        }
+    }
+}
+
+#endif
 
 static BOOL OrenAVMGFXInputPutEventParts(OrenAVMRuntime* runtime,
                                          uint8_t opcode,

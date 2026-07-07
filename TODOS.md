@@ -2682,6 +2682,10 @@ design evidence lives under `project-doc/`.
   context struct that carries view-owned caches and retained resource maps,
   reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,
   prepared-run orchestration, and input forwarding in the view.
+- CoreGraphics and Metal UIKit touch forwarding now share `OrenAVMGFXInput`
+  scalar touch-ID helpers, keeping per-view `CFMutableDictionary` ownership
+  while reducing `OrenAVMMetalView.m` to 510 lines and `OrenAVMGraphicsView.m`
+  to 1249 lines.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
@@ -2808,7 +2812,9 @@ design evidence lives under `project-doc/`.
   and use one raw heap event fallback, not an Objective-C data wrapper, only
   for large payloads.
 - CoreGraphics and Metal touch tracking now store active touch pointer IDs as
-  raw scalar values instead of retaining per-touch `NSNumber` boxes.
+  raw scalar values instead of retaining per-touch `NSNumber` boxes, and both
+  renderers now share the `OrenAVMGFXInput` touch forwarding helper while
+  keeping their per-view maps.
 - Bytecode final artifact writes now report the original `u8_buf`
   `oren_write_bytes` error directly instead of unpacking the entire generated
   bytecode into a legacy `list<int>` fallback on any write failure; the
