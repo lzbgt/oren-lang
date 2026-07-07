@@ -2521,7 +2521,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 				  Base64/Base64URL encode reads inputs through shared byte views after one length
 				  check, tolerant Base64 decode derives clean length plus trailing padding from one
 				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,
-				  compacting temporary strings, or doing a separate strict-body validation pass,
+				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,
 				  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
 	  directly from shared byte views, OGE0 event headers and little-endian
 	  payload fields read through shared byte-view readers, UI command validation
@@ -2619,7 +2619,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 				  intermediate Oren list, tolerant Base64 decode now computes whitespace-stripped length
 				  plus trailing padding in one pass, and their decode paths reject malformed padding,
 			  third-character padding without fourth-character padding, and nonzero
-					  trailing pad bits before returning exact-size `u8_buf` decoded bytes; strict Base64 decode now sizes exactly and validates inline instead of pre-scanning then delegating to the whitespace-tolerant path, and PEM decoding now feeds Base64 directly from the original body span, with a line-strict range path for multiline PEM bodies and unsupported-header rejection folded into the existing END-line scan. NET cleanup now covers native and AVM session
+					  trailing pad bits before returning exact-size `u8_buf` decoded bytes; strict Base64 decode now sizes exactly and validates inline instead of pre-scanning then delegating to the whitespace-tolerant path, and PEM decoding now feeds Base64 directly from the original body span, with an allocation-free line-strict range path for multiline PEM bodies and unsupported-header rejection folded into the existing END-line scan. NET cleanup now covers native and AVM session
 				  objects: native TCP/UDP/TLS handles expose `.read_into(...)`,
 			  `.write_from(...)`, `.send_to(...)`, `.recv_from_into(...)`,
 			  TLS certificate/ALPN methods, and `.close()`, native WebSocket records

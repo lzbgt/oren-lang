@@ -402,9 +402,13 @@ if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" 
   ! grep -Fq 'v0 = _b64_val(_str_byte(s, start + si))' <<<"$strict_b64_impl" ||
   ! grep -Fq 'fn decode_bytes_strict_range(s, start, count)' <<<"$strict_b64_impl" ||
   ! grep -Fq 'fn decode_bytes_strict_lines_range(s, start, count)' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'if c0 == 10 || c0 == 13 { continue }' <<<"$strict_b64_impl" ||
+  ! grep -Fq 'v0 = _b64_val(c0)' <<<"$strict_b64_impl" ||
   ! grep -Fq 'if v0 == -2 || v1 == -2 || v2 == -2 || v3 == -2' <<<"$strict_b64_impl" ||
   ! grep -Fq 'var rc = _store_decoded_triple(out, outi, out_len, triple, count)' <<<"$strict_b64_impl" ||
   grep -Fq 'return decode_bytes(s)' <<<"$strict_b64_impl" ||
+  grep -Fq '_next_b64_line_strict_val' lib/std/encoding/base64.oren ||
+  grep -Fq 'return {"pos": p, "val": _b64_val(c)}' lib/std/encoding/base64.oren ||
   grep -Fq 'while i < n' <<<"$strict_b64_impl" ||
   ! grep -Fq 'parse_bytes_strict padded groups' tests/modules/test_base64.oren ||
   ! grep -Fq 'parse_bytes_strict rejects nonzero one-byte padding bits' tests/modules/test_base64.oren; then

@@ -523,22 +523,41 @@ fn _decode_bytes_strict_range_impl(s, start, end, ctx, allow_line_breaks) {
             v2 = _b64_val(_str_byte(s, start + si + 2))
             v3 = _b64_val(_str_byte(s, start + si + 3))
         } else {
-            var r0 = _next_b64_line_strict_val(s, end, si, ctx)
-            if oren_is_err(r0) { return r0 }
-            v0 = r0["val"]
-            si = r0["pos"]
-            var r1 = _next_b64_line_strict_val(s, end, si, ctx)
-            if oren_is_err(r1) { return r1 }
-            v1 = r1["val"]
-            si = r1["pos"]
-            var r2 = _next_b64_line_strict_val(s, end, si, ctx)
-            if oren_is_err(r2) { return r2 }
-            v2 = r2["val"]
-            si = r2["pos"]
-            var r3 = _next_b64_line_strict_val(s, end, si, ctx)
-            if oren_is_err(r3) { return r3 }
-            v3 = r3["val"]
-            si = r3["pos"]
+            while si < end {
+                var c0 = _str_byte(s, si)
+                si = si + 1
+                if c0 == 10 || c0 == 13 { continue }
+                if b64_is_ws(c0) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
+                v0 = _b64_val(c0)
+                break
+            }
+            while si < end {
+                var c1 = _str_byte(s, si)
+                si = si + 1
+                if c1 == 10 || c1 == 13 { continue }
+                if b64_is_ws(c1) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
+                v1 = _b64_val(c1)
+                break
+            }
+            while si < end {
+                var c2 = _str_byte(s, si)
+                si = si + 1
+                if c2 == 10 || c2 == 13 { continue }
+                if b64_is_ws(c2) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
+                v2 = _b64_val(c2)
+                break
+            }
+            while si < end {
+                var c3 = _str_byte(s, si)
+                si = si + 1
+                if c3 == 10 || c3 == 13 { continue }
+                if b64_is_ws(c3) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
+                v3 = _b64_val(c3)
+                break
+            }
+            if v0 == -9999 || v1 == -9999 || v2 == -9999 || v3 == -9999 {
+                return oren_err(4, ctx + ": truncated base64")
+            }
         }
         if v0 == -2 || v1 == -2 || v2 == -2 || v3 == -2 {
             return oren_err(4, ctx + ": whitespace not allowed")
@@ -591,20 +610,6 @@ fn _b64_clean_meta_lines_strict_range(s, start, end, ctx) {
         i = i + 1
     }
     return clean
-}
-
-fn _next_b64_line_strict_val(s, end, pos, ctx) {
-    var p = pos
-    while p < end {
-        var c = _str_byte(s, p)
-        p = p + 1
-        if c == 10 || c == 13 {
-            continue
-        }
-        if b64_is_ws(c) == 1 { return oren_err(4, ctx + ": whitespace not allowed") }
-        return {"pos": p, "val": _b64_val(c)}
-    }
-    return oren_err(4, ctx + ": truncated base64")
 }
 
 fn decode_bytes_strict_range(s, start, count) {
