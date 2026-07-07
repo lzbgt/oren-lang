@@ -137,6 +137,21 @@ assert_true(!oren_is_err(rc), 119, "remap_clamped ok")
 assert_close(rc[0], 200.0, 1e-12, 120, "remap_clamped x")
 assert_close(rc[1], 200.0, 1e-12, 121, "remap_clamped y")
 
+var sn = vec2.sin(0.0, math.pi() / 2.0)
+assert_true(!oren_is_err(sn), 125, "sin ok")
+assert_close(sn[0], 0.0, 1e-12, 126, "sin x")
+assert_close(sn[1], 1.0, 1e-10, 127, "sin y")
+
+var cs = vec2.cos(0.0, math.pi())
+assert_true(!oren_is_err(cs), 128, "cos ok")
+assert_close(cs[0], 1.0, 1e-12, 129, "cos x")
+assert_close(cs[1], 0.0 - 1.0, 1e-10, 130, "cos y")
+
+var tn = vec2.tan(0.0, math.pi() / 4.0)
+assert_true(!oren_is_err(tn), 131, "tan ok")
+assert_close(tn[0], 0.0, 1e-12, 132, "tan x")
+assert_close(tn[1], 1.0, 5e-10, 133, "tan y")
+
 var mn = vec2.min(3.0, 0.0 - 4.0, 2.0, 5.0)
 assert_true(!oren_is_err(mn), 50, "min ok")
 assert_close(mn[0], 2.0, 0.0, 51, "min x")
@@ -186,6 +201,8 @@ assert_true(oren_is_err(vec2.smootherstep(0.0, 1.0, 1.0, 1.0, 0.5, 1.0)), 112, "
 assert_true(oren_is_err(vec2.inverse_lerp(0.0, 1.0, 0.0, 2.0, 0.5, 1.5)), 122, "inverse_lerp range errors")
 assert_true(oren_is_err(vec2.remap(0.0, 1.0, 1.0, 2.0, 0.0, math.inf(), 1.0, 2.0, 0.5, 1.5)), 123, "remap inf errors")
 assert_true(oren_is_err(vec2.remap_clamped(0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.5, 1.0)), 124, "remap_clamped range errors")
+assert_true(oren_is_err(vec2.sin(math.inf(), 0.0)), 134, "sin inf errors")
+assert_true(oren_is_err(vec2.tan(0.0, math.nan())), 135, "tan nan errors")
 
 print("module math vec2 OK")
 exit(0)

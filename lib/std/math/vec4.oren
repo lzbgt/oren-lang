@@ -204,6 +204,24 @@ fn remap_clamped(in0, in1, out0, out1, v) {
     ]
 }
 
+fn sin(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.sin")
+    if oren_is_err(ok) { return ok }
+    return [math.sin(x), math.sin(y), math.sin(z), math.sin(w)]
+}
+
+fn cos(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.cos")
+    if oren_is_err(ok) { return ok }
+    return [math.cos(x), math.cos(y), math.cos(z), math.cos(w)]
+}
+
+fn tan(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.tan")
+    if oren_is_err(ok) { return ok }
+    return [math.tan(x), math.tan(y), math.tan(z), math.tan(w)]
+}
+
 fn min(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.min")
     if oren_is_err(ok) { return ok }

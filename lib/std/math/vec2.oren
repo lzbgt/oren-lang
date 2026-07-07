@@ -163,6 +163,24 @@ fn remap_clamped(in0_x: f64, in0_y: f64, in1_x: f64, in1_y: f64, out0_x: f64, ou
     return [math.remap_clamped(in0_x, in1_x, out0_x, out1_x, x), math.remap_clamped(in0_y, in1_y, out0_y, out1_y, y)]
 }
 
+fn sin(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.sin")
+    if oren_is_err(ok) { return ok }
+    return [math.sin(x), math.sin(y)]
+}
+
+fn cos(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.cos")
+    if oren_is_err(ok) { return ok }
+    return [math.cos(x), math.cos(y)]
+}
+
+fn tan(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.tan")
+    if oren_is_err(ok) { return ok }
+    return [math.tan(x), math.tan(y)]
+}
+
 fn min(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.min")
     if oren_is_err(ok) { return ok }

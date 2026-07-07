@@ -53,6 +53,9 @@ var rc = vec4.remap_clamped(
 )
 assert_true(!oren_is_err(rc), 70, "remap_clamped ok")
 assert_close(rc[0], 200.0, 1e-12, 71, "remap_clamped x")
+var tn = vec4.tan(0.0, math.pi() / 4.0, 0.0 - math.pi() / 4.0, 0.0)
+assert_true(!oren_is_err(tn), 72, "tan ok")
+assert_close(tn[2], 0.0 - 1.0, 5e-10, 73, "tan z")
 var mn = vec4.min(3.0, 0.0 - 4.0, 8.0, 1.0, 2.0, 5.0, 7.0, 9.0)
 assert_true(!oren_is_err(mn), 15, "min ok")
 assert_close(mn[2], 7.0, 0.0, 16, "min z")
@@ -81,6 +84,7 @@ assert_true(oren_is_err(vec4.sign(1.0, 2.0, math.nan(), 4.0)), 58, "sign nan err
 assert_true(oren_is_err(vec4.saturate(1.0, 2.0, math.nan(), 4.0)), 63, "saturate nan errors")
 assert_true(oren_is_err(vec4.smootherstep(0.0, 0.0, 1.0, 0.0, 1.0, 2.0, 1.0, 8.0, 0.5, 1.0, 1.0, 4.0)), 66, "smootherstep edge errors")
 assert_true(oren_is_err(vec4.inverse_lerp(0.0, 1.0, 2.0, 3.0, 0.0, 2.0, 3.0, 4.0, 0.5, 1.5, 2.5, 3.5)), 69, "inverse_lerp range errors")
+assert_true(oren_is_err(vec4.tan(0.0, 1.0, math.nan(), 2.0)), 74, "tan nan errors")
 
 print("avm std math vec4 OK")
 exit(0)

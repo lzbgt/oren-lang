@@ -132,6 +132,24 @@ assert_close(rc[0], 200.0, 1e-12, 134, "remap_clamped x")
 assert_close(rc[1], 200.0, 1e-12, 135, "remap_clamped y")
 assert_close(rc[2], 500.0, 1e-12, 136, "remap_clamped z")
 
+var sn = vec3.sin(0.0, math.pi() / 2.0, 0.0 - math.pi() / 2.0)
+assert_true(!oren_is_err(sn), 139, "sin ok")
+assert_close(sn[0], 0.0, 1e-12, 140, "sin x")
+assert_close(sn[1], 1.0, 1e-10, 141, "sin y")
+assert_close(sn[2], 0.0 - 1.0, 1e-10, 142, "sin z")
+
+var cs = vec3.cos(0.0, math.pi(), math.pi() / 2.0)
+assert_true(!oren_is_err(cs), 143, "cos ok")
+assert_close(cs[0], 1.0, 1e-12, 144, "cos x")
+assert_close(cs[1], 0.0 - 1.0, 1e-10, 145, "cos y")
+assert_close(cs[2], 0.0, 1e-10, 146, "cos z")
+
+var tn = vec3.tan(0.0, math.pi() / 4.0, 0.0 - math.pi() / 4.0)
+assert_true(!oren_is_err(tn), 147, "tan ok")
+assert_close(tn[0], 0.0, 1e-12, 148, "tan x")
+assert_close(tn[1], 1.0, 5e-10, 149, "tan y")
+assert_close(tn[2], 0.0 - 1.0, 5e-10, 150, "tan z")
+
 var mn = vec3.min(3.0, 0.0 - 4.0, 8.0, 2.0, 5.0, 7.0)
 assert_true(!oren_is_err(mn), 73, "min ok")
 assert_close(mn[0], 2.0, 0.0, 74, "min x")
@@ -187,6 +205,8 @@ assert_true(oren_is_err(vec3.step(0.5, 0.5, math.inf(), 1.0, 2.0, 3.0)), 123, "s
 assert_true(oren_is_err(vec3.smoothstep(0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.5, 1.0, 0.5)), 124, "smoothstep edge errors")
 assert_true(oren_is_err(vec3.inverse_lerp(0.0, 1.0, 2.0, 0.0, 2.0, 3.0, 0.5, 1.5, 2.5)), 137, "inverse_lerp range errors")
 assert_true(oren_is_err(vec3.remap_clamped(0.0, 1.0, 2.0, 1.0, 1.0, 3.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.5, 1.0, 2.5)), 138, "remap_clamped range errors")
+assert_true(oren_is_err(vec3.cos(0.0, math.inf(), 1.0)), 151, "cos inf errors")
+assert_true(oren_is_err(vec3.tan(0.0, 1.0, math.nan())), 152, "tan nan errors")
 
 print("module math vec3 OK")
 exit(0)
