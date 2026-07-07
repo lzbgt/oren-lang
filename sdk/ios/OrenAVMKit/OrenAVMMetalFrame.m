@@ -177,6 +177,125 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
     }
 }
 
+NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* frame,
+                                                                     MTLClearColor* clearColor,
+                                                                     NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+                                                                     NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
+                                                                     NSUInteger runCapacity,
+                                                                     OrenAVMMetalFrameBuildContext* context) {
+    NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = nil;
+    if (frame.length < 40 || !context) return @[];
+    const uint8_t* data = (const uint8_t*)frame.bytes;
+    if (memcmp(data, "OGF0", 4) != 0 || data[4] != 1) return @[];
+    uint16_t headerLen = OrenAVMMetalReadU16LE(data + 6);
+    if (headerLen < 40 || headerLen > frame.length) return @[];
+    uint32_t logicalW = OrenAVMMetalReadU32LE(data + 8);
+    uint32_t logicalH = OrenAVMMetalReadU32LE(data + 12);
+    uint32_t opCount = OrenAVMMetalReadU32LE(data + 20);
+    uint32_t drawableW = OrenAVMMetalReadU32LE(data + 28);
+    uint32_t drawableH = OrenAVMMetalReadU32LE(data + 32);
+    if (logicalW == 0 || logicalH == 0 || drawableW == 0 || drawableH == 0) return @[];
+
+    OrenAVMMetalVertexBuffer vertices;
+    OrenAVMMetalVertexBufferInit(&vertices, OrenAVMMetalInitialVertexBuilderCapacity(runCapacity));
+    size_t off = headerLen;
+    OrenAVMMetalFrameState frameState;
+    OrenAVMMetalFrameStateInit(&frameState);
+    NSUInteger textCachePixels = context->textCachePixels;
+    OrenAVMMetalTextAtlas* textAtlas = context->textAtlas;
+    for (uint32_t i = 0; i < opCount && off + 4 <= frame.length; i++) {
+        uint8_t opcode = data[off];
+        uint16_t payloadLen = OrenAVMMetalReadU16LE(data + off + 2);
+        off += 4;
+        if (off + (size_t)payloadLen > frame.length) break;
+        const uint8_t* payload = data + off;
+        OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
+        BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,
+                                                                   payload,
+                                                                   payloadLen,
+                                                                   &vertices,
+                                                                   frameState.tx,
+                                                                   frameState.ty,
+                                                                   (float)logicalW,
+                                                                   (float)logicalH,
+                                                                   frameState.opacity);
+        if (!primitiveHandled && OrenAVMMetalHandleFrameStateCommand(opcode,
+                                                                     payload,
+                                                                     payloadLen,
+                                                                     &vertexRuns,
+                                                                     &vertices,
+                                                                     runCapacity,
+                                                                     &frameState,
+                                                                     logicalW,
+                                                                     logicalH,
+                                                                     drawableW,
+                                                                     drawableH)) {
+        } else if (OrenAVMMetalHandleMeshCommand(context->meshes2D,
+                                                 context->meshes3D,
+                                                 context->materials3D,
+                                                 context->models3D,
+                                                 opcode,
+                                                 payload,
+                                                 payloadLen,
+                                                 &vertices,
+                                                 frameState.tx,
+                                                 frameState.ty,
+                                                 (float)logicalW,
+                                                 (float)logicalH,
+                                                 frameState.opacity,
+                                                 frameState.depthEnabled,
+                                                 frameState.nearZ,
+                                                 frameState.farZ)) {
+        } else {
+            BOOL textHandled = OrenAVMMetalHandleTextCommand(context->textResources,
+                                                             context->device,
+                                                             context->screen,
+                                                             opcode,
+                                                             payload,
+                                                             payloadLen,
+                                                             &textAtlas,
+                                                             context->textCache,
+                                                             context->textCacheOrder,
+                                                             context->textAttributes,
+                                                             &textCachePixels,
+                                                             textRuns,
+                                                             runCapacity,
+                                                             frameState.clip.enabled,
+                                                             frameState.clip.rect,
+                                                             frameState.tx,
+                                                             frameState.ty,
+                                                             (float)logicalW,
+                                                             (float)logicalH,
+                                                             frameState.opacity);
+            if (!textHandled) {
+                (void)OrenAVMMetalHandleImageCommand(context->images,
+                                                     context->device,
+                                                     opcode,
+                                                     payload,
+                                                     payloadLen,
+                                                     imageRuns,
+                                                     runCapacity,
+                                                     frameState.clip.enabled,
+                                                     frameState.clip.rect,
+                                                     frameState.tx,
+                                                     frameState.ty,
+                                                     (float)logicalW,
+                                                     (float)logicalH,
+                                                     frameState.opacity,
+                                                     context->retainedImageCountLimit,
+                                                     context->retainedImagePixelLimit,
+                                                     context->retainedImagePixelCount);
+            }
+        }
+        off += payloadLen;
+    }
+    context->textCachePixels = textCachePixels;
+    context->textAtlas = textAtlas;
+    OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO);
+    OrenAVMMetalVertexBufferFree(&vertices);
+    return vertexRuns ?: @[];
+}
+
 MTLScissorRect OrenAVMMetalClipRectToScissor(int64_t x,
                                              int64_t y,
                                              uint32_t w,

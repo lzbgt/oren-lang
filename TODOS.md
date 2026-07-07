@@ -2678,6 +2678,10 @@ design evidence lives under `project-doc/`.
 - Metal prepared geometry/image/text draw submission now lives in
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the view.
+- Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
+  context struct that carries view-owned caches and retained resource maps,
+  reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,
+  prepared-run orchestration, and input forwarding in the view.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

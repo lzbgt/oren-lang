@@ -62,7 +62,7 @@ def main() -> int:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
     if "[NSMutableData dataWithCapacity:vertices.length]" in text:
         fail("geometry flush must not allocate the next mutable vertex buffer eagerly")
-    if "OrenAVMMetalVertexBuffer vertices;" not in text or "OrenAVMMetalVertexBufferInit(&vertices" not in text:
+    if "OrenAVMMetalVertexBuffer vertices;" not in frame_text or "OrenAVMMetalVertexBufferInit(&vertices" not in frame_text:
         fail("geometry vertex buffers must use the raw lazy vertex buffer builder")
     if "NSMutableData* vertices" in text or "NSMutableData* vertices" in geometry_text:
         fail("Metal geometry vertex builders must not use NSMutableData wrappers")
@@ -82,8 +82,8 @@ def main() -> int:
         or "BOOL OrenAVMMetalAppendPrimitiveCommand" not in geometry_text
     ):
         fail("Metal primitive geometry helpers must live in OrenAVMMetalGeometry")
-    if "OrenAVMMetalAppendPrimitiveCommand(opcode," not in text:
-        fail("Metal view must delegate primitive payload expansion to OrenAVMMetalGeometry")
+    if "OrenAVMMetalAppendPrimitiveCommand(opcode," not in frame_text:
+        fail("Metal frame traversal must delegate primitive payload expansion to OrenAVMMetalGeometry")
     if "static void OrenAVMMetalAppendRoundRect" in text or "static void OrenAVMMetalAppendCircle" in text:
         fail("Metal view must not inline primitive geometry append helpers")
     primitive_view_tokens = (
@@ -229,8 +229,8 @@ def main() -> int:
         fail("retained Metal 3D mesh lookups must avoid boxed NSNumber mesh IDs")
     if "CFMutableDictionaryRef _orenMeshesByID" not in text or "CFMutableDictionaryRef _orenMeshes3DByID" not in text:
         fail("retained Metal mesh resources must use scalar-key CF dictionaries")
-    if "OrenAVMMetalHandleMeshCommand(&_orenMeshesByID," not in text:
-        fail("retained Metal mesh/material/model opcodes must delegate to the resource-owned command helper")
+    if ".meshes2D = &_orenMeshesByID" not in text or "OrenAVMMetalHandleMeshCommand(context->meshes2D," not in frame_text:
+        fail("retained Metal mesh/material/model opcodes must delegate through frame traversal to the resource-owned command helper")
     if "BOOL OrenAVMMetalHandleMeshCommand" not in resource_text:
         fail("retained Metal mesh/material/model command helper must live in OrenAVMMetalResources")
     mesh_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleMeshCommand") :]
@@ -260,8 +260,8 @@ def main() -> int:
         fail("retained Metal text lookups must avoid boxed NSNumber text IDs")
     if "CFMutableDictionaryRef _orenTextResourcesByID" not in text:
         fail("retained Metal text resources must use a scalar-key CF dictionary")
-    if "OrenAVMMetalHandleTextCommand(&_orenTextResourcesByID," not in text:
-        fail("retained Metal text opcodes must delegate to the resource-owned command helper")
+    if ".textResources = &_orenTextResourcesByID" not in text or "OrenAVMMetalHandleTextCommand(context->textResources," not in frame_text:
+        fail("retained Metal text opcodes must delegate through frame traversal to the resource-owned command helper")
     if "BOOL OrenAVMMetalHandleTextCommand" not in resource_text:
         fail("retained Metal text command helper must live in OrenAVMMetalResources")
     if "OrenAVMMetalRetainedTextResource(texts ? *texts : NULL" not in resource_text:
@@ -339,8 +339,8 @@ def main() -> int:
         fail("retained Metal materials must avoid boxed NSNumber IDs/RGBA values")
     if "CFMutableDictionaryRef _orenMaterials3DByID" not in text:
         fail("retained Metal materials must use a scalar-key/scalar-value CF dictionary")
-    if "OrenAVMMetalHandleMeshCommand(&_orenMeshesByID," not in text:
-        fail("retained Metal mesh/material/model opcodes must delegate to the resource-owned command helper")
+    if ".meshes2D = &_orenMeshesByID" not in text or "OrenAVMMetalHandleMeshCommand(context->meshes2D," not in frame_text:
+        fail("retained Metal mesh/material/model opcodes must delegate through frame traversal to the resource-owned command helper")
     if "BOOL OrenAVMMetalHandleMeshCommand" not in resource_text:
         fail("retained Metal mesh/material/model command helper must live in OrenAVMMetalResources")
     if "OrenAVMMetalRetainedMaterialRGBA(materials, materialID, &materialRGBAOverride)" not in resource_text:
@@ -399,8 +399,8 @@ def main() -> int:
         fail("retained Metal image lookups must avoid boxed NSNumber image IDs")
     if "CFMutableDictionaryRef _orenImagesByID" not in text:
         fail("retained Metal images must use a scalar-key CF dictionary")
-    if "OrenAVMMetalHandleImageCommand(&_orenImagesByID," not in text:
-        fail("retained Metal image opcodes must delegate to the resource-owned command helper")
+    if ".images = &_orenImagesByID" not in text or "OrenAVMMetalHandleImageCommand(context->images," not in frame_text:
+        fail("retained Metal image opcodes must delegate through frame traversal to the resource-owned command helper")
     if "BOOL OrenAVMMetalHandleImageCommand" not in resource_text:
         fail("retained Metal image command helper must live in OrenAVMMetalResources")
     if "OrenAVMMetalPutImageResource(imagesByID," not in resource_text:
@@ -476,9 +476,15 @@ def main() -> int:
         fail("retained Metal model map mutation must live in OrenAVMMetalResources")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("retained Metal model draws must not use string-key dictionary lookups")
-    if "OrenAVMMetalFrameState frameState" not in text or "OrenAVMMetalFrameStateInit(&frameState)" not in text:
-        fail("Metal view must use the frame-owned state container")
-    if "OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor)" not in text:
+    if "OrenAVMMetalFrameBuildContext context" not in text or "OrenAVMMetalBuildVertexRunsForFrame(frame," not in text:
+        fail("Metal view must delegate OGF0 command traversal to the frame helper")
+    if "memcmp(data, \"OGF0\", 4)" in text or "uint32_t opCount = OrenAVMMetalReadU32LE(data + 20)" in text:
+        fail("Metal view must not inline OGF0 frame command traversal")
+    if "NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame" not in frame_text:
+        fail("Metal frame traversal helper must live in OrenAVMMetalFrame")
+    if "OrenAVMMetalFrameState frameState" not in frame_text or "OrenAVMMetalFrameStateInit(&frameState)" not in frame_text:
+        fail("Metal frame traversal must use the frame-owned state container")
+    if "OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor)" not in frame_text:
         fail("Metal full-frame clear-color detection must delegate to the frame helper")
     if "BOOL OrenAVMMetalApplyClearColorCommand" not in frame_text:
         fail("Metal clear-color command helper must live in OrenAVMMetalFrame")
@@ -494,8 +500,8 @@ def main() -> int:
             fail(f"Metal clear-color command helper missing expected path: {token}")
     if "uint8_t clearRGBA[4]" in text or "OrenAVMMetalRGBAWithOpacity(payload + 16" in text:
         fail("Metal view must not inline clear-color payload decoding")
-    if "OrenAVMMetalHandleFrameStateCommand(opcode," not in text:
-        fail("Metal state-stack opcodes must delegate to the frame-owned command helper")
+    if "OrenAVMMetalHandleFrameStateCommand(opcode," not in frame_text:
+        fail("Metal frame traversal must delegate state-stack opcodes to the frame-owned command helper")
     if "BOOL OrenAVMMetalHandleFrameStateCommand" not in frame_text:
         fail("Metal state-stack command helper must live in OrenAVMMetalFrame")
     state_command = frame_text[frame_text.find("BOOL OrenAVMMetalHandleFrameStateCommand") :]
@@ -515,7 +521,7 @@ def main() -> int:
     for token in ("clipStack[64]", "txStack[64]", "opacityStack[64]", "depthEnabledStack[64]"):
         if token in text:
             fail("Metal view must not own frame state stacks directly")
-    if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in text:
+    if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in frame_text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "OrenAVMMetalEncodePreparedRuns(encoder," not in text:
         fail("Metal view must delegate prepared-run draw submission to the frame helper")

@@ -34,6 +34,25 @@ typedef struct {
     uint32_t cameraDepth;
 } OrenAVMMetalFrameState;
 
+typedef struct {
+    id<MTLDevice> device;
+    UIScreen* screen;
+    CFMutableDictionaryRef* textResources;
+    CFMutableDictionaryRef* meshes2D;
+    CFMutableDictionaryRef* meshes3D;
+    CFMutableDictionaryRef* materials3D;
+    CFMutableDictionaryRef* models3D;
+    CFMutableDictionaryRef* images;
+    NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* textCache;
+    NSMutableArray<OrenAVMMetalTextCacheKey*>* textCacheOrder;
+    OrenAVMMetalTextAttributeCache* textAttributes;
+    NSUInteger textCachePixels;
+    OrenAVMMetalTextAtlas* textAtlas;
+    NSUInteger retainedImageCountLimit;
+    NSUInteger retainedImagePixelLimit;
+    NSUInteger* retainedImagePixelCount;
+} OrenAVMMetalFrameBuildContext;
+
 static const NSUInteger OrenAVMMetalInlineVertexBytesLimit = 4096u;
 
 static inline uint16_t OrenAVMMetalReadU16LE(const uint8_t* p) {
@@ -76,6 +95,12 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
                                          uint32_t logicalH,
                                          uint32_t drawableW,
                                          uint32_t drawableH);
+NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* frame,
+                                                                     MTLClearColor* clearColor,
+                                                                     NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+                                                                     NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
+                                                                     NSUInteger runCapacity,
+                                                                     OrenAVMMetalFrameBuildContext* context);
 
 MTLScissorRect OrenAVMMetalClipRectToScissor(int64_t x,
                                              int64_t y,

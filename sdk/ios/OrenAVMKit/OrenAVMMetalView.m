@@ -356,117 +356,33 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                   textRuns:(NSMutableArray<OrenAVMMetalTextRun*>**)textRuns
                                                  imageRuns:(NSMutableArray<OrenAVMMetalImageRun*>**)imageRuns
                                                runCapacity:(NSUInteger)runCapacity {
-    NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = nil;
-    if (frame.length < 40) return @[];
-    const uint8_t* data = (const uint8_t*)frame.bytes;
-    if (memcmp(data, "OGF0", 4) != 0 || data[4] != 1) return @[];
-    uint16_t headerLen = OrenAVMMetalReadU16LE(data + 6);
-    if (headerLen < 40 || headerLen > frame.length) return @[];
-    uint32_t logicalW = OrenAVMMetalReadU32LE(data + 8);
-    uint32_t logicalH = OrenAVMMetalReadU32LE(data + 12);
-    uint32_t opCount = OrenAVMMetalReadU32LE(data + 20);
-    uint32_t drawableW = OrenAVMMetalReadU32LE(data + 28);
-    uint32_t drawableH = OrenAVMMetalReadU32LE(data + 32);
-    if (logicalW == 0 || logicalH == 0 || drawableW == 0 || drawableH == 0) return @[];
-
-    OrenAVMMetalVertexBuffer vertices;
-    OrenAVMMetalVertexBufferInit(&vertices, OrenAVMMetalInitialVertexBuilderCapacity(runCapacity));
-    size_t off = headerLen;
-    OrenAVMMetalFrameState frameState;
-    OrenAVMMetalFrameStateInit(&frameState);
-    for (uint32_t i = 0; i < opCount && off + 4 <= frame.length; i++) {
-        uint8_t opcode = data[off];
-        uint16_t payloadLen = OrenAVMMetalReadU16LE(data + off + 2);
-        off += 4;
-        if (off + (size_t)payloadLen > frame.length) break;
-        const uint8_t* payload = data + off;
-        OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
-        BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,
-                                                                   payload,
-                                                                   payloadLen,
-                                                                   &vertices,
-                                                                   frameState.tx,
-                                                                   frameState.ty,
-                                                                   (float)logicalW,
-                                                                   (float)logicalH,
-                                                                   frameState.opacity);
-        if (!primitiveHandled && OrenAVMMetalHandleFrameStateCommand(opcode,
-                                                                     payload,
-                                                                     payloadLen,
-                                                                     &vertexRuns,
-                                                                     &vertices,
-                                                                     runCapacity,
-                                                                     &frameState,
-                                                                     logicalW,
-                                                                     logicalH,
-                                                                     drawableW,
-                                                                     drawableH)) {
-        } else if (OrenAVMMetalHandleMeshCommand(&_orenMeshesByID,
-                                                 &_orenMeshes3DByID,
-                                                 &_orenMaterials3DByID,
-                                                 &_orenModels3DByID,
-                                                 opcode,
-                                                 payload,
-                                                 payloadLen,
-                                                 &vertices,
-                                                 frameState.tx,
-                                                 frameState.ty,
-                                                 (float)logicalW,
-                                                 (float)logicalH,
-                                                 frameState.opacity,
-                                                 frameState.depthEnabled,
-                                                 frameState.nearZ,
-                                                 frameState.farZ)) {
-        } else {
-            NSUInteger textCachePixels = self.orenTextCachePixels;
-            OrenAVMMetalTextAtlas* textAtlas = self.orenTextAtlas;
-            BOOL textHandled = OrenAVMMetalHandleTextCommand(&_orenTextResourcesByID,
-                                                             self.device,
-                                                             self.window.screen,
-                                                             opcode,
-                                                             payload,
-                                                             payloadLen,
-                                                             &textAtlas,
-                                                             self.orenTextCache,
-                                                             self.orenTextCacheOrder,
-                                                             self.orenTextAttributes,
-                                                             &textCachePixels,
-                                                             textRuns,
-                                                             runCapacity,
-                                                             frameState.clip.enabled,
-                                                             frameState.clip.rect,
-                                                             frameState.tx,
-                                                             frameState.ty,
-                                                             (float)logicalW,
-                                                             (float)logicalH,
-                                                             frameState.opacity);
-            if (textHandled) {
-                self.orenTextCachePixels = textCachePixels;
-                self.orenTextAtlas = textAtlas;
-            } else if (OrenAVMMetalHandleImageCommand(&_orenImagesByID,
-                                                      self.device,
-                                                      opcode,
-                                                      payload,
-                                                      payloadLen,
-                                                      imageRuns,
-                                                      runCapacity,
-                                                      frameState.clip.enabled,
-                                                      frameState.clip.rect,
-                                                      frameState.tx,
-                                                      frameState.ty,
-                                                      (float)logicalW,
-                                                      (float)logicalH,
-                                                      frameState.opacity,
-                                                      self.retainedImageCountLimit,
-                                                      self.retainedImagePixelLimit,
-                                                      &_retainedImagePixelCount)) {
-            }
-        }
-        off += payloadLen;
-    }
-    OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO);
-    OrenAVMMetalVertexBufferFree(&vertices);
-    return vertexRuns ?: @[];
+    OrenAVMMetalFrameBuildContext context = {
+        .device = self.device,
+        .screen = self.window.screen,
+        .textResources = &_orenTextResourcesByID,
+        .meshes2D = &_orenMeshesByID,
+        .meshes3D = &_orenMeshes3DByID,
+        .materials3D = &_orenMaterials3DByID,
+        .models3D = &_orenModels3DByID,
+        .images = &_orenImagesByID,
+        .textCache = self.orenTextCache,
+        .textCacheOrder = self.orenTextCacheOrder,
+        .textAttributes = self.orenTextAttributes,
+        .textCachePixels = self.orenTextCachePixels,
+        .textAtlas = self.orenTextAtlas,
+        .retainedImageCountLimit = self.retainedImageCountLimit,
+        .retainedImagePixelLimit = self.retainedImagePixelLimit,
+        .retainedImagePixelCount = &_retainedImagePixelCount,
+    };
+    NSArray<OrenAVMMetalVertexRun*>* vertexRuns = OrenAVMMetalBuildVertexRunsForFrame(frame,
+                                                                                     clearColor,
+                                                                                     textRuns,
+                                                                                     imageRuns,
+                                                                                     runCapacity,
+                                                                                     &context);
+    self.orenTextCachePixels = context.textCachePixels;
+    self.orenTextAtlas = context.textAtlas;
+    return vertexRuns;
 }
 
 - (NSArray<OrenAVMMetalVertexRun*>*)orenPrepareCurrentFrameWithClearColor:(MTLClearColor*)clearColorOut

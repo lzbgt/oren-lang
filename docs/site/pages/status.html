@@ -2882,7 +2882,10 @@
 <p>  prepared geometry/image/text draw submission now lives in</p>
 <p>  <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 628 lines while keeping</p>
 <p>  MTKView lifecycle, prepared-run orchestration, and input forwarding in the</p>
-<p>  view.</p>
+<p>  view. Metal OGF0 command traversal now lives in <code>OrenAVMMetalFrame</code> behind a</p>
+<p>  context struct that carries view-owned caches and retained resource maps,</p>
+<p>  reducing <code>OrenAVMMetalView.m</code> to 544 lines while keeping MTKView lifecycle,</p>
+<p>  prepared-run orchestration, and input forwarding in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>
