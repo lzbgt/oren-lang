@@ -282,6 +282,15 @@ if ! grep -Fq 'runtime_bytes_copy_span_to_list(bytes, 0u, count_size, list' <<<"
   exit 1
 fi
 
+c_runtime_sha256_impl="$(sed -n '/OrenValue oren_sha256_range/,/OrenValue oren_sha256_string/p' lib/runtime/050_io_misc_sha256.inc)"
+if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$c_runtime_sha256_impl" ||
+  ! grep -Fq 'oren_sha256_update(&ctx, chunk, want)' <<<"$c_runtime_sha256_impl" ||
+  grep -Fq 'oren_sha256_update(&ctx, &byte, 1)' <<<"$c_runtime_sha256_impl" ||
+  ! grep -Fq 'sha256 C long boxed list range' tests/modules/test_crypto_sha256_c_list_chunks.oren; then
+  echo "ERROR: C runtime sha256_range list inputs must hash bounded chunks, not call sha256_update once per byte" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||

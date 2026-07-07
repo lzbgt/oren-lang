@@ -2501,7 +2501,9 @@
 <p><code>oren_string_from_bytes_slice</code>, <code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>,</p>
 <p>and <code>bytes_unpack</code>; the native and legacy C runtimes now route the same</p>
 <p>slice/pack/unpack family through shared byte-span helpers, keeping byte carriers</p>
-<p>on the optimized path without duplicated boxed-list slice loops. The iOS SDK now</p>
+<p>on the optimized path without duplicated boxed-list slice loops. Legacy C runtime</p>
+<p><code>oren_sha256_range</code> now hashes boxed-list inputs through bounded 64 KiB stack</p>
+<p>chunks instead of invoking the SHA update routine once per byte. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>
