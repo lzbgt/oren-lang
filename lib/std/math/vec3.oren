@@ -58,6 +58,36 @@ fn lerp(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, t: f64) {
     return [x, y, z]
 }
 
+fn midpoint(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.midpoint")
+    if oren_is_err(ok) { return ok }
+    return [math.midpoint(ax, bx), math.midpoint(ay, by), math.midpoint(az, bz)]
+}
+
+fn isclose_abs(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, abs_tol: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.isclose_abs")
+    if oren_is_err(ok) { return ok }
+    var cx = math.isclose_abs(ax, bx, abs_tol)
+    if oren_is_err(cx) { return cx }
+    var cy = math.isclose_abs(ay, by, abs_tol)
+    if oren_is_err(cy) { return cy }
+    var cz = math.isclose_abs(az, bz, abs_tol)
+    if oren_is_err(cz) { return cz }
+    return [cx, cy, cz]
+}
+
+fn isclose(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64, rel_tol: f64, abs_tol: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.isclose")
+    if oren_is_err(ok) { return ok }
+    var cx = math.isclose(ax, bx, rel_tol, abs_tol)
+    if oren_is_err(cx) { return cx }
+    var cy = math.isclose(ay, by, rel_tol, abs_tol)
+    if oren_is_err(cy) { return cy }
+    var cz = math.isclose(az, bz, rel_tol, abs_tol)
+    if oren_is_err(cz) { return cz }
+    return [cx, cy, cz]
+}
+
 fn abs(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.abs")
     if oren_is_err(ok) { return ok }
