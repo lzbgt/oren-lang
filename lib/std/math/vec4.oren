@@ -122,6 +122,27 @@ fn power(x: f64, y: f64, z: f64, w: f64, ex: f64, ey: f64, ez: f64, ew: f64) {
     return pow(x, y, z, w, ex, ey, ez, ew)
 }
 
+fn hypot(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.hypot")
+    if oren_is_err(ok) { return ok }
+    return [math.hypot(ax, bx), math.hypot(ay, by), math.hypot(az, bz), math.hypot(aw, bw)]
+}
+
+fn hypot3(a, b, c) {
+    var ok = _check_vec4(a, "vec4.hypot3")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(b, "vec4.hypot3")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(c, "vec4.hypot3")
+    if oren_is_err(ok) { return ok }
+    return [
+        math.hypot3(a[0], b[0], c[0]),
+        math.hypot3(a[1], b[1], c[1]),
+        math.hypot3(a[2], b[2], c[2]),
+        math.hypot3(a[3], b[3], c[3])
+    ]
+}
+
 fn erf(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.erf")
     if oren_is_err(ok) { return ok }
