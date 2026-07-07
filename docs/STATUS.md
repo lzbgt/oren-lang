@@ -2595,8 +2595,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   compatibility stores for non-optimized carriers.
   Strided u8 view copies from byte carriers, `u8_buf`, and strings validate the
   source span once, then write directly into strided `u8_buf` storage before
-  falling back to checked per-element view stores; strided `u8_buf` exports now
-  gather directly into exact-size `u8_buf` output before string conversion.
+  falling back to checked per-element view stores; strided `u8_buf` exports and
+  non-dense u8 matrix exports now gather directly into exact-size `u8_buf`
+  output before string conversion.
   Contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string,
   flat-list, or row-list sources now use shared byte-span copy/direct byte-write
   paths before falling back to checked per-element view stores.

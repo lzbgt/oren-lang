@@ -697,6 +697,14 @@ if ! grep -Fq 'ptr_set_byte(data + i, xs[i] & 255)' <<<"$buffer_raw_pack_into_im
   exit 1
 fi
 
+buffer_u8_mat_export_impl="$(sed -n '/fn _u8_mat_is_dense_u8_buf/,/fn _u8_mat_copy_flat_list/p' lib/std/buffer/mat_u8.oren)"
+if ! grep -Fq 'ptr_set_byte(dst + i, ptr_get_byte(row_src + c) & 255)' <<<"$buffer_u8_mat_export_impl" ||
+  ! grep -Fq 'return _u8_mat_to_u8_buf_direct(m, ctx)' <<<"$buffer_u8_mat_export_impl" ||
+  ! grep -Fq 'return mshared._mat_to_typed_buf_with(m, ctx, raw.u8_new_uninit, core.mat_load_u8, raw._store_u8_buf_unchecked_direct)' <<<"$buffer_u8_mat_export_impl"; then
+  echo "ERROR: std:buffer non-dense u8 matrix exports must gather u8_buf rows directly before falling back to checked matrix loads" >&2
+  exit 1
+fi
+
 buffer_u8_mat_impl="$(sed -n '/fn _u8_mat_copy_from_u8_buf/,/fn _u8_mat_copy_from_string_range/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'bytesm.copy_into(m[0], m[1], src, 0, total)' <<<"$buffer_u8_mat_impl" ||
   ! grep -Fq 'var v = raw._load_u8_direct(src, r * m[3] + c)' <<<"$buffer_u8_mat_impl"; then

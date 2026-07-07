@@ -112,6 +112,45 @@ fn _u8_mat_is_dense_u8_buf(m) {
     return mshared._mat_is_list(m) && oren_is_u8_buf(m[0]) == true && m[4] == m[3]
 }
 
+fn _u8_mat_is_direct_u8_buf_view(m) {
+    if !mshared._mat_is_list(m) { return false }
+    if oren_is_u8_buf(m[0]) != true { return false }
+    if mshared._is_int(m[1]) == false || mshared._is_int(m[2]) == false || mshared._is_int(m[3]) == false || mshared._is_int(m[4]) == false {
+        return false
+    }
+    if m[1] < 0 || m[2] < 0 || m[3] < 0 || m[4] < 0 { return false }
+    if m[4] < m[3] { return false }
+    var bl = oren_buf_len(m[0])
+    if bl == nil || oren_is_err(bl) { return false }
+    if m[2] == 0 || m[3] == 0 { return true }
+    var last = m[1] + (m[2] - 1) * m[4] + (m[3] - 1)
+    if last < 0 || last >= bl { return false }
+    return true
+}
+
+fn _u8_mat_to_u8_buf_direct(m, ctx) {
+    if _u8_mat_is_direct_u8_buf_view(m) {
+        var out: []u8 = raw.u8_new_uninit(m[2] * m[3])
+        if oren_is_err(out) { return out }
+        var src = oren_buf_data_ptr_unchecked(m[0])
+        var dst = oren_buf_data_ptr_unchecked(out)
+        var i = 0
+        var r = 0
+        while r < m[2] {
+            var row_src = src + m[1] + r * m[4]
+            var c = 0
+            while c < m[3] {
+                ptr_set_byte(dst + i, ptr_get_byte(row_src + c) & 255)
+                i = i + 1
+                c = c + 1
+            }
+            r = r + 1
+        }
+        return out
+    }
+    return mshared._mat_to_typed_buf_with(m, ctx, raw.u8_new_uninit, core.mat_load_u8, raw._store_u8_buf_unchecked_direct)
+}
+
 fn u8_mat_to_bytes(m) {
     var ctx = "buffer.u8_mat_to_bytes"
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
@@ -126,7 +165,7 @@ fn u8_mat_to_u8_buf(m) {
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
     if _u8_mat_is_dense_u8_buf(m) { return bytesm.to_u8_buf_slice(m[0], m[1], m[2] * m[3]) }
     // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
-    return mshared._mat_to_typed_buf_with(m, ctx, raw.u8_new_uninit, core.mat_load_u8, raw._store_u8_buf_unchecked_direct)
+    return _u8_mat_to_u8_buf_direct(m, ctx)
 }
 
 fn u8_mat_to_string(m) {

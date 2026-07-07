@@ -1,4 +1,5 @@
 import buffer "../../lib/std/buffer.oren"
+import bytes "../../lib/std/bytes.oren"
 import linalg "../../lib/std/linalg.oren"
 
 fn fail(code) {
@@ -190,6 +191,13 @@ assert_true(!oren_is_err(buffer.u8_mat_copy_from_flat(u8m, [65, 66, 67, 68])), 8
 assert_eq(buffer.u8_mat_to_string(u8m), "ABCD", 83)
 assert_true(!oren_is_err(buffer.u8_mat_copy_from_rows(u8m, [[49, 50], [51, 52]])), 84)
 assert_eq(buffer.u8_mat_to_string(u8m), "1234", 85)
+var u8pad: []u8 = buffer.u8_from_string("xABxCD")
+assert_true(!oren_is_err(u8pad), 86)
+var u8pad_m = buffer.mat_view_new(u8pad, 1, 2, 2, 3)
+assert_true(!oren_is_err(u8pad_m), 87)
+assert_eq(buffer.u8_to_string(buffer.u8_mat_to_u8_buf(u8pad_m)), "ABCD", 88)
+assert_eq(buffer.u8_mat_to_string(u8pad_m), "ABCD", 89)
+assert_eq(bytes.to_string(buffer.u8_mat_to_bytes(u8pad_m)), "ABCD", 90)
 
 print("module buffer_views OK")
 exit(0)
