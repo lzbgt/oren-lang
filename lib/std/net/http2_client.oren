@@ -93,16 +93,6 @@ fn _write_all_str(conn, s, n, timeout_ms) {
     return _write_all_ptr(conn, s, n, timeout_ms)
 }
 
-fn _write_all_bytes(conn, b, timeout_ms) {
-    if b == nil { return 0 }
-    var n = oren_buf_len(b)
-    if oren_is_err(n) { return 0 - 22 }
-    if n == 0 { return 0 }
-    var p = native_buf_data_ptr(b)
-    if p == 0 { return 0 - 22 }
-    return _write_all_ptr(conn, p, n, timeout_ms)
-}
-
 fn _u8_acc_new(initial_cap) {
     if initial_cap < 64 { initial_cap = 64 }
     var buf = oren_u8_buf_new_uninit(initial_cap)
