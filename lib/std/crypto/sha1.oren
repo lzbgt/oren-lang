@@ -118,15 +118,15 @@ fn sha1_bytes(input_bytes) {
     var off = 0
     while off < total_len {
         // message schedule
-        var w = []
+        var w = list.int_new(80)
         var t = 0
         while t < 16 {
-            list.push(w, _u32_be_at(input_view, orig_len, bit_len, off + t * 4))
+            list.int_push(w, _u32_be_at(input_view, orig_len, bit_len, off + t * 4))
             t = t + 1
         }
         while t < 80 {
-            var v = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]
-            list.push(w, _rotl32(v, 1))
+            var v = list.int_get(w, t - 3) ^ list.int_get(w, t - 8) ^ list.int_get(w, t - 14) ^ list.int_get(w, t - 16)
+            list.int_push(w, _rotl32(v, 1))
             t = t + 1
         }
 
@@ -154,7 +154,7 @@ fn sha1_bytes(input_bytes) {
                 k = 3395469782  // 0xCA62C1D6
             }
 
-            var temp = _u32(_rotl32(a, 5) + _u32(f) + e + k + w[t])
+            var temp = _u32(_rotl32(a, 5) + _u32(f) + e + k + list.int_get(w, t))
             e = d
             d = c
             c = _rotl32(b, 30)
@@ -200,15 +200,15 @@ fn sha1_string(s) {
 
     var off = 0
     while off < total_len {
-        var w = []
+        var w = list.int_new(80)
         var t = 0
         while t < 16 {
-            list.push(w, _u32_be_string_at(s, orig_len, bit_len, off + t * 4))
+            list.int_push(w, _u32_be_string_at(s, orig_len, bit_len, off + t * 4))
             t = t + 1
         }
         while t < 80 {
-            var v = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]
-            list.push(w, _rotl32(v, 1))
+            var v = list.int_get(w, t - 3) ^ list.int_get(w, t - 8) ^ list.int_get(w, t - 14) ^ list.int_get(w, t - 16)
+            list.int_push(w, _rotl32(v, 1))
             t = t + 1
         }
 
@@ -236,7 +236,7 @@ fn sha1_string(s) {
                 k = 3395469782  // 0xCA62C1D6
             }
 
-            var temp = _u32(_rotl32(a, 5) + _u32(f) + e + k + w[t])
+            var temp = _u32(_rotl32(a, 5) + _u32(f) + e + k + list.int_get(w, t))
             e = d
             d = c
             c = _rotl32(b, 30)

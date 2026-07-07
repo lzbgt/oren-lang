@@ -320,6 +320,17 @@ if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$avm_sha256_impl" ||
   exit 1
 fi
 
+if ! grep -Fq 'var w = list.int_new(80)' lib/std/crypto/sha1.oren ||
+  ! grep -Fq 'var w = list.int_new(64)' lib/std/crypto/sha256.oren ||
+  grep -Fq 'var w = []' lib/std/crypto/sha1.oren ||
+  grep -Fq 'var w = []' lib/std/crypto/sha256.oren ||
+  grep -Fq 'list.push(w' lib/std/crypto/sha1.oren ||
+  grep -Fq 'list.push(w' lib/std/crypto/sha256.oren ||
+  ! grep -Fq 'sha1 AVM long list_int range' tests/avm/test_crypto_sha256_vectors.oren; then
+  echo "ERROR: pure Oren SHA schedules must use fixed-size list_int carriers, not generic per-block list growth" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||
