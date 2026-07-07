@@ -392,6 +392,7 @@ if ! grep -Fq '    var frame_hdr = malloc(14)' lib/std/net/ws.oren ||
   ! grep -Fq 'out = oren_u8_buf_new_uninit(plen)' lib/std/net/ws.oren ||
   ! grep -Fq 'if oren_is_err(out) { free(frame_hdr); return {"ok": 0, "err": "ws.recv_bytes: alloc payload"} }' lib/std/net/ws.oren ||
   ! grep -Fq 'if outp == 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_bytes: payload data ptr nil"} }' lib/std/net/ws.oren ||
+  ! grep -Fq 'if p == 0 { return 0 - 22 } // EINVAL' lib/std/net/ws.oren ||
   ! grep -Fq 'fn send_bytes_client(conn, bytes, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'fn recv_bytes(conn, timeout_ms)' lib/std/net/ws.oren ||
   grep -Fq '        var frame_hdr = malloc(14)' lib/std/net/ws.oren ||

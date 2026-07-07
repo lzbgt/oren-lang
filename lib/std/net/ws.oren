@@ -830,7 +830,10 @@ fn _send_frame_bytes(conn, opcode, bytes, timeout_ms, masked) {
     if oren_is_u8_buf(bytes) != true { return 0 - 22 } // EINVAL
     var n = oren_bytes_len(bytes)
     var p = 0
-    if n > 0 { p = native_buf_data_ptr(bytes) }
+    if n > 0 {
+        p = native_buf_data_ptr(bytes)
+        if p == 0 { return 0 - 22 } // EINVAL
+    }
     return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)
 }
 
