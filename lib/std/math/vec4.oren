@@ -122,6 +122,18 @@ fn power(x: f64, y: f64, z: f64, w: f64, ex: f64, ey: f64, ez: f64, ew: f64) {
     return pow(x, y, z, w, ex, ey, ez, ew)
 }
 
+fn erf(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.erf")
+    if oren_is_err(ok) { return ok }
+    return [math.erf(x), math.erf(y), math.erf(z), math.erf(w)]
+}
+
+fn erfc(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.erfc")
+    if oren_is_err(ok) { return ok }
+    return [math.erfc(x), math.erfc(y), math.erfc(z), math.erfc(w)]
+}
+
 fn floor(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.floor")
     if oren_is_err(ok) { return ok }

@@ -108,6 +108,18 @@ fn power(x: f64, y: f64, z: f64, ex: f64, ey: f64, ez: f64) {
     return pow(x, y, z, ex, ey, ez)
 }
 
+fn erf(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.erf")
+    if oren_is_err(ok) { return ok }
+    return [math.erf(x), math.erf(y), math.erf(z)]
+}
+
+fn erfc(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.erfc")
+    if oren_is_err(ok) { return ok }
+    return [math.erfc(x), math.erfc(y), math.erfc(z)]
+}
+
 fn floor(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.floor")
     if oren_is_err(ok) { return ok }

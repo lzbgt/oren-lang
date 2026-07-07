@@ -99,6 +99,18 @@ fn power(x: f64, y: f64, ex: f64, ey: f64) {
     return pow(x, y, ex, ey)
 }
 
+fn erf(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.erf")
+    if oren_is_err(ok) { return ok }
+    return [math.erf(x), math.erf(y)]
+}
+
+fn erfc(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.erfc")
+    if oren_is_err(ok) { return ok }
+    return [math.erfc(x), math.erfc(y)]
+}
+
 fn floor(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.floor")
     if oren_is_err(ok) { return ok }
