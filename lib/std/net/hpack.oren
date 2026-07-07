@@ -948,7 +948,7 @@ fn _huff_encode_string_write(dst, pos, s) {
     return pos
 }
 
-fn _encode_string_len(s, use_huffman) {
+fn _encode_string_len_record(s, use_huffman, literal_lens) {
     if s == nil { s = "" }
     if oren_type_tag(use_huffman) == 0 { use_huffman = 0 }
     var n = 0
@@ -957,18 +957,25 @@ fn _encode_string_len(s, use_huffman) {
     } else {
         n = oren_string_len(s)
     }
+    if literal_lens != nil { list.push(literal_lens, n) }
     return _encode_int_len(7, n) + n
 }
 
-fn _encode_string_write(dst, pos, s, use_huffman) {
+fn _encode_string_len(s, use_huffman) {
+    return _encode_string_len_record(s, use_huffman, nil)
+}
+
+fn _encode_string_write_known_len(dst, pos, s, use_huffman, encoded_len) {
     if s == nil { s = "" }
     if oren_type_tag(use_huffman) == 0 { use_huffman = 0 }
     if use_huffman != 0 {
-        var hn = _huff_encoded_len_from_string(s)
+        var hn = encoded_len
+        if hn < 0 { hn = _huff_encoded_len_from_string(s) }
         pos = _encode_int_write(dst, pos, 128, 7, hn)
         return _huff_encode_string_write(dst, pos, s)
     }
-    var n = oren_string_len(s)
+    var n = encoded_len
+    if n < 0 { n = oren_string_len(s) }
     pos = _encode_int_write(dst, pos, 0, 7, n)
     var i = 0
     while i < n {
@@ -979,8 +986,24 @@ fn _encode_string_write(dst, pos, s, use_huffman) {
     return pos
 }
 
+fn _encode_string_write(dst, pos, s, use_huffman) {
+    return _encode_string_write_known_len(dst, pos, s, use_huffman, -1)
+}
+
+fn _next_literal_len(meta) {
+    if meta == nil { return -1 }
+    var lens = meta["lens"]
+    if lens == nil { return -1 }
+    var i = meta["i"]
+    if oren_type_tag(i) == 0 { i = 0 }
+    if i < 0 || i >= list.len(lens) { return -1 }
+    meta["i"] = i + 1
+    return lens[i]
+}
+
 fn _encoded_header_block_len(table, headers, use_huffman, tmax) {
     var out_len = 0
+    var literal_lens = []
     if tmax != nil {
         out_len = out_len + _encode_int_len(5, tmax)
         table["max"] = tmax
@@ -1008,8 +1031,8 @@ fn _encoded_header_block_len(table, headers, use_huffman, tmax) {
 
         if _str_eq_bytes(mode, "inc") {
             out_len = out_len + _encode_int_len(6, name_idx)
-            if name_idx == 0 { out_len = out_len + _encode_string_len(name, use_huffman) }
-            out_len = out_len + _encode_string_len(value, use_huffman)
+            if name_idx == 0 { out_len = out_len + _encode_string_len_record(name, use_huffman, literal_lens) }
+            out_len = out_len + _encode_string_len_record(value, use_huffman, literal_lens)
             _table_add(table, name, value)
             i = i + 1
             continue
@@ -1017,22 +1040,23 @@ fn _encoded_header_block_len(table, headers, use_huffman, tmax) {
 
         if _str_eq_bytes(mode, "never") {
             out_len = out_len + _encode_int_len(4, name_idx)
-            if name_idx == 0 { out_len = out_len + _encode_string_len(name, use_huffman) }
-            out_len = out_len + _encode_string_len(value, use_huffman)
+            if name_idx == 0 { out_len = out_len + _encode_string_len_record(name, use_huffman, literal_lens) }
+            out_len = out_len + _encode_string_len_record(value, use_huffman, literal_lens)
             i = i + 1
             continue
         }
 
         out_len = out_len + _encode_int_len(4, name_idx)
-        if name_idx == 0 { out_len = out_len + _encode_string_len(name, use_huffman) }
-        out_len = out_len + _encode_string_len(value, use_huffman)
+        if name_idx == 0 { out_len = out_len + _encode_string_len_record(name, use_huffman, literal_lens) }
+        out_len = out_len + _encode_string_len_record(value, use_huffman, literal_lens)
         i = i + 1
     }
-    return {"ok": 1, "n": out_len}
+    return {"ok": 1, "n": out_len, "literal_lens": literal_lens}
 }
 
-fn _encode_header_block_write(table, headers, use_huffman, tmax, dst) {
+fn _encode_header_block_write(table, headers, use_huffman, tmax, dst, literal_lens) {
     var pos = 0
+    var literal_meta = {"lens": literal_lens, "i": 0}
     if tmax != nil {
         pos = _encode_int_write(dst, pos, 32, 5, tmax)
         table["max"] = tmax
@@ -1060,8 +1084,8 @@ fn _encode_header_block_write(table, headers, use_huffman, tmax, dst) {
 
         if _str_eq_bytes(mode, "inc") {
             pos = _encode_int_write(dst, pos, 64, 6, name_idx)
-            if name_idx == 0 { pos = _encode_string_write(dst, pos, name, use_huffman) }
-            pos = _encode_string_write(dst, pos, value, use_huffman)
+            if name_idx == 0 { pos = _encode_string_write_known_len(dst, pos, name, use_huffman, _next_literal_len(literal_meta)) }
+            pos = _encode_string_write_known_len(dst, pos, value, use_huffman, _next_literal_len(literal_meta))
             _table_add(table, name, value)
             i = i + 1
             continue
@@ -1069,16 +1093,19 @@ fn _encode_header_block_write(table, headers, use_huffman, tmax, dst) {
 
         if _str_eq_bytes(mode, "never") {
             pos = _encode_int_write(dst, pos, 16, 4, name_idx)
-            if name_idx == 0 { pos = _encode_string_write(dst, pos, name, use_huffman) }
-            pos = _encode_string_write(dst, pos, value, use_huffman)
+            if name_idx == 0 { pos = _encode_string_write_known_len(dst, pos, name, use_huffman, _next_literal_len(literal_meta)) }
+            pos = _encode_string_write_known_len(dst, pos, value, use_huffman, _next_literal_len(literal_meta))
             i = i + 1
             continue
         }
 
         pos = _encode_int_write(dst, pos, 0, 4, name_idx)
-        if name_idx == 0 { pos = _encode_string_write(dst, pos, name, use_huffman) }
-        pos = _encode_string_write(dst, pos, value, use_huffman)
+        if name_idx == 0 { pos = _encode_string_write_known_len(dst, pos, name, use_huffman, _next_literal_len(literal_meta)) }
+        pos = _encode_string_write_known_len(dst, pos, value, use_huffman, _next_literal_len(literal_meta))
         i = i + 1
+    }
+    if literal_lens != nil && literal_meta["i"] != list.len(literal_lens) {
+        return {"ok": 0, "err": "hpack.encode_header_block: literal length metadata mismatch"}
     }
     return {"ok": 1, "n": pos}
 }
@@ -1114,7 +1141,7 @@ fn encode_header_block(table, headers, opts) {
     var dst = native_buf_data_ptr(out)
     if dst == 0 && out_len > 0 { return {"ok": 0, "err": "hpack.encode_header_block: bytes ptr nil"} }
 
-    var wr = _encode_header_block_write(table, headers, use_huffman, tmax, dst)
+    var wr = _encode_header_block_write(table, headers, use_huffman, tmax, dst, lr["literal_lens"])
     if wr["ok"] != 1 { return wr }
     if wr["n"] != out_len { return {"ok": 0, "err": "hpack.encode_header_block: encoded length mismatch"} }
     return {"ok": 1, "b": out, "table": table}

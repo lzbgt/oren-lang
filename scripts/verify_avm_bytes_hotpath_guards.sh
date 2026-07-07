@@ -385,6 +385,18 @@ if ! grep -Fq 'var _B64_DECODE = nil' lib/std/encoding/base64.oren ||
   exit 1
 fi
 
+hpack_len_impl="$(sed -n '/fn _encoded_header_block_len/,/fn _encode_header_block_write/p' lib/std/net/hpack.oren)"
+hpack_write_impl="$(sed -n '/fn _encode_header_block_write/,/fn encode_header_block/p' lib/std/net/hpack.oren)"
+if ! grep -Fq 'var literal_lens = []' <<<"$hpack_len_impl" ||
+  ! grep -Fq 'return {"ok": 1, "n": out_len, "literal_lens": literal_lens}' <<<"$hpack_len_impl" ||
+  ! grep -Fq 'fn _next_literal_len(meta)' lib/std/net/hpack.oren ||
+  ! grep -Fq 'var literal_meta = {"lens": literal_lens, "i": 0}' <<<"$hpack_write_impl" ||
+  ! grep -Fq '_encode_string_write_known_len(dst, pos, value, use_huffman, _next_literal_len(literal_meta))' <<<"$hpack_write_impl" ||
+  ! grep -Fq 'lr["literal_lens"]' lib/std/net/hpack.oren; then
+  echo "ERROR: HPACK header encode must reuse sizing-pass string literal lengths during write, not rescan Huffman literals" >&2
+  exit 1
+fi
+
 strict_b64_impl="$(sed -n '/fn decode_bytes_strict(s)/,/fn decode_strict/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" ||
   ! grep -Fq 'var v0 = _b64_val(_str_byte(s, si))' <<<"$strict_b64_impl" ||
