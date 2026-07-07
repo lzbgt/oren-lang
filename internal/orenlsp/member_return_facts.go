@@ -178,8 +178,8 @@ func inferStatementReturnType(stmt ast.Statement, env memberTypeEnv, stack *[]ma
 		if stmt.Post != nil {
 			_ = inferStatementReturnType(stmt.Post, env, stack)
 		}
-		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
-			*stack = append(*stack, map[string]string{name: typeName})
+		if frame, ok := inferForInElementFrame(stmt, env, *stack); ok {
+			*stack = append(*stack, frame)
 			defer func() { *stack = (*stack)[:len(*stack)-1] }()
 			return inferForInBodyReturnType(stmt.Body, env, stack)
 		}
@@ -209,8 +209,8 @@ func inferStatementReturnFieldTypes(stmt ast.Statement, env memberTypeEnv, stack
 		if stmt.Post != nil {
 			_ = inferStatementReturnFieldTypes(stmt.Post, env, stack)
 		}
-		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
-			*stack = append(*stack, map[string]string{name: typeName})
+		if frame, ok := inferForInElementFrame(stmt, env, *stack); ok {
+			*stack = append(*stack, frame)
 			defer func() { *stack = (*stack)[:len(*stack)-1] }()
 			return inferForInBodyReturnFieldTypes(stmt.Body, env, stack)
 		}
@@ -458,8 +458,8 @@ func collectFunctionParamStatementTypes(stmt ast.Statement, env memberTypeEnv, f
 		collectFunctionParamStatementTypes(stmt.Init, env, functions, stack, out, conflicts)
 		collectFunctionParamExpressionTypes(stmt.Condition, env, functions, stack, out, conflicts)
 		collectFunctionParamStatementTypes(stmt.Post, env, functions, stack, out, conflicts)
-		if name, typeName, ok := inferForInElementBinding(stmt, env, *stack); ok {
-			*stack = append(*stack, map[string]string{name: typeName})
+		if frame, ok := inferForInElementFrame(stmt, env, *stack); ok {
+			*stack = append(*stack, frame)
 			collectFunctionParamBlockTypes(stmt.Body, env, functions, stack, out, conflicts)
 			*stack = (*stack)[:len(*stack)-1]
 			return
@@ -551,10 +551,12 @@ func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, function
 		if existing == "" || existing == typeName {
 			out[fnName][param.Value] = typeName
 			mergeCallParamFieldTypes(fnName, param.Value, typeName, inferExpressionFieldTypes(arg, env, stack), env, out, conflicts)
+			mergeCallParamElementFieldTypes(fnName, param.Value, typeName, inferIterableElementFieldTypes(arg, env, stack), out, conflicts)
 			continue
 		}
 		delete(out[fnName], param.Value)
 		deleteCallParamFieldTypes(param.Value, out[fnName])
+		deleteCallParamElementFieldTypes(param.Value, out[fnName])
 		conflicts[paramKey] = true
 	}
 }
@@ -599,6 +601,51 @@ func mergeCallParamFieldTypes(fnName, paramName, typeName string, fields map[str
 	}
 }
 
+func mergeCallParamElementFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredListPrefix) {
+		return
+	}
+	if out[fnName] == nil {
+		out[fnName] = map[string]string{}
+	}
+	dropMissingCallParamElementFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
+	for field, typeName := range fields {
+		if field == "" || typeName == "" {
+			continue
+		}
+		paramField := inferredElementFieldKey(paramName, field)
+		conflictKey := fnName + "\x00" + paramField
+		if conflicts[conflictKey] {
+			continue
+		}
+		existing := out[fnName][paramField]
+		if existing == "" || existing == typeName {
+			out[fnName][paramField] = typeName
+			continue
+		}
+		delete(out[fnName], paramField)
+		conflicts[conflictKey] = true
+	}
+}
+
+func dropMissingCallParamElementFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "[]."
+	for key := range params {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		field := strings.TrimPrefix(key, prefix)
+		if field == "" || fields[field] != "" {
+			continue
+		}
+		delete(params, key)
+		conflicts[fnName+"\x00"+key] = true
+	}
+}
+
 func dropMissingCallParamFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
 	if fnName == "" || paramName == "" || len(params) == 0 {
 		return
@@ -622,6 +669,18 @@ func deleteCallParamFieldTypes(paramName string, params map[string]string) {
 		return
 	}
 	prefix := paramName + "."
+	for key := range params {
+		if strings.HasPrefix(key, prefix) {
+			delete(params, key)
+		}
+	}
+}
+
+func deleteCallParamElementFieldTypes(paramName string, params map[string]string) {
+	if paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "[]."
 	for key := range params {
 		if strings.HasPrefix(key, prefix) {
 			delete(params, key)
