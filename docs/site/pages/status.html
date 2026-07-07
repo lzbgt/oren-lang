@@ -2617,9 +2617,11 @@
 <p>					  encoding plus recursive/sequence decode use shared <code>std:bytes</code> byte views,</p>
 <p>					  HPACK header block encoding reuses Huffman string-literal lengths</p>
 <p>					  from sizing-pass <code>list_int</code> metadata during exact-size byte-buffer writes,</p>
-<p>					  and native HTTP/2 client DATA responses with <code>content-length</code> accumulate</p>
-<p>					  into exact-capacity <code>u8_buf</code> bodies with length mismatch checks while</p>
-<p>					  fragmented HEADERS writes stream raw header-block spans and inbound</p>
+<p>						  and native HTTP/2 client header-only <code>END_STREAM</code> responses return exact</p>
+<p>						  empty <code>u8_buf</code> bodies before allocating DATA accumulators, while DATA</p>
+<p>						  responses with <code>content-length</code> accumulate into exact-capacity <code>u8_buf</code></p>
+<p>						  bodies with length mismatch checks; fragmented HEADERS writes stream raw</p>
+<p>						  header-block spans and inbound</p>
 <p>					  single-CONTINUATION header blocks assemble with exact-size copies,</p>
 <p>				  full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>

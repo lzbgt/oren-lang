@@ -514,6 +514,7 @@ http2_send_headers_impl="$(sed -n '/fn _send_headers_fragmented/,/fn _new_record
 if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
   ! grep -Fq 'fn _headers_content_length(hs)' <<<"$http2_client_impl" ||
   ! grep -Fq 'var body_expected_len = _headers_content_length(hs)' <<<"$http2_client_impl" ||
+  ! grep -Fq 'var empty_body = oren_u8_buf_new_uninit(0)' <<<"$http2_client_impl" ||
   ! grep -Fq 'body_acc = _u8_acc_new_exact(body_expected_len)' <<<"$http2_client_impl" ||
   ! grep -Fq 'body_acc["len"] + pn > body_expected_len' <<<"$http2_client_impl" ||
   ! grep -Fq 'body_acc["len"] != body_expected_len' <<<"$http2_client_impl" ||
@@ -522,6 +523,12 @@ if ! grep -Fq 'fn _u8_acc_new_exact(capacity)' lib/std/net/http2_client.oren ||
   ! grep -Fq '{"name": "content-length", "value": "5", "index": "no"}' tests/native/test_http2_headers_loopback.oren ||
   grep -Fq 'var body_acc = _u8_acc_new(0)' <<<"$http2_client_impl"; then
   echo "ERROR: HTTP/2 response bodies with content-length must use exact-capacity u8 accumulation and validate DATA length" >&2
+  exit 1
+fi
+http2_empty_body_line="$(printf '%s\n' "$http2_client_impl" | nl -ba | grep -F 'var empty_body = oren_u8_buf_new_uninit(0)' | awk '{print $1}' | head -1)"
+http2_body_acc_line="$(printf '%s\n' "$http2_client_impl" | nl -ba | grep -F 'var body_acc = nil' | awk '{print $1}' | head -1)"
+if [[ -z "$http2_empty_body_line" || -z "$http2_body_acc_line" || "$http2_empty_body_line" -ge "$http2_body_acc_line" ]]; then
+  echo "ERROR: HTTP/2 header-only responses must return empty bodies before allocating DATA accumulators" >&2
   exit 1
 fi
 

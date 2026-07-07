@@ -2511,9 +2511,11 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 					  encoding plus recursive/sequence decode use shared `std:bytes` byte views,
 					  HPACK header block encoding reuses Huffman string-literal lengths
 					  from sizing-pass `list_int` metadata during exact-size byte-buffer writes,
-					  and native HTTP/2 client DATA responses with `content-length` accumulate
-					  into exact-capacity `u8_buf` bodies with length mismatch checks while
-					  fragmented HEADERS writes stream raw header-block spans and inbound
+						  and native HTTP/2 client header-only `END_STREAM` responses return exact
+						  empty `u8_buf` bodies before allocating DATA accumulators, while DATA
+						  responses with `content-length` accumulate into exact-capacity `u8_buf`
+						  bodies with length mismatch checks; fragmented HEADERS writes stream raw
+						  header-block spans and inbound
 					  single-CONTINUATION header blocks assemble with exact-size copies,
 				  full regex
   pattern/text matching, and public `std:strings`

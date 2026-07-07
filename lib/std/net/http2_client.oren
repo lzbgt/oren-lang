@@ -462,6 +462,12 @@ fn _request_state(c, headers, body_bytes, opts) {
 
     // Read DATA frames until END_STREAM on our stream. Header-only responses
     // terminate on the response HEADERS frame and do not require a DATA frame.
+    if (hb2["flags"] & h2.FLAG_END_STREAM) != 0 {
+        if body_expected_len > 0 { return _err("http2_client.request: content-length mismatch") }
+        var empty_body = oren_u8_buf_new_uninit(0)
+        if oren_is_err(empty_body) { return _err("http2_client.request: alloc empty body") }
+        return {"ok": 1, "status": status, "headers": hs, "body": empty_body}
+    }
     var body_acc = nil
     if body_expected_len >= 0 {
         body_acc = _u8_acc_new_exact(body_expected_len)
@@ -469,12 +475,7 @@ fn _request_state(c, headers, body_bytes, opts) {
         body_acc = _u8_acc_new(0)
     }
     if oren_is_err(body_acc) { return _err("http2_client.request: alloc body") }
-    var body = oren_u8_buf_new_uninit(0)
-    if oren_is_err(body) { return _err("http2_client.request: alloc empty body") }
-    if (hb2["flags"] & h2.FLAG_END_STREAM) != 0 {
-        if body_expected_len > 0 { return _err("http2_client.request: content-length mismatch") }
-        return {"ok": 1, "status": status, "headers": hs, "body": body}
-    }
+    var body = nil
     while true {
         var frd = _read_frame(conn, timeout_ms)
         if frd["ok"] != 1 { return _err("http2_client.request: read DATA") }
