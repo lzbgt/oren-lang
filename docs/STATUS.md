@@ -2401,8 +2401,9 @@ streaming short-write-safe chunks instead of materializing a full-size byte
 mirror. AVM byte/string slice conversion now shares checked bytes/list/
 `LIST_INT` copy-span helpers for full-buffer string conversion,
 `oren_string_from_bytes_slice`, `oren_u8_buf_from_bytes_slice`, `bytes_pack`,
-and `bytes_unpack`, keeping LIST_INT byte carriers on the optimized path
-without duplicated boxed-list slice loops. The iOS SDK now
+and `bytes_unpack`; the native runtime now routes the same slice/pack/unpack
+family through shared byte-span helpers, keeping LIST_INT byte carriers on the
+optimized path without duplicated boxed-list slice loops. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

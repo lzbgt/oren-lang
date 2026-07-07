@@ -226,6 +226,35 @@ if ! grep -Fq 'avm_native_bytes_copy_span(args[0], start, n, (uint8_t*)out' <<<"
   exit 1
 fi
 
+native_byte_helpers="lib/runtime_native/180_bytes_helpers.oren"
+native_copy_helper="$(sed -n '/fn native_bytes_copy_span(bytes/,/^}/p' "$native_byte_helpers")"
+native_copy_list_helper="$(sed -n '/fn native_bytes_copy_span_to_int_list(bytes/,/^}/p' "$native_byte_helpers")"
+native_string_slice_impl="$(sed -n '/fn oren_string_from_bytes_slice/,/fn bytes_untracked_strings_enabled/p' "$native_byte_helpers")"
+native_u8_slice_impl="$(sed -n '/fn oren_u8_buf_from_bytes_slice/,/fn bytes_hex_nibble/p' "$native_byte_helpers")"
+native_pack_unpack_impl="$(sed -n '/fn oren_bytes_unpack/,/fn oren_bool_norm/p' "$native_byte_helpers")"
+if ! grep -Fq 'native_bytes_is_u8_buf(bytes) == true' <<<"$native_copy_helper" ||
+  ! grep -Fq 'oren_memcpy(dst, data + start, len)' <<<"$native_copy_helper" ||
+  ! grep -Fq 'ptr_set_byte(dst + i, b & 255)' <<<"$native_copy_helper"; then
+  echo "ERROR: native byte slice/pack helpers must share one checked bytes/list/LIST_INT copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'native_bytes_is_u8_buf(bytes) == true' <<<"$native_copy_list_helper" ||
+  ! grep -Fq 'ptr_set(out_buf + i * 8, ptr_get_byte(data + start + i) & 255)' <<<"$native_copy_list_helper" ||
+  ! grep -Fq 'ptr_set(out_buf + j * 8, b)' <<<"$native_copy_list_helper"; then
+  echo "ERROR: native bytes_unpack must share one checked bytes/list/LIST_INT to int-list copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'native_bytes_copy_span(bytes, start, len, out)' <<<"$native_string_slice_impl" ||
+  ! grep -Fq 'native_bytes_copy_span(bytes, start, len, dst)' <<<"$native_u8_slice_impl" ||
+  ! grep -Fq 'native_bytes_copy_span_to_int_list(bytes, 0, n, out)' <<<"$native_pack_unpack_impl" ||
+  ! grep -Fq 'native_bytes_copy_span(xs, 0, n, outp)' <<<"$native_pack_unpack_impl" ||
+  grep -Fq 'ptr_get(list_buf + (start + i) * 8)' <<<"$native_string_slice_impl$native_u8_slice_impl" ||
+  grep -Fq 'ptr_get(list_buf + j * 8)' <<<"$native_pack_unpack_impl" ||
+  grep -Fq 'ptr_get(in_buf + i * 8)' <<<"$native_pack_unpack_impl"; then
+  echo "ERROR: native byte slice/pack/unpack helpers must route through shared copy-span helpers instead of duplicating list/LIST_INT loops" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||
