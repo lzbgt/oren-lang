@@ -113,6 +113,7 @@ BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
                                       NSUInteger indexBytes,
                                       uint32_t indexCount);
 void OrenAVMGfxRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID);
+void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID);
 const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID);
 const void* OrenAVMGfxRetainedMaterialValue(uint32_t rgbaValue);
 BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);

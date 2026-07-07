@@ -68,6 +68,18 @@ def main() -> int:
         fail("CoreGraphics retained mesh removals must delegate to OrenAVMGraphicsResources")
     if "CFDictionarySetValue(_orenMeshesByID" in view_text or "CFDictionaryRemoveValue(_orenMeshesByID" in view_text:
         fail("CoreGraphics view must not mutate retained mesh maps directly")
+    if "OrenAVMGfxDrawMesh2DResource(ctx, _orenMeshesByID" not in view_text:
+        fail("CoreGraphics retained 2D mesh draws must delegate to OrenAVMGraphicsResources")
+    if "void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID)" not in resource_text:
+        fail("CoreGraphics retained 2D mesh draw helper must live in OrenAVMGraphicsResources")
+    if "mesh.triangleCount != mesh.triangleBytes / 24u" not in resource_text:
+        fail("CoreGraphics retained 2D mesh draw helper must validate the raw 2D triangle payload")
+    mesh2d_draw_start = view_text.find("} else if (opcode == 81 && payloadLen == 4)")
+    mesh2d_draw_end = view_text.find("} else if (opcode == 82 && payloadLen == 4)", mesh2d_draw_start)
+    if mesh2d_draw_start < 0 or mesh2d_draw_end < 0:
+        fail("missing CoreGraphics retained 2D mesh draw opcode block")
+    if "const uint8_t* tri = tris + ((size_t)ti * 24u)" in view_text[mesh2d_draw_start:mesh2d_draw_end]:
+        fail("CoreGraphics view must not expand retained 2D mesh triangle payloads directly")
     if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
         fail("CoreGraphics retained mesh payloads must stay raw owned buffers, not NSData wrappers")
     for pattern in (

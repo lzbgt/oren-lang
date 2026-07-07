@@ -329,6 +329,36 @@ void OrenAVMGfxRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID
     if (meshes && meshID != 0) CFDictionaryRemoveValue(meshes, OrenAVMGfxRetainedMeshKey(meshID));
 }
 
+static void OrenAVMGfxSetFillColorValue(CGContextRef ctx, uint32_t rgbaValue) {
+    CGContextSetRGBFillColor(ctx,
+                             (CGFloat)(rgbaValue & 255u) / 255.0,
+                             (CGFloat)((rgbaValue >> 8) & 255u) / 255.0,
+                             (CGFloat)((rgbaValue >> 16) & 255u) / 255.0,
+                             (CGFloat)((rgbaValue >> 24) & 255u) / 255.0);
+}
+
+void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID) {
+    OrenAVMGfxMeshResource* mesh = OrenAVMGfxRetainedMeshResource(meshes, meshID);
+    const uint8_t* tris = mesh.triangles;
+    if (!ctx || !tris || mesh.triangleCount != mesh.triangleBytes / 24u) return;
+    OrenAVMGfxSetFillColorValue(ctx, mesh.rgbaValue);
+    for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
+        const uint8_t* tri = tris + ((size_t)ti * 24u);
+        CGContextBeginPath(ctx);
+        CGContextMoveToPoint(ctx,
+                             (CGFloat)OrenAVMGfxResourceReadU32LE(tri),
+                             (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 4));
+        CGContextAddLineToPoint(ctx,
+                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 8),
+                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 12));
+        CGContextAddLineToPoint(ctx,
+                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 16),
+                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 20));
+        CGContextClosePath(ctx);
+        CGContextFillPath(ctx);
+    }
+}
+
 const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID) {
     return OrenAVMGfxRetainedKey(materialID);
 }

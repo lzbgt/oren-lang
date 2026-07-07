@@ -50,6 +50,7 @@ def main() -> int:
         "OrenAVMGfxPutTriangleMeshResource",
         "OrenAVMGfxPutIndexedMeshResource",
         "OrenAVMGfxRemoveMeshResource",
+        "OrenAVMGfxDrawMesh2DResource",
         "OrenAVMGfxRetainedMaterialKey",
         "OrenAVMGfxRetainedMaterialRGBA",
         "OrenAVMGfxPutMaterialResource",
@@ -112,6 +113,8 @@ def main() -> int:
         fail("CoreGraphics retained indexed mesh uploads must delegate resource mutation to OrenAVMGraphicsResources")
     if "OrenAVMGfxRemoveMeshResource(_orenMeshesByID" not in view_text:
         fail("CoreGraphics retained mesh removals must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawMesh2DResource(ctx, _orenMeshesByID" not in view_text:
+        fail("CoreGraphics retained 2D mesh draws must delegate payload traversal to OrenAVMGraphicsResources")
     if "OrenAVMGfxPutMaterialResource(&_orenMaterials3DByID," not in view_text:
         fail("CoreGraphics retained material uploads must delegate resource mutation to OrenAVMGraphicsResources")
     if "OrenAVMGfxPutModelResource(&_orenModels3DByID," not in view_text:

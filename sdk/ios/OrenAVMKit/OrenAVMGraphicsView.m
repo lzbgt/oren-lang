@@ -547,20 +547,7 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                                                         NO);
             }
         } else if (opcode == 81 && payloadLen == 4) {
-            OrenAVMGfxMeshResource* mesh = OrenAVMGfxRetainedMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
-            const uint8_t* tris = mesh.triangles;
-            if (tris && mesh.triangleCount == mesh.triangleBytes / 24u) {
-                OrenAVMGfxSetFillColorValue(ctx, mesh.rgbaValue);
-                for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
-                    const uint8_t* tri = tris + ((size_t)ti * 24u);
-                    CGContextBeginPath(ctx);
-                    CGContextMoveToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri), (CGFloat)OrenAVMGfxReadU32LE(tri + 4));
-                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 8), (CGFloat)OrenAVMGfxReadU32LE(tri + 12));
-                    CGContextAddLineToPoint(ctx, (CGFloat)OrenAVMGfxReadU32LE(tri + 16), (CGFloat)OrenAVMGfxReadU32LE(tri + 20));
-                    CGContextClosePath(ctx);
-                    CGContextFillPath(ctx);
-                }
-            }
+            OrenAVMGfxDrawMesh2DResource(ctx, _orenMeshesByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 82 && payloadLen == 4) {
             OrenAVMGfxRemoveMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
