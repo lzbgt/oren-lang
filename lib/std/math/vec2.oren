@@ -109,6 +109,34 @@ fn scalbln(x: f64, y: f64, nx, ny) {
     return ldexp(x, y, nx, ny)
 }
 
+fn fdim(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.fdim")
+    if oren_is_err(ok) { return ok }
+    return [math.fdim(ax, bx), math.fdim(ay, by)]
+}
+
+fn nextafter(ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite4(ax, ay, bx, by, "vec2.nextafter")
+    if oren_is_err(ok) { return ok }
+    return [math.nextafter(ax, bx), math.nextafter(ay, by)]
+}
+
+fn nexttoward(ax: f64, ay: f64, bx: f64, by: f64) {
+    return nextafter(ax, ay, bx, by)
+}
+
+fn nextup(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.nextup")
+    if oren_is_err(ok) { return ok }
+    return [math.nextup(x), math.nextup(y)]
+}
+
+fn nextdown(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.nextdown")
+    if oren_is_err(ok) { return ok }
+    return [math.nextdown(x), math.nextdown(y)]
+}
+
 fn pow(x: f64, y: f64, ex: f64, ey: f64) {
     var ok = _finite4(x, y, ex, ey, "vec2.pow")
     if oren_is_err(ok) { return ok }

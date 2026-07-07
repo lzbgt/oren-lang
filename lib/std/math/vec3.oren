@@ -116,6 +116,34 @@ fn scalbln(x: f64, y: f64, z: f64, nx, ny, nz) {
     return ldexp(x, y, z, nx, ny, nz)
 }
 
+fn fdim(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.fdim")
+    if oren_is_err(ok) { return ok }
+    return [math.fdim(ax, bx), math.fdim(ay, by), math.fdim(az, bz)]
+}
+
+fn nextafter(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.nextafter")
+    if oren_is_err(ok) { return ok }
+    return [math.nextafter(ax, bx), math.nextafter(ay, by), math.nextafter(az, bz)]
+}
+
+fn nexttoward(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return nextafter(ax, ay, az, bx, by, bz)
+}
+
+fn nextup(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.nextup")
+    if oren_is_err(ok) { return ok }
+    return [math.nextup(x), math.nextup(y), math.nextup(z)]
+}
+
+fn nextdown(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.nextdown")
+    if oren_is_err(ok) { return ok }
+    return [math.nextdown(x), math.nextdown(y), math.nextdown(z)]
+}
+
 fn pow(x: f64, y: f64, z: f64, ex: f64, ey: f64, ez: f64) {
     var ok = _finite6(x, y, z, ex, ey, ez, "vec3.pow")
     if oren_is_err(ok) { return ok }
