@@ -200,6 +200,46 @@ assert_true(!oren_is_err(ec), 245, "erfc ok")
 assert_close(ec[0], 1.0, 3e-7, 246, "erfc x")
 assert_close(ec[2], 1.8427007929497148, 3e-7, 247, "erfc z")
 
+var deg = vec3.degrees(0.0, math.pi() / 2.0, math.pi())
+assert_true(!oren_is_err(deg), 280, "degrees ok")
+assert_close(deg[1], 90.0, 1e-12, 281, "degrees y")
+
+var rad = vec3.radians(90.0, 180.0, 360.0)
+assert_true(!oren_is_err(rad), 282, "radians ok")
+assert_close(rad[2], math.tau(), 1e-12, 283, "radians z")
+
+var wr = vec3.wrap(370.0, 0.0 - 10.0, 725.0, 0.0, 0.0, 0.0, 360.0, 360.0, 360.0)
+assert_true(!oren_is_err(wr), 284, "wrap ok")
+assert_close(wr[0], 10.0, 1e-12, 285, "wrap x")
+assert_close(wr[2], 5.0, 1e-12, 286, "wrap z")
+
+var wd = vec3.wrap_degrees(370.0, 0.0 - 10.0, 725.0)
+assert_true(!oren_is_err(wd), 287, "wrap_degrees ok")
+assert_close(wd[1], 350.0, 1e-12, 288, "wrap_degrees y")
+
+var ar = vec3.wrap_radians(math.tau() + 0.25, 0.0 - 0.5, math.tau() + 1.0)
+assert_true(!oren_is_err(ar), 289, "wrap_radians ok")
+assert_close(ar[2], 1.0, 1e-12, 290, "wrap_radians z")
+
+var ad = vec3.angle_delta_degrees(350.0, 10.0, 90.0, 10.0, 350.0, 180.0)
+assert_true(!oren_is_err(ad), 291, "angle_delta_degrees ok")
+assert_close(ad[0], 20.0, 1e-12, 292, "angle_delta_degrees x")
+assert_close(ad[1], 0.0 - 20.0, 1e-12, 293, "angle_delta_degrees y")
+assert_close(ad[2], 90.0, 1e-12, 294, "angle_delta_degrees z")
+
+var adr = vec3.angle_delta_radians(math.pi() * 1.5, 0.5 * math.pi(), 0.0, 0.25, math.pi() * 1.5, math.pi())
+assert_true(!oren_is_err(adr), 295, "angle_delta_radians ok")
+assert_close(adr[0], math.pi() * 0.5 + 0.25, 1e-12, 296, "angle_delta_radians x")
+
+var lad = vec3.lerp_angle_degrees(350.0, 10.0, 90.0, 10.0, 350.0, 180.0, 0.5)
+assert_true(!oren_is_err(lad), 297, "lerp_angle_degrees ok")
+assert_close(lad[0], 360.0, 1e-12, 298, "lerp_angle_degrees x")
+assert_close(lad[1], 0.0, 1e-12, 299, "lerp_angle_degrees y")
+
+var lar = vec3.lerp_angle_radians(math.pi() * 1.5, 0.5 * math.pi(), 0.0, 0.5 * math.pi(), math.pi() * 1.5, math.pi(), 0.5)
+assert_true(!oren_is_err(lar), 300, "lerp_angle_radians ok")
+assert_close(lar[0], math.pi(), 1e-12, 301, "lerp_angle_radians x")
+
 var sn = vec3.sin(0.0, math.pi() / 2.0, 0.0 - math.pi() / 2.0)
 assert_true(!oren_is_err(sn), 139, "sin ok")
 assert_close(sn[0], 0.0, 1e-12, 140, "sin x")
@@ -343,6 +383,10 @@ assert_true(oren_is_err(vec3.pow(1.0, 2.0, 3.0, 4.0, math.nan(), 6.0)), 240, "po
 assert_true(oren_is_err(vec3.pow(0.0 - 2.0, 4.0, 9.0, 0.5, 0.5, 0.5)), 241, "pow domain errors")
 assert_true(oren_is_err(vec3.erf(0.0, math.inf(), 1.0)), 248, "erf inf errors")
 assert_true(oren_is_err(vec3.erfc(0.0, math.nan(), 1.0)), 249, "erfc nan errors")
+assert_true(oren_is_err(vec3.radians(90.0, math.nan(), 180.0)), 302, "radians nan errors")
+assert_true(oren_is_err(vec3.wrap(1.0, 2.0, 3.0, 0.0, 3.0, 0.0, 1.0, 2.0, 4.0)), 303, "wrap range errors")
+assert_true(oren_is_err(vec3.angle_delta_radians(0.0, math.inf(), 0.0, 1.0, 2.0, 3.0)), 304, "angle_delta_radians inf errors")
+assert_true(oren_is_err(vec3.lerp_angle_radians(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, math.inf())), 305, "lerp_angle_radians inf errors")
 assert_true(oren_is_err(vec3.cos(0.0, math.inf(), 1.0)), 151, "cos inf errors")
 assert_true(oren_is_err(vec3.tan(0.0, 1.0, math.nan())), 152, "tan nan errors")
 assert_true(oren_is_err(vec3.sin_cos(0.0, math.inf(), 1.0)), 176, "sin_cos inf errors")

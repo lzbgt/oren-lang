@@ -111,6 +111,67 @@ fn erfc(x: f64, y: f64) {
     return [math.erfc(x), math.erfc(y)]
 }
 
+fn radians(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.radians")
+    if oren_is_err(ok) { return ok }
+    return [math.radians(x), math.radians(y)]
+}
+
+fn degrees(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.degrees")
+    if oren_is_err(ok) { return ok }
+    return [math.degrees(x), math.degrees(y)]
+}
+
+fn wrap(x: f64, y: f64, lo_x: f64, lo_y: f64, hi_x: f64, hi_y: f64) {
+    var ok = _finite4(x, y, lo_x, lo_y, "vec2.wrap")
+    if oren_is_err(ok) { return ok }
+    ok = _finite2(hi_x, hi_y, "vec2.wrap")
+    if oren_is_err(ok) { return ok }
+    if hi_x <= lo_x || hi_y <= lo_y { return oren_err(4, "vec2.wrap: hi <= lo") }
+    return [math.wrap(x, lo_x, hi_x), math.wrap(y, lo_y, hi_y)]
+}
+
+fn wrap_radians(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.wrap_radians")
+    if oren_is_err(ok) { return ok }
+    return [math.wrap_radians(x), math.wrap_radians(y)]
+}
+
+fn wrap_degrees(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.wrap_degrees")
+    if oren_is_err(ok) { return ok }
+    return [math.wrap_degrees(x), math.wrap_degrees(y)]
+}
+
+fn angle_delta_radians(from_x: f64, from_y: f64, to_x: f64, to_y: f64) {
+    var ok = _finite4(from_x, from_y, to_x, to_y, "vec2.angle_delta_radians")
+    if oren_is_err(ok) { return ok }
+    return [math.angle_delta_radians(from_x, to_x), math.angle_delta_radians(from_y, to_y)]
+}
+
+fn angle_delta_degrees(from_x: f64, from_y: f64, to_x: f64, to_y: f64) {
+    var ok = _finite4(from_x, from_y, to_x, to_y, "vec2.angle_delta_degrees")
+    if oren_is_err(ok) { return ok }
+    return [math.angle_delta_degrees(from_x, to_x), math.angle_delta_degrees(from_y, to_y)]
+}
+
+fn lerp_angle_radians(from_x: f64, from_y: f64, to_x: f64, to_y: f64, t: f64) {
+    var ok = _finite4(from_x, from_y, to_x, to_y, "vec2.lerp_angle_radians")
+    if oren_is_err(ok) { return ok }
+    ok = _finite_scalar(t, "vec2.lerp_angle_radians")
+    if oren_is_err(ok) { return ok }
+    return [math.lerp_angle_radians(from_x, to_x, t), math.lerp_angle_radians(from_y, to_y, t)]
+}
+
+fn lerp_angle_degrees(from_x: f64, from_y: f64, to_x: f64, to_y: f64, t: f64) {
+    var ok = _finite4(from_x, from_y, to_x, to_y, "vec2.lerp_angle_degrees")
+    if oren_is_err(ok) { return ok }
+    ok = _finite_scalar(t, "vec2.lerp_angle_degrees")
+    if oren_is_err(ok) { return ok }
+    return [math.lerp_angle_degrees(from_x, to_x, t), math.lerp_angle_degrees(from_y, to_y, t)]
+}
+
 fn floor(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.floor")
     if oren_is_err(ok) { return ok }

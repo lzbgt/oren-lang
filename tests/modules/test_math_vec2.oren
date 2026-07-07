@@ -202,6 +202,45 @@ assert_true(!oren_is_err(ec), 243, "erfc ok")
 assert_close(ec[0], 1.0, 3e-7, 244, "erfc x")
 assert_close(ec[1], 0.1572992070502851, 3e-7, 245, "erfc y")
 
+var deg = vec2.degrees(0.0, math.pi())
+assert_true(!oren_is_err(deg), 280, "degrees ok")
+assert_close(deg[1], 180.0, 1e-12, 281, "degrees y")
+
+var rad = vec2.radians(90.0, 180.0)
+assert_true(!oren_is_err(rad), 282, "radians ok")
+assert_close(rad[0], math.pi() / 2.0, 1e-12, 283, "radians x")
+
+var wr = vec2.wrap(370.0, 0.0 - 10.0, 0.0, 0.0, 360.0, 360.0)
+assert_true(!oren_is_err(wr), 284, "wrap ok")
+assert_close(wr[0], 10.0, 1e-12, 285, "wrap x")
+assert_close(wr[1], 350.0, 1e-12, 286, "wrap y")
+
+var wd = vec2.wrap_degrees(370.0, 0.0 - 10.0)
+assert_true(!oren_is_err(wd), 287, "wrap_degrees ok")
+assert_close(wd[1], 350.0, 1e-12, 288, "wrap_degrees y")
+
+var ar = vec2.wrap_radians(math.tau() + 0.25, 0.0 - 0.5)
+assert_true(!oren_is_err(ar), 289, "wrap_radians ok")
+assert_close(ar[0], 0.25, 1e-12, 290, "wrap_radians x")
+
+var ad = vec2.angle_delta_degrees(350.0, 10.0, 10.0, 350.0)
+assert_true(!oren_is_err(ad), 291, "angle_delta_degrees ok")
+assert_close(ad[0], 20.0, 1e-12, 292, "angle_delta_degrees x")
+assert_close(ad[1], 0.0 - 20.0, 1e-12, 293, "angle_delta_degrees y")
+
+var adr = vec2.angle_delta_radians(math.pi() * 1.5, 0.5 * math.pi(), 0.25, math.pi() * 1.5)
+assert_true(!oren_is_err(adr), 294, "angle_delta_radians ok")
+assert_close(adr[0], math.pi() * 0.5 + 0.25, 1e-12, 295, "angle_delta_radians x")
+
+var lad = vec2.lerp_angle_degrees(350.0, 10.0, 10.0, 350.0, 0.5)
+assert_true(!oren_is_err(lad), 296, "lerp_angle_degrees ok")
+assert_close(lad[0], 360.0, 1e-12, 297, "lerp_angle_degrees x")
+assert_close(lad[1], 0.0, 1e-12, 298, "lerp_angle_degrees y")
+
+var lar = vec2.lerp_angle_radians(math.pi() * 1.5, 0.5 * math.pi(), 0.5 * math.pi(), math.pi() * 1.5, 0.5)
+assert_true(!oren_is_err(lar), 299, "lerp_angle_radians ok")
+assert_close(lar[0], math.pi(), 1e-12, 300, "lerp_angle_radians x")
+
 var sn = vec2.sin(0.0, math.pi() / 2.0)
 assert_true(!oren_is_err(sn), 125, "sin ok")
 assert_close(sn[0], 0.0, 1e-12, 126, "sin x")
@@ -332,6 +371,10 @@ assert_true(oren_is_err(vec2.pow(1.0, 2.0, math.inf(), 3.0)), 238, "pow inf erro
 assert_true(oren_is_err(vec2.pow(0.0 - 2.0, 4.0, 0.5, 0.5)), 239, "pow domain errors")
 assert_true(oren_is_err(vec2.erf(math.inf(), 0.0)), 246, "erf inf errors")
 assert_true(oren_is_err(vec2.erfc(0.0, math.nan())), 247, "erfc nan errors")
+assert_true(oren_is_err(vec2.degrees(math.inf(), 0.0)), 301, "degrees inf errors")
+assert_true(oren_is_err(vec2.wrap(1.0, 2.0, 0.0, 3.0, 1.0, 2.0)), 302, "wrap range errors")
+assert_true(oren_is_err(vec2.angle_delta_degrees(math.inf(), 0.0, 1.0, 2.0)), 303, "angle_delta_degrees inf errors")
+assert_true(oren_is_err(vec2.lerp_angle_degrees(0.0, 1.0, 2.0, 3.0, math.nan())), 304, "lerp_angle_degrees nan errors")
 assert_true(oren_is_err(vec2.sin(math.inf(), 0.0)), 134, "sin inf errors")
 assert_true(oren_is_err(vec2.tan(0.0, math.nan())), 135, "tan nan errors")
 assert_true(oren_is_err(vec2.sin_cos(math.inf(), 0.0)), 155, "sin_cos inf errors")
