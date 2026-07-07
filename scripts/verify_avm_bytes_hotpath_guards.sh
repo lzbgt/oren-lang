@@ -410,6 +410,20 @@ if ! grep -Fq 'var out = oren_u8_buf_new_uninit(out_len)' <<<"$strict_b64_impl" 
   exit 1
 fi
 
+tolerant_b64_impl="$(sed -n '/fn decode_bytes(s)/,/fn decode(s): bytes/p' lib/std/encoding/base64.oren)"
+if ! grep -Fq 'fn _b64_clean_meta(s)' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'var meta = _b64_clean_meta(s)' <<<"$tolerant_b64_impl" ||
+  ! grep -Fq 'return clean * 4 + trailing_pad' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'var clean = meta / 4' <<<"$tolerant_b64_impl" ||
+  ! grep -Fq 'var pad = meta % 4' <<<"$tolerant_b64_impl" ||
+  grep -Fq 'var meta = list.int_new(0)' lib/std/encoding/base64.oren ||
+  grep -Fq 'fn _b64_count_clean_chars' lib/std/encoding/base64.oren ||
+  grep -Fq 'while i >= 0 && seen < 2' <<<"$tolerant_b64_impl" ||
+  ! grep -Fq 'parse_bytes whitespace metadata padded' tests/modules/test_base64.oren; then
+  echo "ERROR: tolerant Base64 decode must derive clean length and padding from one metadata pass, not a clean-count pass plus backward padding scan" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||

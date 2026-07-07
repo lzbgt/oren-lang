@@ -2622,8 +2622,9 @@
 <p>  and native WebSocket header slices plus unmasked frame payloads copy with</p>
 <p>  <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
-<p>		  Base64/Base64URL encode reads inputs through shared byte views after one length</p>
-<p>		  check and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
+<p>			  Base64/Base64URL encode reads inputs through shared byte views after one length</p>
+<p>			  check, tolerant Base64 decode derives clean length plus trailing padding from one</p>
+<p>			  metadata pass, and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
 <p>	  directly from shared byte views, OGE0 event headers and little-endian</p>
 <p>	  payload fields read through shared byte-view readers, UI command validation</p>
 <p>	  reads geometry/text-position/image-rect payload fields through shared</p>
@@ -2717,7 +2718,8 @@
 <p>			  <code>ppm.write_rgba_ppm</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
 <p>  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now read inputs through shared byte views and write exact-size <code>u8_buf</code> output instead of materializing an</p>
-<p>			  intermediate Oren list, and their decode paths reject malformed padding,</p>
+<p>				  intermediate Oren list, tolerant Base64 decode now computes whitespace-stripped length</p>
+<p>				  plus trailing padding in one pass, and their decode paths reject malformed padding,</p>
 <p>			  third-character padding without fourth-character padding, and nonzero</p>
 <p>				  trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes; strict Base64 decode now sizes exactly and validates inline instead of pre-scanning then delegating to the whitespace-tolerant path. NET cleanup now covers native and AVM session</p>
 <p>				  objects: native TCP/UDP/TLS handles expose <code>.read_into(...)</code>,</p>

@@ -242,16 +242,24 @@ fn _b64url_val(c) {
     return list.int_get(_b64url_decode_table(), c)
 }
 
-fn _b64_count_clean_chars(s) {
+fn _b64_clean_meta(s) {
     var n = oren_string_len(s)
     var i = 0
-    var out = 0
+    var clean = 0
+    var trailing_pad = 0
     while i < n {
         var c = _str_byte(s, i)
-        if b64_is_ws(c) == 0 { out = out + 1 }
+        if b64_is_ws(c) == 0 {
+            clean = clean + 1
+            if c == 61 {
+                trailing_pad = trailing_pad + 1
+            } else {
+                trailing_pad = 0
+            }
+        }
         i = i + 1
     }
-    return out
+    return clean * 4 + trailing_pad
 }
 
 fn decode_bytes(s) {
@@ -261,23 +269,14 @@ fn decode_bytes(s) {
     // Requires standard RFC4648 alphabet (+/ with '=' padding).
     if s == nil { return oren_err(4, "base64.decode_bytes: string is nil") }
 
-    var clean = _b64_count_clean_chars(s)
+    var meta = _b64_clean_meta(s)
+    var clean = meta / 4
     if clean == 0 { return oren_u8_buf_new_uninit(0) }
     if (clean % 4) != 0 { return oren_err(4, "base64.decode_bytes: invalid length (not multiple of 4)") }
 
-    // Compute output length from padding (look at last 2 non-ws chars).
+    // Output length comes from the same clean-character metadata pass.
     var n = oren_string_len(s)
-    var pad = 0
-    var seen = 0
-    var i = n - 1
-    while i >= 0 && seen < 2 {
-        var c = _str_byte(s, i)
-        if b64_is_ws(c) == 0 {
-            seen = seen + 1
-            if c == 61 { pad = pad + 1 }
-        }
-        i = i - 1
-    }
+    var pad = meta % 4
     if pad > 2 { return oren_err(4, "base64.decode_bytes: invalid padding") }
 
     var groups = clean / 4
