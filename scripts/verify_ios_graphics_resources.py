@@ -47,9 +47,16 @@ def main() -> int:
         "OrenAVMGfxDrawTextResourcePositions",
         "OrenAVMGfxRemoveTextResource",
         "OrenAVMGfxRetainedMeshKey",
+        "OrenAVMGfxPutTriangleMeshResource",
+        "OrenAVMGfxPutIndexedMeshResource",
+        "OrenAVMGfxRemoveMeshResource",
         "OrenAVMGfxRetainedMaterialKey",
         "OrenAVMGfxRetainedMaterialRGBA",
+        "OrenAVMGfxPutMaterialResource",
+        "OrenAVMGfxRemoveMaterialResource",
         "OrenAVMGfxRetainedModelKey",
+        "OrenAVMGfxPutModelResource",
+        "OrenAVMGfxRemoveModelResource",
         "OrenAVMGfxCopyPayloadBytes",
         "OrenAVMGfxTriangleOrderBuffer",
         "OrenAVMGfxSortTriangleOrder",
@@ -74,6 +81,12 @@ def main() -> int:
         "static NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForView",
         "CFDictionarySetValue(_orenTextResourcesByID",
         "CFDictionaryRemoveValue(_orenTextResourcesByID",
+        "CFDictionarySetValue(_orenMeshesByID",
+        "CFDictionaryRemoveValue(_orenMeshesByID",
+        "CFDictionarySetValue(_orenMaterials3DByID",
+        "CFDictionaryRemoveValue(_orenMaterials3DByID",
+        "CFDictionarySetValue(_orenModels3DByID",
+        "CFDictionaryRemoveValue(_orenModels3DByID",
         "static const void* OrenAVMGfxRetainedMeshKey",
         "static OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource",
         "static const void* OrenAVMGfxRetainedMaterialKey",
@@ -93,6 +106,16 @@ def main() -> int:
         fail("CoreGraphics retained text batched draws must delegate payload traversal to OrenAVMGraphicsResources")
     if "OrenAVMGfxRemoveTextResource(_orenTextResourcesByID, textID)" not in view_text:
         fail("CoreGraphics retained text removals must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutTriangleMeshResource(&_orenMeshesByID," not in view_text:
+        fail("CoreGraphics retained triangle mesh uploads must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutIndexedMeshResource(&_orenMeshesByID," not in view_text:
+        fail("CoreGraphics retained indexed mesh uploads must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveMeshResource(_orenMeshesByID" not in view_text:
+        fail("CoreGraphics retained mesh removals must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutMaterialResource(&_orenMaterials3DByID," not in view_text:
+        fail("CoreGraphics retained material uploads must delegate resource mutation to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutModelResource(&_orenModels3DByID," not in view_text:
+        fail("CoreGraphics retained model uploads must delegate resource mutation to OrenAVMGraphicsResources")
 
     print("OK: CoreGraphics retained resource helpers live in OrenAVMGraphicsResources")
     return 0

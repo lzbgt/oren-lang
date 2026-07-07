@@ -537,17 +537,14 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
-                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
-                mesh.rgbaValue = OrenAVMGfxRGBAValue(payload + 4);
-                mesh.triangleBytes = (NSUInteger)payloadLen - 12u;
-                mesh.triangles = OrenAVMGfxCopyPayloadBytes(payload + 12, mesh.triangleBytes);
-                if (!mesh.triangles) {
-                    off += payloadLen;
-                    continue;
-                }
-                mesh.triangleCount = triangleCount;
-                mesh.stride = 24u;
-                if (_orenMeshesByID) CFDictionarySetValue(_orenMeshesByID, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
+                (void)OrenAVMGfxPutTriangleMeshResource(&_orenMeshesByID,
+                                                        meshID,
+                                                        OrenAVMGfxRGBAValue(payload + 4),
+                                                        payload + 12,
+                                                        (NSUInteger)payloadLen - 12u,
+                                                        triangleCount,
+                                                        24u,
+                                                        NO);
             }
         } else if (opcode == 81 && payloadLen == 4) {
             OrenAVMGfxMeshResource* mesh = OrenAVMGfxRetainedMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
@@ -565,22 +562,19 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 }
             }
         } else if (opcode == 82 && payloadLen == 4) {
-            if (_orenMeshesByID) CFDictionaryRemoveValue(_orenMeshesByID, OrenAVMGfxRetainedMeshKey(OrenAVMGfxReadU32LE(payload)));
+            OrenAVMGfxRemoveMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 83 && payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 8);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
-                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
-                mesh.rgbaValue = OrenAVMGfxRGBAValue(payload + 4);
-                mesh.triangleBytes = (NSUInteger)payloadLen - 12u;
-                mesh.triangles = OrenAVMGfxCopyPayloadBytes(payload + 12, mesh.triangleBytes);
-                if (!mesh.triangles) {
-                    off += payloadLen;
-                    continue;
-                }
-                mesh.triangleCount = triangleCount;
-                mesh.stride = 36u;
-                if (_orenMeshesByID) CFDictionarySetValue(_orenMeshesByID, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
+                (void)OrenAVMGfxPutTriangleMeshResource(&_orenMeshesByID,
+                                                        meshID,
+                                                        OrenAVMGfxRGBAValue(payload + 4),
+                                                        payload + 12,
+                                                        (NSUInteger)payloadLen - 12u,
+                                                        triangleCount,
+                                                        36u,
+                                                        NO);
             }
         } else if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
                    (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
@@ -710,53 +704,38 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
                 free(heapOrder);
             }
         } else if (opcode == 85 && payloadLen == 4) {
-            if (_orenMeshesByID) CFDictionaryRemoveValue(_orenMeshesByID, OrenAVMGfxRetainedMeshKey(OrenAVMGfxReadU32LE(payload)));
+            OrenAVMGfxRemoveMeshResource(_orenMeshesByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 89 && payloadLen == 8) {
             uint32_t materialID = OrenAVMGfxReadU32LE(payload);
-            if (materialID != 0) {
-                if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-                if (_orenMaterials3DByID) {
-                    CFDictionarySetValue(_orenMaterials3DByID,
-                                         OrenAVMGfxRetainedMaterialKey(materialID),
-                                         OrenAVMGfxRetainedMaterialValue(OrenAVMGfxRGBAValue(payload + 4)));
-                }
-            }
+            (void)OrenAVMGfxPutMaterialResource(&_orenMaterials3DByID, materialID, OrenAVMGfxRGBAValue(payload + 4));
         } else if (opcode == 92 && payloadLen == 4) {
-            if (_orenMaterials3DByID) CFDictionaryRemoveValue(_orenMaterials3DByID, OrenAVMGfxRetainedMaterialKey(OrenAVMGfxReadU32LE(payload)));
+            OrenAVMGfxRemoveMaterialResource(_orenMaterials3DByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 93 && payloadLen == 28) {
             uint32_t modelID = OrenAVMGfxReadU32LE(payload);
             uint32_t meshID = OrenAVMGfxReadU32LE(payload + 4);
             uint32_t scaleMilli = OrenAVMGfxReadU32LE(payload + 24);
-            if (modelID != 0 && meshID != 0 && scaleMilli != 0) {
-                OrenAVMGfxModelResource* model = [[OrenAVMGfxModelResource alloc] init];
-                model.meshID = meshID;
-                model.materialID = OrenAVMGfxReadU32LE(payload + 8);
-                model.x = (int32_t)OrenAVMGfxReadU32LE(payload + 12);
-                model.y = (int32_t)OrenAVMGfxReadU32LE(payload + 16);
-                model.z = (int32_t)OrenAVMGfxReadU32LE(payload + 20);
-                model.scaleMilli = scaleMilli;
-                if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-                if (_orenModels3DByID) {
-                    CFDictionarySetValue(_orenModels3DByID, OrenAVMGfxRetainedModelKey(modelID), (__bridge const void*)model);
-                }
-            }
+            (void)OrenAVMGfxPutModelResource(&_orenModels3DByID,
+                                             modelID,
+                                             meshID,
+                                             OrenAVMGfxReadU32LE(payload + 8),
+                                             (int32_t)OrenAVMGfxReadU32LE(payload + 12),
+                                             (int32_t)OrenAVMGfxReadU32LE(payload + 16),
+                                             (int32_t)OrenAVMGfxReadU32LE(payload + 20),
+                                             scaleMilli);
         } else if (opcode == 95 && payloadLen == 4) {
-            if (_orenModels3DByID) CFDictionaryRemoveValue(_orenModels3DByID, OrenAVMGfxRetainedModelKey(OrenAVMGfxReadU32LE(payload)));
+            OrenAVMGfxRemoveModelResource(_orenModels3DByID, OrenAVMGfxReadU32LE(payload));
         } else if (opcode == 86 && payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
             uint32_t triangleCount = OrenAVMGfxReadU32LE(payload + 4);
             if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
-                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
-                mesh.triangleBytes = (NSUInteger)payloadLen - 8u;
-                mesh.triangles = OrenAVMGfxCopyPayloadBytes(payload + 8, mesh.triangleBytes);
-                if (!mesh.triangles) {
-                    off += payloadLen;
-                    continue;
-                }
-                mesh.triangleCount = triangleCount;
-                mesh.stride = 40u;
-                mesh.hasRGBA = YES;
-                if (_orenMeshesByID) CFDictionarySetValue(_orenMeshesByID, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
+                (void)OrenAVMGfxPutTriangleMeshResource(&_orenMeshesByID,
+                                                        meshID,
+                                                        0,
+                                                        payload + 8,
+                                                        (NSUInteger)payloadLen - 8u,
+                                                        triangleCount,
+                                                        40u,
+                                                        YES);
             }
         } else if (opcode == 88 && payloadLen >= 64) {
             uint32_t meshID = OrenAVMGfxReadU32LE(payload);
@@ -764,27 +743,16 @@ static BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
             uint32_t indexCount = OrenAVMGfxReadU32LE(payload + 12);
             size_t vertexBytes = (size_t)vertexCount * 12u;
             size_t indexBytes = (size_t)indexCount * 4u;
-            BOOL indicesOK = meshID != 0 && vertexCount >= 3u && indexCount >= 3u && indexCount % 3u == 0 &&
-                16u + vertexBytes + indexBytes == (size_t)payloadLen;
-            for (uint32_t ii = 0; indicesOK && ii < indexCount; ii++) {
-                if (OrenAVMGfxReadU32LE(payload + 16 + vertexBytes + ((size_t)ii * 4u)) >= vertexCount) {
-                    indicesOK = NO;
-                }
-            }
-            if (indicesOK) {
-                OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
-                mesh.rgbaValue = OrenAVMGfxRGBAValue(payload + 4);
-                mesh.vertexBytes = vertexBytes;
-                mesh.indexBytes = indexBytes;
-                mesh.vertices = OrenAVMGfxCopyPayloadBytes(payload + 16, mesh.vertexBytes);
-                mesh.indices = OrenAVMGfxCopyPayloadBytes(payload + 16 + vertexBytes, mesh.indexBytes);
-                if (!mesh.vertices || !mesh.indices) {
-                    off += payloadLen;
-                    continue;
-                }
-                mesh.triangleCount = indexCount / 3u;
-                mesh.indexCount = indexCount;
-                if (_orenMeshesByID) CFDictionarySetValue(_orenMeshesByID, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
+            if (16u + vertexBytes + indexBytes == (size_t)payloadLen) {
+                (void)OrenAVMGfxPutIndexedMeshResource(&_orenMeshesByID,
+                                                       meshID,
+                                                       OrenAVMGfxRGBAValue(payload + 4),
+                                                       payload + 16,
+                                                       vertexBytes,
+                                                       vertexCount,
+                                                       payload + 16 + vertexBytes,
+                                                       indexBytes,
+                                                       indexCount);
             }
         } else if (opcode == 2 && payloadLen >= 16) {
             uint32_t x = OrenAVMGfxReadU32LE(payload);

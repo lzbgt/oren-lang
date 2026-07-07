@@ -263,6 +263,72 @@ OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource(CFDictionaryRef meshes, u
     return (__bridge OrenAVMGfxMeshResource*)CFDictionaryGetValue(meshes, OrenAVMGfxRetainedMeshKey(meshID));
 }
 
+static BOOL OrenAVMGfxEnsureRetainedResourceMap(CFMutableDictionaryRef* map) {
+    if (!map) return NO;
+    if (!*map) *map = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    return *map != NULL;
+}
+
+static BOOL OrenAVMGfxEnsureScalarResourceMap(CFMutableDictionaryRef* map) {
+    if (!map) return NO;
+    if (!*map) *map = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    return *map != NULL;
+}
+
+BOOL OrenAVMGfxPutTriangleMeshResource(CFMutableDictionaryRef* meshes,
+                                       uint32_t meshID,
+                                       uint32_t rgbaValue,
+                                       const uint8_t* triangles,
+                                       NSUInteger triangleBytes,
+                                       uint32_t triangleCount,
+                                       uint32_t stride,
+                                       BOOL hasRGBA) {
+    if (meshID == 0 || !triangles || stride == 0 || triangleCount == 0 || triangleBytes != (NSUInteger)triangleCount * (NSUInteger)stride) return NO;
+    OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+    mesh.rgbaValue = rgbaValue;
+    mesh.triangleBytes = triangleBytes;
+    mesh.triangles = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);
+    if (!mesh.triangles) return NO;
+    mesh.triangleCount = triangleCount;
+    mesh.stride = stride;
+    mesh.hasRGBA = hasRGBA;
+    if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;
+    CFDictionarySetValue(*meshes, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
+    return YES;
+}
+
+BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
+                                      uint32_t meshID,
+                                      uint32_t rgbaValue,
+                                      const uint8_t* vertices,
+                                      NSUInteger vertexBytes,
+                                      uint32_t vertexCount,
+                                      const uint8_t* indices,
+                                      NSUInteger indexBytes,
+                                      uint32_t indexCount) {
+    if (meshID == 0 || !vertices || !indices || vertexCount < 3u || indexCount < 3u || (indexCount % 3u) != 0) return NO;
+    if (vertexBytes != (NSUInteger)vertexCount * 12u || indexBytes != (NSUInteger)indexCount * 4u) return NO;
+    for (uint32_t ii = 0; ii < indexCount; ii++) {
+        if (OrenAVMGfxResourceReadU32LE(indices + ((size_t)ii * 4u)) >= vertexCount) return NO;
+    }
+    OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+    mesh.rgbaValue = rgbaValue;
+    mesh.vertexBytes = vertexBytes;
+    mesh.indexBytes = indexBytes;
+    mesh.vertices = OrenAVMGfxCopyPayloadBytes(vertices, mesh.vertexBytes);
+    mesh.indices = OrenAVMGfxCopyPayloadBytes(indices, mesh.indexBytes);
+    if (!mesh.vertices || !mesh.indices) return NO;
+    mesh.triangleCount = indexCount / 3u;
+    mesh.indexCount = indexCount;
+    if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;
+    CFDictionarySetValue(*meshes, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
+    return YES;
+}
+
+void OrenAVMGfxRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID) {
+    if (meshes && meshID != 0) CFDictionaryRemoveValue(meshes, OrenAVMGfxRetainedMeshKey(meshID));
+}
+
 const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID) {
     return OrenAVMGfxRetainedKey(materialID);
 }
@@ -280,6 +346,17 @@ BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t material
     return YES;
 }
 
+BOOL OrenAVMGfxPutMaterialResource(CFMutableDictionaryRef* materials, uint32_t materialID, uint32_t rgbaValue) {
+    if (materialID == 0) return NO;
+    if (!OrenAVMGfxEnsureScalarResourceMap(materials)) return NO;
+    CFDictionarySetValue(*materials, OrenAVMGfxRetainedMaterialKey(materialID), OrenAVMGfxRetainedMaterialValue(rgbaValue));
+    return YES;
+}
+
+void OrenAVMGfxRemoveMaterialResource(CFMutableDictionaryRef materials, uint32_t materialID) {
+    if (materials && materialID != 0) CFDictionaryRemoveValue(materials, OrenAVMGfxRetainedMaterialKey(materialID));
+}
+
 const void* OrenAVMGfxRetainedModelKey(uint32_t modelID) {
     return OrenAVMGfxRetainedKey(modelID);
 }
@@ -287,6 +364,31 @@ const void* OrenAVMGfxRetainedModelKey(uint32_t modelID) {
 OrenAVMGfxModelResource* OrenAVMGfxRetainedModelResource(CFDictionaryRef models, uint32_t modelID) {
     if (!models || modelID == 0) return nil;
     return (__bridge OrenAVMGfxModelResource*)CFDictionaryGetValue(models, OrenAVMGfxRetainedModelKey(modelID));
+}
+
+BOOL OrenAVMGfxPutModelResource(CFMutableDictionaryRef* models,
+                                uint32_t modelID,
+                                uint32_t meshID,
+                                uint32_t materialID,
+                                int32_t x,
+                                int32_t y,
+                                int32_t z,
+                                uint32_t scaleMilli) {
+    if (modelID == 0 || meshID == 0 || scaleMilli == 0) return NO;
+    OrenAVMGfxModelResource* model = [[OrenAVMGfxModelResource alloc] init];
+    model.meshID = meshID;
+    model.materialID = materialID;
+    model.x = x;
+    model.y = y;
+    model.z = z;
+    model.scaleMilli = scaleMilli;
+    if (!OrenAVMGfxEnsureRetainedResourceMap(models)) return NO;
+    CFDictionarySetValue(*models, OrenAVMGfxRetainedModelKey(modelID), (__bridge const void*)model);
+    return YES;
+}
+
+void OrenAVMGfxRemoveModelResource(CFMutableDictionaryRef models, uint32_t modelID) {
+    if (models && modelID != 0) CFDictionaryRemoveValue(models, OrenAVMGfxRetainedModelKey(modelID));
 }
 
 static int64_t OrenAVMGfxMesh3DZSum(const uint8_t* tri) {

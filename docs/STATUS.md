@@ -2346,7 +2346,10 @@ scalar map keys/lookups, raw payload copy, and retained-3D painter ordering
 helpers now live in `OrenAVMGraphicsResources`, matching the Metal resource
 module boundary; retained image RGBA upload, count/pixel budget mutation,
 removal accounting, checked sub-rect drawing, text attribute cache lookup, and
-retained/immediate text resource drawing helpers now live there too. The
+retained/immediate text resource drawing helpers now live there too. CoreGraphics
+retained 2D/3D mesh, material, and model upload/remove helpers also live there,
+keeping typed resource construction and raw payload ownership with the resource
+model types. The
 iOS SDK symbol verifier
 now caches `nm` output once per archive and greps files instead of SIGPIPE-prone
 `nm | grep -q` pipelines. AVM
@@ -2788,6 +2791,9 @@ Working evidence:
   draw, batched draw, and destroy helpers now live in `OrenAVMGraphicsResources`,
   reducing `OrenAVMGraphicsView.m` to 922 lines while keeping text opcode
   routing in the view.
+  CoreGraphics retained 2D/3D mesh, material, and model upload/remove helpers
+  now live in `OrenAVMGraphicsResources`, reducing `OrenAVMGraphicsView.m` to
+  889 lines while keeping retained draw decisions in the view.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

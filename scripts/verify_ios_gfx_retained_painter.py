@@ -60,6 +60,14 @@ def main() -> int:
         fail("CoreGraphics retained mesh resources must use a scalar-key CF dictionary")
     if "OrenAVMGfxRetainedMeshResource(_orenMeshesByID, meshID)" not in text:
         fail("CoreGraphics retained 3D mesh draws must use the scalar-map resource helper")
+    if "OrenAVMGfxPutTriangleMeshResource(&_orenMeshesByID," not in view_text:
+        fail("CoreGraphics retained triangle mesh uploads must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutIndexedMeshResource(&_orenMeshesByID," not in view_text:
+        fail("CoreGraphics retained indexed mesh uploads must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveMeshResource(_orenMeshesByID" not in view_text:
+        fail("CoreGraphics retained mesh removals must delegate to OrenAVMGraphicsResources")
+    if "CFDictionarySetValue(_orenMeshesByID" in view_text or "CFDictionaryRemoveValue(_orenMeshesByID" in view_text:
+        fail("CoreGraphics view must not mutate retained mesh maps directly")
     if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
         fail("CoreGraphics retained mesh payloads must stay raw owned buffers, not NSData wrappers")
     for pattern in (
@@ -73,6 +81,10 @@ def main() -> int:
             fail("CoreGraphics retained mesh payload path regressed to NSData-backed access")
     if "OrenAVMGfxCopyPayloadBytes" not in text:
         fail("missing CoreGraphics retained mesh raw payload copy helper")
+    if "mesh.triangles = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes)" not in resource_text:
+        fail("CoreGraphics retained triangle mesh raw copy must live in OrenAVMGraphicsResources")
+    if "mesh.vertices = OrenAVMGfxCopyPayloadBytes(vertices, mesh.vertexBytes)" not in resource_text:
+        fail("CoreGraphics retained indexed mesh raw copy must live in OrenAVMGraphicsResources")
     if "NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D" in text:
         fail("CoreGraphics retained materials must store scalar RGBA values")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" in text:
@@ -81,6 +93,12 @@ def main() -> int:
         fail("CoreGraphics retained materials must use a scalar-key/scalar-value CF dictionary")
     if "OrenAVMGfxRetainedMaterialRGBA(_orenMaterials3DByID, materialID, &materialRGBAOverride)" not in text:
         fail("CoreGraphics retained material draws must use the scalar material lookup helper")
+    if "OrenAVMGfxPutMaterialResource(&_orenMaterials3DByID, materialID" not in view_text:
+        fail("CoreGraphics retained material uploads must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveMaterialResource(_orenMaterials3DByID" not in view_text:
+        fail("CoreGraphics retained material removals must delegate to OrenAVMGraphicsResources")
+    if "CFDictionarySetValue(_orenMaterials3DByID" in view_text or "CFDictionaryRemoveValue(_orenMaterials3DByID" in view_text:
+        fail("CoreGraphics view must not mutate retained material maps directly")
     if "materialRGBAValue" in text or "@(materialID)" in text:
         fail("CoreGraphics retained material paths must not box material IDs or RGBA values")
     if '@"color": OrenAVMGfxColor' in text:
@@ -166,6 +184,12 @@ def main() -> int:
         fail("CoreGraphics retained models must use a scalar-key CF dictionary")
     if "OrenAVMGfxRetainedModelResource(_orenModels3DByID, meshID)" not in text:
         fail("CoreGraphics retained model draws must use the typed scalar-map resource helper")
+    if "OrenAVMGfxPutModelResource(&_orenModels3DByID," not in view_text:
+        fail("CoreGraphics retained model uploads must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveModelResource(_orenModels3DByID" not in view_text:
+        fail("CoreGraphics retained model removals must delegate to OrenAVMGraphicsResources")
+    if "CFDictionarySetValue(_orenModels3DByID" in view_text or "CFDictionaryRemoveValue(_orenModels3DByID" in view_text:
+        fail("CoreGraphics view must not mutate retained model maps directly")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("CoreGraphics retained model draws must not use string-key dictionary lookups")
     print("OK: CoreGraphics retained resources use compact typed records")

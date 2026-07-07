@@ -2444,7 +2444,10 @@
 <p>helpers now live in <code>OrenAVMGraphicsResources</code>, matching the Metal resource</p>
 <p>module boundary; retained image RGBA upload, count/pixel budget mutation,</p>
 <p>removal accounting, checked sub-rect drawing, text attribute cache lookup, and</p>
-<p>retained/immediate text resource drawing helpers now live there too. The</p>
+<p>retained/immediate text resource drawing helpers now live there too. CoreGraphics</p>
+<p>retained 2D/3D mesh, material, and model upload/remove helpers also live there,</p>
+<p>keeping typed resource construction and raw payload ownership with the resource</p>
+<p>model types. The</p>
 <p>iOS SDK symbol verifier</p>
 <p>now caches <code>nm</code> output once per archive and greps files instead of SIGPIPE-prone</p>
 <p><code>nm | grep -q</code> pipelines. AVM</p>
@@ -2907,6 +2910,9 @@
 <p>  draw, batched draw, and destroy helpers now live in <code>OrenAVMGraphicsResources</code>,</p>
 <p>  reducing <code>OrenAVMGraphicsView.m</code> to 922 lines while keeping text opcode</p>
 <p>  routing in the view.</p>
+<p>  CoreGraphics retained 2D/3D mesh, material, and model upload/remove helpers</p>
+<p>  now live in <code>OrenAVMGraphicsResources</code>, reducing <code>OrenAVMGraphicsView.m</code> to</p>
+<p>  889 lines while keeping retained draw decisions in the view.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

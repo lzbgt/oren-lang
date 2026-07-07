@@ -95,11 +95,40 @@ void OrenAVMGfxDrawTextResourcePositions(CFDictionaryRef texts,
 void OrenAVMGfxRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID);
 const void* OrenAVMGfxRetainedMeshKey(uint32_t meshID);
 OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource(CFDictionaryRef meshes, uint32_t meshID);
+BOOL OrenAVMGfxPutTriangleMeshResource(CFMutableDictionaryRef* meshes,
+                                       uint32_t meshID,
+                                       uint32_t rgbaValue,
+                                       const uint8_t* triangles,
+                                       NSUInteger triangleBytes,
+                                       uint32_t triangleCount,
+                                       uint32_t stride,
+                                       BOOL hasRGBA);
+BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
+                                      uint32_t meshID,
+                                      uint32_t rgbaValue,
+                                      const uint8_t* vertices,
+                                      NSUInteger vertexBytes,
+                                      uint32_t vertexCount,
+                                      const uint8_t* indices,
+                                      NSUInteger indexBytes,
+                                      uint32_t indexCount);
+void OrenAVMGfxRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID);
 const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID);
 const void* OrenAVMGfxRetainedMaterialValue(uint32_t rgbaValue);
 BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);
+BOOL OrenAVMGfxPutMaterialResource(CFMutableDictionaryRef* materials, uint32_t materialID, uint32_t rgbaValue);
+void OrenAVMGfxRemoveMaterialResource(CFMutableDictionaryRef materials, uint32_t materialID);
 const void* OrenAVMGfxRetainedModelKey(uint32_t modelID);
 OrenAVMGfxModelResource* OrenAVMGfxRetainedModelResource(CFDictionaryRef models, uint32_t modelID);
+BOOL OrenAVMGfxPutModelResource(CFMutableDictionaryRef* models,
+                                uint32_t modelID,
+                                uint32_t meshID,
+                                uint32_t materialID,
+                                int32_t x,
+                                int32_t y,
+                                int32_t z,
+                                uint32_t scaleMilli);
+void OrenAVMGfxRemoveModelResource(CFMutableDictionaryRef models, uint32_t modelID);
 
 uint8_t* OrenAVMGfxCopyPayloadBytes(const uint8_t* src, NSUInteger len);
 int64_t OrenAVMGfxMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli);
