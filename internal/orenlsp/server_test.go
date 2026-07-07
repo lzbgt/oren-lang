@@ -1188,6 +1188,76 @@ func TestServerNavigationUsesAliasedConstructorFields(t *testing.T) {
 	}
 }
 
+func TestServerNavigationUsesAliasedNestedMemberFields(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf, label }",
+		"struct Outer { inner }",
+		"var outer = Outer(Inner(Leaf(1, 2), \"a\"))",
+		"var inner = outer.inner",
+		"fn main() {",
+		"  var comp = inner.leaf.",
+		"  return inner.leaf.y",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-nested-alias.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      70,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 6, "character": len([]rune(lines[6]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      71,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": strings.Index(lines[7], ".y") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      72,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": strings.Index(lines[0], "y")},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 70)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "label", 5) {
+		t.Fatalf("aliased nested member completion mismatch: %#v", items)
+	}
+	leafY := float64(strings.Index(lines[0], "y"))
+	assertDefinition(t, messageByID(t, msgs, 71)["result"].([]any), uri, 0, leafY, leafY+1)
+	assertLocations(t, messageByID(t, msgs, 72)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 0, Character: int(leafY)}, End: position{Line: 0, Character: int(leafY) + 1}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 7, Character: strings.Index(lines[7], ".y") + 1}, End: position{Line: 7, Character: strings.Index(lines[7], ".y") + 2}}},
+	})
+}
+
 func TestServerNavigationUsesFactoryReturnFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

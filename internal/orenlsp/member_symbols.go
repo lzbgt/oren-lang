@@ -1161,8 +1161,8 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	if typeName == "" {
 		return
 	}
-	if source, ok := expr.(*ast.Identifier); ok && validMemberIdentifier(source) {
-		copyInferredFieldTypes(ident.Value, source.Value, stack)
+	if sourcePath := memberExpressionPath(expr); sourcePath != "" {
+		copyInferredFieldTypes(ident.Value, sourcePath, stack)
 		return
 	}
 	if fields := inferExpressionFieldTypes(expr, env, stack); len(fields) != 0 {
