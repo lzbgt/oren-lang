@@ -3057,7 +3057,10 @@ Working evidence:
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
 	  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/imported-returned-container-field/imported-parameter-returned-container-field/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/returned-nested-container-field/imported-parameter-returned-nested-container-field/nested-indexed-container-field/indexed-map-value-field/scoped-completion evidence remains.
-- Documentation and source-file guardrails.
+- Documentation and source-file guardrails. Go transpiler expression codegen now
+  lives in `pkg/transpiler/transpiler_expr.go`, reducing
+  `pkg/transpiler/transpiler.go` to 1391 lines while preserving expression
+  emitter behavior.
 
 ## Key Verification Entrypoints
 

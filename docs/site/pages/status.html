@@ -3214,8 +3214,11 @@
 <p>  activation, and a smoke verifier; richer member inference beyond direct</p>
 <p>	  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/imported-returned-container-field/imported-parameter-returned-container-field/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/returned-nested-container-field/imported-parameter-returned-nested-container-field/nested-indexed-container-field/indexed-map-value-field/scoped-completion evidence remains.</p>
 <ul>
-<li>Documentation and source-file guardrails.</li>
+<li>Documentation and source-file guardrails. Go transpiler expression codegen now</li>
 </ul>
+<p>  lives in <code>pkg/transpiler/transpiler_expr.go</code>, reducing</p>
+<p>  <code>pkg/transpiler/transpiler.go</code> to 1391 lines while preserving expression</p>
+<p>  emitter behavior.</p>
 <h2 id="key-verification-entrypoints">Key Verification Entrypoints</h2>
 <pre><code>./oretest
 ./oretest --selfhost

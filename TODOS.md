@@ -2778,6 +2778,9 @@ design evidence lives under `project-doc/`.
   `scripts/native_quick_math_followon_smokes.sh`, reducing
   `run_native_quick_integration.sh` to 1578 lines while preserving the same
   sourced retry and logging context.
+- Go transpiler expression codegen now lives in `pkg/transpiler/transpiler_expr.go`,
+  reducing `pkg/transpiler/transpiler.go` to 1391 lines while preserving the
+  expression emitter behavior.
 - Scene3D invalid JSON/package validation assertions now live in
   `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
   `test_ui_scene3d_v0.oren` to 1782 lines without changing the curated AVM
