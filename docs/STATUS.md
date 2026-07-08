@@ -3042,7 +3042,7 @@ Working evidence:
 	  nested list-of-map and map-of-list indexed container field-chain inference,
 	  and indexed map value field-chain inference,
   recursive nested constructor-bound call-site parameter and parameter-return field-chain inference including imported identity-return call sites,
-  source-brace scoped local/list-for-in receiver completions inside function blocks,
+  source-brace scoped local/list-for-in receiver completions inside function blocks with member-completion regressions split below the source-line guard,
   consistent direct call-site parameter inference with conflict
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
