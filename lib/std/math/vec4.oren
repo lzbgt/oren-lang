@@ -12,6 +12,12 @@ fn _finite8(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f
     return _finite4(bx, by, bz, bw, ctx)
 }
 
+fn _finite12(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, cx: f64, cy: f64, cz: f64, cw: f64, ctx) {
+    var a = _finite8(ax, ay, az, aw, bx, by, bz, bw, ctx)
+    if oren_is_err(a) { return a }
+    return _finite4(cx, cy, cz, cw, ctx)
+}
+
 fn _check_vec4(v, ctx) {
     if oren_list_len(v) != 4 { return oren_err(4, ctx + ": expected 4 values") }
     return _finite4(v[0], v[1], v[2], v[3], ctx)
@@ -955,6 +961,27 @@ fn move_toward(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw
     if d == 0.0 || d <= delta { return [bx, by, bz, bw] }
     var s: f64 = delta / d
     return [ax + (bx - ax) * s, ay + (by - ay) * s, az + (bz - az) * s, aw + (bw - aw) * s]
+}
+
+fn closest_point_on_segment(px: f64, py: f64, pz: f64, pw: f64, ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var ok = _finite12(px, py, pz, pw, ax, ay, az, aw, bx, by, bz, bw, "vec4.closest_point_on_segment")
+    if oren_is_err(ok) { return ok }
+    var vx: f64 = bx - ax
+    var vy: f64 = by - ay
+    var vz: f64 = bz - az
+    var vw: f64 = bw - aw
+    var len: f64 = vx * vx + vy * vy + vz * vz + vw * vw
+    if len == 0.0 { return [ax, ay, az, aw] }
+    var t: f64 = ((px - ax) * vx + (py - ay) * vy + (pz - az) * vz + (pw - aw) * vw) / len
+    if t < 0.0 { t = 0.0 }
+    if t > 1.0 { t = 1.0 }
+    return [ax + vx * t, ay + vy * t, az + vz * t, aw + vw * t]
+}
+
+fn distance_to_segment(px: f64, py: f64, pz: f64, pw: f64, ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    var p = closest_point_on_segment(px, py, pz, pw, ax, ay, az, aw, bx, by, bz, bw)
+    if oren_is_err(p) { return p }
+    return distance(px, py, pz, pw, p[0], p[1], p[2], p[3])
 }
 
 fn project(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {

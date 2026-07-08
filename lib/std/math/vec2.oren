@@ -12,6 +12,12 @@ fn _finite4(ax: f64, ay: f64, bx: f64, by: f64, ctx) {
     return _finite2(bx, by, ctx)
 }
 
+fn _finite6(ax: f64, ay: f64, bx: f64, by: f64, cx: f64, cy: f64, ctx) {
+    var a = _finite4(ax, ay, bx, by, ctx)
+    if oren_is_err(a) { return a }
+    return _finite2(cx, cy, ctx)
+}
+
 fn _finite_scalar(x: f64, ctx) {
     if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
     if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
@@ -818,6 +824,25 @@ fn move_toward(ax: f64, ay: f64, bx: f64, by: f64, delta: f64) {
     if d == 0.0 || d <= delta { return [bx, by] }
     var s: f64 = delta / d
     return [ax + (bx - ax) * s, ay + (by - ay) * s]
+}
+
+fn closest_point_on_segment(px: f64, py: f64, ax: f64, ay: f64, bx: f64, by: f64) {
+    var ok = _finite6(px, py, ax, ay, bx, by, "vec2.closest_point_on_segment")
+    if oren_is_err(ok) { return ok }
+    var vx: f64 = bx - ax
+    var vy: f64 = by - ay
+    var len: f64 = vx * vx + vy * vy
+    if len == 0.0 { return [ax, ay] }
+    var t: f64 = ((px - ax) * vx + (py - ay) * vy) / len
+    if t < 0.0 { t = 0.0 }
+    if t > 1.0 { t = 1.0 }
+    return [ax + vx * t, ay + vy * t]
+}
+
+fn distance_to_segment(px: f64, py: f64, ax: f64, ay: f64, bx: f64, by: f64) {
+    var p = closest_point_on_segment(px, py, ax, ay, bx, by)
+    if oren_is_err(p) { return p }
+    return distance(px, py, p[0], p[1])
 }
 
 fn project(ax: f64, ay: f64, bx: f64, by: f64) {

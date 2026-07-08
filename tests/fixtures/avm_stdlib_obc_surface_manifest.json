@@ -221,6 +221,7 @@
         "var v2p = math_vec2.project(3.0, 4.0, 1.0, 0.0)",
         "if oren_is_err(v2p) { fail(66) }",
         "assert_close(v2p[0], 3.0, 1e-12, 67)",
+        "assert_close(math_vec2.distance_to_segment(3.0, 4.0, 0.0, 0.0, 4.0, 0.0), 4.0, 1e-12, 6702)",
         "assert_close(math_vec2.distance_squared(1.0, 2.0, 4.0, 6.0), 25.0, 1e-12, 6701)"
       ]
     },
@@ -237,6 +238,9 @@
         "var v3m = math_vec3.move_toward(0.0, 0.0, 0.0, 2.0, 3.0, 6.0, 3.5)",
         "if oren_is_err(v3m) { fail(6501) }",
         "assert_close(v3m[1], 1.5, 1e-12, 6502)",
+        "var v3s = math_vec3.closest_point_on_segment(2.0, 3.0, 6.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0)",
+        "if oren_is_err(v3s) { fail(6503) }",
+        "assert_close(v3s[1], 0.0, 1e-12, 6504)",
         "var v3r = math_vec3.reflect(1.0, -2.0, 3.0, 0.0, 1.0, 0.0)",
         "if oren_is_err(v3r) { fail(68) }",
         "assert_close(v3r[1], 2.0, 1e-12, 69)",
@@ -256,6 +260,9 @@
         "var v4d = math_vec4.direction_to(0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 4.0)",
         "if oren_is_err(v4d) { fail(11901) }",
         "assert_close(v4d[3], 0.8, 1e-12, 11902)",
+        "var v4s = math_vec4.closest_point_on_segment(1.0, 2.0, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0)",
+        "if oren_is_err(v4s) { fail(11903) }",
+        "assert_close(v4s[0], 1.0, 1e-12, 11904)",
         "var v4r = math_vec4.reflect(1.0, -2.0, 3.0, 4.0, 0.0, 1.0, 0.0, 0.0)",
         "if oren_is_err(v4r) { fail(120) }",
         "assert_close(v4r[1], 2.0, 1e-12, 121)",
