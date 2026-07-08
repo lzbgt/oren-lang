@@ -73,6 +73,45 @@ fn scale(sx: f64, sy: f64, sz: f64) {
     ]
 }
 
+fn rotation_x(radians: f64) {
+    var ok = _finite_scalar(radians, "mat4.rotation_x")
+    if oren_is_err(ok) { return ok }
+    var c: f64 = math.cos(radians)
+    var s: f64 = math.sin(radians)
+    return [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, c, 0.0 - s, 0.0,
+        0.0, s, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn rotation_y(radians: f64) {
+    var ok = _finite_scalar(radians, "mat4.rotation_y")
+    if oren_is_err(ok) { return ok }
+    var c: f64 = math.cos(radians)
+    var s: f64 = math.sin(radians)
+    return [
+        c, 0.0, s, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0 - s, 0.0, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn rotation_z(radians: f64) {
+    var ok = _finite_scalar(radians, "mat4.rotation_z")
+    if oren_is_err(ok) { return ok }
+    var c: f64 = math.cos(radians)
+    var s: f64 = math.sin(radians)
+    return [
+        c, 0.0 - s, 0.0, 0.0,
+        s, c, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
 fn from_quat(x: f64, y: f64, z: f64, w: f64) {
     var q = quat.normalize(x, y, z, w)
     if oren_is_err(q) { return q }
@@ -95,6 +134,16 @@ fn from_quat(x: f64, y: f64, z: f64, w: f64) {
         2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0,
         0.0, 0.0, 0.0, 1.0
     ]
+}
+
+fn from_axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
+    var q = quat.from_axis_angle(ax, ay, az, radians)
+    if oren_is_err(q) { return q }
+    return from_quat(q[0], q[1], q[2], q[3])
+}
+
+fn rotation_axis(ax: f64, ay: f64, az: f64, radians: f64) {
+    return from_axis_angle(ax, ay, az, radians)
 }
 
 fn from_quaternion(x: f64, y: f64, z: f64, w: f64) {
