@@ -348,8 +348,16 @@ fn multiply(a, b) {
     return mul(a, b)
 }
 
+fn model_view(model, view) {
+    return mul(view, model)
+}
+
+fn view_projection(view, projection) {
+    return mul(projection, view)
+}
+
 fn model_view_projection(model, view, projection) {
-    var vm = mul(view, model)
+    var vm = model_view(model, view)
     if oren_is_err(vm) { return vm }
     return mul(projection, vm)
 }
