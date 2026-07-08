@@ -690,6 +690,10 @@ fn log(x: f64, y: f64, z: f64, w: f64) {
     return [math.log(x), math.log(y), math.log(z), math.log(w)]
 }
 
+fn ln(x: f64, y: f64, z: f64, w: f64) {
+    return log(x, y, z, w)
+}
+
 fn log2(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.log2")
     if oren_is_err(ok) { return ok }
@@ -741,6 +745,10 @@ fn sin_cos(x: f64, y: f64, z: f64, w: f64) {
     var cz: f64 = math.cos(z)
     var cw: f64 = math.cos(w)
     return [sx, sy, sz, sw, cx, cy, cz, cw]
+}
+
+fn sincos(x: f64, y: f64, z: f64, w: f64) {
+    return sin_cos(x, y, z, w)
 }
 
 fn sinh(x: f64, y: f64, z: f64, w: f64) {

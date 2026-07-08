@@ -623,6 +623,10 @@ fn log(x: f64, y: f64, z: f64) {
     return [math.log(x), math.log(y), math.log(z)]
 }
 
+fn ln(x: f64, y: f64, z: f64) {
+    return log(x, y, z)
+}
+
 fn log2(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.log2")
     if oren_is_err(ok) { return ok }
@@ -672,6 +676,10 @@ fn sin_cos(x: f64, y: f64, z: f64) {
     var cy: f64 = math.cos(y)
     var cz: f64 = math.cos(z)
     return [sx, sy, sz, cx, cy, cz]
+}
+
+fn sincos(x: f64, y: f64, z: f64) {
+    return sin_cos(x, y, z)
 }
 
 fn sinh(x: f64, y: f64, z: f64) {
