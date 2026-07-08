@@ -994,6 +994,10 @@ design evidence lives under `project-doc/`.
   `x64_native_program.oren` at ~38.8s total / ~29.8s parse, with
   `_emit_fast_list_int_get_sum_while_x64` exposed at ~311ms as the next parser
   body.
+- The Linux x64 top-level syscall dispatcher and its immediate compat/random/
+  ulock helpers now live in a dedicated include shard, reducing the residual
+  syscall tail shard from 1372 to 1080 lines while keeping the dispatch
+  semantics unchanged.
 - X64 fast list-int get-sum while lowering now mirrors the dot fast-path split:
   preparation, list validation, optional whole-list helper, unrolled pair body,
   and single-step body are focused helpers. The capped profile now shows

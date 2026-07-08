@@ -1,6 +1,7 @@
 // x64-native: sys_* intrinsics (split via compile-time includes for maintainability).
 //
 // @include "046_emit_sys_intrinsics/000_prelude.oren"
+// @include "046_emit_sys_intrinsics/010_linux_entry.oren"
 // @include "046_emit_sys_intrinsics/050_linux_fs.oren"
 // @include "046_emit_sys_intrinsics/070_linux_fd_misc.oren"
 // @include "046_emit_sys_intrinsics/090_tail.oren"

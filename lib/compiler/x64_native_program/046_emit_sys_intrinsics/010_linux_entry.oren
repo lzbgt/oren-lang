@@ -1,0 +1,292 @@
+fn _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, argc) {
+    if args == nil || oren_list_len(args) != argc {
+        err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(argc) + " args")
+        return nil
+    }
+    if expr != nil && expr["spread"] != nil {
+        err(ctx, "x64 native v0: " + nm + " does not support spread")
+        return nil
+    }
+    _emit_return_enosys_x64(ctx)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_windows_qpc_compat_x64(ctx, nm, expr, args) {
+    if nm == "sys_qpc_frequency" {
+        // Windows-only intrinsic (QueryPerformanceFrequency).
+        // On non-Windows targets we still want builds to succeed, because sources commonly gate
+        // the call at runtime via `if g_target_os == 3 { ... }`, but the compiler still must lower
+        // the call site while parsing/compiling the full function body.
+        //
+        // Return -ENOSYS so accidental non-Windows calls fail cleanly.
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 1)
+    }
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_windows_iocp_compat_x64(ctx, nm, expr, args) {
+    if nm == "sys_create_io_completion_port" {
+        // Windows-only intrinsic (CreateIoCompletionPort).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 4)
+    }
+    if nm == "sys_get_queued_completion_status_ex" {
+        // Windows-only intrinsic (GetQueuedCompletionStatusEx).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 6)
+    }
+    if nm == "sys_post_queued_completion_status" {
+        // Windows-only intrinsic (PostQueuedCompletionStatus).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 4)
+    }
+    if nm == "sys_cancel_io_ex" {
+        // Windows-only intrinsic (CancelIoEx).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 2)
+    }
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_windows_wsa_compat_x64(ctx, nm, expr, args) {
+    if nm == "sys_wsarecv" {
+        // Windows-only intrinsic (WSARecv overlapped).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 6)
+    }
+    if nm == "sys_wsarecvfrom" {
+        // Windows-only intrinsic (WSARecvFrom overlapped).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 8)
+    }
+    if nm == "sys_wsasend" {
+        // Windows-only intrinsic (WSASend overlapped).
+        return _emit_linux_windows_compat_enosys_x64(ctx, nm, expr, args, 6)
+    }
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) {
+    var qpc = _emit_intrinsic_sys_linux_windows_qpc_compat_x64(ctx, nm, expr, args)
+    if qpc != false { return qpc }
+    var iocp = _emit_intrinsic_sys_linux_windows_iocp_compat_x64(ctx, nm, expr, args)
+    if iocp != false { return iocp }
+    var wsa = _emit_intrinsic_sys_linux_windows_wsa_compat_x64(ctx, nm, expr, args)
+    if wsa != false { return wsa }
+    return false
+}
+
+fn _x64_linux_getrandom_state(ctx, locals) {
+    var base = _intr_tmp_push(ctx, 3) // buf, len, flags
+    if oren_type_tag(base) == 0 { return nil }
+    var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 || oren_type_tag(tmp_flags) == 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    return {"base": base, "buf": tmp_buf, "len": tmp_len, "flags": tmp_flags}
+}
+
+fn _x64_linux_getrandom_spill_args(ctx, locals, args, st) {
+    _intr_eval_spill_x64(ctx, locals, args[0], st["buf"])
+    _intr_eval_spill_x64(ctx, locals, args[1], st["len"])
+    _intr_eval_spill_x64(ctx, locals, args[2], st["flags"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, st["base"])
+        return false
+    }
+    return true
+}
+
+fn _x64_linux_getrandom_emit_syscall(ctx, st) {
+    // rdi=buf, rsi=len, rdx=flags
+    _intr_load_x64(ctx, 7, st["buf"])
+    _intr_load_x64(ctx, 6, st["len"])
+    _intr_load_x64(ctx, 2, st["flags"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getrandom()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _emit_intrinsic_sys_linux_getrandom_x64(ctx, expr, locals, args) {
+    // sys_getrandom(buf, len, flags) -> nbytes or -errno (Linux x86_64 getrandom syscall)
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getrandom expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getrandom does not support spread"); return nil }
+
+    var st = _x64_linux_getrandom_state(ctx, locals)
+    if st == nil { return nil }
+    if _x64_linux_getrandom_spill_args(ctx, locals, args, st) != true { return nil }
+    _x64_linux_getrandom_emit_syscall(ctx, st)
+    _intr_tmp_pop(ctx, st["base"])
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_random_x64(ctx, nm, expr, locals, args) {
+    if nm == "sys_getentropy" {
+        // Linux x86_64: no getentropy syscall; return -ENOSYS and let runtime fall back to getrandom.
+        _emit_return_enosys_x64(ctx)
+        return true
+    }
+    if nm == "sys_getrandom" { return _emit_intrinsic_sys_linux_getrandom_x64(ctx, expr, locals, args) }
+    return false
+}
+
+fn _x64_emit_linux_futex_common_tail(ctx) {
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8))   // r8 = uaddr2 = NULL
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9))   // r9 = val3 = 0
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_futex()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_linux_syscall_nonneg_zero_x64(ctx, label_prefix) {
+    // Normalize syscall convention: non-negative => 0, negative => -errno.
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, label_prefix + "_ok")
+    var l_done = _new_label(ctx, label_prefix + "_done")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "ge", l_ok)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _x64_emit_linux_futex_timeout_arg_x64(ctx, locals, tmp_to) {
+    // timeout_us==0 => timeout=NULL; otherwise build relative timespec at [rsp].
+    _intr_load_x64(ctx, 1, tmp_to) // rcx = timeout_us
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm8(16))
+    var labels_to = {}
+    var fixups_to = []
+    var l_no_to = _new_label(ctx, "ulw_no_timeout")
+    var l_to_done = _new_label(ctx, "ulw_timeout_done")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(1, 0))
+    _emit_jcc_to_label(ctx, fixups_to, "e", l_no_to)
+
+    // rax = timeout_us; rdx = 0; rcx = 1_000_000; idiv rcx => rax=sec, rdx=rem_us
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 1))
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(2, 2))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 1000000))
+    bytes_extend(ctx["code"], core.insn_idiv_r64(1))
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(0, 0)) // [rsp+0] = tv_sec
+    bytes_extend(ctx["code"], core.insn_imul_r64_imm32(2, 1000)) // tv_nsec = rem_us * 1000
+    bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(8, 2))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 4)) // r10 = &timespec
+    _emit_jmp_to_label(ctx, fixups_to, l_to_done)
+    _emit_label(ctx, labels_to, l_no_to)
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10)) // r10 = NULL
+    _emit_label(ctx, labels_to, l_to_done)
+    _patch_local_fixups(ctx, labels_to, fixups_to)
+    return nil
+}
+
+fn _x64_emit_linux_futex_wait_timeout_errno_x64(ctx) {
+    // Normalize Linux -ETIMEDOUT (-110) to Oren's portable -60.
+    var labels_tmo = {}
+    var fixups_tmo = []
+    var l_tmo_done = _new_label(ctx, "ulw_tmo_done")
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 4294967186)) // -110
+    _emit_jcc_to_label(ctx, fixups_tmo, "ne", l_tmo_done)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967236)) // -60
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_label(ctx, labels_tmo, l_tmo_done)
+    _patch_local_fixups(ctx, labels_tmo, fixups_tmo)
+    return nil
+}
+
+fn _x64_ulock_wait_linux_spill_state(ctx, locals) {
+    var base_ulw = _intr_tmp_push(ctx, 3) // addr, value, timeout_us
+    if oren_type_tag(base_ulw) == 0 { return nil }
+    var tmp_addr = _intr_tmp_off(ctx, locals, base_ulw + 0)
+    var tmp_val = _intr_tmp_off(ctx, locals, base_ulw + 1)
+    var tmp_to = _intr_tmp_off(ctx, locals, base_ulw + 2)
+    if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_to) == 0 {
+        _intr_tmp_pop(ctx, base_ulw)
+        return nil
+    }
+    return {"base": base_ulw, "addr": tmp_addr, "val": tmp_val, "timeout": tmp_to}
+}
+
+fn _x64_ulock_wait_linux_eval_args(ctx, locals, args, state) {
+    _intr_eval_spill_x64(ctx, locals, args[1], state["addr"])
+    _intr_eval_spill_x64(ctx, locals, args[2], state["val"])
+    _intr_eval_spill_x64(ctx, locals, args[3], state["timeout"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    return true
+}
+
+fn _x64_ulock_wait_linux_emit_futex_args(ctx, locals, state) {
+    _intr_load_x64(ctx, 7, state["addr"]) // rdi = uaddr
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, 128)) // esi = FUTEX_WAIT_PRIVATE
+    _x64_emit_linux_futex_timeout_arg_x64(ctx, locals, state["timeout"])
+    _intr_load_x64(ctx, 2, state["val"])  // rdx = val
+    _x64_emit_linux_futex_common_tail(ctx)
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm8(16))
+    return nil
+}
+
+fn _x64_ulock_wait_linux_emit_result(ctx) {
+    _x64_emit_linux_futex_wait_timeout_errno_x64(ctx)
+    _x64_emit_linux_syscall_nonneg_zero_x64(ctx, "ulw")
+    return nil
+}
+
+fn _emit_intrinsic_sys_ulock_wait_linux_x64(ctx, expr, locals, args) {
+    // Portable wait-on-address primitive: futex(FUTEX_WAIT_PRIVATE).
+    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_ulock_wait expects 4 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wait does not support spread"); return nil }
+
+    // args: (operation, addr, value, timeout_us). Operation is validated by runtime callers.
+    var state = _x64_ulock_wait_linux_spill_state(ctx, locals)
+    if state == nil { return nil }
+    if _x64_ulock_wait_linux_eval_args(ctx, locals, args, state) != true { _intr_tmp_pop(ctx, state["base"]); return nil }
+
+    _x64_ulock_wait_linux_emit_futex_args(ctx, locals, state)
+    _x64_ulock_wait_linux_emit_result(ctx)
+
+    _intr_tmp_pop(ctx, state["base"])
+    return true
+}
+
+fn _emit_intrinsic_sys_ulock_wake_linux_x64(ctx, expr, locals, args) {
+    // Portable wake-on-address primitive: futex(FUTEX_WAKE_PRIVATE).
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_ulock_wake expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wake does not support spread"); return nil }
+
+    // args: (operation, addr, wake_value). Runtime lock uses wake-all.
+    var base_ulk = _intr_tmp_push(ctx, 1) // addr
+    if oren_type_tag(base_ulk) == 0 { return nil }
+    var tmp_addr2 = _intr_tmp_off(ctx, locals, base_ulk + 0)
+    if oren_type_tag(tmp_addr2) == 0 { _intr_tmp_pop(ctx, base_ulk); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr2)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_ulk); return nil }
+
+    _intr_load_x64(ctx, 7, tmp_addr2) // rdi=uaddr
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, 129)) // esi = FUTEX_WAKE_PRIVATE
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147483647)) // edx = INT_MAX
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10)) // r10 = timeout = NULL
+    _x64_emit_linux_futex_common_tail(ctx)
+    _x64_emit_linux_syscall_nonneg_zero_x64(ctx, "ulk")
+
+    _intr_tmp_pop(ctx, base_ulk)
+    return true
+}
+
+fn _emit_intrinsic_sys_linux_ulock_x64(ctx, nm, expr, locals, args) {
+    if nm == "sys_ulock_wait" { return _emit_intrinsic_sys_ulock_wait_linux_x64(ctx, expr, locals, args) }
+    if nm == "sys_ulock_wake" { return _emit_intrinsic_sys_ulock_wake_linux_x64(ctx, expr, locals, args) }
+    return false
+}
+
+fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
+    if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
+    if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
+    if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
+    if _emit_intrinsic_sys_linux_windows_compat_x64(ctx, nm, expr, args) != false { return nil }
+    if _emit_intrinsic_sys_linux_random_x64(ctx, nm, expr, locals, args) != false { return nil }
+    if _emit_intrinsic_sys_linux_ulock_x64(ctx, nm, expr, locals, args) != false { return nil }
+
+    if args == nil { args = [] }
+    var capsule = _x64_capsule_enabled(ctx)
+
+    return _emit_intrinsic_sys_linux_fs_x64(ctx, nm, expr, locals, args, capsule)
+}

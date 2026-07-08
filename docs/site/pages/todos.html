@@ -1391,6 +1391,12 @@
 <p>  <code>_emit_fast_list_int_get_sum_while_x64</code> exposed at ~311ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>The Linux x64 top-level syscall dispatcher and its immediate compat/random/</li>
+</ul>
+<p>  ulock helpers now live in a dedicated include shard, reducing the residual</p>
+<p>  syscall tail shard from 1372 to 1080 lines while keeping the dispatch</p>
+<p>  semantics unchanged.</p>
+<ul>
 <li>X64 fast list-int get-sum while lowering now mirrors the dot fast-path split:</li>
 </ul>
 <p>  preparation, list validation, optional whole-list helper, unrolled pair body,</p>
