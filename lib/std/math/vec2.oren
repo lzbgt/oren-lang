@@ -829,6 +829,33 @@ fn reflect(x: f64, y: f64, nx: f64, ny: f64) {
     return [rx, ry]
 }
 
+fn faceforward(nx: f64, ny: f64, ix: f64, iy: f64, nrefx: f64, nrefy: f64) {
+    var ok = _finite2(nx, ny, "vec2.faceforward")
+    if oren_is_err(ok) { return ok }
+    var d0 = dot(nrefx, nrefy, ix, iy)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d < 0.0 { return [nx, ny] }
+    return [0.0 - nx, 0.0 - ny]
+}
+
+fn refract(x: f64, y: f64, nx: f64, ny: f64, eta: f64) {
+    var ok = _finite_scalar(eta, "vec2.refract")
+    if oren_is_err(ok) { return ok }
+    var n = normalize(nx, ny)
+    if oren_is_err(n) { return n }
+    var ux: f64 = n[0]
+    var uy: f64 = n[1]
+    var d0 = dot(x, y, ux, uy)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var k: f64 = 1.0 - eta * eta * (1.0 - d * d)
+    if k < 0.0 { return [0.0, 0.0] }
+    var s: f64 = math.sqrt(k)
+    var t: f64 = eta * d + s
+    return [eta * x - t * ux, eta * y - t * uy]
+}
+
 fn angle(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.angle")
     if oren_is_err(ok) { return ok }

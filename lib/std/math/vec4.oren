@@ -972,6 +972,35 @@ fn reflect(x: f64, y: f64, z: f64, w: f64, nx: f64, ny: f64, nz: f64, nw: f64) {
     return [rx, ry, rz, rw]
 }
 
+fn faceforward(nx: f64, ny: f64, nz: f64, nw: f64, ix: f64, iy: f64, iz: f64, iw: f64, nrefx: f64, nrefy: f64, nrefz: f64, nrefw: f64) {
+    var ok = _finite4(nx, ny, nz, nw, "vec4.faceforward")
+    if oren_is_err(ok) { return ok }
+    var d0 = dot(nrefx, nrefy, nrefz, nrefw, ix, iy, iz, iw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d < 0.0 { return [nx, ny, nz, nw] }
+    return [0.0 - nx, 0.0 - ny, 0.0 - nz, 0.0 - nw]
+}
+
+fn refract(x: f64, y: f64, z: f64, w: f64, nx: f64, ny: f64, nz: f64, nw: f64, eta: f64) {
+    var ok = _finite_scalar(eta, "vec4.refract")
+    if oren_is_err(ok) { return ok }
+    var n = normalize(nx, ny, nz, nw)
+    if oren_is_err(n) { return n }
+    var ux: f64 = n[0]
+    var uy: f64 = n[1]
+    var uz: f64 = n[2]
+    var uw: f64 = n[3]
+    var d0 = dot(x, y, z, w, ux, uy, uz, uw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var k: f64 = 1.0 - eta * eta * (1.0 - d * d)
+    if k < 0.0 { return [0.0, 0.0, 0.0, 0.0] }
+    var s: f64 = math.sqrt(k)
+    var t: f64 = eta * d + s
+    return [eta * x - t * ux, eta * y - t * uy, eta * z - t * uz, eta * w - t * uw]
+}
+
 fn angle_between(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var la0 = length(ax, ay, az, aw)
     if oren_is_err(la0) { return la0 }
