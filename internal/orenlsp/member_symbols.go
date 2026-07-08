@@ -21,13 +21,15 @@ type typeInfo struct {
 }
 
 type memberTypeEnv struct {
-	Types                  map[string]typeInfo
-	Functions              map[string]string
-	FunctionFields         map[string]map[string]string
-	FunctionElementFields  map[string]map[string]string
-	FunctionMapValueFields map[string]map[string]string
-	Params                 map[string]map[string]string
-	Prefix                 string
+	Types                         map[string]typeInfo
+	Functions                     map[string]string
+	FunctionFields                map[string]map[string]string
+	FunctionElementFields         map[string]map[string]string
+	FunctionMapValueFields        map[string]map[string]string
+	FunctionElementMapValueFields map[string]map[string]string
+	FunctionMapValueElementFields map[string]map[string]string
+	Params                        map[string]map[string]string
+	Prefix                        string
 }
 
 func typedMemberSymbolAt(text, uri string, pos position, importedDocs []documentSnapshot, aliasByURI map[string]string) (resolvedSymbol, bool) {
@@ -185,10 +187,12 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		return nil, memberTypeEnv{}
 	}
 	env := memberTypeEnv{
-		Types:                  collectTypeInfos(program, uri, ""),
-		FunctionFields:         map[string]map[string]string{},
-		FunctionElementFields:  map[string]map[string]string{},
-		FunctionMapValueFields: map[string]map[string]string{},
+		Types:                         collectTypeInfos(program, uri, ""),
+		FunctionFields:                map[string]map[string]string{},
+		FunctionElementFields:         map[string]map[string]string{},
+		FunctionMapValueFields:        map[string]map[string]string{},
+		FunctionElementMapValueFields: map[string]map[string]string{},
+		FunctionMapValueElementFields: map[string]map[string]string{},
 	}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
@@ -244,6 +248,12 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, "", env) {
 		env.FunctionMapValueFields[key] = fields
 	}
+	for key, fields := range collectFunctionReturnElementMapValueFieldTypes(program, "", env) {
+		env.FunctionElementMapValueFields[key] = fields
+	}
+	for key, fields := range collectFunctionReturnMapValueElementFieldTypes(program, "", env) {
+		env.FunctionMapValueElementFields[key] = fields
+	}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
 		if alias == "" {
@@ -254,6 +264,12 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		importEnv.Prefix = alias + "."
 		for key, fields := range collectFunctionReturnMapValueFieldTypes(importProgram, alias+".", importEnv) {
 			env.FunctionMapValueFields[key] = fields
+		}
+		for key, fields := range collectFunctionReturnElementMapValueFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionElementMapValueFields[key] = fields
+		}
+		for key, fields := range collectFunctionReturnMapValueElementFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionMapValueElementFields[key] = fields
 		}
 	}
 	functions := collectNamedFunctionLiterals(program, "")
@@ -314,6 +330,12 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, "", env) {
 		env.FunctionMapValueFields[key] = fields
 	}
+	for key, fields := range collectFunctionReturnElementMapValueFieldTypes(program, "", env) {
+		env.FunctionElementMapValueFields[key] = fields
+	}
+	for key, fields := range collectFunctionReturnMapValueElementFieldTypes(program, "", env) {
+		env.FunctionMapValueElementFields[key] = fields
+	}
 	for _, doc := range importedDocs {
 		alias := aliasByURI[doc.URI]
 		if alias == "" {
@@ -324,6 +346,12 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 		importEnv.Prefix = alias + "."
 		for key, fields := range collectFunctionReturnMapValueFieldTypes(importProgram, alias+".", importEnv) {
 			env.FunctionMapValueFields[key] = fields
+		}
+		for key, fields := range collectFunctionReturnElementMapValueFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionElementMapValueFields[key] = fields
+		}
+		for key, fields := range collectFunctionReturnMapValueElementFieldTypes(importProgram, alias+".", importEnv) {
+			env.FunctionMapValueElementFields[key] = fields
 		}
 	}
 	return program, env

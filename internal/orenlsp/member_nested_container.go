@@ -6,10 +6,72 @@ import (
 	"oren/pkg/ast"
 )
 
+func collectFunctionReturnElementMapValueFieldTypes(program *ast.Program, prefix string, env memberTypeEnv) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if program == nil {
+		return out
+	}
+	env.Prefix = prefix
+	if env.FunctionElementMapValueFields == nil {
+		env.FunctionElementMapValueFields = map[string]map[string]string{}
+	}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn == nil || fn.Name == "" {
+			continue
+		}
+		fields := inferFunctionReturnElementMapValueFieldTypes(fn, env)
+		if len(fields) != 0 {
+			key := prefix + fn.Name
+			out[key] = fields
+			env.FunctionElementMapValueFields[key] = fields
+		}
+	}
+	return out
+}
+
+func collectFunctionReturnMapValueElementFieldTypes(program *ast.Program, prefix string, env memberTypeEnv) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if program == nil {
+		return out
+	}
+	env.Prefix = prefix
+	if env.FunctionMapValueElementFields == nil {
+		env.FunctionMapValueElementFields = map[string]map[string]string{}
+	}
+	for _, stmt := range program.Statements {
+		fn := namedFunctionLiteral(stmt)
+		if fn == nil || fn.Name == "" {
+			continue
+		}
+		fields := inferFunctionReturnMapValueElementFieldTypes(fn, env)
+		if len(fields) != 0 {
+			key := prefix + fn.Name
+			out[key] = fields
+			env.FunctionMapValueElementFields[key] = fields
+		}
+	}
+	return out
+}
+
+func inferFunctionReturnElementMapValueFieldTypes(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
+	var stack []map[string]string
+	stack = append(stack, inferredParamFrame(fn, env))
+	return inferBlockReturnElementMapValueFieldTypes(fn.Body, env, &stack)
+}
+
+func inferFunctionReturnMapValueElementFieldTypes(fn *ast.FunctionLiteral, env memberTypeEnv) map[string]string {
+	var stack []map[string]string
+	stack = append(stack, inferredParamFrame(fn, env))
+	return inferBlockReturnMapValueElementFieldTypes(fn.Body, env, &stack)
+}
+
 func inferIterableElementMapValueFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map[string]string) map[string]string {
 	switch expr := expr.(type) {
 	case *ast.ArrayLiteral:
 		return inferArrayElementMapValueFieldTypes(expr, env, stack)
+	case *ast.CallExpression:
+		return functionElementMapValueFieldTypesForCall(expr, env)
 	case *ast.Identifier, *ast.MemberExpression:
 		if path := memberExpressionPath(expr); path != "" {
 			return inferredElementMapValueFieldTypes(path, stack)
@@ -94,6 +156,8 @@ func inferMapValueElementFieldTypes(expr ast.Expression, env memberTypeEnv, stac
 	switch expr := expr.(type) {
 	case *ast.HashLiteral:
 		return inferHashValueElementFieldTypes(expr, env, stack)
+	case *ast.CallExpression:
+		return functionMapValueElementFieldTypesForCall(expr, env)
 	case *ast.Identifier, *ast.MemberExpression:
 		if path := memberExpressionPath(expr); path != "" {
 			return inferredMapValueElementFieldTypes(path, stack)
@@ -194,6 +258,40 @@ func setInferredMapValueElementFieldTypes(name string, fields map[string]string,
 			scope[inferredMapValueElementFieldKey(name, field)] = typeName
 		}
 	}
+}
+
+func functionElementMapValueFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
+	if call == nil || len(env.FunctionElementMapValueFields) == 0 {
+		return nil
+	}
+	typeKey := constructorTypeKey(call.Function)
+	if typeKey == "" {
+		return nil
+	}
+	if fields := env.FunctionElementMapValueFields[typeKey]; len(fields) != 0 {
+		return fields
+	}
+	if env.Prefix != "" {
+		return env.FunctionElementMapValueFields[env.Prefix+typeKey]
+	}
+	return nil
+}
+
+func functionMapValueElementFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
+	if call == nil || len(env.FunctionMapValueElementFields) == 0 {
+		return nil
+	}
+	typeKey := constructorTypeKey(call.Function)
+	if typeKey == "" {
+		return nil
+	}
+	if fields := env.FunctionMapValueElementFields[typeKey]; len(fields) != 0 {
+		return fields
+	}
+	if env.Prefix != "" {
+		return env.FunctionMapValueElementFields[env.Prefix+typeKey]
+	}
+	return nil
 }
 
 func copyInferredElementMapValueFieldTypes(dst, src string, stack []map[string]string) {
@@ -302,4 +400,118 @@ func inferredMapValueElementFieldKey(name, field string) string {
 		return ""
 	}
 	return name + "{}[]." + field
+}
+
+func mergeCallParamElementMapValueFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredListPrefix) {
+		return
+	}
+	if out[fnName] == nil {
+		out[fnName] = map[string]string{}
+	}
+	dropMissingCallParamElementMapValueFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
+	for field, typeName := range fields {
+		if field == "" || typeName == "" {
+			continue
+		}
+		paramField := inferredElementMapValueFieldKey(paramName, field)
+		conflictKey := fnName + "\x00" + paramField
+		if conflicts[conflictKey] {
+			continue
+		}
+		existing := out[fnName][paramField]
+		if existing == "" || existing == typeName {
+			out[fnName][paramField] = typeName
+			continue
+		}
+		delete(out[fnName], paramField)
+		conflicts[conflictKey] = true
+	}
+}
+
+func mergeCallParamMapValueElementFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredMapPrefix) {
+		return
+	}
+	if out[fnName] == nil {
+		out[fnName] = map[string]string{}
+	}
+	dropMissingCallParamMapValueElementFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
+	for field, typeName := range fields {
+		if field == "" || typeName == "" {
+			continue
+		}
+		paramField := inferredMapValueElementFieldKey(paramName, field)
+		conflictKey := fnName + "\x00" + paramField
+		if conflicts[conflictKey] {
+			continue
+		}
+		existing := out[fnName][paramField]
+		if existing == "" || existing == typeName {
+			out[fnName][paramField] = typeName
+			continue
+		}
+		delete(out[fnName], paramField)
+		conflicts[conflictKey] = true
+	}
+}
+
+func dropMissingCallParamElementMapValueFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "[]{}."
+	for key := range params {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		field := strings.TrimPrefix(key, prefix)
+		if field == "" || fields[field] != "" {
+			continue
+		}
+		delete(params, key)
+		conflicts[fnName+"\x00"+key] = true
+	}
+}
+
+func dropMissingCallParamMapValueElementFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "{}[]."
+	for key := range params {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		field := strings.TrimPrefix(key, prefix)
+		if field == "" || fields[field] != "" {
+			continue
+		}
+		delete(params, key)
+		conflicts[fnName+"\x00"+key] = true
+	}
+}
+
+func deleteCallParamElementMapValueFieldTypes(paramName string, params map[string]string) {
+	if paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "[]{}."
+	for key := range params {
+		if strings.HasPrefix(key, prefix) {
+			delete(params, key)
+		}
+	}
+}
+
+func deleteCallParamMapValueElementFieldTypes(paramName string, params map[string]string) {
+	if paramName == "" || len(params) == 0 {
+		return
+	}
+	prefix := paramName + "{}[]."
+	for key := range params {
+		if strings.HasPrefix(key, prefix) {
+			delete(params, key)
+		}
+	}
 }

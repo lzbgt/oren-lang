@@ -834,12 +834,16 @@ func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, function
 			mergeCallParamFieldTypes(fnName, param.Value, typeName, inferExpressionFieldTypes(arg, env, stack), env, out, conflicts)
 			mergeCallParamElementFieldTypes(fnName, param.Value, typeName, inferIterableElementFieldTypes(arg, env, stack), out, conflicts)
 			mergeCallParamMapValueFieldTypes(fnName, param.Value, typeName, inferMapValueFieldTypes(arg, env, stack), out, conflicts)
+			mergeCallParamElementMapValueFieldTypes(fnName, param.Value, typeName, inferIterableElementMapValueFieldTypes(arg, env, stack), out, conflicts)
+			mergeCallParamMapValueElementFieldTypes(fnName, param.Value, typeName, inferMapValueElementFieldTypes(arg, env, stack), out, conflicts)
 			continue
 		}
 		delete(out[fnName], param.Value)
 		deleteCallParamFieldTypes(param.Value, out[fnName])
 		deleteCallParamElementFieldTypes(param.Value, out[fnName])
 		deleteCallParamMapValueFieldTypes(param.Value, out[fnName])
+		deleteCallParamElementMapValueFieldTypes(param.Value, out[fnName])
+		deleteCallParamMapValueElementFieldTypes(param.Value, out[fnName])
 		conflicts[paramKey] = true
 	}
 }
