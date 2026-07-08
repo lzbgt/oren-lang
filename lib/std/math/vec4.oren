@@ -95,6 +95,18 @@ fn copysign(x: f64, y: f64, z: f64, w: f64, sx: f64, sy: f64, sz: f64, sw: f64) 
     return [math.copysign(x, sx), math.copysign(y, sy), math.copysign(z, sz), math.copysign(w, sw)]
 }
 
+fn fabs(x: f64, y: f64, z: f64, w: f64) {
+    return [math.fabs(x), math.fabs(y), math.fabs(z), math.fabs(w)]
+}
+
+fn fmin(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    return [math.fmin(ax, bx), math.fmin(ay, by), math.fmin(az, bz), math.fmin(aw, bw)]
+}
+
+fn fmax(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    return [math.fmax(ax, bx), math.fmax(ay, by), math.fmax(az, bz), math.fmax(aw, bw)]
+}
+
 fn add(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var ok = _finite8(ax, ay, az, aw, bx, by, bz, bw, "vec4.add")
     if oren_is_err(ok) { return ok }
