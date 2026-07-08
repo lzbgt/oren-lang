@@ -3046,9 +3046,11 @@ Working evidence:
   consistent direct call-site parameter inference with conflict
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
-  unknown-assignment invalidation,
-  and conservative prepare/rename workspace edits for exact scoped parameters and
-  same-document typed fields, plus full-document semantic-token classification for
+	  unknown-assignment invalidation,
+	  and conservative prepare/rename workspace edits for exact scoped parameters and
+	  same-document typed fields, a single-parse imported-document return-fact
+	  environment builder that keeps the main member analyzer below the line guard,
+	  plus full-document semantic-token classification for
   declarations/references/literals/operators and parser-derived
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`

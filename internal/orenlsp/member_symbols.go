@@ -186,174 +186,18 @@ func typedMemberAnalysisEnv(text, uri string, importedDocs []documentSnapshot, a
 	if program == nil {
 		return nil, memberTypeEnv{}
 	}
-	env := memberTypeEnv{
-		Types:                         collectTypeInfos(program, uri, ""),
-		FunctionFields:                map[string]map[string]string{},
-		FunctionElementFields:         map[string]map[string]string{},
-		FunctionMapValueFields:        map[string]map[string]string{},
-		FunctionElementMapValueFields: map[string]map[string]string{},
-		FunctionMapValueElementFields: map[string]map[string]string{},
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		for key, info := range collectTypeInfos(importProgram, doc.URI, alias+".") {
-			env.Types[key] = info
-		}
-	}
-	env.Functions = collectFunctionReturnTypes(program, "", env.Types, nil)
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		for key, typeName := range collectFunctionReturnTypes(importProgram, alias+".", env.Types, nil) {
-			env.Functions[key] = typeName
-		}
-	}
-	for key, fields := range collectFunctionReturnFieldTypes(program, "", env) {
-		env.FunctionFields[key] = fields
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		importEnv := env
-		importEnv.Prefix = alias + "."
-		for key, fields := range collectFunctionReturnFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionFields[key] = fields
-		}
-	}
-	for key, fields := range collectFunctionReturnElementFieldTypes(program, "", env) {
-		env.FunctionElementFields[key] = fields
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		importEnv := env
-		importEnv.Prefix = alias + "."
-		for key, fields := range collectFunctionReturnElementFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionElementFields[key] = fields
-		}
-	}
-	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, "", env) {
-		env.FunctionMapValueFields[key] = fields
-	}
-	for key, fields := range collectFunctionReturnElementMapValueFieldTypes(program, "", env) {
-		env.FunctionElementMapValueFields[key] = fields
-	}
-	for key, fields := range collectFunctionReturnMapValueElementFieldTypes(program, "", env) {
-		env.FunctionMapValueElementFields[key] = fields
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		importEnv := env
-		importEnv.Prefix = alias + "."
-		for key, fields := range collectFunctionReturnMapValueFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionMapValueFields[key] = fields
-		}
-		for key, fields := range collectFunctionReturnElementMapValueFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionElementMapValueFields[key] = fields
-		}
-		for key, fields := range collectFunctionReturnMapValueElementFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionMapValueElementFields[key] = fields
-		}
-	}
-	functions := collectNamedFunctionLiterals(program, "")
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		for key, fn := range collectNamedFunctionLiterals(importProgram, alias+".") {
-			functions[key] = fn
-		}
-	}
+	imports := parseMemberImportedPrograms(importedDocs, aliasByURI)
+	env := newMemberTypeEnv(program, uri, imports)
+	addMemberFunctionReturnTypes(&env, program, "", nil)
+	addImportedMemberFunctionReturnTypes(&env, imports, nil)
+	addMemberReturnFieldFacts(&env, program, "")
+	addImportedMemberReturnFieldFacts(&env, imports)
+	functions := collectMemberFunctionLiterals(program, imports)
 	env.Params = collectFunctionParamTypes(program, env, functions)
-	for key, typeName := range collectFunctionReturnTypes(program, "", env.Types, env.Params) {
-		env.Functions[key] = typeName
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		for key, typeName := range collectFunctionReturnTypes(importProgram, alias+".", env.Types, env.Params) {
-			env.Functions[key] = typeName
-		}
-	}
-	for key, fields := range collectFunctionReturnFieldTypes(program, "", env) {
-		env.FunctionFields[key] = fields
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		importEnv := env
-		importEnv.Prefix = alias + "."
-		for key, fields := range collectFunctionReturnFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionFields[key] = fields
-		}
-	}
-	for key, fields := range collectFunctionReturnElementFieldTypes(program, "", env) {
-		env.FunctionElementFields[key] = fields
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		importEnv := env
-		importEnv.Prefix = alias + "."
-		for key, fields := range collectFunctionReturnElementFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionElementFields[key] = fields
-		}
-	}
-	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, "", env) {
-		env.FunctionMapValueFields[key] = fields
-	}
-	for key, fields := range collectFunctionReturnElementMapValueFieldTypes(program, "", env) {
-		env.FunctionElementMapValueFields[key] = fields
-	}
-	for key, fields := range collectFunctionReturnMapValueElementFieldTypes(program, "", env) {
-		env.FunctionMapValueElementFields[key] = fields
-	}
-	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
-			continue
-		}
-		importProgram := parser.New(lexer.New(doc.Text)).ParseProgram()
-		importEnv := env
-		importEnv.Prefix = alias + "."
-		for key, fields := range collectFunctionReturnMapValueFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionMapValueFields[key] = fields
-		}
-		for key, fields := range collectFunctionReturnElementMapValueFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionElementMapValueFields[key] = fields
-		}
-		for key, fields := range collectFunctionReturnMapValueElementFieldTypes(importProgram, alias+".", importEnv) {
-			env.FunctionMapValueElementFields[key] = fields
-		}
-	}
+	addMemberFunctionReturnTypes(&env, program, "", env.Params)
+	addImportedMemberFunctionReturnTypes(&env, imports, env.Params)
+	addMemberReturnFieldFacts(&env, program, "")
+	addImportedMemberReturnFieldFacts(&env, imports)
 	return program, env
 }
 
