@@ -211,6 +211,8 @@ var n = vec4.normalize(1.0, 2.0, 2.0, 4.0)
 assert_true(!oren_is_err(n), 30, "normalize ok")
 assert_close(n[0], 0.2, 1e-12, 31, "normalize x")
 assert_close(n[3], 0.8, 1e-12, 32, "normalize w")
+assert_close(vec4.length_squared(1.0, 2.0, 4.0, 8.0), 85.0, 1e-12, 4008, "length_squared")
+assert_close(vec4.distance_squared(1.0, 2.0, 3.0, 4.0, 3.0, 6.0, 9.0, 12.0), 120.0, 1e-12, 4009, "distance_squared")
 
 assert_close(vec4.angle_between(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0), math.pi() / 2.0, 1e-12, 40, "angle right")
 var p = vec4.project(3.0, 4.0, 5.0, 6.0, 1.0, 0.0, 0.0, 0.0)

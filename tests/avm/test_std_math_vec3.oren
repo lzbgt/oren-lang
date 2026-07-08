@@ -204,6 +204,8 @@ var n = vec3.normalize(2.0, 3.0, 6.0)
 assert_true(!oren_is_err(n), 30, "normalize ok")
 assert_close(n[0], 2.0 / 7.0, 1e-12, 31, "normalize x")
 assert_close(n[2], 6.0 / 7.0, 1e-12, 32, "normalize z")
+assert_close(vec3.length_squared(2.0, 3.0, 6.0), 49.0, 1e-12, 3908, "length_squared")
+assert_close(vec3.distance_squared(1.0, 2.0, 3.0, 3.0, 6.0, 9.0), 56.0, 1e-12, 3909, "distance_squared")
 
 assert_close(vec3.angle_between(1.0, 0.0, 0.0, 0.0, 1.0, 0.0), math.pi() / 2.0, 1e-12, 40, "angle right")
 var p = vec3.project(3.0, 4.0, 5.0, 1.0, 0.0, 0.0)

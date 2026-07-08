@@ -745,6 +745,10 @@ fn length_sq(x: f64, y: f64) {
     return out
 }
 
+fn length_squared(x: f64, y: f64) {
+    return length_sq(x, y)
+}
+
 fn length(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.length")
     if oren_is_err(ok) { return ok }
@@ -758,6 +762,10 @@ fn distance_sq(ax: f64, ay: f64, bx: f64, by: f64) {
     var dy: f64 = by - ay
     var out: f64 = dx * dx + dy * dy
     return out
+}
+
+fn distance_squared(ax: f64, ay: f64, bx: f64, by: f64) {
+    return distance_sq(ax, ay, bx, by)
 }
 
 fn distance(ax: f64, ay: f64, bx: f64, by: f64) {

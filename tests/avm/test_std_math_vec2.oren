@@ -210,6 +210,8 @@ var n = vec2.normalize(3.0, 4.0)
 assert_true(!oren_is_err(n), 20, "normalize ok")
 assert_close(n[0], 0.6, 1e-12, 21, "normalize x")
 assert_close(n[1], 0.8, 1e-12, 22, "normalize y")
+assert_close(vec2.length_squared(3.0, 4.0), 25.0, 1e-12, 3808, "length_squared")
+assert_close(vec2.distance_squared(1.0, 2.0, 4.0, 6.0), 25.0, 1e-12, 3809, "distance_squared")
 
 var r = vec2.rotate(1.0, 0.0, math.pi() / 2.0)
 assert_true(!oren_is_err(r), 30, "rotate ok")
