@@ -266,6 +266,36 @@ fn modf(x: f64, y: f64, z: f64) {
     return [mx[0], my[0], mz[0], mx[1], my[1], mz[1]]
 }
 
+fn fmod(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var x = math.fmod(ax, bx)
+    if oren_is_err(x) { return x }
+    var y = math.fmod(ay, by)
+    if oren_is_err(y) { return y }
+    var z = math.fmod(az, bz)
+    if oren_is_err(z) { return z }
+    return [x, y, z]
+}
+
+fn remainder(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var x = math.remainder(ax, bx)
+    if oren_is_err(x) { return x }
+    var y = math.remainder(ay, by)
+    if oren_is_err(y) { return y }
+    var z = math.remainder(az, bz)
+    if oren_is_err(z) { return z }
+    return [x, y, z]
+}
+
+fn remquo(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    var x = math.remquo(ax, bx)
+    if oren_is_err(x) { return x }
+    var y = math.remquo(ay, by)
+    if oren_is_err(y) { return y }
+    var z = math.remquo(az, bz)
+    if oren_is_err(z) { return z }
+    return [x[0], y[0], z[0], x[1], y[1], z[1]]
+}
+
 fn fdim(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.fdim")
     if oren_is_err(ok) { return ok }
@@ -413,6 +443,64 @@ fn round(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.round")
     if oren_is_err(ok) { return ok }
     return [math.round(x), math.round(y), math.round(z)]
+}
+
+fn round_even(x: f64, y: f64, z: f64) {
+    var rx = math.round_even(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.round_even(y)
+    if oren_is_err(ry) { return ry }
+    var rz = math.round_even(z)
+    if oren_is_err(rz) { return rz }
+    return [rx, ry, rz]
+}
+
+fn nearbyint(x: f64, y: f64, z: f64) {
+    return round_even(x, y, z)
+}
+
+fn rint(x: f64, y: f64, z: f64) {
+    return round_even(x, y, z)
+}
+
+fn lround(x: f64, y: f64, z: f64) {
+    var rx = math.lround(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.lround(y)
+    if oren_is_err(ry) { return ry }
+    var rz = math.lround(z)
+    if oren_is_err(rz) { return rz }
+    return [rx, ry, rz]
+}
+
+fn llround(x: f64, y: f64, z: f64) {
+    var rx = math.llround(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.llround(y)
+    if oren_is_err(ry) { return ry }
+    var rz = math.llround(z)
+    if oren_is_err(rz) { return rz }
+    return [rx, ry, rz]
+}
+
+fn lrint(x: f64, y: f64, z: f64) {
+    var rx = math.lrint(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.lrint(y)
+    if oren_is_err(ry) { return ry }
+    var rz = math.lrint(z)
+    if oren_is_err(rz) { return rz }
+    return [rx, ry, rz]
+}
+
+fn llrint(x: f64, y: f64, z: f64) {
+    var rx = math.llrint(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.llrint(y)
+    if oren_is_err(ry) { return ry }
+    var rz = math.llrint(z)
+    if oren_is_err(rz) { return rz }
+    return [rx, ry, rz]
 }
 
 fn trunc(x: f64, y: f64, z: f64) {

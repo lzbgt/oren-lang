@@ -247,6 +247,30 @@ fn modf(x: f64, y: f64) {
     return [mx[0], my[0], mx[1], my[1]]
 }
 
+fn fmod(ax: f64, ay: f64, bx: f64, by: f64) {
+    var x = math.fmod(ax, bx)
+    if oren_is_err(x) { return x }
+    var y = math.fmod(ay, by)
+    if oren_is_err(y) { return y }
+    return [x, y]
+}
+
+fn remainder(ax: f64, ay: f64, bx: f64, by: f64) {
+    var x = math.remainder(ax, bx)
+    if oren_is_err(x) { return x }
+    var y = math.remainder(ay, by)
+    if oren_is_err(y) { return y }
+    return [x, y]
+}
+
+fn remquo(ax: f64, ay: f64, bx: f64, by: f64) {
+    var x = math.remquo(ax, bx)
+    if oren_is_err(x) { return x }
+    var y = math.remquo(ay, by)
+    if oren_is_err(y) { return y }
+    return [x[0], y[0], x[1], y[1]]
+}
+
 fn fdim(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.fdim")
     if oren_is_err(ok) { return ok }
@@ -392,6 +416,54 @@ fn round(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.round")
     if oren_is_err(ok) { return ok }
     return [math.round(x), math.round(y)]
+}
+
+fn round_even(x: f64, y: f64) {
+    var rx = math.round_even(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.round_even(y)
+    if oren_is_err(ry) { return ry }
+    return [rx, ry]
+}
+
+fn nearbyint(x: f64, y: f64) {
+    return round_even(x, y)
+}
+
+fn rint(x: f64, y: f64) {
+    return round_even(x, y)
+}
+
+fn lround(x: f64, y: f64) {
+    var rx = math.lround(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.lround(y)
+    if oren_is_err(ry) { return ry }
+    return [rx, ry]
+}
+
+fn llround(x: f64, y: f64) {
+    var rx = math.llround(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.llround(y)
+    if oren_is_err(ry) { return ry }
+    return [rx, ry]
+}
+
+fn lrint(x: f64, y: f64) {
+    var rx = math.lrint(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.lrint(y)
+    if oren_is_err(ry) { return ry }
+    return [rx, ry]
+}
+
+fn llrint(x: f64, y: f64) {
+    var rx = math.llrint(x)
+    if oren_is_err(rx) { return rx }
+    var ry = math.llrint(y)
+    if oren_is_err(ry) { return ry }
+    return [rx, ry]
 }
 
 fn trunc(x: f64, y: f64) {
