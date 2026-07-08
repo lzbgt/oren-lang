@@ -1192,6 +1192,10 @@ func inferIterableElementFieldTypes(expr ast.Expression, env memberTypeEnv, stac
 		}
 	case *ast.IfExpression:
 		return inferIfExpressionElementFieldTypes(expr, env, stack)
+	case *ast.IndexExpression:
+		if strings.HasPrefix(inferExpressionType(expr, env, stack), inferredListPrefix) {
+			return inferMapValueElementFieldTypes(expr.Left, env, stack)
+		}
 	}
 	return nil
 }
@@ -1230,6 +1234,10 @@ func inferMapValueFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map
 		}
 	case *ast.IfExpression:
 		return inferIfExpressionMapValueFieldTypes(expr, env, stack)
+	case *ast.IndexExpression:
+		if strings.HasPrefix(inferExpressionType(expr, env, stack), inferredMapPrefix) {
+			return inferIterableElementMapValueFieldTypes(expr.Left, env, stack)
+		}
 	}
 	return nil
 }
@@ -1474,6 +1482,8 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	clearInferredFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredElementFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredMapValueFieldTypes(ident.Value, stack[len(stack)-1])
+	clearInferredElementMapValueFieldTypes(ident.Value, stack[len(stack)-1])
+	clearInferredMapValueElementFieldTypes(ident.Value, stack[len(stack)-1])
 	if typeName == "" {
 		return
 	}
@@ -1481,6 +1491,8 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 		copyInferredFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredElementFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredMapValueFieldTypes(ident.Value, sourcePath, stack)
+		copyInferredElementMapValueFieldTypes(ident.Value, sourcePath, stack)
+		copyInferredMapValueElementFieldTypes(ident.Value, sourcePath, stack)
 		return
 	}
 	if fields := inferExpressionFieldTypes(expr, env, stack); len(fields) != 0 {
@@ -1491,6 +1503,12 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	}
 	if fields := inferMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
 		setInferredMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
+	}
+	if fields := inferIterableElementMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
+		setInferredElementMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
+	}
+	if fields := inferMapValueElementFieldTypes(expr, env, stack); len(fields) != 0 {
+		setInferredMapValueElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
 	}
 }
 
@@ -1640,6 +1658,8 @@ func setInferredNameType(name, typeName string, stack []map[string]string) {
 	clearInferredFieldTypes(name, scope)
 	clearInferredElementFieldTypes(name, scope)
 	clearInferredMapValueFieldTypes(name, scope)
+	clearInferredElementMapValueFieldTypes(name, scope)
+	clearInferredMapValueElementFieldTypes(name, scope)
 	if typeName == "" {
 		delete(scope, name)
 		return

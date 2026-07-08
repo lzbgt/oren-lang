@@ -564,6 +564,8 @@ type branchAssignmentEffect struct {
 	FieldTypes         map[string]string
 	ElementFieldTypes  map[string]string
 	MapValueFieldTypes map[string]string
+	ElementMapValues   map[string]string
+	MapValueElements   map[string]string
 }
 
 func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv, stack []map[string]string) map[string]branchAssignmentEffect {
@@ -656,6 +658,8 @@ func inferBranchAssignmentEffect(expr ast.Expression, env memberTypeEnv, stack [
 		FieldTypes:         cloneFieldTypes(inferExpressionFieldTypes(expr, env, stack)),
 		ElementFieldTypes:  cloneFieldTypes(inferIterableElementFieldTypes(expr, env, stack)),
 		MapValueFieldTypes: cloneFieldTypes(inferMapValueFieldTypes(expr, env, stack)),
+		ElementMapValues:   cloneFieldTypes(inferIterableElementMapValueFieldTypes(expr, env, stack)),
+		MapValueElements:   cloneFieldTypes(inferMapValueElementFieldTypes(expr, env, stack)),
 	}
 }
 
@@ -673,6 +677,12 @@ func applyBranchAssignmentEffect(name string, effect branchAssignmentEffect, sta
 	}
 	if len(effect.MapValueFieldTypes) != 0 {
 		setInferredMapValueFieldTypes(name, effect.MapValueFieldTypes, scope)
+	}
+	if len(effect.ElementMapValues) != 0 {
+		setInferredElementMapValueFieldTypes(name, effect.ElementMapValues, scope)
+	}
+	if len(effect.MapValueElements) != 0 {
+		setInferredMapValueElementFieldTypes(name, effect.MapValueElements, scope)
 	}
 }
 
@@ -702,6 +712,8 @@ func mergeBranchAssignmentEffect(consequence, alternative branchAssignmentEffect
 	merged.FieldTypes = mergeFieldTypeFacts(consequence.FieldTypes, alternative.FieldTypes)
 	merged.ElementFieldTypes = mergeFieldTypeFacts(consequence.ElementFieldTypes, alternative.ElementFieldTypes)
 	merged.MapValueFieldTypes = mergeFieldTypeFacts(consequence.MapValueFieldTypes, alternative.MapValueFieldTypes)
+	merged.ElementMapValues = mergeFieldTypeFacts(consequence.ElementMapValues, alternative.ElementMapValues)
+	merged.MapValueElements = mergeFieldTypeFacts(consequence.MapValueElements, alternative.MapValueElements)
 	return merged
 }
 
