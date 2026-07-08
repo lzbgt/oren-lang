@@ -58,6 +58,38 @@ fn fpclassify(x: f64, y: f64) {
     return [math.fpclassify(x), math.fpclassify(y)]
 }
 
+fn isunordered(ax: f64, ay: f64, bx: f64, by: f64) {
+    return [math.isunordered(ax, bx), math.isunordered(ay, by)]
+}
+
+fn isgreater(ax: f64, ay: f64, bx: f64, by: f64) {
+    return [math.isgreater(ax, bx), math.isgreater(ay, by)]
+}
+
+fn isgreaterequal(ax: f64, ay: f64, bx: f64, by: f64) {
+    return [math.isgreaterequal(ax, bx), math.isgreaterequal(ay, by)]
+}
+
+fn isless(ax: f64, ay: f64, bx: f64, by: f64) {
+    return [math.isless(ax, bx), math.isless(ay, by)]
+}
+
+fn islessequal(ax: f64, ay: f64, bx: f64, by: f64) {
+    return [math.islessequal(ax, bx), math.islessequal(ay, by)]
+}
+
+fn islessgreater(ax: f64, ay: f64, bx: f64, by: f64) {
+    return [math.islessgreater(ax, bx), math.islessgreater(ay, by)]
+}
+
+fn signbit(x: f64, y: f64) {
+    return [math.signbit(x), math.signbit(y)]
+}
+
+fn copysign(x: f64, y: f64, sx: f64, sy: f64) {
+    return [math.copysign(x, sx), math.copysign(y, sy)]
+}
+
 fn add(ax: f64, ay: f64, bx: f64, by: f64) {
     var ok = _finite4(ax, ay, bx, by, "vec2.add")
     if oren_is_err(ok) { return ok }

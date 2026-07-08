@@ -58,6 +58,38 @@ fn fpclassify(x: f64, y: f64, z: f64) {
     return [math.fpclassify(x), math.fpclassify(y), math.fpclassify(z)]
 }
 
+fn isunordered(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return [math.isunordered(ax, bx), math.isunordered(ay, by), math.isunordered(az, bz)]
+}
+
+fn isgreater(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return [math.isgreater(ax, bx), math.isgreater(ay, by), math.isgreater(az, bz)]
+}
+
+fn isgreaterequal(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return [math.isgreaterequal(ax, bx), math.isgreaterequal(ay, by), math.isgreaterequal(az, bz)]
+}
+
+fn isless(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return [math.isless(ax, bx), math.isless(ay, by), math.isless(az, bz)]
+}
+
+fn islessequal(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return [math.islessequal(ax, bx), math.islessequal(ay, by), math.islessequal(az, bz)]
+}
+
+fn islessgreater(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
+    return [math.islessgreater(ax, bx), math.islessgreater(ay, by), math.islessgreater(az, bz)]
+}
+
+fn signbit(x: f64, y: f64, z: f64) {
+    return [math.signbit(x), math.signbit(y), math.signbit(z)]
+}
+
+fn copysign(x: f64, y: f64, z: f64, sx: f64, sy: f64, sz: f64) {
+    return [math.copysign(x, sx), math.copysign(y, sy), math.copysign(z, sz)]
+}
+
 fn add(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     var ok = _finite6(ax, ay, az, bx, by, bz, "vec3.add")
     if oren_is_err(ok) { return ok }
