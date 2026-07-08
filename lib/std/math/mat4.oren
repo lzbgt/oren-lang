@@ -97,6 +97,10 @@ fn from_quat(x: f64, y: f64, z: f64, w: f64) {
     ]
 }
 
+fn from_quaternion(x: f64, y: f64, z: f64, w: f64) {
+    return from_quat(x, y, z, w)
+}
+
 fn compose_trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f64, sy: f64, sz: f64) {
     var t = _finite3(tx, ty, tz, "mat4.compose_trs")
     if oren_is_err(t) { return t }
@@ -134,6 +138,10 @@ fn compose_trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64
     ]
 }
 
+fn compose_transform(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f64, sy: f64, sz: f64) {
+    return compose_trs(tx, ty, tz, qx0, qy0, qz0, qw0, sx, sy, sz)
+}
+
 fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
     var ok = _finite6(left, right, bottom, top, near_z, far_z, "mat4.ortho")
     if oren_is_err(ok) { return ok }
@@ -149,6 +157,10 @@ fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) 
         0.0, 0.0, (0.0 - 2.0) / fnz, 0.0 - (far_z + near_z) / fnz,
         0.0, 0.0, 0.0, 1.0
     ]
+}
+
+fn orthographic(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
+    return ortho(left, right, bottom, top, near_z, far_z)
 }
 
 fn frustum(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
@@ -281,6 +293,10 @@ fn mul(a, b) {
         c20, c21, c22, c23,
         c30, c31, c32, c33
     ]
+}
+
+fn multiply(a, b) {
+    return mul(a, b)
 }
 
 fn model_view_projection(model, view, projection) {
@@ -440,6 +456,10 @@ fn transform_point3(m, x: f64, y: f64, z: f64) {
     return [ox / ow, oy / ow, oz / ow]
 }
 
+fn transform_point(m, x: f64, y: f64, z: f64) {
+    return transform_point3(m, x, y, z)
+}
+
 fn transform_vec3(m, x: f64, y: f64, z: f64) {
     var cm = _check(m, "mat4.transform_vec3")
     if oren_is_err(cm) { return cm }
@@ -459,6 +479,10 @@ fn transform_vec3(m, x: f64, y: f64, z: f64) {
         m4 * x + m5 * y + m6 * z,
         m8 * x + m9 * y + m10 * z
     ]
+}
+
+fn transform_vector(m, x: f64, y: f64, z: f64) {
+    return transform_vec3(m, x, y, z)
 }
 
 fn transform_normal3(m, x: f64, y: f64, z: f64) {
@@ -483,6 +507,10 @@ fn transform_normal3(m, x: f64, y: f64, z: f64) {
     var l: f64 = l0
     if l == 0.0 { return oren_err(4, "mat4.transform_normal3: zero length") }
     return [tx / l, ty / l, tz / l]
+}
+
+fn transform_normal(m, x: f64, y: f64, z: f64) {
+    return transform_normal3(m, x, y, z)
 }
 
 fn project_point3(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
@@ -511,6 +539,10 @@ fn project_point3(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, v
     ]
 }
 
+fn project_point(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    return project_point3(m, x, y, z, viewport_x, viewport_y, viewport_w, viewport_h)
+}
+
 fn unproject_point3(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
     var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.unproject_point3")
     if oren_is_err(vp) { return vp }
@@ -533,4 +565,8 @@ fn unproject_point3(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, view
     var inv = inverse(m)
     if oren_is_err(inv) { return inv }
     return transform_point3(inv, ndc_x, ndc_y, ndc_z)
+}
+
+fn unproject_point(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    return unproject_point3(m, win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
 }
