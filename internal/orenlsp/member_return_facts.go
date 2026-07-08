@@ -554,13 +554,20 @@ func applyIfBranchAssignmentEffects(expr *ast.IfExpression, env memberTypeEnv, s
 	}
 	consequence := collectBranchAssignmentEffects(expr.Consequence, env, *stack)
 	alternative := collectBranchAssignmentEffects(expr.Alternative, env, *stack)
-	for name, typeName := range mergeBranchAssignmentEffects(consequence, alternative) {
-		setInferredNameType(name, typeName, *stack)
+	for name, effect := range mergeBranchAssignmentEffects(consequence, alternative) {
+		applyBranchAssignmentEffect(name, effect, *stack)
 	}
 }
 
-func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv, stack []map[string]string) map[string]string {
-	effects := map[string]string{}
+type branchAssignmentEffect struct {
+	TypeName           string
+	FieldTypes         map[string]string
+	ElementFieldTypes  map[string]string
+	MapValueFieldTypes map[string]string
+}
+
+func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv, stack []map[string]string) map[string]branchAssignmentEffect {
+	effects := map[string]branchAssignmentEffect{}
 	if block == nil {
 		return effects
 	}
@@ -572,7 +579,7 @@ func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv
 	return effects
 }
 
-func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string, effects map[string]string) {
+func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string, effects map[string]branchAssignmentEffect) {
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
@@ -580,8 +587,7 @@ func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, st
 		if !validMemberIdentifier(stmt.Name) {
 			return
 		}
-		typeName := inferExpressionType(stmt.Value, env, *stack)
-		effects[stmt.Name.Value] = typeName
+		effects[stmt.Name.Value] = inferBranchAssignmentEffect(stmt.Value, env, *stack)
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.ExpressionStatement:
 		collectExpressionAssignmentEffects(stmt.Expression, env, stack, effects)
@@ -602,18 +608,18 @@ func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, st
 	}
 }
 
-func collectExpressionAssignmentEffects(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string, effects map[string]string) {
+func collectExpressionAssignmentEffects(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string, effects map[string]branchAssignmentEffect) {
 	switch expr := expr.(type) {
 	case *ast.IfExpression:
 		if expr.Consequence == nil || expr.Alternative == nil {
 			return
 		}
-		for name, typeName := range mergeBranchAssignmentEffects(
+		for name, effect := range mergeBranchAssignmentEffects(
 			collectBranchAssignmentEffects(expr.Consequence, env, *stack),
 			collectBranchAssignmentEffects(expr.Alternative, env, *stack),
 		) {
-			effects[name] = typeName
-			setInferredNameType(name, typeName, *stack)
+			effects[name] = effect
+			applyBranchAssignmentEffect(name, effect, *stack)
 		}
 	case *ast.PrefixExpression:
 		collectExpressionAssignmentEffects(expr.Right, env, stack, effects)
@@ -644,21 +650,58 @@ func collectExpressionAssignmentEffects(expr ast.Expression, env memberTypeEnv, 
 	}
 }
 
-func mergeBranchAssignmentEffects(consequence, alternative map[string]string) map[string]string {
-	merged := map[string]string{}
-	for name, consequenceType := range consequence {
-		alternativeType, ok := alternative[name]
-		if ok && consequenceType != "" && consequenceType == alternativeType {
-			merged[name] = consequenceType
+func inferBranchAssignmentEffect(expr ast.Expression, env memberTypeEnv, stack []map[string]string) branchAssignmentEffect {
+	return branchAssignmentEffect{
+		TypeName:           inferExpressionType(expr, env, stack),
+		FieldTypes:         cloneFieldTypes(inferExpressionFieldTypes(expr, env, stack)),
+		ElementFieldTypes:  cloneFieldTypes(inferIterableElementFieldTypes(expr, env, stack)),
+		MapValueFieldTypes: cloneFieldTypes(inferMapValueFieldTypes(expr, env, stack)),
+	}
+}
+
+func applyBranchAssignmentEffect(name string, effect branchAssignmentEffect, stack []map[string]string) {
+	if name == "" || len(stack) == 0 {
+		return
+	}
+	setInferredNameType(name, effect.TypeName, stack)
+	scope := stack[len(stack)-1]
+	if len(effect.FieldTypes) != 0 {
+		setInferredFieldTypes(name, effect.FieldTypes, scope)
+	}
+	if len(effect.ElementFieldTypes) != 0 {
+		setInferredElementFieldTypes(name, effect.ElementFieldTypes, scope)
+	}
+	if len(effect.MapValueFieldTypes) != 0 {
+		setInferredMapValueFieldTypes(name, effect.MapValueFieldTypes, scope)
+	}
+}
+
+func mergeBranchAssignmentEffects(consequence, alternative map[string]branchAssignmentEffect) map[string]branchAssignmentEffect {
+	merged := map[string]branchAssignmentEffect{}
+	for name, consequenceEffect := range consequence {
+		alternativeEffect, ok := alternative[name]
+		if ok {
+			merged[name] = mergeBranchAssignmentEffect(consequenceEffect, alternativeEffect)
 			continue
 		}
-		merged[name] = ""
+		merged[name] = branchAssignmentEffect{}
 	}
 	for name := range alternative {
 		if _, ok := consequence[name]; !ok {
-			merged[name] = ""
+			merged[name] = branchAssignmentEffect{}
 		}
 	}
+	return merged
+}
+
+func mergeBranchAssignmentEffect(consequence, alternative branchAssignmentEffect) branchAssignmentEffect {
+	var merged branchAssignmentEffect
+	if consequence.TypeName != "" && consequence.TypeName == alternative.TypeName {
+		merged.TypeName = consequence.TypeName
+	}
+	merged.FieldTypes = mergeFieldTypeFacts(consequence.FieldTypes, alternative.FieldTypes)
+	merged.ElementFieldTypes = mergeFieldTypeFacts(consequence.ElementFieldTypes, alternative.ElementFieldTypes)
+	merged.MapValueFieldTypes = mergeFieldTypeFacts(consequence.MapValueFieldTypes, alternative.MapValueFieldTypes)
 	return merged
 }
 

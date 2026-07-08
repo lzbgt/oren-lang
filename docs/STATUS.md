@@ -3035,6 +3035,7 @@ Working evidence:
   propagation, loop-element return inference, returned-list element
   field-chain inference, returned-map value field-chain inference,
   conditional returned-list/map field-chain inference,
+  conditional assigned returned-container field-chain inference,
   and indexed map value field-chain inference,
   recursive nested constructor-bound call-site parameter and parameter-return field-chain inference including imported identity-return call sites,
   source-brace scoped local/list-for-in receiver completions inside function blocks,
@@ -3048,7 +3049,7 @@ Working evidence:
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
-  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/indexed-map-value-field/scoped-completion evidence remains.
+  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/indexed-map-value-field/scoped-completion evidence remains.
 - Documentation and source-file guardrails.
 
 ## Key Verification Entrypoints

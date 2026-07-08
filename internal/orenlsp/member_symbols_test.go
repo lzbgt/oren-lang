@@ -1122,6 +1122,91 @@ func TestServerNavigationUsesConditionalReturnedMapValueFieldChains(t *testing.T
 	}
 }
 
+func TestServerNavigationUsesConditionalAssignedContainerFieldChains(t *testing.T) {
+	var in bytes.Buffer
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"fn choose_list(flag) {",
+		"  if flag { return [Outer(Inner(Leaf(1, 2)))] } else { return [Outer(Inner(Leaf(3, 4)))] }",
+		"}",
+		"fn choose_map(flag) {",
+		"  if flag { return {\"home\": Outer(Inner(Leaf(1, 2)))} } else { return {\"away\": Outer(Inner(Leaf(3, 4)))} }",
+		"}",
+		"fn choose_map_bad(flag) {",
+		"  if flag { return {\"home\": Outer(Inner(Leaf(5, 6)))} } else { return {\"bad\": Outer(Other(7))} }",
+		"}",
+		"fn main(flag) {",
+		"  var returned = {}",
+		"  if flag { returned = choose_map(true) } else { returned = choose_map(false) }",
+		"  var list = []",
+		"  if flag { list = choose_list(true) } else { list = choose_list(false) }",
+		"  for item in list {",
+		"    var c0 = item.inner.leaf.",
+		"  }",
+		"  var d0 = returned[\"home\"].inner.leaf.x",
+		"  var mixed = {}",
+		"  if flag { mixed = choose_map(true) } else { mixed = choose_map_bad(false) }",
+		"  return mixed[\"bad\"].inner.leaf.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-conditional-assigned-container-field-chain.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      831,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 19, "character": len([]rune(lines[19]))},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      832,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 21, "character": strings.LastIndex(lines[21], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      833,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 24, "character": strings.LastIndex(lines[24], ".x") + 1},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 831)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) || hasCompletion(items, "z", 5) {
+		t.Fatalf("conditional assigned list field-chain completion mismatch: %#v", items)
+	}
+	assertDefinition(t, messageByID(t, msgs, 832)["result"].([]any), uri, 0, 14, 15)
+	defs := messageByID(t, msgs, 833)["result"].([]any)
+	if len(defs) != 0 {
+		t.Fatalf("mixed conditional assigned map field-chain definition=%#v want none", defs)
+	}
+}
+
 func TestServerNavigationUsesForInReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	lines := []string{
