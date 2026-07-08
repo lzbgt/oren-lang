@@ -483,6 +483,10 @@ fn normal_matrix3(m) {
     ]
 }
 
+fn normal_matrix(m) {
+    return normal_matrix3(m)
+}
+
 fn transform_point3(m, x: f64, y: f64, z: f64) {
     var cm = _check(m, "mat4.transform_point3")
     if oren_is_err(cm) { return cm }
