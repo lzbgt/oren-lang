@@ -29,6 +29,10 @@ fn length_sq(x: f64, y: f64, z: f64, w: f64) {
     return out
 }
 
+fn length_squared(x: f64, y: f64, z: f64, w: f64) {
+    return length_sq(x, y, z, w)
+}
+
 fn length(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "quat.length")
     if oren_is_err(ok) { return ok }
@@ -86,6 +90,10 @@ fn mul(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     return [x, y, z, w]
 }
 
+fn multiply(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    return mul(ax, ay, az, aw, bx, by, bz, bw)
+}
+
 fn from_axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
     var ok = _finite3(ax, ay, az, "quat.from_axis_angle")
     if oren_is_err(ok) { return ok }
@@ -99,6 +107,10 @@ fn from_axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
     var s: f64 = math.sin(half)
     var c: f64 = math.cos(half)
     return [ax / l * s, ay / l * s, az / l * s, c]
+}
+
+fn axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
+    return from_axis_angle(ax, ay, az, radians)
 }
 
 fn rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
@@ -117,6 +129,10 @@ fn rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
     var ry: f64 = vy + w * ty + (z * tx - x * tz)
     var rz: f64 = vz + w * tz + (x * ty - y * tx)
     return [rx, ry, rz]
+}
+
+fn rotate_vector(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
+    return rotate_vec3(qx, qy, qz, qw, vx, vy, vz)
 }
 
 fn nlerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, t: f64) {
