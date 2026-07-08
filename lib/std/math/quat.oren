@@ -141,6 +141,54 @@ fn from_euler(rx: f64, ry: f64, rz: f64) {
     return from_euler_xyz(rx, ry, rz)
 }
 
+fn from_to_rotation(from_x: f64, from_y: f64, from_z: f64, to_x: f64, to_y: f64, to_z: f64) {
+    var f_ok = _finite3(from_x, from_y, from_z, "quat.from_to_rotation")
+    if oren_is_err(f_ok) { return f_ok }
+    var t_ok = _finite3(to_x, to_y, to_z, "quat.from_to_rotation")
+    if oren_is_err(t_ok) { return t_ok }
+    var fl0 = math.hypot3(from_x, from_y, from_z)
+    if oren_is_err(fl0) { return fl0 }
+    var tl0 = math.hypot3(to_x, to_y, to_z)
+    if oren_is_err(tl0) { return tl0 }
+    var fl: f64 = fl0
+    var tl: f64 = tl0
+    if fl == 0.0 { return oren_err(4, "quat.from_to_rotation: zero from") }
+    if tl == 0.0 { return oren_err(4, "quat.from_to_rotation: zero to") }
+    var fx: f64 = from_x / fl
+    var fy: f64 = from_y / fl
+    var fz: f64 = from_z / fl
+    var tx: f64 = to_x / tl
+    var ty: f64 = to_y / tl
+    var tz: f64 = to_z / tl
+    var d: f64 = fx * tx + fy * ty + fz * tz
+    if d > 0.999999999 { return identity() }
+    if d < -0.999999999 {
+        var ax: f64 = 0.0
+        var ay: f64 = fz
+        var az: f64 = 0.0 - fy
+        var afx: f64 = fx
+        if afx < 0.0 { afx = 0.0 - afx }
+        if afx > 0.9 {
+            ax = 0.0 - fz
+            ay = 0.0
+            az = fx
+        }
+        return from_axis_angle(ax, ay, az, math.pi())
+    }
+    var cx: f64 = fy * tz - fz * ty
+    var cy: f64 = fz * tx - fx * tz
+    var cz: f64 = fx * ty - fy * tx
+    return normalize(cx, cy, cz, 1.0 + d)
+}
+
+fn rotation_between(from_x: f64, from_y: f64, from_z: f64, to_x: f64, to_y: f64, to_z: f64) {
+    return from_to_rotation(from_x, from_y, from_z, to_x, to_y, to_z)
+}
+
+fn from_vectors(from_x: f64, from_y: f64, from_z: f64, to_x: f64, to_y: f64, to_z: f64) {
+    return from_to_rotation(from_x, from_y, from_z, to_x, to_y, to_z)
+}
+
 fn rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
     var q = normalize(qx, qy, qz, qw)
     if oren_is_err(q) { return q }
