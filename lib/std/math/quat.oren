@@ -113,6 +113,34 @@ fn axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
     return from_axis_angle(ax, ay, az, radians)
 }
 
+fn from_euler_xyz(rx: f64, ry: f64, rz: f64) {
+    var ok = _finite3(rx, ry, rz, "quat.from_euler_xyz")
+    if oren_is_err(ok) { return ok }
+    var hx: f64 = rx * 0.5
+    var hy: f64 = ry * 0.5
+    var hz: f64 = rz * 0.5
+    var sx: f64 = math.sin(hx)
+    var cx: f64 = math.cos(hx)
+    var sy: f64 = math.sin(hy)
+    var cy: f64 = math.cos(hy)
+    var sz: f64 = math.sin(hz)
+    var cz: f64 = math.cos(hz)
+    return normalize(
+        cz * cy * sx - sz * sy * cx,
+        cz * sy * cx + sz * cy * sx,
+        sz * cy * cx - cz * sy * sx,
+        cz * cy * cx + sz * sy * sx
+    )
+}
+
+fn euler_xyz(rx: f64, ry: f64, rz: f64) {
+    return from_euler_xyz(rx, ry, rz)
+}
+
+fn from_euler(rx: f64, ry: f64, rz: f64) {
+    return from_euler_xyz(rx, ry, rz)
+}
+
 fn rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
     var q = normalize(qx, qy, qz, qw)
     if oren_is_err(q) { return q }
