@@ -941,6 +941,22 @@ fn normalize_or_zero(x: f64, y: f64, z: f64, w: f64) {
     return [x / l, y / l, z / l, w / l]
 }
 
+fn direction_to(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
+    return normalize(bx - ax, by - ay, bz - az, bw - aw)
+}
+
+fn move_toward(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, delta: f64) {
+    var ok = _finite_scalar(delta, "vec4.move_toward")
+    if oren_is_err(ok) { return ok }
+    if delta < 0.0 { return oren_err(4, "vec4.move_toward: negative delta") }
+    var d0 = distance(ax, ay, az, aw, bx, by, bz, bw)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    if d == 0.0 || d <= delta { return [bx, by, bz, bw] }
+    var s: f64 = delta / d
+    return [ax + (bx - ax) * s, ay + (by - ay) * s, az + (bz - az) * s, aw + (bw - aw) * s]
+}
+
 fn project(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64) {
     var d0 = dot(bx, by, bz, bw, bx, by, bz, bw)
     if oren_is_err(d0) { return d0 }

@@ -2912,9 +2912,9 @@ design evidence lives under `project-doc/`.
   helpers `isclose`, `isclose_abs`, `sign`, `step`, `fract`, `clamp`, `saturate`, `lerp`, `inverse_lerp`, `remap`,
   `remap_clamped`, `smoothstep`, `smootherstep`, angle wrapping, shortest-angle
   delta, shortest-path angle interpolation helpers, pure `std:math/vec2`
-  helpers for common 2D graphics/vector operations including component rounding, interpolation, range-mapping, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers,
-  pure `std:math/vec3` helpers for common 3D vector operations including component rounding, interpolation, range-mapping, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, and pure finite
-  `std:math/vec4` helpers for homogeneous/vector algebra including component rounding, interpolation, range-mapping, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, backed by native/C/
+  helpers for common 2D graphics/vector operations including component rounding, interpolation, range-mapping, direction/move-toward navigation, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers,
+  pure `std:math/vec3` helpers for common 3D vector operations including component rounding, interpolation, range-mapping, direction/move-toward navigation, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, and pure finite
+  `std:math/vec4` helpers for homogeneous/vector algebra including component rounding, interpolation, range-mapping, direction/move-toward navigation, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, backed by native/C/
   bytecode and AVM fixtures.
 - `std:bytes`, `std:buffer`, `std:strings`, `std:list`, `std:linalg`,
   `std:iter`, `std:crypto`, `std:ui`, and checked
