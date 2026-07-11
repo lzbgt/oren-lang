@@ -113,6 +113,41 @@ fn axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
     return from_axis_angle(ax, ay, az, radians)
 }
 
+fn to_axis_angle(x: f64, y: f64, z: f64, w: f64) {
+    var q = normalize(x, y, z, w)
+    if oren_is_err(q) { return q }
+    var qx: f64 = q[0]
+    var qy: f64 = q[1]
+    var qz: f64 = q[2]
+    var qw: f64 = q[3]
+    if qw < 0.0 {
+        qx = 0.0 - qx
+        qy = 0.0 - qy
+        qz = 0.0 - qz
+        qw = 0.0 - qw
+    }
+    var vl0 = math.hypot3(qx, qy, qz)
+    if oren_is_err(vl0) { return vl0 }
+    var vl: f64 = vl0
+    if vl == 0.0 { return [1.0, 0.0, 0.0, 0.0] }
+    var a0 = math.atan2(vl, qw)
+    if oren_is_err(a0) { return a0 }
+    var a: f64 = a0
+    return [qx / vl, qy / vl, qz / vl, a * 2.0]
+}
+
+fn axis(x: f64, y: f64, z: f64, w: f64) {
+    var aa = to_axis_angle(x, y, z, w)
+    if oren_is_err(aa) { return aa }
+    return [aa[0], aa[1], aa[2]]
+}
+
+fn angle(x: f64, y: f64, z: f64, w: f64) {
+    var aa = to_axis_angle(x, y, z, w)
+    if oren_is_err(aa) { return aa }
+    return aa[3]
+}
+
 fn from_euler_xyz(rx: f64, ry: f64, rz: f64) {
     var ok = _finite3(rx, ry, rz, "quat.from_euler_xyz")
     if oren_is_err(ok) { return ok }
