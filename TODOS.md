@@ -1125,6 +1125,9 @@ design evidence lives under `project-doc/`.
   profile now shows `x64_native_program.oren` at ~39.3s total / ~29.4s parse,
   with `_x64_build_top_level_init_stmts` exposed at ~190ms as the next parser
   body.
+- X64 top-level string batch emission now lives in
+  `060_emit_ops_string_batch.oren`, preserving the prebuilt batch entrypoint
+  while reducing `060_emit_ops.oren` from 1648 to 1216 lines.
 - X64 top-level initializer synthesis now delegates rewrite batch state,
   string literal batches, empty-container batches, Var rewrites, and progress
   logging through focused helpers. The capped profile now shows

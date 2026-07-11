@@ -43,6 +43,7 @@
 // @include "x64_native_program/057_emit_ops_while_emit.oren"
 // @include "x64_native_program/057_emit_ops_while_lcg_prepare.oren"
 // @include "x64_native_program/060_emit_ops.oren"
+// @include "x64_native_program/060_emit_ops_string_batch.oren"
 // @include "x64_native_program/070_windows_write.oren"
 // @include "x64_native_program/080_functions_compile.oren"
 // @include "x64_native_program/085_toplevel_synth.oren"

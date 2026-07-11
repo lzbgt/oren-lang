@@ -1572,6 +1572,11 @@
 <p>  with <code>_x64_build_top_level_init_stmts</code> exposed at ~190ms as the next parser</p>
 <p>  body.</p>
 <ul>
+<li>X64 top-level string batch emission now lives in</li>
+</ul>
+<p>  <code>060_emit_ops_string_batch.oren</code>, preserving the prebuilt batch entrypoint</p>
+<p>  while reducing <code>060_emit_ops.oren</code> from 1648 to 1216 lines.</p>
+<ul>
 <li>X64 top-level initializer synthesis now delegates rewrite batch state,</li>
 </ul>
 <p>  string literal batches, empty-container batches, Var rewrites, and progress</p>

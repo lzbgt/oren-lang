@@ -3853,6 +3853,9 @@ make docs-site
 - X64 fast list-get-sum while lowering now lives in
   `057_emit_ops_while_list_get_sum.oren`, preserving the original include-order
   boundary while reducing `057_emit_ops_while_emit.oren` to 1615 lines.
+- X64 top-level string batch emission now lives in
+  `060_emit_ops_string_batch.oren`, preserving the prebuilt batch entrypoint
+  while reducing `060_emit_ops.oren` from 1648 to 1216 lines.
 - X64 native-program input preparation now lives in `089_prepare_inputs` and
   separates runtime-object choice, runtime statement preparation, function-set
   preparation, and final prepare-state packing while preserving declaration
