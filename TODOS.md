@@ -1128,6 +1128,10 @@ design evidence lives under `project-doc/`.
 - X64 top-level string batch emission now lives in
   `060_emit_ops_string_batch.oren`, preserving the prebuilt batch entrypoint
   while reducing `060_emit_ops.oren` from 1648 to 1216 lines.
+- Native runtime-object cache compact fixup, C-string offset, and debug sidecar
+  load/store helpers now live in `native_runtime_obj_cache_sidecars.oren`,
+  preserving the include-site module surface while reducing
+  `native_runtime_obj_cache.oren` from 1775 to 1330 lines.
 - X64 top-level initializer synthesis now delegates rewrite batch state,
   string literal batches, empty-container batches, Var rewrites, and progress
   logging through focused helpers. The capped profile now shows

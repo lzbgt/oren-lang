@@ -4277,6 +4277,12 @@ make docs-site</code></pre>
 <p>  <code>060_emit_ops_string_batch.oren</code>, preserving the prebuilt batch entrypoint</p>
 <p>  while reducing <code>060_emit_ops.oren</code> from 1648 to 1216 lines.</p>
 <ul>
+<li>Native runtime-object cache compact fixup, C-string offset, and debug sidecar</li>
+</ul>
+<p>  load/store helpers now live in <code>native_runtime_obj_cache_sidecars.oren</code>,</p>
+<p>  preserving the include-site module surface while reducing</p>
+<p>  <code>native_runtime_obj_cache.oren</code> from 1775 to 1330 lines.</p>
+<ul>
 <li>X64 native-program input preparation now lives in <code>089_prepare_inputs</code> and</li>
 </ul>
 <p>  separates runtime-object choice, runtime statement preparation, function-set</p>
