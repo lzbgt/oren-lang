@@ -1560,6 +1560,11 @@
 <p>  profile now shows <code>x64_native_program.oren</code> at ~38.0s total / ~28.3s parse,</p>
 <p>  with <code>_x64_build_runtime_obj</code> exposed at ~180ms as the next parser body.</p>
 <ul>
+<li>X64 generic and list-int push intrinsic entrypoints now live in</li>
+</ul>
+<p>  <code>045_emit_list_push_intrinsics.oren</code>, preserving the shared push helper layout</p>
+<p>  while reducing <code>045_emit_list_intrinsics.oren</code> from 1705 to 1252 lines.</p>
+<ul>
 <li>X64 runtime-object build orchestration now delegates final blob/meta</li>
 </ul>
 <p>  materialization and summary printing through focused helpers. The capped</p>

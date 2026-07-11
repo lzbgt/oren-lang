@@ -75,7 +75,7 @@ Boundary: this is architecture review and setup guidance, not guaranteed product
 
 - For Linux/x86_64 execution validation, prefer the dedicated Arch Linux x64
   host on the LAN:
-  - SSH target: `bruce@192.168.0.102`
+  - SSH target: `bruce@192.168.3.208`
   - This host is SSH-cert trusted and should be used for x64 Linux runtime
     smokes when reachable.
 - Prefer the existing Ubuntu toolchain container:

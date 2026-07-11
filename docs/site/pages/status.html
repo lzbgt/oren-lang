@@ -4247,6 +4247,11 @@ make docs-site</code></pre>
 <p>  parse, with <code>_emit_malloc_slow_windows_x64</code> exposed at about 55ms as the next</p>
 <p>  parser body.</p>
 <ul>
+<li>X64 generic and list-int push intrinsic entrypoints now live in</li>
+</ul>
+<p>  <code>045_emit_list_push_intrinsics.oren</code>, preserving the shared push helper layout</p>
+<p>  while reducing <code>045_emit_list_intrinsics.oren</code> from 1705 to 1252 lines.</p>
+<ul>
 <li>Windows x64 malloc slow-path lowering now separates <code>VirtualAlloc</code> argument</li>
 </ul>
 <p>  materialization, IAT call emission, and null-result guard routing while</p>

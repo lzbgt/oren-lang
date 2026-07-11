@@ -1,0 +1,453 @@
+fn _x64_validate_two_arg_intrinsic_expr(ctx, expr, locals, intrinsic_name) {
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: " + intrinsic_name + " requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: " + intrinsic_name + " requires injected native runtime")
+        return nil
+    }
+    if expr == nil { err(ctx, "x64 native v0: missing " + intrinsic_name + " expr"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: " + intrinsic_name + " does not support spread"); return nil }
+
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 {
+        err(ctx, "x64 native v0: " + intrinsic_name + " expects 2 args")
+        return nil
+    }
+    return args
+}
+
+fn _x64_push_alloc_spill_slots(ctx, locals) {
+    var base = _intr_tmp_push(ctx, 2)
+    if oren_type_tag(base) == 0 { return nil }
+    var off_list = _intr_tmp_off(ctx, locals, base + 0)
+    var off_val = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(off_list) == 0 || oren_type_tag(off_val) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"base": base, "off_list": off_list, "off_val": off_val}
+}
+
+fn _x64_push_spill_one_arg(ctx, locals, arg, off) {
+    _emit_eval_int_to_rax(ctx, arg, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+    return true
+}
+
+fn _x64_push_spill_ltr_args(ctx, locals, args, state) {
+    if _x64_push_spill_one_arg(ctx, locals, args[0], state["off_list"]) != true { return false }
+    if _x64_push_spill_one_arg(ctx, locals, args[1], state["off_val"]) != true { return false }
+    return true
+}
+
+fn _x64_push_reload_spilled_args(ctx, state) {
+    // list -> rdx, value -> r8
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])
+    return nil
+}
+
+fn _x64_push_spill_args(ctx, locals, args) {
+    // LTR eval: list, then value.
+    var state = _x64_push_alloc_spill_slots(ctx, locals)
+    if state == nil { return nil }
+    if _x64_push_spill_ltr_args(ctx, locals, args, state) != true {
+        _intr_tmp_pop(ctx, state["base"])
+        return nil
+    }
+    _x64_push_reload_spilled_args(ctx, state)
+    return state
+}
+
+fn _x64_push_attach_labels(ctx, state, prefix) {
+    state["labels"] = {}
+    state["fixups"] = []
+    state["l_fast"] = _new_label(ctx, prefix + "_fast")
+    state["l_done"] = _new_label(ctx, prefix + "_done")
+    return state
+}
+
+fn _x64_finish_push_intrinsic(ctx, state) {
+    // return nil
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+
+    _emit_label(ctx, state["labels"], state["l_done"])
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
+fn _x64_validate_list_push_intrinsic_args(ctx, expr, locals) {
+    return _x64_validate_two_arg_intrinsic_expr(ctx, expr, locals, "oren_list_push")
+}
+
+fn _x64_list_push_spill_args(ctx, locals, args) {
+    return _x64_push_spill_args(ctx, locals, args)
+}
+
+fn _x64_list_push_attach_labels(ctx, state) {
+    return _x64_push_attach_labels(ctx, state, "list_push")
+}
+
+fn _x64_emit_list_push_checked_body(ctx, locals, state) {
+    _x64_emit_list_push_validate(ctx, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, state["base"])
+        return false
+    }
+    _x64_emit_list_push_header(ctx)
+    _x64_emit_list_push_slow_or_fast(ctx, locals, state)
+    return true
+}
+
+fn _x64_finish_list_push_intrinsic(ctx, state) {
+    return _x64_finish_push_intrinsic(ctx, state)
+}
+
+fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
+    //
+    // Signature: oren_list_push(list, value) -> nil
+    var args = _x64_validate_list_push_intrinsic_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var state = _x64_list_push_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_list_push_attach_labels(ctx, state)
+    if _x64_emit_list_push_checked_body(ctx, locals, state) != true { return nil }
+    _x64_finish_list_push_intrinsic(ctx, state)
+    return nil
+}
+
+fn _x64_emit_list_push_nil_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+
+    var l_non_nil = _new_label(ctx, "list_push_non_nil")
+    // nil => panic
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
+    _emit_abort_panic_str(ctx, "list_push on nil")
+    _emit_label(ctx, labels, l_non_nil)
+    return nil
+}
+
+fn _x64_emit_list_push_reload_operands(ctx, state) {
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"]) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])  // r8  = value
+    return nil
+}
+
+fn _x64_emit_list_push_tracked_lookup(ctx, state) {
+    // Tier-1 safety: never read object headers from untracked pointers.
+    _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    // NOTE: `_emit_find_tracked_node_x64` calls into the injected runtime (native_alloc_index_get),
+    // so treat all caller-saved registers as clobbered. Reload both operands from the spill
+    // slots before using them again (list header reads + final store).
+    _x64_emit_list_push_reload_operands(ctx, state)
+    return nil
+}
+
+fn _x64_emit_list_push_node_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+
+    // tracked?
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    var l_node_ok = _new_label(ctx, "list_push_node_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
+    _emit_abort_panic_str(ctx, "list_push on non-list")
+    _emit_label(ctx, labels, l_node_ok)
+    return nil
+}
+
+fn _x64_emit_list_push_kind_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+
+    // kind = *(node + 16)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
+    var l_kind_ok = _new_label(ctx, "list_push_kind_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
+    _emit_abort_panic_str(ctx, "list_push on non-list")
+    _emit_label(ctx, labels, l_kind_ok)
+    return nil
+}
+
+fn _x64_emit_list_push_magic_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+
+    _x64_emit_list_magic_cmp(ctx)
+    var l_magic_ok = _new_label(ctx, "list_push_magic_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+    _emit_abort_panic_str(ctx, "list_push on non-list")
+    _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
+
+fn _x64_emit_list_push_validate(ctx, state) {
+    _x64_emit_list_push_nil_guard(ctx, state)
+    _x64_emit_list_push_tracked_lookup(ctx, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_list_push_node_guard(ctx, state)
+    _x64_emit_list_push_kind_guard(ctx, state)
+    _x64_emit_list_push_magic_guard(ctx, state)
+    return nil
+}
+
+fn _x64_emit_list_push_header(ctx) {
+    // count -> r9 ; cap -> r10 ; buf -> r11
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0)) // cap
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // buf
+    return nil
+}
+
+fn _x64_emit_push_slow_path(ctx, locals, state, runtime_fn) {
+    var local_fixups = state["fixups"]
+    var l_done = state["l_done"]
+    var off_list = state["off_list"]
+    var off_val = state["off_val"]
+    _emit_call_rel32_2args_x64(ctx, locals, runtime_fn, off_list, off_val)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return nil
+}
+
+fn _x64_emit_push_fast_store(ctx) {
+    // addr = buf + count*8 (r10)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 9))
+    bytes_extend(ctx["code"], core.insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 11))
+    // *(addr) = value
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))
+    // count++ ; *(list) = count
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(9, 1))
+    bytes_extend(ctx["code"], core.insn_mov_mr64_r64(2, 9))
+    return nil
+}
+
+fn _x64_emit_push_slow_or_fast(ctx, locals, state, runtime_fn, trace_op, trace_kind) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var l_fast = state["l_fast"]
+
+    // if count < cap => fast; else slow runtime call
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
+
+    _x64_emit_push_slow_path(ctx, locals, state, runtime_fn)
+
+    _emit_label(ctx, labels, l_fast)
+    _x64_emit_push_fast_store(ctx)
+    _x64_emit_push_trace_header(ctx, trace_op, trace_kind)
+    return nil
+}
+
+fn _x64_emit_list_push_slow_or_fast(ctx, locals, state) {
+    _x64_emit_push_slow_or_fast(ctx, locals, state, "oren_list_push_unchecked", 4, 2)
+    return nil
+}
+
+fn _x64_emit_push_trace_arg_regs(ctx) {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for list trace")
+        return nil
+    }
+    return {"a0": a0_enc - 1, "a1": a1_enc - 1, "a2": a2_enc - 1}
+}
+
+fn _x64_emit_push_trace_header_call(ctx, regs, op, kind) {
+    var a0 = regs["a0"]
+    var a1 = regs["a1"]
+    var a2 = regs["a2"]
+    if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, op))
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, kind))
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], core.insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
+    return nil
+}
+
+fn _x64_emit_push_trace_header(ctx, op, kind) {
+    if ctx["trace_native_list_hdr"] == nil { return nil }
+    var regs = _x64_emit_push_trace_arg_regs(ctx)
+    if regs == nil { return nil }
+    _x64_emit_push_trace_header_call(ctx, regs, op, kind)
+    return nil
+}
+
+fn _x64_validate_list_int_push_intrinsic_args(ctx, expr, locals) {
+    return _x64_validate_two_arg_intrinsic_expr(ctx, expr, locals, "oren_list_int_push")
+}
+
+fn _x64_list_int_push_attach_labels(ctx, state) {
+    return _x64_push_attach_labels(ctx, state, "list_int_push")
+}
+
+fn _x64_emit_list_int_push_checked_body(ctx, locals, state) {
+    _x64_emit_list_int_push_validate(ctx, locals, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, state["base"])
+        return false
+    }
+    _x64_emit_list_int_push_value_and_header(ctx, locals, state)
+    _x64_emit_list_int_push_slow_or_fast(ctx, locals, state)
+    return true
+}
+
+fn _x64_finish_list_int_push_intrinsic(ctx, state) {
+    return _x64_finish_push_intrinsic(ctx, state)
+}
+
+fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> push fast-path (in-bounds capacity case), fallback to runtime for growth.
+    //
+    // Signature: oren_list_int_push(list, value) -> nil
+    var args = _x64_validate_list_int_push_intrinsic_args(ctx, expr, locals)
+    if args == nil { return nil }
+    var state = _x64_list_int_push_spill_args(ctx, locals, args)
+    if state == nil { return nil }
+    _x64_list_int_push_attach_labels(ctx, state)
+    if _x64_emit_list_int_push_checked_body(ctx, locals, state) != true { return nil }
+    _x64_finish_list_int_push_intrinsic(ctx, state)
+    return nil
+}
+
+fn _x64_list_int_push_spill_args(ctx, locals, args) {
+    return _x64_push_spill_args(ctx, locals, args)
+}
+
+fn _x64_emit_list_int_push_nil_guard(ctx, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+
+    var l_non_nil = _new_label(ctx, "list_int_push_non_nil")
+    // nil => panic
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
+    _emit_abort_panic_str(ctx, "list_int_push on nil")
+    _emit_label(ctx, labels, l_non_nil)
+    return nil
+}
+
+fn _x64_emit_list_int_push_reload_operands(ctx, state) {
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"]) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])  // r8  = value
+    return nil
+}
+
+fn _x64_emit_list_int_push_tracked_lookup(ctx, state) {
+    // Tier-1 safety: never read object headers from untracked pointers.
+    _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_list_int_push_reload_operands(ctx, state)
+    return nil
+}
+
+fn _x64_emit_list_int_push_node_guard(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var off_list = state["off_list"]
+
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
+    var l_node_ok = _new_label(ctx, "list_int_push_node_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
+    _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 1, 8)
+    _emit_abort_panic_str(ctx, "list_int_push on non-list")
+    _emit_label(ctx, labels, l_node_ok)
+    return nil
+}
+
+fn _x64_emit_list_int_push_kind_guard(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var off_list = state["off_list"]
+
+    // kind = *(node + 16)
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
+    var l_kind_ok = _new_label(ctx, "list_int_push_kind_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
+    _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 2, 8)
+    _emit_abort_panic_str(ctx, "list_int_push on non-list")
+    _emit_label(ctx, labels, l_kind_ok)
+    return nil
+}
+
+fn _x64_emit_list_int_push_magic_guard(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    var off_list = state["off_list"]
+
+    _x64_emit_list_magic_cmp(ctx)
+    var l_magic_ok = _new_label(ctx, "list_int_push_magic_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+    _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 3, 8)
+    _emit_abort_panic_str(ctx, "list_int_push on non-list")
+    _emit_label(ctx, labels, l_magic_ok)
+    return nil
+}
+
+fn _x64_emit_list_int_push_validate(ctx, locals, state) {
+    _x64_emit_list_int_push_nil_guard(ctx, state)
+    _x64_emit_list_int_push_tracked_lookup(ctx, state)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_emit_list_int_push_node_guard(ctx, locals, state)
+    _x64_emit_list_int_push_kind_guard(ctx, locals, state)
+    _x64_emit_list_int_push_magic_guard(ctx, locals, state)
+    return nil
+}
+
+fn _x64_emit_list_int_push_value_and_header(ctx, locals, state) {
+    var off_list = state["off_list"]
+    var off_val = state["off_val"]
+    // Validate value is int (no tracked pointer / no nil/bool).
+    _emit_call_rel32_1arg_x64(ctx, locals, "_list_int_check_value", off_val)
+    // Call clobbers caller-saved regs; reload list/value for header reads + store.
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - off_val)  // r8  = value
+
+    // count -> r9 ; cap -> r10 ; buf -> r11
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0)) // cap
+
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0)) // buf
+    return nil
+}
+
+fn _x64_emit_list_int_push_slow_or_fast(ctx, locals, state) {
+    _x64_emit_push_slow_or_fast(ctx, locals, state, "oren_list_int_push_unchecked", 7, 8)
+    return nil
+}

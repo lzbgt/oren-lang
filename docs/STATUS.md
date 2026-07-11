@@ -3836,6 +3836,9 @@ make docs-site
   profile now shows `x64_native_program.oren` at about 46.9s total / 33.8s
   parse, with `_emit_malloc_slow_windows_x64` exposed at about 55ms as the next
   parser body.
+- X64 generic and list-int push intrinsic entrypoints now live in
+  `045_emit_list_push_intrinsics.oren`, preserving the shared push helper layout
+  while reducing `045_emit_list_intrinsics.oren` from 1705 to 1252 lines.
 - Windows x64 malloc slow-path lowering now separates `VirtualAlloc` argument
   materialization, IAT call emission, and null-result guard routing while
   preserving heap-commit seeding and abort exit behavior. The capped profile now

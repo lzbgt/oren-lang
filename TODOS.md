@@ -1117,6 +1117,9 @@ design evidence lives under `project-doc/`.
   emission, and optional header tracing through focused helpers. The capped
   profile now shows `x64_native_program.oren` at ~38.0s total / ~28.3s parse,
   with `_x64_build_runtime_obj` exposed at ~180ms as the next parser body.
+- X64 generic and list-int push intrinsic entrypoints now live in
+  `045_emit_list_push_intrinsics.oren`, preserving the shared push helper layout
+  while reducing `045_emit_list_intrinsics.oren` from 1705 to 1252 lines.
 - X64 runtime-object build orchestration now delegates final blob/meta
   materialization and summary printing through focused helpers. The capped
   profile now shows `x64_native_program.oren` at ~39.3s total / ~29.4s parse,
