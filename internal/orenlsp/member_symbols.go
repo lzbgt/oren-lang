@@ -1382,6 +1382,7 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	if fields := inferMapValueElementFieldTypes(expr, env, stack); len(fields) != 0 {
 		setInferredMapValueElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
 	}
+	setInferredConstructorFieldContainerTypes(ident.Value, expr, env, stack, stack[len(stack)-1])
 }
 
 func setInferredFieldTypes(name string, fields map[string]string, scope map[string]string) {
@@ -1413,6 +1414,48 @@ func setInferredMapValueFieldTypes(name string, fields map[string]string, scope 
 	for field, typeName := range fields {
 		if field != "" && typeName != "" {
 			scope[inferredMapValueFieldKey(name, field)] = typeName
+		}
+	}
+}
+
+func setInferredConstructorFieldContainerTypes(name string, expr ast.Expression, env memberTypeEnv, stack []map[string]string, scope map[string]string) {
+	call, ok := expr.(*ast.CallExpression)
+	if !ok || name == "" || len(scope) == 0 {
+		return
+	}
+	typeKey := constructorTypeKey(call.Function)
+	if typeKey == "" {
+		return
+	}
+	info, ok := env.Types[typeKey]
+	if !ok && env.Prefix != "" {
+		info, ok = env.Types[env.Prefix+typeKey]
+	}
+	if !ok {
+		return
+	}
+	fields := orderedTypeFields(info)
+	for i, field := range fields {
+		if i >= len(call.Arguments) {
+			break
+		}
+		fieldName := field.Symbol.Name
+		if fieldName == "" {
+			continue
+		}
+		fieldPath := inferredFieldKey(name, fieldName)
+		arg := call.Arguments[i]
+		if facts := inferIterableElementFieldTypes(arg, env, stack); len(facts) != 0 {
+			setInferredElementFieldTypes(fieldPath, facts, scope)
+		}
+		if facts := inferMapValueFieldTypes(arg, env, stack); len(facts) != 0 {
+			setInferredMapValueFieldTypes(fieldPath, facts, scope)
+		}
+		if facts := inferIterableElementMapValueFieldTypes(arg, env, stack); len(facts) != 0 {
+			setInferredElementMapValueFieldTypes(fieldPath, facts, scope)
+		}
+		if facts := inferMapValueElementFieldTypes(arg, env, stack); len(facts) != 0 {
+			setInferredMapValueElementFieldTypes(fieldPath, facts, scope)
 		}
 	}
 }
