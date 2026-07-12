@@ -719,20 +719,21 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             break;
         }
         case 32: { // oren_bytes_len(bytes) -> int
-            if (nargs > 0 && args[0].type == AVM_VAL_BYTES) {
-                AvmBytes* b = args[0].as.b;
-                res = avm_int(b ? (int64_t)b->len : 0);
-            } else if (nargs > 0 && args[0].type == AVM_VAL_LIST) {
-                AvmList* list = args[0].as.l;
-                if (!list || list->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_len: invalid list"); break; }
-                res = avm_int((int64_t)list->count);
-            } else if (nargs > 0 && args[0].type == AVM_VAL_LIST_INT) {
-                AvmListInt* list = args[0].as.li;
-                if (!list || list->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_len: invalid list_int"); break; }
-                res = avm_int((int64_t)list->count);
-            } else {
-                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_len expects (bytes|list<int>)");
+            if (nargs < 1) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_len expects (bytes|list<int>|list_int)");
+                break;
             }
+            int64_t n = 0;
+            const char* err_msg = NULL;
+            if (!avm_native_bytes_len_checked(args[0], &n, &err_msg,
+                    "bytes_len: invalid bytes",
+                    "bytes_len: invalid list",
+                    "bytes_len: invalid list_int",
+                    "oren_bytes_len expects (bytes|list<int>|list_int)")) {
+                res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "bytes_len: invalid bytes");
+                break;
+            }
+            res = avm_int(n);
             break;
         }
         case 33: { // oren_bytes_get_u8(bytes, idx) -> int

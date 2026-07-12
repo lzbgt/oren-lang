@@ -176,6 +176,16 @@ if ! grep -Fq 'assert_eq(oren_bytes_set_u8(li, 0, 170), 170)' tests/avm/test_byt
   exit 1
 fi
 
+bytes_len_impl="$(sed -n '/case 32:.*oren_bytes_len/,/case 33:/p' lib/avm/avm_native.inc)"
+if ! grep -Fq 'avm_native_bytes_len_checked(args[0], &n, &err_msg' <<<"$bytes_len_impl" ||
+  grep -Fq 'AvmList* list = args[0].as.l' <<<"$bytes_len_impl" ||
+  grep -Fq 'AvmListInt* list = args[0].as.li' <<<"$bytes_len_impl" ||
+  ! grep -Fq 'if oren_bytes_len(from_s_xs) != 2' tests/avm/test_bytes_basic.oren ||
+  ! grep -Fq 'if oren_bytes_len(boxed_ok) != 2' tests/avm/test_bytes_basic.oren; then
+  echo "ERROR: AVM bytes_len must use the shared bytes/list/LIST_INT length helper and fixture coverage" >&2
+  exit 1
+fi
+
 native_byte_order_impl="$(sed -n '/fn oren_bytes_set_u8/,/fn oren_bytes_get_u16_be/p' lib/runtime_native/190_byte_order.oren)"
 if ! grep -Fq 'if native_bytes_is_list_int(bytes) == true' <<<"$native_byte_order_impl" ||
   ! grep -Fq 'ptr_set(bufi + idx * 8, v)' <<<"$native_byte_order_impl" ||
