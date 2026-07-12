@@ -70,6 +70,55 @@ fn has_perspective(m) {
     return !is_affine(m)
 }
 
+fn equals(a, b) {
+    var ca = _check(a, "mat4.equals")
+    if oren_is_err(ca) { return ca }
+    var cb = _check(b, "mat4.equals")
+    if oren_is_err(cb) { return cb }
+    var i = 0
+    while i < 16 {
+        var av: f64 = a[i]
+        var bv: f64 = b[i]
+        if av != bv { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn allclose_abs(a, b, abs_tol: f64) {
+    var ca = _check(a, "mat4.allclose_abs")
+    if oren_is_err(ca) { return ca }
+    var cb = _check(b, "mat4.allclose_abs")
+    if oren_is_err(cb) { return cb }
+    var i = 0
+    while i < 16 {
+        var av: f64 = a[i]
+        var bv: f64 = b[i]
+        var ok = math.isclose_abs(av, bv, abs_tol)
+        if oren_is_err(ok) { return ok }
+        if !ok { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn allclose(a, b, rel_tol: f64, abs_tol: f64) {
+    var ca = _check(a, "mat4.allclose")
+    if oren_is_err(ca) { return ca }
+    var cb = _check(b, "mat4.allclose")
+    if oren_is_err(cb) { return cb }
+    var i = 0
+    while i < 16 {
+        var av: f64 = a[i]
+        var bv: f64 = b[i]
+        var ok = math.isclose(av, bv, rel_tol, abs_tol)
+        if oren_is_err(ok) { return ok }
+        if !ok { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn basis_x(m) {
     var ok = _check(m, "mat4.basis_x")
     if oren_is_err(ok) { return ok }
