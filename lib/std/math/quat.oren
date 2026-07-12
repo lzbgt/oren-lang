@@ -485,6 +485,28 @@ fn rotate_vector(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) 
     return rotate_vec3(qx, qy, qz, qw, vx, vy, vz)
 }
 
+fn inverse_rotate_vec3(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
+    var iq = inverse(qx, qy, qz, qw)
+    if oren_is_err(iq) { return iq }
+    return rotate_vec3(iq[0], iq[1], iq[2], iq[3], vx, vy, vz)
+}
+
+fn inverse_rotate_vector(qx: f64, qy: f64, qz: f64, qw: f64, vx: f64, vy: f64, vz: f64) {
+    return inverse_rotate_vec3(qx, qy, qz, qw, vx, vy, vz)
+}
+
+fn right(x: f64, y: f64, z: f64, w: f64) {
+    return rotate_vec3(x, y, z, w, 1.0, 0.0, 0.0)
+}
+
+fn up(x: f64, y: f64, z: f64, w: f64) {
+    return rotate_vec3(x, y, z, w, 0.0, 1.0, 0.0)
+}
+
+fn forward(x: f64, y: f64, z: f64, w: f64) {
+    return rotate_vec3(x, y, z, w, 0.0, 0.0, 1.0)
+}
+
 fn nlerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, t: f64) {
     var a = _finite4(ax, ay, az, aw, "quat.nlerp")
     if oren_is_err(a) { return a }
