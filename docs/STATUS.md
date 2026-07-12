@@ -2383,10 +2383,11 @@ allocating a full-size AVM heap byte mirror first. Legacy AVM host
 `oren_write_bytes` now keeps list-input compatibility but validates boxed-list
 or `LIST_INT` bytes before opening the destination and streams bounded 64 KiB
 stack chunks instead of allocating a full-size AVM heap byte mirror. Legacy AVM
-VFS list-backed `write_bytes` now stores boxed-list and `LIST_INT` bytes
-directly into the final VFS entry buffer through a shared owned-data path
-instead of first building a full-size temporary byte mirror and then copying it
-into VFS storage. AVM native `oren_bytes_set_u8` plus endian setters now mutate
+VFS list-backed `write_bytes` now validates boxed-list and `LIST_INT` byte
+ranges before IO charging or storage mutation, then stores them directly into
+the final VFS entry buffer through a shared owned-data path instead of first
+building a full-size temporary byte mirror and then copying it into VFS storage.
+AVM native `oren_bytes_set_u8` plus endian setters now mutate
 `LIST_INT` carriers through the same shared byte write-span helper used for
 `bytes` and boxed lists, so optimized `read_bytes`/`bytes_unpack` results do not
 need boxed-list reconstruction before in-place byte writes; `oren_string_from_bytes`

@@ -37,7 +37,7 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - Legacy native `oren_read_bytes` remains as an explicit compatibility ABI, but it now stats the file once, preallocates a native `LIST_INT` result to observed size, rejects oversized list output, and fills slots directly from 1 MiB read chunks instead of growing from a zero-capacity list through 4 KiB syscalls or per-byte list pushes.
-- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; AVM host `oren_read_bytes` also fills its returned `LIST_INT` from bounded chunks without a full-file byte mirror; native, C runtime, and AVM host list-input `oren_write_bytes` compatibility paths validate before opening/truncating destinations and then write bounded chunks instead of allocating full-size byte mirrors; AVM host and VFS `write_bytes` now accept `LIST_INT` carriers from `read_bytes` directly, VFS list/list-int writes fill final VFS storage through a shared owned-data path instead of building a duplicate byte mirror, AVM byte/endian setters mutate optimized `LIST_INT` carriers through the shared byte write-span helper, and AVM `oren_string_from_bytes` accepts optimized `LIST_INT` byte carriers directly instead of requiring boxed-list reconstruction.
+- Legacy C runtime `oren_read_bytes` still returns the compatibility boxed byte list, but it now fills that list from bounded 64 KiB read chunks and avoids the former extra full-file temporary buffer; AVM host `oren_read_bytes` also fills its returned `LIST_INT` from bounded chunks without a full-file byte mirror; native, C runtime, and AVM host list-input `oren_write_bytes` compatibility paths validate before opening/truncating destinations and then write bounded chunks instead of allocating full-size byte mirrors; AVM host and VFS `write_bytes` now accept `LIST_INT` carriers from `read_bytes` directly, VFS list/list-int writes validate byte ranges before IO charging or storage mutation and fill final VFS storage through a shared owned-data path instead of building a duplicate byte mirror, AVM byte/endian setters mutate optimized `LIST_INT` carriers through the shared byte write-span helper, and AVM `oren_string_from_bytes` accepts optimized `LIST_INT` byte carriers directly instead of requiring boxed-list reconstruction.
 - AVM byte/string slice conversion now shares checked bytes/list/`LIST_INT` copy-span helpers for full-buffer string conversion, `oren_string_from_bytes_slice`, `oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`, and the native and legacy C runtimes now route the same full-buffer string, slice, pack, and unpack family through shared byte-span helpers, keeping byte carriers on the optimized path without duplicated boxed-list copy loops. Native, legacy C runtime, and AVM `oren_sha256_range` now batch boxed-list/list-int inputs through bounded 64 KiB stack chunks or shared 64-byte copy-span block fills instead of calling the SHA update routine once per byte or rejecting optimized `LIST_INT` carriers.
 - Native HTTP/2 header-only `END_STREAM` responses now return an exact empty `u8_buf` before allocating DATA accumulators, while content-length DATA bodies still use exact-capacity accumulation with mismatch checks.
 - Native WebSocket masked client sends now write the header/mask prefix and stream payloads through fixed-size masked chunks instead of allocating full payload-sized frame buffers.
@@ -2861,9 +2861,10 @@ design evidence lives under `project-doc/`.
 - Legacy AVM host `oren_write_bytes` now keeps list-input compatibility but
   validates list bytes before opening the destination and streams bounded
   64 KiB stack chunks instead of allocating a full-size AVM heap byte mirror.
-- Legacy AVM VFS list-backed `write_bytes` now stores bytes directly into the
-  final VFS entry buffer instead of first building a full-size temporary byte
-  mirror and then copying it into VFS storage.
+- Legacy AVM VFS list-backed `write_bytes` now validates byte ranges before IO
+  charging or storage mutation, then stores bytes directly into the final VFS
+  entry buffer instead of first building a full-size temporary byte mirror and
+  then copying it into VFS storage.
 - Legacy C runtime `oren_read_bytes` still returns a boxed compatibility byte
   list, but now fills that list from bounded 64 KiB read chunks instead of
   allocating a second full-file temporary byte buffer before list materialization.

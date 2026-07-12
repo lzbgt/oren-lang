@@ -36,37 +36,45 @@ fn main() {
     if bytes.len(rb) != 4 { fail(13) }
     if bytes.get_u8(rb, 0) != 7 { fail(14) }
     if bytes.get_u8(rb, 3) != 255 { fail(15) }
+    if !oren_is_err(fs.write_bytes("v/dir/data.bin", [1, 999])) { fail(16) }
+    var rb_after_bad = fs.read_u8_buf("v/dir/data.bin")
+    if oren_is_err(rb_after_bad) { fail(17) }
+    if bytes.len(rb_after_bad) != 4 || bytes.get_u8(rb_after_bad, 0) != 7 || bytes.get_u8(rb_after_bad, 3) != 255 { fail(18) }
+    if !oren_is_err(fs.write_bytes("v/dir/data.bin", [1, "x"])) { fail(19) }
+    var rb_after_mixed = fs.read_u8_buf("v/dir/data.bin")
+    if oren_is_err(rb_after_mixed) { fail(20) }
+    if bytes.len(rb_after_mixed) != 4 || bytes.get_u8(rb_after_mixed, 1) != 8 { fail(21) }
 
     var legacy = fs.read_byte_list("v/dir/data.bin")
-    if oren_is_err(legacy) { fail(16) }
-    if oren_list_len(legacy) != 4 { fail(17) }
-    if legacy[1] != 8 || legacy[3] != 255 { fail(18) }
+    if oren_is_err(legacy) { fail(22) }
+    if oren_list_len(legacy) != 4 { fail(23) }
+    if legacy[1] != 8 || legacy[3] != 255 { fail(24) }
 
     var names = fs.list_dir("v/dir")
-    if oren_is_err(names) { fail(20) }
-    if has_name(names, "data.bin") != true { fail(21) }
-    if has_name(names, "in.txt") != true { fail(22) }
+    if oren_is_err(names) { fail(30) }
+    if has_name(names, "data.bin") != true { fail(31) }
+    if has_name(names, "in.txt") != true { fail(32) }
 
     var wt2 = fs.write_text_under("v/dir", ["under.txt"], "under root")
-    if oren_is_err(wt2) { fail(30) }
-    if fs.exists_under("v/dir", ["under.txt"]) != true { fail(31) }
-    if fs.read_text_under("v/dir", ["under.txt"]) != "under root" { fail(32) }
+    if oren_is_err(wt2) { fail(40) }
+    if fs.exists_under("v/dir", ["under.txt"]) != true { fail(41) }
+    if fs.read_text_under("v/dir", ["under.txt"]) != "under root" { fail(42) }
     var sub_names = fs.list_dir_under("v/dir", [])
-    if oren_is_err(sub_names) { fail(33) }
-    if has_name(sub_names, "under.txt") != true { fail(34) }
+    if oren_is_err(sub_names) { fail(43) }
+    if has_name(sub_names, "under.txt") != true { fail(44) }
 
     var wb2 = fs.write_bytes_under("v/dir", ["under.bin"], src)
-    if oren_is_err(wb2) { fail(35) }
+    if oren_is_err(wb2) { fail(45) }
     var rb2 = fs.read_u8_buf_under("v/dir", ["under.bin"])
-    if oren_is_err(rb2) { fail(36) }
-    if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(37) }
+    if oren_is_err(rb2) { fail(46) }
+    if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(47) }
     var legacy2 = fs.read_byte_list_under("v/dir", ["under.bin"])
-    if oren_is_err(legacy2) { fail(38) }
-    if oren_list_len(legacy2) != 4 || legacy2[0] != 7 { fail(39) }
+    if oren_is_err(legacy2) { fail(48) }
+    if oren_list_len(legacy2) != 4 || legacy2[0] != 7 { fail(49) }
 
-    if !oren_is_err(fs.write_text_under("v/dir", ["..", "escape.txt"], "bad")) { fail(40) }
-    if !oren_is_err(fs.read_text_under("v/dir", ["/etc/passwd"])) { fail(41) }
-    if !oren_is_err(fs.exists_under("v/dir", ["..", "escape.txt"])) { fail(42) }
+    if !oren_is_err(fs.write_text_under("v/dir", ["..", "escape.txt"], "bad")) { fail(60) }
+    if !oren_is_err(fs.read_text_under("v/dir", ["/etc/passwd"])) { fail(61) }
+    if !oren_is_err(fs.exists_under("v/dir", ["..", "escape.txt"])) { fail(62) }
 
     print("avm std fs OK")
     oren_exit(0)

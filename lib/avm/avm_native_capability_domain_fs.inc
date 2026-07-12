@@ -84,12 +84,34 @@
                 case 2: { // write_bytes -> NIL
                     if (nargs < 2) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, bytes|list)", domain, op);
                     uint32_t len = 0;
-                    if (args[1].type == AVM_VAL_BYTES && args[1].as.b) {
-                        len = (uint32_t)(args[1].as.b->len < 0 ? 0 : args[1].as.b->len);
+                    if (args[1].type == AVM_VAL_BYTES) {
+                        AvmBytes* b = args[1].as.b;
+                        if (!b) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes u8_buf is nil", domain, op);
+                        if (b->len < 0) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes invalid u8_buf length", domain, op);
+                        if (b->len > 0 && !b->data) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes u8_buf payload is nil", domain, op);
+                        len = (uint32_t)b->len;
                     } else if (args[1].type == AVM_VAL_LIST && args[1].as.l) {
-                        len = (uint32_t)(args[1].as.l->count < 0 ? 0 : args[1].as.l->count);
+                        AvmList* list = args[1].as.l;
+                        if (list->count < 0) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes invalid list length", domain, op);
+                        if (list->count > 0 && !list->items) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes invalid list payload", domain, op);
+                        len = (uint32_t)list->count;
+                        for (int i = 0; i < list->count; i++) {
+                            AvmValue it = list->items[i];
+                            if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
+                                return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expected list<int 0..255>", domain, op);
+                            }
+                        }
                     } else if (args[1].type == AVM_VAL_LIST_INT && args[1].as.li) {
-                        len = (uint32_t)(args[1].as.li->count < 0 ? 0 : args[1].as.li->count);
+                        AvmListInt* list_int = args[1].as.li;
+                        if (list_int->count < 0) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes invalid list_int length", domain, op);
+                        if (list_int->count > 0 && !list_int->items) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes invalid list_int payload", domain, op);
+                        len = (uint32_t)list_int->count;
+                        for (int i = 0; i < list_int->count; i++) {
+                            int64_t b = list_int->items[i];
+                            if (b < 0 || b > 255) {
+                                return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expected list<int 0..255>", domain, op);
+                            }
+                        }
                     } else {
                         return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, bytes|list)", domain, op);
                     }

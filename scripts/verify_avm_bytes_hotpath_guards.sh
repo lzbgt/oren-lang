@@ -629,8 +629,11 @@ fi
 
 vfs_write_bytes_domain_impl="$(sed -n '/case 2: { \/\/ write_bytes -> NIL/,/case 7:/p' lib/avm/avm_native_capability_domain_fs.inc)"
 if ! grep -Fq 'args[1].type == AVM_VAL_LIST_INT' <<<"$vfs_write_bytes_domain_impl" ||
-  ! grep -Fq 'ok = avm_vfs_put_list_int(vm, path ? path : "", args[1].as.li)' <<<"$vfs_write_bytes_domain_impl"; then
-  echo "ERROR: AVM VFS write_bytes must accept LIST_INT carriers directly" >&2
+  ! grep -Fq 'ok = avm_vfs_put_list_int(vm, path ? path : "", args[1].as.li)' <<<"$vfs_write_bytes_domain_impl" ||
+  ! grep -Fq 'vfs: write_bytes expected list<int 0..255>' <<<"$vfs_write_bytes_domain_impl" ||
+  ! grep -Fq 'it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255' <<<"$vfs_write_bytes_domain_impl" ||
+  ! grep -Fq 'b < 0 || b > 255' <<<"$vfs_write_bytes_domain_impl"; then
+  echo "ERROR: AVM VFS write_bytes must validate list carriers before writing direct final VFS storage" >&2
   exit 1
 fi
 
