@@ -3013,6 +3013,10 @@
 <p>  <code>tests/fixtures/ios_avm/sdk_module_smoke.m</code>, reducing</p>
 <p>  <code>scripts/verify_libavm_ios.sh</code> to 751 lines while preserving the same</p>
 <p>  compile-helper inputs.</p>
+<p>  Repeated package-manifest JSON emission now routes through</p>
+<p>  <code>scripts/libavm_ios_verify_package_manifest.py</code>, reducing</p>
+<p>  <code>scripts/verify_libavm_ios.sh</code> to 640 lines while keeping runtime hash and</p>
+<p>  signature generation in the shell gate.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

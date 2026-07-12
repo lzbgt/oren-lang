@@ -2778,6 +2778,10 @@ design evidence lives under `project-doc/`.
   `tests/fixtures/ios_avm/sdk_module_smoke.m`, reducing
   `scripts/verify_libavm_ios.sh` to 751 lines while preserving the same
   compile-helper inputs.
+- Repeated libavm iOS package-manifest JSON emission now routes through
+  `scripts/libavm_ios_verify_package_manifest.py`, reducing
+  `scripts/verify_libavm_ios.sh` to 640 lines while keeping runtime hash and
+  signature generation in the shell gate.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture

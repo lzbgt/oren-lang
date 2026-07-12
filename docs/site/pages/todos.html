@@ -3869,6 +3869,12 @@
 <p>  <code>scripts/verify_libavm_ios.sh</code> to 751 lines while preserving the same</p>
 <p>  compile-helper inputs.</p>
 <ul>
+<li>Repeated libavm iOS package-manifest JSON emission now routes through</li>
+</ul>
+<p>  <code>scripts/libavm_ios_verify_package_manifest.py</code>, reducing</p>
+<p>  <code>scripts/verify_libavm_ios.sh</code> to 640 lines while keeping runtime hash and</p>
+<p>  signature generation in the shell gate.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

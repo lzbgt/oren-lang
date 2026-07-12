@@ -2894,6 +2894,10 @@ Working evidence:
   `tests/fixtures/ios_avm/sdk_module_smoke.m`, reducing
   `scripts/verify_libavm_ios.sh` to 751 lines while preserving the same
   compile-helper inputs.
+  Repeated package-manifest JSON emission now routes through
+  `scripts/libavm_ios_verify_package_manifest.py`, reducing
+  `scripts/verify_libavm_ios.sh` to 640 lines while keeping runtime hash and
+  signature generation in the shell gate.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,

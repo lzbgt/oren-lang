@@ -156,178 +156,67 @@ REMOTE_PACKAGE_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/program.obc" | awk '{p
 REMOTE_PACKAGE_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/program.obc" | awk '{print $1}')"
 REMOTE_ASSET_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/assets/config.txt" | awk '{print $1}')"
 REMOTE_ASSET_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/assets/config.txt" | awk '{print $1}')"
-cat > "$PACKAGE_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-package-smoke",
-  "publisher": "oren-labs",
-  "version": "0.1.0",
-  "title": "SDK Package Smoke",
-  "summary": "Verifies OrenAVMPackageStore local package loading.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$PACKAGE_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "NET", "EXIT"],
-  "permission_defaults": [
-    { "domain": "NET", "action": "connect", "detail": "tcp://package.example:443", "granted": true }
-  ],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 5000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
-cat > "$SCENE_PACKAGE_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-scene3d-package",
-  "publisher": "oren-labs",
-  "version": "0.1.0",
-  "title": "SDK Scene3D Package",
-  "summary": "Verifies OrenAVMPackageStore mounts byte-native Scene3D assets.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$SCENE_PACKAGE_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
-  "assets": [
-    {
-      "path": "assets/scene3d_card.os3d",
-      "sha256": "$SCENE_ASSET_HASH",
-      "media_type": "application/vnd.oren.ui.scene3d.bin.v0"
-    }
-  ],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 10000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
-cat > "$REMOTE_PACKAGE_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-package-remote",
-  "publisher": "oren-labs",
-  "version": "0.1.0",
-  "title": "SDK Remote Package Smoke",
-  "summary": "Verifies OrenAVMPackageStore index download.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$REMOTE_PACKAGE_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
-  "assets": [
-    { "path": "assets/config.txt", "sha256": "$REMOTE_ASSET_HASH" }
-  ],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 5000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
-cat > "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-package-bad-asset",
-  "publisher": "oren-labs",
-  "version": "0.1.0",
-  "title": "SDK Bad Asset Package Smoke",
-  "summary": "Verifies asset hash mismatch rejection.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$REMOTE_PACKAGE_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
-  "assets": [
-    { "path": "assets/config.txt", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" }
-  ],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 5000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
-cat > "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-package-bad-signature",
-  "publisher": "oren-labs",
-  "version": "0.1.0",
-  "title": "SDK Bad Signature Package Smoke",
-  "summary": "Verifies manifest signature rejection.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$REMOTE_PACKAGE_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
-  "assets": [
-    { "path": "assets/config.txt", "sha256": "$REMOTE_ASSET_HASH" }
-  ],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 5000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
-cat > "$REMOTE_PACKAGE_V2_DIR/package.json" <<JSON
-{
-  "schema": "oren.obc.package.v0",
-  "name": "sdk-package-remote",
-  "publisher": "oren-labs",
-  "version": "0.2.0",
-  "title": "SDK Remote Package Smoke v2",
-  "summary": "Verifies OrenAVMPackageStore update policy.",
-  "entry_obc": "program.obc",
-  "obc_sha256": "$REMOTE_PACKAGE_V2_HASH",
-  "oren_min": "0.0.rolling",
-  "avm_abi_min": 8,
-  "capabilities": ["CORE", "FS", "EXIT"],
-  "assets": [
-    { "path": "assets/config.txt", "sha256": "$REMOTE_ASSET_V2_HASH" }
-  ],
-  "time_mode": "deterministic",
-  "budgets": {
-    "gas": 5000000,
-    "heap_bytes": 33554432,
-    "io_bytes": 1048576,
-    "frame_commands": 1024
-  },
-  "vfs_mounts": [
-    { "virtual": "assets", "package_path": "assets", "read_only": true }
-  ]
-}
-JSON
+python3 scripts/libavm_ios_verify_package_manifest.py \
+  --out "$PACKAGE_DIR/package.json" \
+  --name sdk-package-smoke \
+  --version 0.1.0 \
+  --title "SDK Package Smoke" \
+  --summary "Verifies OrenAVMPackageStore local package loading." \
+  --obc-sha256 "$PACKAGE_HASH" \
+  --capabilities CORE,FS,NET,EXIT \
+  --permission-default "NET|connect|tcp://package.example:443|true" \
+  --mount "assets|assets|true"
+python3 scripts/libavm_ios_verify_package_manifest.py \
+  --out "$SCENE_PACKAGE_DIR/package.json" \
+  --name sdk-scene3d-package \
+  --version 0.1.0 \
+  --title "SDK Scene3D Package" \
+  --summary "Verifies OrenAVMPackageStore mounts byte-native Scene3D assets." \
+  --obc-sha256 "$SCENE_PACKAGE_HASH" \
+  --capabilities CORE,FS,EXIT \
+  --asset "assets/scene3d_card.os3d|$SCENE_ASSET_HASH|application/vnd.oren.ui.scene3d.bin.v0" \
+  --gas 10000000 \
+  --mount "assets|assets|true"
+python3 scripts/libavm_ios_verify_package_manifest.py \
+  --out "$REMOTE_PACKAGE_DIR/package.json" \
+  --name sdk-package-remote \
+  --version 0.1.0 \
+  --title "SDK Remote Package Smoke" \
+  --summary "Verifies OrenAVMPackageStore index download." \
+  --obc-sha256 "$REMOTE_PACKAGE_HASH" \
+  --capabilities CORE,FS,EXIT \
+  --asset "assets/config.txt|$REMOTE_ASSET_HASH" \
+  --mount "assets|assets|true"
+python3 scripts/libavm_ios_verify_package_manifest.py \
+  --out "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" \
+  --name sdk-package-bad-asset \
+  --version 0.1.0 \
+  --title "SDK Bad Asset Package Smoke" \
+  --summary "Verifies asset hash mismatch rejection." \
+  --obc-sha256 "$REMOTE_PACKAGE_HASH" \
+  --capabilities CORE,FS,EXIT \
+  --asset "assets/config.txt|0000000000000000000000000000000000000000000000000000000000000000" \
+  --mount "assets|assets|true"
+python3 scripts/libavm_ios_verify_package_manifest.py \
+  --out "$REMOTE_BAD_SIGNATURE_PACKAGE_DIR/package.json" \
+  --name sdk-package-bad-signature \
+  --version 0.1.0 \
+  --title "SDK Bad Signature Package Smoke" \
+  --summary "Verifies manifest signature rejection." \
+  --obc-sha256 "$REMOTE_PACKAGE_HASH" \
+  --capabilities CORE,FS,EXIT \
+  --asset "assets/config.txt|$REMOTE_ASSET_HASH" \
+  --mount "assets|assets|true"
+python3 scripts/libavm_ios_verify_package_manifest.py \
+  --out "$REMOTE_PACKAGE_V2_DIR/package.json" \
+  --name sdk-package-remote \
+  --version 0.2.0 \
+  --title "SDK Remote Package Smoke v2" \
+  --summary "Verifies OrenAVMPackageStore update policy." \
+  --obc-sha256 "$REMOTE_PACKAGE_V2_HASH" \
+  --capabilities CORE,FS,EXIT \
+  --asset "assets/config.txt|$REMOTE_ASSET_V2_HASH" \
+  --mount "assets|assets|true"
 REMOTE_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_DIR/package.json" | awk '{print $1}')"
 REMOTE_MANIFEST_V2_HASH="$(shasum -a 256 "$REMOTE_PACKAGE_V2_DIR/package.json" | awk '{print $1}')"
 REMOTE_BAD_ASSET_MANIFEST_HASH="$(shasum -a 256 "$REMOTE_BAD_ASSET_PACKAGE_DIR/package.json" | awk '{print $1}')"
