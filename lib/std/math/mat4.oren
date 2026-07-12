@@ -565,6 +565,10 @@ fn transpose(m) {
     ]
 }
 
+fn transposed(m) {
+    return transpose(m)
+}
+
 fn determinant(m) {
     var cm = _check(m, "mat4.determinant")
     if oren_is_err(cm) { return cm }
@@ -611,6 +615,10 @@ fn determinant(m) {
     var out: f64 = m0 * c0 + m1 * c1 + m2 * c2 + m3 * c3
     if !math.is_finite(out) { return oren_err(4, "mat4.determinant: non-finite") }
     return out
+}
+
+fn det(m) {
+    return determinant(m)
 }
 
 fn inverse(m) {
@@ -661,6 +669,14 @@ fn inverse(m) {
     var ok = _check(out, "mat4.inverse")
     if oren_is_err(ok) { return ok }
     return out
+}
+
+fn invert(m) {
+    return inverse(m)
+}
+
+fn inverted(m) {
+    return inverse(m)
 }
 
 fn normal_matrix3(m) {
