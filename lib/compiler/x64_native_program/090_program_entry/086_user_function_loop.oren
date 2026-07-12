@@ -1,0 +1,212 @@
+fn _x64_opts_bool_true_or(opts, key, default_value) {
+    if opts != nil && opts[key] == true { return true }
+    return default_value
+}
+
+fn _x64_opts_value_or(opts, key, default_value) {
+    if opts == nil { return default_value }
+    var v = opts[key]
+    if oren_type_tag(v) != 0 { return v }
+    return default_value
+}
+
+fn _x64_user_function_progress_loop_options(opts) {
+    return {
+        "trace_prog": _x64_opts_bool_true_or(opts, "trace_prog", false),
+        "focus_enabled": _x64_opts_bool_true_or(opts, "focus_enabled", false),
+        "prog_focus_from": _x64_opts_value_or(opts, "prog_focus_from", -1),
+        "prog_focus_to": _x64_opts_value_or(opts, "prog_focus_to", -1),
+        "prog_stride": _x64_opts_value_or(opts, "prog_stride", 200),
+        "prog_slow_fn_ms": _x64_opts_value_or(opts, "prog_slow_fn_ms", 2000)
+    }
+}
+
+fn _x64_user_function_slow_loop_options(opts) {
+    return {
+        "trace_top_slow": _x64_opts_bool_true_or(opts, "trace_top_slow", false),
+        "top_slow_n": _x64_opts_value_or(opts, "top_slow_n", 20),
+        "top_slow_min_ms": _x64_opts_value_or(opts, "top_slow_min_ms", 50),
+        "top_slow_live": _x64_opts_bool_true_or(opts, "top_slow_live", false),
+        "top_slow_live_n": _x64_opts_value_or(opts, "top_slow_live_n", 20)
+    }
+}
+
+fn _x64_user_function_phase_loop_options(opts) {
+    return {
+        "fns_progress_interval": _x64_opts_value_or(opts, "fns_progress_interval", 250),
+        "fns_detail_limit": _x64_opts_value_or(opts, "fns_detail_limit", 0)
+    }
+}
+
+fn _x64_user_function_loop_options(opts) {
+    var progress = _x64_user_function_progress_loop_options(opts)
+    var slow = _x64_user_function_slow_loop_options(opts)
+    var phase = _x64_user_function_phase_loop_options(opts)
+    return {
+        "trace_prog": progress["trace_prog"],
+        "focus_enabled": progress["focus_enabled"],
+        "prog_focus_from": progress["prog_focus_from"],
+        "prog_focus_to": progress["prog_focus_to"],
+        "prog_stride": progress["prog_stride"],
+        "prog_slow_fn_ms": progress["prog_slow_fn_ms"],
+        "trace_top_slow": slow["trace_top_slow"],
+        "top_slow_n": slow["top_slow_n"],
+        "top_slow_min_ms": slow["top_slow_min_ms"],
+        "top_slow_live": slow["top_slow_live"],
+        "top_slow_live_n": slow["top_slow_live_n"],
+        "fns_progress_interval": phase["fns_progress_interval"],
+        "fns_detail_limit": phase["fns_detail_limit"]
+    }
+}
+
+fn _x64_user_function_loop_state(fns, opts2) {
+    return {
+        "opts": opts2,
+        "top_slow": [],
+        "top_slow_live_count": 0,
+        "fns_n": oren_list_len(fns)
+    }
+}
+
+fn _x64_user_function_name(fn1) {
+    var nm1 = nil
+    if fn1 != nil { nm1 = fn1["name"] }
+    if nm1 == nil || nm1 == "" { nm1 = "?" }
+    return nm1
+}
+
+fn _x64_log_user_function_before(ctx, state, phase_log, i1, nm1) {
+    var opts2 = state["opts"]
+    var fns_n = state["fns_n"]
+    var interval = opts2["fns_progress_interval"]
+    if phase_log != nil {
+        if i1 == 0 || core.int_mod(i1, interval) == 0 {
+            _x64_program_phase_log_append(phase_log, "x64.codegen.fns.before",
+                "i=" + oren_int_to_string(i1) +
+                " total=" + oren_int_to_string(fns_n) +
+                " name=" + nm1 +
+                " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+        }
+    }
+    if opts2["trace_prog"] == true &&
+       ((opts2["focus_enabled"] == true && i1 >= opts2["prog_focus_from"] && i1 < opts2["prog_focus_to"]) ||
+        (opts2["prog_stride"] > 0 && core.int_mod(i1, opts2["prog_stride"]) == 0)) {
+        print("[x64_compile] fns " + oren_int_to_string(i1) + "/" + oren_int_to_string(fns_n) + " next=" + nm1)
+    }
+    return nil
+}
+
+fn _x64_user_function_timer_start(opts2) {
+    if opts2["trace_prog"] == true || opts2["trace_top_slow"] == true { return oren_time_now_ns() }
+    return 0
+}
+
+fn _x64_compile_one_user_function(ctx, fn1, platform, call_depth_default_enabled, phase_log, state, i1) {
+    var opts2 = state["opts"]
+    if phase_log != nil && i1 < opts2["fns_detail_limit"] { ctx["phase_fn_detail"] = true }
+    else { ctx["phase_fn_detail"] = false }
+    _compile_function_v0(ctx, fn1, platform, true, call_depth_default_enabled)
+    ctx["phase_fn_detail"] = false
+    return nil
+}
+
+fn _x64_record_user_function_slow(ctx, state, phase_log, i1, nm1, t_fn) {
+    var opts2 = state["opts"]
+    if opts2["trace_prog"] == true && opts2["prog_slow_fn_ms"] > 0 {
+        var dt_ms = (oren_time_now_ns() - t_fn) / 1000000
+        if dt_ms > opts2["prog_slow_fn_ms"] { print("[x64_compile] slow_fn ms=" + oren_int_to_string(dt_ms) + " name=" + nm1) }
+    } else if opts2["trace_top_slow"] == true {
+        var dt_ms2 = (oren_time_now_ns() - t_fn) / 1000000
+        if dt_ms2 >= opts2["top_slow_min_ms"] {
+            _x64_slow_fn_top_push(state["top_slow"], opts2["top_slow_n"], dt_ms2, nm1)
+            if opts2["top_slow_live"] == true && phase_log != nil && state["top_slow_live_count"] < opts2["top_slow_live_n"] {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow_live",
+                    "i=" + oren_int_to_string(i1) +
+                    " total=" + oren_int_to_string(state["fns_n"]) +
+                    " ms=" + oren_int_to_string(dt_ms2) +
+                    " name=" + nm1)
+                state["top_slow_live_count"] = state["top_slow_live_count"] + 1
+            }
+        }
+    }
+    return nil
+}
+
+fn _x64_log_user_function_progress(ctx, state, phase_log, i1, nm1) {
+    if phase_log == nil { return nil }
+    var opts2 = state["opts"]
+    if i1 > 0 && core.int_mod(i1, opts2["fns_progress_interval"]) == 0 {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.fns.progress",
+            "i=" + oren_int_to_string(i1) +
+            " total=" + oren_int_to_string(state["fns_n"]) +
+            " name=" + nm1 +
+            " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    }
+    return nil
+}
+
+fn _x64_emit_user_function_slow_summary(state, phase_log) {
+    var opts2 = state["opts"]
+    if opts2["trace_top_slow"] != true { return nil }
+    var top_slow = state["top_slow"]
+    var k = 0
+    while k < oren_list_len(top_slow) {
+        var it = top_slow[k]
+        if it != nil {
+            print("[x64_compile] top_slow_fn[" + oren_int_to_string(k) +
+                  "] ms=" + oren_int_to_string(it["ms"]) +
+                  " name=" + it["name"])
+            if phase_log != nil {
+                _x64_program_phase_log_append(phase_log, "x64.codegen.fns.slow",
+                    "rank=" + oren_int_to_string(k) +
+                    " ms=" + oren_int_to_string(it["ms"]) +
+                    " name=" + it["name"])
+            }
+        }
+        k = k + 1
+    }
+    return nil
+}
+
+fn _x64_log_user_function_set_start(phase_log, fns_n) {
+    if phase_log == nil { return nil }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.start",
+        "fns=" + oren_int_to_string(fns_n))
+    return nil
+}
+
+fn _x64_compile_user_function_loop_body(ctx, fns, platform, call_depth_default_enabled, phase_log, state, i1) {
+    var fn1 = fns[i1]
+    var nm1 = _x64_user_function_name(fn1)
+    _x64_log_user_function_before(ctx, state, phase_log, i1, nm1)
+    var t_fn = _x64_user_function_timer_start(state["opts"])
+    _x64_compile_one_user_function(ctx, fn1, platform, call_depth_default_enabled, phase_log, state, i1)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
+    _x64_record_user_function_slow(ctx, state, phase_log, i1, nm1, t_fn)
+    _x64_log_user_function_progress(ctx, state, phase_log, i1, nm1)
+    return true
+}
+
+fn _x64_log_user_function_set_done(ctx, state, phase_log) {
+    if phase_log == nil { return nil }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.fns.done",
+        "fns=" + oren_int_to_string(state["fns_n"]) +
+        " code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])))
+    return nil
+}
+
+fn _x64_compile_user_function_set(ctx, fns, platform, call_depth_default_enabled, phase_log, opts) {
+    var opts2 = _x64_user_function_loop_options(opts)
+    var state = _x64_user_function_loop_state(fns, opts2)
+    var fns_n = state["fns_n"]
+    _x64_log_user_function_set_start(phase_log, fns_n)
+    var i1 = 0
+    while i1 < fns_n {
+        if _x64_compile_user_function_loop_body(ctx, fns, platform, call_depth_default_enabled, phase_log, state, i1) != true { return ctx }
+        i1 = i1 + 1
+    }
+    _x64_log_user_function_set_done(ctx, state, phase_log)
+    _x64_emit_user_function_slow_summary(state, phase_log)
+
+    return nil
+}
