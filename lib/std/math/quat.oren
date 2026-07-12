@@ -18,6 +18,11 @@ fn _finite_scalar(x: f64, ctx) {
     return 0
 }
 
+fn _quat_list4(q, ctx) {
+    if oren_list_len(q) != 4 { return oren_err(4, ctx + ": expected 4 values") }
+    return _finite4(q[0], q[1], q[2], q[3], ctx)
+}
+
 fn identity() {
     return [0.0, 0.0, 0.0, 1.0]
 }
@@ -197,6 +202,14 @@ fn rotation_power(x: f64, y: f64, z: f64, w: f64, t: f64) {
 
 fn scale_angle(x: f64, y: f64, z: f64, w: f64, scale: f64) {
     return rotation_power(x, y, z, w, scale)
+}
+
+fn pow(x: f64, y: f64, z: f64, w: f64, t: f64) {
+    return rotation_power(x, y, z, w, t)
+}
+
+fn power(x: f64, y: f64, z: f64, w: f64, t: f64) {
+    return rotation_power(x, y, z, w, t)
 }
 
 fn exp(x: f64, y: f64, z: f64, w: f64) {
@@ -620,6 +633,22 @@ fn slerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64,
     var z: f64 = s0 * qaz + s1 * qbz
     var w: f64 = s0 * qaw + s1 * qbw
     return normalize(x, y, z, w)
+}
+
+fn squad(a, b, c, d, t: f64) {
+    var qa = _quat_list4(a, "quat.squad")
+    if oren_is_err(qa) { return qa }
+    var qb = _quat_list4(b, "quat.squad")
+    if oren_is_err(qb) { return qb }
+    var qc = _quat_list4(c, "quat.squad")
+    if oren_is_err(qc) { return qc }
+    var qd = _quat_list4(d, "quat.squad")
+    if oren_is_err(qd) { return qd }
+    var ab = slerp(a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3], t)
+    if oren_is_err(ab) { return ab }
+    var cd = slerp(c[0], c[1], c[2], c[3], d[0], d[1], d[2], d[3], t)
+    if oren_is_err(cd) { return cd }
+    return slerp(ab[0], ab[1], ab[2], ab[3], cd[0], cd[1], cd[2], cd[3], 2.0 * t * (1.0 - t))
 }
 
 fn rotate_toward(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, max_radians: f64) {
