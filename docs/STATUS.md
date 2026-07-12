@@ -2404,7 +2404,7 @@ that contract for self-hosted tests by validating list bytes and allocating only
 a bounded scratch chunk before opening/truncating the destination, then
 streaming short-write-safe chunks instead of materializing a full-size byte
 mirror. AVM byte/string slice conversion now shares checked bytes/list/
-`LIST_INT` copy-span helpers for full-buffer string conversion,
+`LIST_INT` helpers for full-buffer string conversion, `bytes_to_hex`,
 `oren_string_from_bytes_slice`, `oren_u8_buf_from_bytes_slice`, `bytes_pack`,
 and `bytes_unpack`; the native and legacy C runtimes now route the same
 full-buffer string, slice, pack, and unpack family through shared byte-span

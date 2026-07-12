@@ -8,6 +8,11 @@ fn main() {
     var from_s_xs = oren_bytes_unpack(from_s)
     if oren_is_err(from_s_xs) { oren_exit(113) }
     if oren_string_from_bytes(from_s_xs) != "ok" { oren_exit(114) }
+    if oren_bytes_to_hex(from_s_xs) != "6f6b" { oren_exit(121) }
+    var boxed_ok = [111, 107]
+    if oren_bytes_to_hex(boxed_ok) != "6f6b" { oren_exit(122) }
+    var boxed_bad = [65, 300]
+    if oren_is_err(oren_bytes_to_hex(boxed_bad)) == false { oren_exit(123) }
     var empty_s = oren_bytes_from_string("")
     if oren_is_u8_buf(empty_s) != true { oren_exit(106) }
     if oren_bytes_len(empty_s) != 0 { oren_exit(107) }
@@ -54,6 +59,7 @@ fn main() {
     oren_list_int_push(bad_li, 300)
     if oren_is_err(oren_bytes_pack(bad_li)) == false { oren_exit(119) }
     if oren_is_err(oren_bytes_unpack(bad_li)) == false { oren_exit(120) }
+    if oren_is_err(oren_bytes_to_hex(bad_li)) == false { oren_exit(124) }
 
     var b2 = oren_bytes_pack(xs)
     if oren_is_err(b2) { oren_exit(1) }

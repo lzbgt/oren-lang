@@ -18,57 +18,8 @@
             break;
         }
         case 36: { // oren_bytes_to_hex(bytes|list<int 0..255>|list_int) -> string
-            if (nargs > 0 && (args[0].type == AVM_VAL_BYTES || args[0].type == AVM_VAL_LIST || args[0].type == AVM_VAL_LIST_INT)) {
-                int byte_len = 0;
-                AvmBytes* b = NULL;
-                AvmList* list = NULL;
-                AvmListInt* list_int = NULL;
-                if (args[0].type == AVM_VAL_BYTES) {
-                    b = args[0].as.b;
-                    if (!b || b->len < 0 || (b->len > 0 && !b->data)) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: invalid bytes"); break; }
-                    byte_len = b->len;
-                } else if (args[0].type == AVM_VAL_LIST) {
-                    list = args[0].as.l;
-                    if (!list || list->count < 0 || (list->count > 0 && !list->items)) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: invalid list"); break; }
-                    byte_len = list->count;
-                } else {
-                    list_int = args[0].as.li;
-                    if (!list_int || list_int->count < 0 || (list_int->count > 0 && !list_int->items)) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: invalid list_int"); break; }
-                    byte_len = list_int->count;
-                }
-                static const char* hexd = "0123456789abcdef";
-                size_t out_len = (size_t)byte_len * 2u;
-                char* out = (char*)avm_heap_malloc_k(out_len + 1, AVM_ALLOC_KIND_STRING);
-                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
-                for (int i = 0; i < byte_len; i++) {
-                    uint8_t v = 0;
-                    if (b) {
-                        v = b->data[i];
-                    } else if (list) {
-                        AvmValue it = list->items[i];
-                        if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
-                            res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: expected list<int 0..255>");
-                            break;
-                        }
-                        v = (uint8_t)it.as.i;
-                    } else {
-                        int64_t it = list_int->items[i];
-                        if (it < 0 || it > 255) {
-                            res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: expected list_int bytes 0..255");
-                            break;
-                        }
-                        v = (uint8_t)it;
-                    }
-                    out[(size_t)i * 2] = hexd[(v >> 4) & 0xF];
-                    out[(size_t)i * 2 + 1] = hexd[v & 0xF];
-                }
-                if (avm_is_err_val(res)) { break; }
-                out[out_len] = 0;
-                res.type = AVM_VAL_STRING;
-                res.as.p = out;
-            } else {
-                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_to_hex expects (bytes|list<int>|list_int)");
-            }
+            if (nargs > 0) { res = avm_native_bytes_to_hex_value(vm, args[0]); }
+            else { res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_to_hex expects (bytes|list<int>|list_int)"); }
             break;
         }
         case 40: { // oren_avm_record_to_bytes() -> nil

@@ -190,6 +190,19 @@ if ! grep -Fq 'var list_int_overlap = listm.int_new(0)' tests/avm/test_std_bytes
   exit 1
 fi
 
+bytes_to_hex_impl="$(sed -n '/case 36:.*oren_bytes_to_hex/,/case 40:/p' lib/avm/avm_native_byte_iter_cases.inc)"
+bytes_to_hex_helper="$(sed -n '/static AvmValue avm_native_bytes_to_hex_value/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
+if ! grep -Fq 'res = avm_native_bytes_to_hex_value(vm, args[0])' <<<"$bytes_to_hex_impl" ||
+  ! grep -Fq 'bytes_to_hex: expected list<int 0..255>' <<<"$bytes_to_hex_helper" ||
+  ! grep -Fq 'bytes_to_hex: expected list_int bytes 0..255' <<<"$bytes_to_hex_helper" ||
+  grep -Fq 'AvmValue it = list->items[i]' <<<"$bytes_to_hex_impl" ||
+  grep -Fq 'int64_t it = list_int->items[i]' <<<"$bytes_to_hex_impl" ||
+  ! grep -Fq 'if oren_bytes_to_hex(from_s_xs) != "6f6b"' tests/avm/test_bytes_basic.oren ||
+  ! grep -Fq 'if oren_is_err(oren_bytes_to_hex(bad_li)) == false' tests/avm/test_bytes_basic.oren; then
+  echo "ERROR: AVM bytes_to_hex must use the shared checked bytes/list/LIST_INT helper and fixture coverage" >&2
+  exit 1
+fi
+
 string_from_bytes_impl="$(sed -n '/case 44:.*oren_string_from_bytes/,/case 161:/p' lib/avm/avm_native_byte_iter_cases.inc)"
 byte_copy_helper="$(sed -n '/static int avm_native_bytes_copy_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
 if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_copy_helper" ||

@@ -163,6 +163,69 @@ static int avm_native_bytes_copy_span_to_list_int(AvmValue bytes, int64_t start,
     return 0;
 }
 
+static AvmValue avm_native_bytes_to_hex_value(AvmVM* vm, AvmValue bytes) {
+    int64_t byte_len = 0;
+    const char* err_msg = NULL;
+    if (!avm_native_bytes_len_checked(bytes, &byte_len, &err_msg,
+            "bytes_to_hex: invalid bytes",
+            "bytes_to_hex: invalid list",
+            "bytes_to_hex: invalid list_int",
+            "oren_bytes_to_hex expects (bytes|list<int>|list_int)")) {
+        return avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "oren_bytes_to_hex expects (bytes|list<int>|list_int)");
+    }
+    if (byte_len > (INT64_MAX / 2)) {
+        return avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: input too large");
+    }
+
+    static const char* hexd = "0123456789abcdef";
+    size_t out_len = (size_t)byte_len * 2u;
+    char* out = (char*)avm_heap_malloc_k(out_len + 1, AVM_ALLOC_KIND_STRING);
+    if (!out) {
+        AvmValue e = avm_alloc_fail_value();
+        avm_abort(vm, e);
+        return e;
+    }
+
+    if (bytes.type == AVM_VAL_BYTES) {
+        AvmBytes* b = bytes.as.b;
+        for (int64_t i = 0; i < byte_len; i++) {
+            uint8_t v = b->data[(int)i];
+            out[(size_t)i * 2] = hexd[(v >> 4) & 0xF];
+            out[(size_t)i * 2 + 1] = hexd[v & 0xF];
+        }
+    } else if (bytes.type == AVM_VAL_LIST) {
+        AvmList* list = bytes.as.l;
+        for (int64_t i = 0; i < byte_len; i++) {
+            AvmValue it = list->items[(int)i];
+            if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
+                avm_heap_free(out);
+                return avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: expected list<int 0..255>");
+            }
+            uint8_t v = (uint8_t)it.as.i;
+            out[(size_t)i * 2] = hexd[(v >> 4) & 0xF];
+            out[(size_t)i * 2 + 1] = hexd[v & 0xF];
+        }
+    } else if (bytes.type == AVM_VAL_LIST_INT) {
+        AvmListInt* list = bytes.as.li;
+        for (int64_t i = 0; i < byte_len; i++) {
+            int64_t it = list->items[(int)i];
+            if (it < 0 || it > 255) {
+                avm_heap_free(out);
+                return avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: expected list_int bytes 0..255");
+            }
+            uint8_t v = (uint8_t)it;
+            out[(size_t)i * 2] = hexd[(v >> 4) & 0xF];
+            out[(size_t)i * 2 + 1] = hexd[v & 0xF];
+        }
+    }
+
+    out[out_len] = 0;
+    AvmValue res;
+    res.type = AVM_VAL_STRING;
+    res.as.p = out;
+    return res;
+}
+
 static int avm_native_bytes_read_u64_span(AvmValue bytes, int64_t idx, int width, int little, uint64_t* out, const char** err_msg, const char* bounds_msg, const char* expected_msg, const char* range_msg) {
     if (!out || !err_msg) return 0;
     *out = 0;
