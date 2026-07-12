@@ -176,6 +176,37 @@ fn from_euler(rx: f64, ry: f64, rz: f64) {
     return from_euler_xyz(rx, ry, rz)
 }
 
+fn to_euler_xyz(x: f64, y: f64, z: f64, w: f64) {
+    var q = normalize(x, y, z, w)
+    if oren_is_err(q) { return q }
+    var qx: f64 = q[0]
+    var qy: f64 = q[1]
+    var qz: f64 = q[2]
+    var qw: f64 = q[3]
+    var sx: f64 = 2.0 * (qw * qx + qy * qz)
+    var cx: f64 = 1.0 - 2.0 * (qx * qx + qy * qy)
+    var rx0 = math.atan2(sx, cx)
+    if oren_is_err(rx0) { return rx0 }
+    var sy: f64 = 2.0 * (qw * qy - qz * qx)
+    if sy > 1.0 { sy = 1.0 }
+    if sy < 0.0 - 1.0 { sy = 0.0 - 1.0 }
+    var ry0 = math.asin(sy)
+    if oren_is_err(ry0) { return ry0 }
+    var sz: f64 = 2.0 * (qw * qz + qx * qy)
+    var cz: f64 = 1.0 - 2.0 * (qy * qy + qz * qz)
+    var rz0 = math.atan2(sz, cz)
+    if oren_is_err(rz0) { return rz0 }
+    return [rx0, ry0, rz0]
+}
+
+fn to_euler(x: f64, y: f64, z: f64, w: f64) {
+    return to_euler_xyz(x, y, z, w)
+}
+
+fn euler_angles(x: f64, y: f64, z: f64, w: f64) {
+    return to_euler_xyz(x, y, z, w)
+}
+
 fn from_to_rotation(from_x: f64, from_y: f64, from_z: f64, to_x: f64, to_y: f64, to_z: f64) {
     var f_ok = _finite3(from_x, from_y, from_z, "quat.from_to_rotation")
     if oren_is_err(f_ok) { return f_ok }
