@@ -15,6 +15,12 @@ fn _finite3(x: f64, y: f64, z: f64, ctx) {
     return _finite_scalar(z, ctx)
 }
 
+fn _finite4(a: f64, b: f64, c: f64, d: f64, ctx) {
+    var x = _finite3(a, b, c, ctx)
+    if oren_is_err(x) { return x }
+    return _finite_scalar(d, ctx)
+}
+
 fn _finite6(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, ctx) {
     var x = _finite3(a, b, c, ctx)
     if oren_is_err(x) { return x }
@@ -246,6 +252,32 @@ fn diagonal(m) {
     var ok = _check(m, "mat4.diagonal")
     if oren_is_err(ok) { return ok }
     return [m[0], m[5], m[10], m[15]]
+}
+
+fn from_diagonal(d) {
+    var ok = _check_vec4(d, "mat4.from_diagonal")
+    if oren_is_err(ok) { return ok }
+    var d0: f64 = d[0]
+    var d1: f64 = d[1]
+    var d2: f64 = d[2]
+    var d3: f64 = d[3]
+    return [
+        d0, 0.0, 0.0, 0.0,
+        0.0, d1, 0.0, 0.0,
+        0.0, 0.0, d2, 0.0,
+        0.0, 0.0, 0.0, d3
+    ]
+}
+
+fn diagonal_matrix(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "mat4.diagonal_matrix")
+    if oren_is_err(ok) { return ok }
+    return [
+        x, 0.0, 0.0, 0.0,
+        0.0, y, 0.0, 0.0,
+        0.0, 0.0, z, 0.0,
+        0.0, 0.0, 0.0, w
+    ]
 }
 
 fn trace(m) {
