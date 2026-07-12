@@ -187,6 +187,68 @@ func TestTypedMemberAnalysisUsesImportedParameterReturnedNestedContainerFieldCha
 	}
 }
 
+func TestTypedMemberAnalysisUsesImportedConstructorFieldNestedContainerFieldChains(t *testing.T) {
+	shapesLines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"struct Holder { groups, by_group }",
+		"",
+	}
+	shapesText := strings.Join(shapesLines, "\n")
+	mainLines := []string{
+		"import shapes \"shapes.oren\"",
+		"var groups = [{\"home\": shapes.Outer(shapes.Inner(shapes.Leaf(1, 2)))}, {\"away\": shapes.Outer(shapes.Inner(shapes.Leaf(3, 4)))}]",
+		"var by_group = {\"team\": [shapes.Outer(shapes.Inner(shapes.Leaf(5, 6)))], \"away\": [shapes.Outer(shapes.Inner(shapes.Leaf(7, 8)))]}",
+		"var mixed_groups = [{\"home\": shapes.Outer(shapes.Inner(shapes.Leaf(9, 10)))}, {\"bad\": shapes.Outer(shapes.Other(11))}]",
+		"var holder = shapes.Holder(groups, by_group)",
+		"var mixed_holder = shapes.Holder(mixed_groups, by_group)",
+		"fn main() {",
+		"  var c0 = holder.groups[0][\"home\"].inner.leaf.",
+		"  var d0 = holder.by_group[\"team\"][0].inner.leaf.y",
+		"  var alias = holder",
+		"  var c1 = alias.groups[1][\"away\"].inner.leaf.",
+		"  return mixed_holder.groups[0][\"bad\"].inner.leaf.x",
+		"}",
+		"",
+	}
+	mainText := strings.Join(mainLines, "\n")
+	mainURI := "file:///main.oren"
+	shapesURI := "file:///shapes.oren"
+	importedDocs := []documentSnapshot{{URI: shapesURI, Text: shapesText}}
+	aliasByURI := map[string]string{shapesURI: "shapes"}
+
+	items, found := typedMemberCompletionItemsAt(mainText, mainURI, position{
+		Line:      7,
+		Character: len([]rune(mainLines[7])),
+	}, importedDocs, aliasByURI)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("imported constructor list-of-map field-chain completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      8,
+		Character: strings.LastIndex(mainLines[8], ".y") + 1,
+	}, importedDocs, aliasByURI)
+	if !ok || match.URI != shapesURI || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("imported constructor map-of-list field-chain y match=%#v ok=%v", match, ok)
+	}
+	items, found = typedMemberCompletionItemsAt(mainText, mainURI, position{
+		Line:      10,
+		Character: len([]rune(mainLines[10])),
+	}, importedDocs, aliasByURI)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("imported constructor alias list-of-map field-chain completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok = typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      11,
+		Character: strings.LastIndex(mainLines[11], ".x") + 1,
+	}, importedDocs, aliasByURI)
+	if ok {
+		t.Fatalf("mixed imported constructor list-of-map field-chain match=%#v want none", match)
+	}
+}
+
 func TestTypedMemberAnalysisUsesImportedReturnedNestedContainerSelectionFieldChains(t *testing.T) {
 	shapesLines := []string{
 		"struct Leaf { x, y }",
