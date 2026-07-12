@@ -2494,11 +2494,11 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   public `bytes.unpack` routes u8 buffers through kernel byte intrinsics with
   AVM optimized integer-list output, `buffer.u8_unpack` reuses that byte-native
   path for u8 buffers, `pack` returns exact-size u8 buffers for valid int lists,
-  while u8/endian writes and `copy_into` keep list-backed compatibility
+  while u8/endian writes keep list-backed and native `LIST_INT` compatibility
   while raw u8-buffer loads/stores plus u8 slice/strided/matrix view
   loads/stores use raw pointer access after public validation, contiguous u8
   concat/copy spans use raw pointer byte copies, and overlapping in-place u8
-  `copy_into` copies backward when needed, `std:buffer` view/matrix
+  and list/`LIST_INT` `copy_into` copies backward when needed, `std:buffer` view/matrix
   `copy_from_bytes` helpers read byte carriers directly, route contiguous
   slice/dense-matrix u8 destinations through `bytes.copy_into`, and reuse
   shared checked byte views for non-contiguous view/matrix fallbacks, while contiguous

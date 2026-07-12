@@ -176,6 +176,20 @@ if ! grep -Fq 'assert_eq(oren_bytes_set_u8(li, 0, 170), 170)' tests/avm/test_byt
   exit 1
 fi
 
+native_byte_order_impl="$(sed -n '/fn oren_bytes_set_u8/,/fn oren_bytes_get_u16_be/p' lib/runtime_native/190_byte_order.oren)"
+if ! grep -Fq 'if native_bytes_is_list_int(bytes) == true' <<<"$native_byte_order_impl" ||
+  ! grep -Fq 'ptr_set(bufi + idx * 8, v)' <<<"$native_byte_order_impl" ||
+  ! grep -Fq 'ptr_set(bufi + (idx + 7) * 8, b7 & 255)' <<<"$native_byte_order_impl"; then
+  echo "ERROR: native byte setters must mutate LIST_INT carriers directly like native byte getters" >&2
+  exit 1
+fi
+if ! grep -Fq 'var list_int_overlap = listm.int_new(0)' tests/avm/test_std_bytes_portable.oren ||
+  ! grep -Fq 'var list_overlap = [97, 98, 99, 100, 101, 102]' tests/avm/test_std_bytes_portable.oren ||
+  ! grep -Fq 'assert_eq(oren_bytes_set_u16_le(list_int_overlap, 0, 4660), 4660, 8794)' tests/native/qi/110_tests_basic_smoke_a.oren; then
+  echo "ERROR: std:bytes copy_into fixtures must cover boxed-list/LIST_INT self-overlap and native LIST_INT setter parity" >&2
+  exit 1
+fi
+
 string_from_bytes_impl="$(sed -n '/case 44:.*oren_string_from_bytes/,/case 161:/p' lib/avm/avm_native_byte_iter_cases.inc)"
 byte_copy_helper="$(sed -n '/static int avm_native_bytes_copy_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
 if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_copy_helper" ||

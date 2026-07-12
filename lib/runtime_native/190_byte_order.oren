@@ -268,6 +268,14 @@ fn oren_bytes_set_u8(bytes, idx, v) {
         ptr_set(buf + idx * 8, v)
         return v
     }
+    if native_bytes_is_list_int(bytes) == true {
+        var counti = ptr_get(bytes)
+        if native_bytes_span_ok(counti, idx, 1) != true { return oren_err(4, "bytes_set_u8: index out of bounds") }
+        var bufi = ptr_get(bytes + 16)
+        if bufi == 0 { return oren_err(4, "bytes_set_u8: list buffer is nil") }
+        ptr_set(bufi + idx * 8, v)
+        return v
+    }
     if native_bytes_is_u8_buf(bytes) == true {
         var count2 = ptr_get(bytes + 0)
         if native_bytes_span_ok(count2, idx, 1) != true { return oren_err(4, "bytes_set_u8: index out of bounds") }
@@ -296,6 +304,21 @@ fn native_bytes_set_span(bytes, idx, width, b0, b1, b2, b3, b4, b5, b6, b7) {
         if width > 7 { ptr_set(buf + (idx + 7) * 8, b7 & 255) }
         return 0
     }
+    if native_bytes_is_list_int(bytes) == true {
+        var counti = ptr_get(bytes)
+        if native_bytes_span_ok(counti, idx, width) != true { return oren_err(4, "bytes_set_span: index out of bounds") }
+        var bufi = ptr_get(bytes + 16)
+        if bufi == 0 { return oren_err(4, "bytes_set_span: list buffer is nil") }
+        if width > 0 { ptr_set(bufi + (idx + 0) * 8, b0 & 255) }
+        if width > 1 { ptr_set(bufi + (idx + 1) * 8, b1 & 255) }
+        if width > 2 { ptr_set(bufi + (idx + 2) * 8, b2 & 255) }
+        if width > 3 { ptr_set(bufi + (idx + 3) * 8, b3 & 255) }
+        if width > 4 { ptr_set(bufi + (idx + 4) * 8, b4 & 255) }
+        if width > 5 { ptr_set(bufi + (idx + 5) * 8, b5 & 255) }
+        if width > 6 { ptr_set(bufi + (idx + 6) * 8, b6 & 255) }
+        if width > 7 { ptr_set(bufi + (idx + 7) * 8, b7 & 255) }
+        return 0
+    }
     if native_bytes_is_u8_buf(bytes) == true {
         var count2 = ptr_get(bytes + 0)
         if native_bytes_span_ok(count2, idx, width) != true { return oren_err(4, "bytes_set_span: index out of bounds") }
@@ -311,7 +334,7 @@ fn native_bytes_set_span(bytes, idx, width, b0, b1, b2, b3, b4, b5, b6, b7) {
         if width > 7 { ptr_set_byte(data + idx + 7, b7 & 255) }
         return 0
     }
-    return oren_err(4, "bytes_set_span expects list<int 0..255> or u8_buf")
+    return oren_err(4, "bytes_set_span expects list<int 0..255>, LIST_INT, or u8_buf")
 }
 
 fn native_bytes_get_span_u64(bytes, idx, width, little) {

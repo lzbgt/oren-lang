@@ -510,6 +510,17 @@ fn copy_into(dst, dst_off, src, src_off, n) {
         }
         return dst
     }
+    if dst == src && dst_off > src_off && dst_off < src_off + n {
+        var k2 = n - 1
+        while k2 >= 0 {
+            var bk = _load_u8(src, src_off + k2)
+            if oren_is_err(bk) { return bk }
+            var rc2 = oren_bytes_set_u8(dst, dst_off + k2, bk)
+            if oren_is_err(rc2) { return rc2 }
+            k2 = k2 - 1
+        }
+        return dst
+    }
     var j = 0
     while j < n {
         var bj = _load_u8(src, src_off + j)
