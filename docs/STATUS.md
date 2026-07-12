@@ -2889,6 +2889,11 @@ Working evidence:
   `tests/fixtures/ios_avm/embed_smoke.c`, reducing
   `scripts/verify_libavm_ios.sh` to 1424 lines while preserving the generated
   header/copy/compile flow.
+  The SDK Objective-C smokes now live in
+  `tests/fixtures/ios_avm/sdk_smoke.m` and
+  `tests/fixtures/ios_avm/sdk_module_smoke.m`, reducing
+  `scripts/verify_libavm_ios.sh` to 751 lines while preserving the same
+  compile-helper inputs.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
