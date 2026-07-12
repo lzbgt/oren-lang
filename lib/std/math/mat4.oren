@@ -100,6 +100,72 @@ fn forward(m) {
     return basis_z(m)
 }
 
+fn row0(m) {
+    var ok = _check(m, "mat4.row0")
+    if oren_is_err(ok) { return ok }
+    return [m[0], m[1], m[2], m[3]]
+}
+
+fn row1(m) {
+    var ok = _check(m, "mat4.row1")
+    if oren_is_err(ok) { return ok }
+    return [m[4], m[5], m[6], m[7]]
+}
+
+fn row2(m) {
+    var ok = _check(m, "mat4.row2")
+    if oren_is_err(ok) { return ok }
+    return [m[8], m[9], m[10], m[11]]
+}
+
+fn row3(m) {
+    var ok = _check(m, "mat4.row3")
+    if oren_is_err(ok) { return ok }
+    return [m[12], m[13], m[14], m[15]]
+}
+
+fn column0(m) {
+    var ok = _check(m, "mat4.column0")
+    if oren_is_err(ok) { return ok }
+    return [m[0], m[4], m[8], m[12]]
+}
+
+fn column1(m) {
+    var ok = _check(m, "mat4.column1")
+    if oren_is_err(ok) { return ok }
+    return [m[1], m[5], m[9], m[13]]
+}
+
+fn column2(m) {
+    var ok = _check(m, "mat4.column2")
+    if oren_is_err(ok) { return ok }
+    return [m[2], m[6], m[10], m[14]]
+}
+
+fn column3(m) {
+    var ok = _check(m, "mat4.column3")
+    if oren_is_err(ok) { return ok }
+    return [m[3], m[7], m[11], m[15]]
+}
+
+fn diagonal(m) {
+    var ok = _check(m, "mat4.diagonal")
+    if oren_is_err(ok) { return ok }
+    return [m[0], m[5], m[10], m[15]]
+}
+
+fn trace(m) {
+    var ok = _check(m, "mat4.trace")
+    if oren_is_err(ok) { return ok }
+    var m0: f64 = m[0]
+    var m5: f64 = m[5]
+    var m10: f64 = m[10]
+    var m15: f64 = m[15]
+    var out: f64 = m0 + m5 + m10 + m15
+    if !math.is_finite(out) { return oren_err(4, "mat4.trace: non-finite") }
+    return out
+}
+
 fn identity() {
     return [
         1.0, 0.0, 0.0, 0.0,
