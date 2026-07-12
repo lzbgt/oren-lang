@@ -2199,6 +2199,10 @@ design evidence lives under `project-doc/`.
 - X64 program compile option parsing and option-map packing now live in
   `090_program_entry/084_compile_options.oren`, reducing `090_tail.oren` to
   1232 lines while preserving trace/progress/entry environment semantics.
+- X64 callable-use collection, lambda wrapper emission, missing fnwrap
+  compilation, and debug missing-lambda finalization now live in
+  `090_program_entry/087_callable_wrappers.oren`, reducing `090_tail.oren` to
+  995 lines while preserving callable preparation/finalization semantics.
 - X64 native-program input preparation now lives in `089_prepare_inputs` and
   separates runtime-object choice, runtime statement preparation, function-set
   preparation, and final prepare-state packing while preserving declaration

@@ -4293,6 +4293,12 @@ make docs-site</code></pre>
 <p>  <code>090_program_entry/084_compile_options.oren</code>, reducing <code>090_tail.oren</code> to</p>
 <p>  1232 lines while preserving trace/progress/entry environment semantics.</p>
 <ul>
+<li>X64 callable-use collection, lambda wrapper emission, missing fnwrap</li>
+</ul>
+<p>  compilation, and debug missing-lambda finalization now live in</p>
+<p>  <code>090_program_entry/087_callable_wrappers.oren</code>, reducing <code>090_tail.oren</code> to</p>
+<p>  995 lines while preserving callable preparation/finalization semantics.</p>
+<ul>
 <li>X64 top-level string batch emission now lives in</li>
 </ul>
 <p>  <code>060_emit_ops_string_batch.oren</code>, preserving the prebuilt batch entrypoint</p>
