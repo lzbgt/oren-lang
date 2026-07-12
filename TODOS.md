@@ -2196,6 +2196,9 @@ design evidence lives under `project-doc/`.
   accounting, and function-set iteration now live in
   `090_program_entry/086_user_function_loop.oren`, reducing
   `090_tail.oren` to 1379 lines while preserving the program-entry call path.
+- X64 program compile option parsing and option-map packing now live in
+  `090_program_entry/084_compile_options.oren`, reducing `090_tail.oren` to
+  1232 lines while preserving trace/progress/entry environment semantics.
 - X64 native-program input preparation now lives in `089_prepare_inputs` and
   separates runtime-object choice, runtime statement preparation, function-set
   preparation, and final prepare-state packing while preserving declaration

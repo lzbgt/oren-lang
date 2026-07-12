@@ -3865,6 +3865,9 @@ make docs-site
   accounting, and function-set iteration now live in
   `090_program_entry/086_user_function_loop.oren`, reducing `090_tail.oren` to
   1379 lines while preserving the program-entry call path.
+- X64 program compile option parsing and option-map packing now live in
+  `090_program_entry/084_compile_options.oren`, reducing `090_tail.oren` to
+  1232 lines while preserving trace/progress/entry environment semantics.
 - X64 top-level string batch emission now lives in
   `060_emit_ops_string_batch.oren`, preserving the prebuilt batch entrypoint
   while reducing `060_emit_ops.oren` from 1648 to 1216 lines.
