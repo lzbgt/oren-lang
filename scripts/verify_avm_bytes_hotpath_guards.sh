@@ -118,9 +118,14 @@ if ! grep -Fq 'AvmValue out = avm_list_int_new((int)len)' <<<"$host_read_bytes_i
 fi
 
 host_write_bytes_impl="$(sed -n '/case 17:.*oren_write_bytes/,/case 18:/p' lib/avm/avm_native.inc)"
-if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$host_write_bytes_impl" ||
-  ! grep -Fq 'chunk[i] = (uint8_t)(list->items[off + (int)i].as.i & 255)' <<<"$host_write_bytes_impl" ||
-  ! grep -Fq 'chunk[i] = (uint8_t)(list_int->items[off + (int)i] & 255)' <<<"$host_write_bytes_impl" ||
+host_write_bytes_helper="$(sed -n '/static int avm_native_bytes_fwrite_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
+host_write_bytes_validate_helper="$(sed -n '/static int avm_native_bytes_validate_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
+if ! grep -Fq 'avm_native_bytes_validate_span(args[1], 0, len' <<<"$host_write_bytes_impl" ||
+  ! grep -Fq 'avm_native_bytes_fwrite_span(f, args[1], 0, len' <<<"$host_write_bytes_impl" ||
+  ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$host_write_bytes_helper" ||
+  ! grep -Fq 'avm_native_bytes_copy_span(bytes, start + off, want, chunk' <<<"$host_write_bytes_helper" ||
+  ! grep -Fq 'fwrite(bytes.as.b->data + (size_t)start, 1, (size_t)n, f)' <<<"$host_write_bytes_helper" ||
+  ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$host_write_bytes_validate_helper" ||
   ! grep -Fq 'args[1].type == AVM_VAL_LIST_INT' <<<"$host_write_bytes_impl" ||
   ! grep -Fq 'write_bytes: expected list<int 0..255>' <<<"$host_write_bytes_impl" ||
   grep -Fq 'buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES)' <<<"$host_write_bytes_impl" ||

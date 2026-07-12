@@ -163,6 +163,63 @@ static int avm_native_bytes_copy_span_to_list_int(AvmValue bytes, int64_t start,
     return 0;
 }
 
+static int avm_native_bytes_validate_span(AvmValue bytes, int64_t start, int64_t n, const char** err_msg, const char* bounds_msg, const char* expected_msg, const char* list_range_msg, const char* list_int_range_msg) {
+    if (!err_msg) return 0;
+    *err_msg = NULL;
+    int64_t total = 0;
+    if (!avm_native_bytes_len_checked(bytes, &total, err_msg, bounds_msg, bounds_msg, bounds_msg, expected_msg)) return 0;
+    if (!avm_native_byte_range_ok(total, start, n)) { *err_msg = bounds_msg; return 0; }
+    if (n == 0 || bytes.type == AVM_VAL_BYTES) return 1;
+    if (bytes.type == AVM_VAL_LIST) {
+        AvmList* list = bytes.as.l;
+        for (int64_t i = 0; i < n; i++) {
+            AvmValue it = list->items[(int)(start + i)];
+            if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) { *err_msg = list_range_msg; return 0; }
+        }
+        return 1;
+    }
+    if (bytes.type == AVM_VAL_LIST_INT) {
+        AvmListInt* list = bytes.as.li;
+        for (int64_t i = 0; i < n; i++) {
+            int64_t it = list->items[(int)(start + i)];
+            if (it < 0 || it > 255) { *err_msg = list_int_range_msg; return 0; }
+        }
+        return 1;
+    }
+    *err_msg = expected_msg;
+    return 0;
+}
+
+static int avm_native_bytes_fwrite_span(FILE* f, AvmValue bytes, int64_t start, int64_t n, size_t* written, const char** err_msg, const char* bounds_msg, const char* expected_msg, const char* list_range_msg, const char* list_int_range_msg, const char* short_write_msg) {
+    if (!f || !written || !err_msg) return 0;
+    *written = 0;
+    *err_msg = NULL;
+    int64_t total = 0;
+    if (!avm_native_bytes_len_checked(bytes, &total, err_msg, bounds_msg, bounds_msg, bounds_msg, expected_msg)) return 0;
+    if (!avm_native_byte_range_ok(total, start, n)) { *err_msg = bounds_msg; return 0; }
+    if (n == 0) return 1;
+    if (bytes.type == AVM_VAL_BYTES) {
+        size_t nw = fwrite(bytes.as.b->data + (size_t)start, 1, (size_t)n, f);
+        *written = nw;
+        if (nw != (size_t)n) { *err_msg = short_write_msg; return 0; }
+        return 1;
+    }
+    uint8_t chunk[64 * 1024];
+    int64_t off = 0;
+    while (off < n) {
+        int64_t want = n - off;
+        if (want > (int64_t)sizeof(chunk)) want = (int64_t)sizeof(chunk);
+        if (!avm_native_bytes_copy_span(bytes, start + off, want, chunk, err_msg, bounds_msg, expected_msg, list_range_msg, list_int_range_msg)) {
+            return 0;
+        }
+        size_t nw = fwrite(chunk, 1, (size_t)want, f);
+        *written += nw;
+        if (nw != (size_t)want) { *err_msg = short_write_msg; return 0; }
+        off += want;
+    }
+    return 1;
+}
+
 static AvmValue avm_native_bytes_to_hex_value(AvmVM* vm, AvmValue bytes) {
     int64_t byte_len = 0;
     const char* err_msg = NULL;

@@ -2380,9 +2380,10 @@ compatibility paths now also materialize pre-sized `LIST_INT` carriers directly
 instead of boxed `AvmValue` byte-list entries; the host path now fills the
 returned `LIST_INT` directly from bounded 64 KiB file chunks instead of
 allocating a full-size AVM heap byte mirror first. Legacy AVM host
-`oren_write_bytes` now keeps list-input compatibility but validates boxed-list
-or `LIST_INT` bytes before opening the destination and streams bounded 64 KiB
-stack chunks instead of allocating a full-size AVM heap byte mirror. Legacy AVM
+`oren_write_bytes` now keeps list-input compatibility but routes boxed-list,
+`LIST_INT`, and `u8_buf` carrier checks through shared AVM byte-span helpers
+before opening the destination, then streams bounded 64 KiB stack chunks through
+the same helper path instead of allocating a full-size AVM heap byte mirror. Legacy AVM
 VFS list-backed `write_bytes` now validates boxed-list and `LIST_INT` byte
 ranges before IO charging or storage mutation, then stores them directly into
 the final VFS entry buffer through a shared owned-data path instead of first
