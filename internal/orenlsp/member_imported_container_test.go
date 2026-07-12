@@ -187,6 +187,62 @@ func TestTypedMemberAnalysisUsesImportedParameterReturnedNestedContainerFieldCha
 	}
 }
 
+func TestTypedMemberAnalysisUsesImportedReturnedNestedContainerSelectionFieldChains(t *testing.T) {
+	shapesLines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"fn first_group_item(items) { return items[0][\"home\"] }",
+		"fn first_team_item(items) { return items[\"team\"][0] }",
+		"fn first_group_item_mixed(items) { return items[0][\"bad\"] }",
+		"",
+	}
+	shapesText := strings.Join(shapesLines, "\n")
+	mainLines := []string{
+		"import shapes \"shapes.oren\"",
+		"var groups = [{\"home\": shapes.Outer(shapes.Inner(shapes.Leaf(1, 2)))}, {\"home\": shapes.Outer(shapes.Inner(shapes.Leaf(3, 4)))}]",
+		"var by_group = {\"team\": [shapes.Outer(shapes.Inner(shapes.Leaf(5, 6)))], \"away\": [shapes.Outer(shapes.Inner(shapes.Leaf(7, 8)))]}",
+		"var mixed = [{\"bad\": shapes.Outer(shapes.Other(9))}, {\"bad\": shapes.Outer(shapes.Other(10))}]",
+		"var picked_group = shapes.first_group_item(groups)",
+		"var picked_team = shapes.first_team_item(by_group)",
+		"var picked_mixed = shapes.first_group_item_mixed(mixed)",
+		"fn main() {",
+		"  var c0 = picked_group.inner.leaf.",
+		"  var d0 = picked_team.inner.leaf.y",
+		"  return picked_mixed.inner.leaf.x",
+		"}",
+		"",
+	}
+	mainText := strings.Join(mainLines, "\n")
+	mainURI := "file:///main.oren"
+	shapesURI := "file:///shapes.oren"
+	importedDocs := []documentSnapshot{{URI: shapesURI, Text: shapesText}}
+	aliasByURI := map[string]string{shapesURI: "shapes"}
+
+	items, found := typedMemberCompletionItemsAt(mainText, mainURI, position{
+		Line:      8,
+		Character: len([]rune(mainLines[8])),
+	}, importedDocs, aliasByURI)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("imported returned list-of-map selection field-chain completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      9,
+		Character: strings.LastIndex(mainLines[9], ".y") + 1,
+	}, importedDocs, aliasByURI)
+	if !ok || match.URI != shapesURI || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("imported returned map-of-list selection field-chain y match=%#v ok=%v", match, ok)
+	}
+	match, ok = typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      10,
+		Character: strings.LastIndex(mainLines[10], ".x") + 1,
+	}, importedDocs, aliasByURI)
+	if ok {
+		t.Fatalf("mixed imported returned nested selection field-chain match=%#v want none", match)
+	}
+}
+
 func hasTypedCompletion(items []completionItem, label string, kind int) bool {
 	for _, item := range items {
 		if item.Label == label && item.Kind == kind {

@@ -18,6 +18,10 @@ func TestTypedMemberAnalysisUsesNestedContainerFieldChains(t *testing.T) {
 		"fn main() {",
 		"  var c0 = groups[0][\"home\"].inner.leaf.",
 		"  var d0 = groups[1][\"away\"].inner.leaf.x",
+		"  var home = groups[0][\"home\"]",
+		"  var c1 = home.inner.leaf.",
+		"  var team = by_group[\"team\"]",
+		"  var d1 = team[0].inner.leaf.y",
 		"  for item in by_group[\"team\"] {",
 		"    var e0 = item.inner.leaf.",
 		"  }",
@@ -49,25 +53,39 @@ func TestTypedMemberAnalysisUsesNestedContainerFieldChains(t *testing.T) {
 		Character: len([]rune(lines[12])),
 	}, nil, nil)
 	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
-		t.Fatalf("map-of-list field-chain completion mismatch found=%v items=%#v", found, items)
+		t.Fatalf("aliased list-of-map field-chain completion mismatch found=%v items=%#v", found, items)
 	}
 	match, ok = typedMemberSymbolAt(text, uri, position{
 		Line:      14,
 		Character: strings.LastIndex(lines[14], ".y") + 1,
 	}, nil, nil)
 	if !ok || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("aliased map-of-list field-chain y match=%#v ok=%v", match, ok)
+	}
+	items, found = typedMemberCompletionItemsAt(text, uri, position{
+		Line:      16,
+		Character: len([]rune(lines[16])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("map-of-list field-chain completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      18,
+		Character: strings.LastIndex(lines[18], ".y") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
 		t.Fatalf("map-of-list field-chain y match=%#v ok=%v", match, ok)
 	}
 	match, ok = typedMemberSymbolAt(text, uri, position{
-		Line:      15,
-		Character: strings.LastIndex(lines[15], ".x") + 1,
+		Line:      19,
+		Character: strings.LastIndex(lines[19], ".x") + 1,
 	}, nil, nil)
 	if ok {
 		t.Fatalf("mixed list-of-map field-chain match=%#v want none", match)
 	}
 	match, ok = typedMemberSymbolAt(text, uri, position{
-		Line:      16,
-		Character: strings.LastIndex(lines[16], ".y") + 1,
+		Line:      20,
+		Character: strings.LastIndex(lines[20], ".y") + 1,
 	}, nil, nil)
 	if ok {
 		t.Fatalf("mixed map-of-list field-chain match=%#v want none", match)
@@ -130,5 +148,53 @@ func TestTypedMemberAnalysisUsesReturnedNestedContainerFieldChains(t *testing.T)
 	}, nil, nil)
 	if ok {
 		t.Fatalf("mixed returned map-of-list field-chain match=%#v want none", match)
+	}
+}
+
+func TestTypedMemberAnalysisUsesReturnedNestedContainerSelectionFieldChains(t *testing.T) {
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"fn first_group_item(items) { return items[0][\"home\"] }",
+		"fn first_team_item(items) { return items[\"team\"][0] }",
+		"fn first_group_item_mixed(items) { return items[0][\"bad\"] }",
+		"var groups = [{\"home\": Outer(Inner(Leaf(1, 2)))}, {\"home\": Outer(Inner(Leaf(3, 4)))}]",
+		"var by_group = {\"team\": [Outer(Inner(Leaf(5, 6)))], \"away\": [Outer(Inner(Leaf(7, 8)))]}",
+		"var mixed_groups = [{\"bad\": Outer(Other(9))}, {\"bad\": Outer(Other(10))}]",
+		"var picked_group = first_group_item(groups)",
+		"var picked_team = first_team_item(by_group)",
+		"var picked_mixed = first_group_item_mixed(mixed_groups)",
+		"fn main() {",
+		"  var c0 = picked_group.inner.leaf.",
+		"  var d0 = picked_team.inner.leaf.y",
+		"  return picked_mixed.inner.leaf.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///returned-nested-container-selection-field-chain.oren"
+
+	items, found := typedMemberCompletionItemsAt(text, uri, position{
+		Line:      14,
+		Character: len([]rune(lines[14])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("returned list-of-map selection field-chain completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(text, uri, position{
+		Line:      15,
+		Character: strings.LastIndex(lines[15], ".y") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("returned map-of-list selection field-chain y match=%#v ok=%v", match, ok)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      16,
+		Character: strings.LastIndex(lines[16], ".x") + 1,
+	}, nil, nil)
+	if ok {
+		t.Fatalf("mixed returned nested selection field-chain match=%#v want none", match)
 	}
 }
