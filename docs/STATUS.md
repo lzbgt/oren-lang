@@ -3858,6 +3858,9 @@ make docs-site
 - X64 fast list-get-sum while lowering now lives in
   `057_emit_ops_while_list_get_sum.oren`, preserving the original include-order
   boundary while reducing `057_emit_ops_while_emit.oren` to 1615 lines.
+- X64 fast-LCG sum while emission now lives in
+  `057_emit_ops_while_lcg_emit.oren`, preserving the original nested include
+  order while reducing `057_emit_ops_while_emit.oren` to 1159 lines.
 - X64 top-level string batch emission now lives in
   `060_emit_ops_string_batch.oren`, preserving the prebuilt batch entrypoint
   while reducing `060_emit_ops.oren` from 1648 to 1216 lines.
@@ -4090,10 +4093,10 @@ make docs-site
   profile shows `x64_native_program.oren` at about 49.2s total / 35.5s parse,
   with `_x64_emit_named_call_core_intrinsic_v0` exposed at about 40ms as the
   next parser body. Linux/x64 execution validation now prefers the dedicated
-  Arch host `bruce@192.168.0.102`; print and result-smoke binaries pass there,
+  Arch host `bruce@192.168.3.208`; print and result-smoke binaries pass there,
   while the broader quick-integration crash is tracked as `NATIVE-X64-ARCH-QI`.
 - `NATIVE-X64-ARCH-QI` is resolved on the dedicated Arch x64 host
-  `bruce@192.168.0.102`. The fix keeps x64 unchecked list-int reduction
+  `bruce@192.168.3.208`. The fix keeps x64 unchecked list-int reduction
   intrinsics off allocator-sensitive `r14`/`r15`, routes x64 intrinsic
   tracked-node lookup through arena-aware `native_gc_find_node_nolock`, and
   disables the unsafe x64 LIST_INT sum/dot loop fast matchers until their
@@ -4106,7 +4109,7 @@ make docs-site
   `OREN_TRACE_X64_LIST_FAST=1` shows `fast_list_int_get_sum_while` and
   `fast_list_int_dot_while` selected for commuted, temp-normalized, and native
   quick-integration paths; all focused x64-linux binaries and quick integration
-  exit `0` on `bruce@192.168.0.102`.
+  exit `0` on `bruce@192.168.3.208`.
 
 ## Documentation Guardrail
 
