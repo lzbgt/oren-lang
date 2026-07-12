@@ -170,6 +170,15 @@ if [ "${byte_setter_call_count:-0}" -lt 10 ]; then
   exit 1
 fi
 
+byte_reader_helper="$(sed -n '/static int avm_native_bytes_read_u64_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
+if ! grep -Fq 'avm_native_bytes_len_checked(bytes, &total, err_msg' <<<"$byte_reader_helper" ||
+  ! grep -Fq 'avm_native_byte_span_ok(total, idx, width)' <<<"$byte_reader_helper" ||
+  grep -Fq '!list || !avm_native_byte_span_ok((int64_t)list->count, idx, width)' <<<"$byte_reader_helper" ||
+  ! grep -Fq 'assert_eq(oren_bytes_get_u64_be(li, 0), 72623859790382856)' tests/avm/test_bytes_set_endian.oren; then
+  echo "ERROR: AVM byte endian readers must share bytes/list/LIST_INT length validation before direct carrier reads" >&2
+  exit 1
+fi
+
 if ! grep -Fq 'assert_eq(oren_bytes_set_u8(li, 0, 170), 170)' tests/avm/test_bytes_set_endian.oren ||
   ! grep -Fq 'assert_eq(oren_bytes_set_i64_le(li, 0, -2), -2)' tests/avm/test_bytes_set_endian.oren; then
   echo "ERROR: AVM byte setter fixtures must cover direct LIST_INT mutation paths" >&2

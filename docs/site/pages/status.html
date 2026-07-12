@@ -2502,9 +2502,10 @@
 <p>a bounded scratch chunk before opening/truncating the destination, then</p>
 <p>streaming short-write-safe chunks instead of materializing a full-size byte</p>
 <p>mirror. AVM byte/string slice conversion now shares checked bytes/list/</p>
-<p><code>LIST_INT</code> helpers for length checks, full-buffer string conversion, <code>bytes_to_hex</code>,</p>
-<p><code>oren_string_from_bytes_slice</code>, <code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>,</p>
-<p>and <code>bytes_unpack</code>; the native and legacy C runtimes now route the same</p>
+<p><code>LIST_INT</code> helpers for length checks, byte/endian reads, full-buffer string</p>
+<p>conversion, <code>bytes_to_hex</code>, <code>oren_string_from_bytes_slice</code>,</p>
+<p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; the native</p>
+<p>and legacy C runtimes now route the same</p>
 <p>full-buffer string, slice, pack, and unpack family through shared byte-span</p>
 <p>helpers, keeping byte carriers on the optimized path without duplicated</p>
 <p>boxed-list copy loops. Native, legacy C runtime, and AVM <code>oren_sha256_range</code></p>

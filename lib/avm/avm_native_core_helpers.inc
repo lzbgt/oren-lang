@@ -230,12 +230,14 @@ static int avm_native_bytes_read_u64_span(AvmValue bytes, int64_t idx, int width
     if (!out || !err_msg) return 0;
     *out = 0;
     *err_msg = NULL;
+    int64_t total = 0;
+    if (!avm_native_bytes_len_checked(bytes, &total, err_msg, bounds_msg, bounds_msg, bounds_msg, expected_msg)) return 0;
+    if (!avm_native_byte_span_ok(total, idx, width)) {
+        *err_msg = bounds_msg;
+        return 0;
+    }
     if (bytes.type == AVM_VAL_BYTES) {
         AvmBytes* b = bytes.as.b;
-        if (!b || !avm_native_byte_span_ok((int64_t)b->len, idx, width) || (width > 0 && !b->data)) {
-            *err_msg = bounds_msg;
-            return 0;
-        }
         uint64_t u = 0;
         for (int step = 0; step < width; step++) {
             int rel = little ? (width - 1 - step) : step;
@@ -246,10 +248,6 @@ static int avm_native_bytes_read_u64_span(AvmValue bytes, int64_t idx, int width
     }
     if (bytes.type == AVM_VAL_LIST) {
         AvmList* list = bytes.as.l;
-        if (!list || !avm_native_byte_span_ok((int64_t)list->count, idx, width)) {
-            *err_msg = bounds_msg;
-            return 0;
-        }
         uint64_t u = 0;
         for (int step = 0; step < width; step++) {
             int rel = little ? (width - 1 - step) : step;
@@ -263,10 +261,6 @@ static int avm_native_bytes_read_u64_span(AvmValue bytes, int64_t idx, int width
     }
     if (bytes.type == AVM_VAL_LIST_INT) {
         AvmListInt* list = bytes.as.li;
-        if (!list || !avm_native_byte_span_ok((int64_t)list->count, idx, width)) {
-            *err_msg = bounds_msg;
-            return 0;
-        }
         uint64_t u = 0;
         for (int step = 0; step < width; step++) {
             int rel = little ? (width - 1 - step) : step;
