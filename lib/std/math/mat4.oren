@@ -42,6 +42,17 @@ fn _check(m, ctx) {
     return 0
 }
 
+fn _check_vec4(v, ctx) {
+    if oren_list_len(v) != 4 { return oren_err(4, ctx + ": expected 4 values") }
+    var i = 0
+    while i < 4 {
+        var ok = _finite_scalar(v[i], ctx)
+        if oren_is_err(ok) { return ok }
+        i = i + 1
+    }
+    return 0
+}
+
 fn is_finite(m) {
     return !oren_is_err(_check(m, "mat4.is_finite"))
 }
@@ -195,6 +206,40 @@ fn column3(m) {
     var ok = _check(m, "mat4.column3")
     if oren_is_err(ok) { return ok }
     return [m[3], m[7], m[11], m[15]]
+}
+
+fn from_rows(r0, r1, r2, r3) {
+    var ok = _check_vec4(r0, "mat4.from_rows")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(r1, "mat4.from_rows")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(r2, "mat4.from_rows")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(r3, "mat4.from_rows")
+    if oren_is_err(ok) { return ok }
+    return [
+        r0[0], r0[1], r0[2], r0[3],
+        r1[0], r1[1], r1[2], r1[3],
+        r2[0], r2[1], r2[2], r2[3],
+        r3[0], r3[1], r3[2], r3[3]
+    ]
+}
+
+fn from_columns(c0, c1, c2, c3) {
+    var ok = _check_vec4(c0, "mat4.from_columns")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(c1, "mat4.from_columns")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(c2, "mat4.from_columns")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(c3, "mat4.from_columns")
+    if oren_is_err(ok) { return ok }
+    return [
+        c0[0], c1[0], c2[0], c3[0],
+        c0[1], c1[1], c2[1], c3[1],
+        c0[2], c1[2], c2[2], c3[2],
+        c0[3], c1[3], c2[3], c3[3]
+    ]
 }
 
 fn diagonal(m) {
