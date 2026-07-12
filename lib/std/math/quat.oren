@@ -199,6 +199,47 @@ fn scale_angle(x: f64, y: f64, z: f64, w: f64, scale: f64) {
     return rotation_power(x, y, z, w, scale)
 }
 
+fn exp(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "quat.exp")
+    if oren_is_err(ok) { return ok }
+    var vl0 = math.hypot3(x, y, z)
+    if oren_is_err(vl0) { return vl0 }
+    var vl: f64 = vl0
+    var ew: f64 = math.exp(w)
+    if !math.is_finite(ew) { return oren_err(4, "quat.exp: overflow") }
+    if vl == 0.0 { return [0.0, 0.0, 0.0, ew] }
+    var s: f64 = math.sin(vl)
+    var c: f64 = math.cos(vl)
+    var k: f64 = ew * s / vl
+    return [x * k, y * k, z * k, ew * c]
+}
+
+fn log(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "quat.log")
+    if oren_is_err(ok) { return ok }
+    var l0 = length(x, y, z, w)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 { return oren_err(4, "quat.log: zero length") }
+    var vl0 = math.hypot3(x, y, z)
+    if oren_is_err(vl0) { return vl0 }
+    var lw0 = math.log(l)
+    if oren_is_err(lw0) { return lw0 }
+    var vl: f64 = vl0
+    if vl == 0.0 {
+        if w < 0.0 { return [math.pi(), 0.0, 0.0, lw0] }
+        return [0.0, 0.0, 0.0, lw0]
+    }
+    var theta0 = math.atan2(vl, w)
+    if oren_is_err(theta0) { return theta0 }
+    var theta: f64 = theta0
+    return [x / vl * theta, y / vl * theta, z / vl * theta, lw0]
+}
+
+fn ln(x: f64, y: f64, z: f64, w: f64) {
+    return log(x, y, z, w)
+}
+
 fn from_euler_xyz(rx: f64, ry: f64, rz: f64) {
     var ok = _finite3(rx, ry, rz, "quat.from_euler_xyz")
     if oren_is_err(ok) { return ok }
