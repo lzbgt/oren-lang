@@ -24,7 +24,7 @@ def main() -> int:
     frame_text = FRAME_SOURCE.read_text()
     geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
-    command_text = frame_text
+    frame_command_text = frame_text
     text = view_text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
     required = [
         "OrenAVMGfxTriangleOrder",
@@ -66,30 +66,32 @@ def main() -> int:
         fail("CoreGraphics retained mesh resources must use a scalar-key CF dictionary")
     if "OrenAVMGfxRetainedMeshResource(meshes, meshID)" not in resource_text:
         fail("CoreGraphics retained 3D mesh draws must use the scalar-map resource helper")
-    if "OrenAVMGfxDrawMesh3DResource(ctx," not in command_text:
-        fail("CoreGraphics retained 3D mesh draws must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxHandleMeshCommand(ctx," not in frame_command_text:
+        fail("CoreGraphics frame traversal must delegate retained mesh opcodes to OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawMesh3DResource(ctx," not in resource_text:
+        fail("CoreGraphics retained 3D mesh draws must live in OrenAVMGraphicsResources")
     if "void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx," not in resource_text:
         fail("CoreGraphics retained 3D mesh draw helper must live in OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutTriangleMeshResource(context->meshes," not in command_text:
-        fail("CoreGraphics retained triangle mesh uploads must delegate to OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutIndexedMeshResource(context->meshes," not in command_text:
-        fail("CoreGraphics retained indexed mesh uploads must delegate to OrenAVMGraphicsResources")
-    if "OrenAVMGfxRemoveMeshResource(context->meshes ? *context->meshes : NULL" not in command_text:
-        fail("CoreGraphics retained mesh removals must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutTriangleMeshResource(meshes," not in resource_text:
+        fail("CoreGraphics retained triangle mesh uploads must live in OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutIndexedMeshResource(meshes," not in resource_text:
+        fail("CoreGraphics retained indexed mesh uploads must live in OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveMeshResource(meshes ? *meshes : NULL" not in resource_text:
+        fail("CoreGraphics retained mesh removals must live in OrenAVMGraphicsResources")
     if "CFDictionarySetValue(_orenMeshesByID" in view_text or "CFDictionaryRemoveValue(_orenMeshesByID" in view_text:
         fail("CoreGraphics view must not mutate retained mesh maps directly")
-    if "OrenAVMGfxDrawMesh2DResource(ctx, context->meshes ? *context->meshes : NULL" not in command_text:
-        fail("CoreGraphics retained 2D mesh draws must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawMesh2DResource(ctx, meshes ? *meshes : NULL" not in resource_text:
+        fail("CoreGraphics retained 2D mesh draws must live in OrenAVMGraphicsResources")
     if "void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID)" not in resource_text:
         fail("CoreGraphics retained 2D mesh draw helper must live in OrenAVMGraphicsResources")
     if "mesh.triangleCount != mesh.triangleBytes / 24u" not in resource_text:
         fail("CoreGraphics retained 2D mesh draw helper must validate the raw 2D triangle payload")
-    mesh2d_draw_start = command_text.find("} else if (opcode == 81 && payloadLen == 4)")
-    mesh2d_draw_end = command_text.find("} else if (opcode == 82 && payloadLen == 4)", mesh2d_draw_start)
+    mesh2d_draw_start = resource_text.find("void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx,")
+    mesh2d_draw_end = resource_text.find("void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,", mesh2d_draw_start)
     if mesh2d_draw_start < 0 or mesh2d_draw_end < 0:
-        fail("missing CoreGraphics retained 2D mesh draw opcode block")
-    if "const uint8_t* tri = tris + ((size_t)ti * 24u)" in command_text[mesh2d_draw_start:mesh2d_draw_end]:
-        fail("CoreGraphics view must not expand retained 2D mesh triangle payloads directly")
+        fail("missing CoreGraphics retained 2D mesh draw helper block")
+    if "const uint8_t* tri = tris + ((size_t)ti * 24u)" in frame_command_text:
+        fail("CoreGraphics frame traversal must not expand retained 2D mesh triangle payloads directly")
     if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
         fail("CoreGraphics retained mesh payloads must stay raw owned buffers, not NSData wrappers")
     for pattern in (
@@ -115,10 +117,10 @@ def main() -> int:
         fail("CoreGraphics retained materials must use a scalar-key/scalar-value CF dictionary")
     if "OrenAVMGfxRetainedMaterialRGBA(materials, materialID, &materialRGBAOverride)" not in resource_text:
         fail("CoreGraphics retained material draws must use the scalar material lookup helper")
-    if "OrenAVMGfxPutMaterialResource(context->materials3D, materialID" not in command_text:
-        fail("CoreGraphics retained material uploads must delegate to OrenAVMGraphicsResources")
-    if "OrenAVMGfxRemoveMaterialResource(context->materials3D ? *context->materials3D : NULL" not in command_text:
-        fail("CoreGraphics retained material removals must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutMaterialResource(materials, materialID" not in resource_text:
+        fail("CoreGraphics retained material uploads must live in OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveMaterialResource(materials ? *materials : NULL" not in resource_text:
+        fail("CoreGraphics retained material removals must live in OrenAVMGraphicsResources")
     if "CFDictionarySetValue(_orenMaterials3DByID" in view_text or "CFDictionaryRemoveValue(_orenMaterials3DByID" in view_text:
         fail("CoreGraphics view must not mutate retained material maps directly")
     if "materialRGBAValue" in text or "@(materialID)" in text:
@@ -135,10 +137,12 @@ def main() -> int:
         fail("CoreGraphics retained text resources must use a scalar-key CF dictionary")
     if "OrenAVMGfxRetainedTextResource(texts, textID)" not in resource_text:
         fail("CoreGraphics retained text draws must use the typed scalar-map resource helper")
-    if "OrenAVMGfxDrawTextResource(context->textResources ? *context->textResources : NULL, textID, x, y)" not in command_text:
-        fail("CoreGraphics retained text draws must delegate to OrenAVMGraphicsResources")
-    if "OrenAVMGfxDrawTextResourcePositions(context->textResources ? *context->textResources : NULL, textID, payload + 8, posCount)" not in command_text:
-        fail("CoreGraphics retained text batched draws must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxHandleTextCommand(ctx," not in frame_command_text:
+        fail("CoreGraphics frame traversal must delegate retained text opcodes to OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawTextResource(texts ? *texts : NULL, textID, x, y)" not in resource_text:
+        fail("CoreGraphics retained text draws must live in OrenAVMGraphicsResources")
+    if "OrenAVMGfxDrawTextResourcePositions(texts ? *texts : NULL, textID, payload + 8, posCount)" not in resource_text:
+        fail("CoreGraphics retained text batched draws must live in OrenAVMGraphicsResources")
     if "@(textID)" in text:
         fail("CoreGraphics retained text upload/draw paths must not box text IDs")
     if 'self.orenTextResources[@(textID)] = @{@"text": text, @"color": color}' in text:
@@ -178,7 +182,9 @@ def main() -> int:
         fail("CoreGraphics retained image lookups must avoid boxed NSNumber image IDs")
     if "CFMutableDictionaryRef _orenImagesByID" not in text:
         fail("CoreGraphics retained images must use a scalar-key CF dictionary")
-    if "OrenAVMGfxRetainedImageResource(context->images ? *context->images : NULL, imageID)" not in text:
+    if "OrenAVMGfxHandleImageCommand(ctx," not in frame_command_text:
+        fail("CoreGraphics frame traversal must delegate retained image opcodes to OrenAVMGraphicsResources")
+    if "OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID)" not in resource_text:
         fail("CoreGraphics retained image draw paths must use the typed scalar-map resource helper")
     if "@(imageID)" in text:
         fail("CoreGraphics retained image draw/upload paths must not box image IDs")
@@ -206,19 +212,18 @@ def main() -> int:
         fail("CoreGraphics retained models must use a scalar-key CF dictionary")
     if "OrenAVMGfxRetainedModelResource(models, meshID)" not in resource_text:
         fail("CoreGraphics retained model draws must use the typed scalar-map resource helper")
-    if "OrenAVMGfxPutModelResource(context->models3D," not in command_text:
-        fail("CoreGraphics retained model uploads must delegate to OrenAVMGraphicsResources")
-    if "OrenAVMGfxRemoveModelResource(context->models3D ? *context->models3D : NULL" not in command_text:
-        fail("CoreGraphics retained model removals must delegate to OrenAVMGraphicsResources")
+    if "OrenAVMGfxPutModelResource(models," not in resource_text:
+        fail("CoreGraphics retained model uploads must live in OrenAVMGraphicsResources")
+    if "OrenAVMGfxRemoveModelResource(models ? *models : NULL" not in resource_text:
+        fail("CoreGraphics retained model removals must live in OrenAVMGraphicsResources")
     if "CFDictionarySetValue(_orenModels3DByID" in view_text or "CFDictionaryRemoveValue(_orenModels3DByID" in view_text:
         fail("CoreGraphics view must not mutate retained model maps directly")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("CoreGraphics retained model draws must not use string-key dictionary lookups")
-    retained3d_draw_start = command_text.find("(opcode == 84 && payloadLen == 4)")
-    retained3d_draw_end = command_text.find("} else if (opcode == 85 && payloadLen == 4)", retained3d_draw_start)
+    retained3d_draw_start = resource_text.find("void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,")
+    retained3d_draw_end = resource_text.find("BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,", retained3d_draw_start)
     if retained3d_draw_start < 0 or retained3d_draw_end < 0:
-        fail("missing CoreGraphics retained 3D draw opcode block")
-    retained3d_block = command_text[retained3d_draw_start:retained3d_draw_end]
+        fail("missing CoreGraphics retained 3D draw helper block")
     for forbidden in (
         "OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity]",
         "OrenAVMGfxSortTriangleOrder(order, visibleCount)",
@@ -227,8 +232,8 @@ def main() -> int:
         "OrenAVMGfxRetainedMaterialRGBA(_orenMaterials3DByID",
         "OrenAVMGfxRetainedModelResource(_orenModels3DByID",
     ):
-        if forbidden in retained3d_block:
-            fail("CoreGraphics view must not expand retained 3D mesh payloads directly")
+        if forbidden in frame_command_text:
+            fail("CoreGraphics frame traversal must not expand retained 3D mesh payloads directly")
     print("OK: CoreGraphics retained resources use compact typed records")
     return 0
 

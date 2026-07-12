@@ -71,6 +71,14 @@ void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
                                 uint32_t y,
                                 uint32_t w,
                                 uint32_t h);
+BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
+                                  CFMutableDictionaryRef* images,
+                                  NSUInteger retainedImageCountLimit,
+                                  NSUInteger retainedImagePixelLimit,
+                                  NSUInteger* retainedImagePixelCount,
+                                  uint8_t opcode,
+                                  const uint8_t* payload,
+                                  uint16_t payloadLen);
 const void* OrenAVMGfxRetainedTextKey(uint32_t textID);
 OrenAVMGfxTextResource* OrenAVMGfxRetainedTextResource(CFDictionaryRef texts, uint32_t textID);
 NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForRGBA(CFMutableDictionaryRef* attrsByRGBA,
@@ -93,6 +101,14 @@ void OrenAVMGfxDrawTextResourcePositions(CFDictionaryRef texts,
                                          const uint8_t* positions,
                                          uint32_t posCount);
 void OrenAVMGfxRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID);
+BOOL OrenAVMGfxHandleTextCommand(CGContextRef ctx,
+                                 CFMutableDictionaryRef* attrsByRGBA,
+                                 uint32_t* lastRGBA,
+                                 NSDictionary<NSAttributedStringKey, id>* __strong* lastAttributes,
+                                 CFMutableDictionaryRef* texts,
+                                 uint8_t opcode,
+                                 const uint8_t* payload,
+                                 uint16_t payloadLen);
 const void* OrenAVMGfxRetainedMeshKey(uint32_t meshID);
 OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource(CFDictionaryRef meshes, uint32_t meshID);
 BOOL OrenAVMGfxPutTriangleMeshResource(CFMutableDictionaryRef* meshes,
@@ -123,6 +139,16 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
                                   BOOL depthEnabled,
                                   int32_t nearZ,
                                   int32_t farZ);
+BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,
+                                 CFMutableDictionaryRef* meshes,
+                                 CFMutableDictionaryRef* materials,
+                                 CFMutableDictionaryRef* models,
+                                 uint8_t opcode,
+                                 const uint8_t* payload,
+                                 uint16_t payloadLen,
+                                 BOOL depthEnabled,
+                                 int32_t nearZ,
+                                 int32_t farZ);
 const void* OrenAVMGfxRetainedMaterialKey(uint32_t materialID);
 const void* OrenAVMGfxRetainedMaterialValue(uint32_t rgbaValue);
 BOOL OrenAVMGfxRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materialID, uint32_t* rgbaOut);

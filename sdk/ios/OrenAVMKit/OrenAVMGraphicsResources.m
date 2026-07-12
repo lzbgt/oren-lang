@@ -152,6 +152,100 @@ void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
     CGImageRelease(subImage);
 }
 
+BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
+                                  CFMutableDictionaryRef* images,
+                                  NSUInteger retainedImageCountLimit,
+                                  NSUInteger retainedImagePixelLimit,
+                                  NSUInteger* retainedImagePixelCount,
+                                  uint8_t opcode,
+                                  const uint8_t* payload,
+                                  uint16_t payloadLen) {
+    if (!ctx || !payload) return NO;
+    switch (opcode) {
+        case 64: {
+            if (payloadLen >= 16) {
+                uint32_t imageID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t iw = OrenAVMGfxResourceReadU32LE(payload + 4);
+                uint32_t ih = OrenAVMGfxResourceReadU32LE(payload + 8);
+                uint32_t imageLen = OrenAVMGfxResourceReadU32LE(payload + 12);
+                if (imageLen == (uint32_t)payloadLen - 16u) {
+                    UIImage* image = OrenAVMGfxImageRGBA(payload + 16, iw, ih, imageLen);
+                    (void)OrenAVMGfxPutImageResource(images,
+                                                     image,
+                                                     imageID,
+                                                     (NSUInteger)iw * (NSUInteger)ih,
+                                                     retainedImageCountLimit,
+                                                     retainedImagePixelLimit,
+                                                     retainedImagePixelCount);
+                }
+            }
+            return YES;
+        }
+        case 65: {
+            if (payloadLen == 20) {
+                uint32_t imageID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t x = OrenAVMGfxResourceReadU32LE(payload + 4);
+                uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 8);
+                uint32_t w = OrenAVMGfxResourceReadU32LE(payload + 12);
+                uint32_t h = OrenAVMGfxResourceReadU32LE(payload + 16);
+                UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
+                if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
+            }
+            return YES;
+        }
+        case 66:
+            if (payloadLen == 4) OrenAVMGfxRemoveImageResource(images ? *images : NULL, OrenAVMGfxResourceReadU32LE(payload), retainedImagePixelCount);
+            return YES;
+        case 67: {
+            if (payloadLen == 36) {
+                uint32_t imageID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t sx = OrenAVMGfxResourceReadU32LE(payload + 4);
+                uint32_t sy = OrenAVMGfxResourceReadU32LE(payload + 8);
+                uint32_t sw = OrenAVMGfxResourceReadU32LE(payload + 12);
+                uint32_t sh = OrenAVMGfxResourceReadU32LE(payload + 16);
+                uint32_t x = OrenAVMGfxResourceReadU32LE(payload + 20);
+                uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 24);
+                uint32_t w = OrenAVMGfxResourceReadU32LE(payload + 28);
+                uint32_t h = OrenAVMGfxResourceReadU32LE(payload + 32);
+                UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
+                CGImageRef cgImage = image.CGImage;
+                if (cgImage) {
+                    OrenAVMGfxDrawImageSubrect(cgImage, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage),
+                                               sx, sy, sw, sh, x, y, w, h);
+                }
+            }
+            return YES;
+        }
+        case 71: {
+            if (payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
+                uint32_t imageID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t rectCount = OrenAVMGfxResourceReadU32LE(payload + 4);
+                UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
+                CGImageRef cgImage = image.CGImage;
+                if (cgImage && rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                    size_t imageWidth = CGImageGetWidth(cgImage);
+                    size_t imageHeight = CGImageGetHeight(cgImage);
+                    for (uint32_t ri = 0; ri < rectCount; ri++) {
+                        const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
+                        uint32_t sx = OrenAVMGfxResourceReadU32LE(r);
+                        uint32_t sy = OrenAVMGfxResourceReadU32LE(r + 4);
+                        uint32_t sw = OrenAVMGfxResourceReadU32LE(r + 8);
+                        uint32_t sh = OrenAVMGfxResourceReadU32LE(r + 12);
+                        uint32_t x = OrenAVMGfxResourceReadU32LE(r + 16);
+                        uint32_t y = OrenAVMGfxResourceReadU32LE(r + 20);
+                        uint32_t w = OrenAVMGfxResourceReadU32LE(r + 24);
+                        uint32_t h = OrenAVMGfxResourceReadU32LE(r + 28);
+                        OrenAVMGfxDrawImageSubrect(cgImage, imageWidth, imageHeight, sx, sy, sw, sh, x, y, w, h);
+                    }
+                }
+            }
+            return YES;
+        }
+        default:
+            return NO;
+    }
+}
+
 const void* OrenAVMGfxRetainedTextKey(uint32_t textID) {
     return OrenAVMGfxRetainedKey(textID);
 }
@@ -252,6 +346,71 @@ void OrenAVMGfxDrawTextResourcePositions(CFDictionaryRef texts,
 
 void OrenAVMGfxRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID) {
     if (texts && textID != 0) CFDictionaryRemoveValue(texts, OrenAVMGfxRetainedTextKey(textID));
+}
+
+BOOL OrenAVMGfxHandleTextCommand(CGContextRef ctx,
+                                 CFMutableDictionaryRef* attrsByRGBA,
+                                 uint32_t* lastRGBA,
+                                 NSDictionary<NSAttributedStringKey, id>* __strong* lastAttributes,
+                                 CFMutableDictionaryRef* texts,
+                                 uint8_t opcode,
+                                 const uint8_t* payload,
+                                 uint16_t payloadLen) {
+    if (!ctx || !payload) return NO;
+    switch (opcode) {
+        case 2: {
+            if (payloadLen >= 16) {
+                uint32_t x = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 4);
+                uint32_t textLen = OrenAVMGfxResourceReadU32LE(payload + 12);
+                if (textLen <= (uint32_t)payloadLen - 16u) {
+                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(attrsByRGBA,
+                                                                                                      lastRGBA,
+                                                                                                      lastAttributes,
+                                                                                                      OrenAVMGfxResourceReadU32LE(payload + 8));
+                    OrenAVMGfxDrawTextBytes(payload + 16, textLen, x, y, attrs);
+                }
+            }
+            return YES;
+        }
+        case 68: {
+            if (payloadLen >= 12) {
+                uint32_t textID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t textLen = OrenAVMGfxResourceReadU32LE(payload + 8);
+                if (textLen == (uint32_t)payloadLen - 12u) {
+                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(attrsByRGBA,
+                                                                                                      lastRGBA,
+                                                                                                      lastAttributes,
+                                                                                                      OrenAVMGfxResourceReadU32LE(payload + 4));
+                    (void)OrenAVMGfxPutTextResource(texts, textID, payload + 12, textLen, attrs);
+                }
+            }
+            return YES;
+        }
+        case 69:
+            if (payloadLen == 12) {
+                uint32_t textID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t x = OrenAVMGfxResourceReadU32LE(payload + 4);
+                uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 8);
+                OrenAVMGfxDrawTextResource(texts ? *texts : NULL, textID, x, y);
+            }
+            return YES;
+        case 70:
+            if (payloadLen == 4) OrenAVMGfxRemoveTextResource(texts ? *texts : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            return YES;
+        case 72: {
+            if (payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
+                uint32_t textID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t posCount = OrenAVMGfxResourceReadU32LE(payload + 4);
+                if (posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                    OrenAVMGfxDrawTextResourcePositions(texts ? *texts : NULL, textID, payload + 8, posCount);
+                }
+            }
+            return YES;
+        }
+        default:
+            return NO;
+    }
 }
 
 const void* OrenAVMGfxRetainedMeshKey(uint32_t meshID) {
@@ -486,6 +645,150 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
             CGContextFillPath(ctx);
         }
         free(heapOrder);
+    }
+}
+
+BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,
+                                 CFMutableDictionaryRef* meshes,
+                                 CFMutableDictionaryRef* materials,
+                                 CFMutableDictionaryRef* models,
+                                 uint8_t opcode,
+                                 const uint8_t* payload,
+                                 uint16_t payloadLen,
+                                 BOOL depthEnabled,
+                                 int32_t nearZ,
+                                 int32_t farZ) {
+    if (!ctx || !payload) return NO;
+    switch (opcode) {
+        case 80: {
+            if (payloadLen >= 36 && ((payloadLen - 12) % 24) == 0) {
+                uint32_t meshID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t triangleCount = OrenAVMGfxResourceReadU32LE(payload + 8);
+                if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 24u) {
+                    (void)OrenAVMGfxPutTriangleMeshResource(meshes,
+                                                            meshID,
+                                                            OrenAVMGfxResourceReadU32LE(payload + 4),
+                                                            payload + 12,
+                                                            (NSUInteger)payloadLen - 12u,
+                                                            triangleCount,
+                                                            24u,
+                                                            NO);
+                }
+            }
+            return YES;
+        }
+        case 81:
+            if (payloadLen == 4) OrenAVMGfxDrawMesh2DResource(ctx, meshes ? *meshes : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            return YES;
+        case 82:
+            if (payloadLen == 4) OrenAVMGfxRemoveMeshResource(meshes ? *meshes : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            return YES;
+        case 83: {
+            if (payloadLen >= 48 && ((payloadLen - 12) % 36) == 0) {
+                uint32_t meshID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t triangleCount = OrenAVMGfxResourceReadU32LE(payload + 8);
+                if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 12u) / 36u) {
+                    (void)OrenAVMGfxPutTriangleMeshResource(meshes,
+                                                            meshID,
+                                                            OrenAVMGfxResourceReadU32LE(payload + 4),
+                                                            payload + 12,
+                                                            (NSUInteger)payloadLen - 12u,
+                                                            triangleCount,
+                                                            36u,
+                                                            NO);
+                }
+            }
+            return YES;
+        }
+        case 84:
+        case 87:
+        case 90:
+        case 91:
+        case 94:
+            if ((opcode == 84 && payloadLen == 4) || (opcode == 87 && payloadLen == 20) ||
+                (opcode == 90 && payloadLen == 8) || (opcode == 91 && payloadLen == 24) ||
+                (opcode == 94 && payloadLen == 4)) {
+                OrenAVMGfxDrawMesh3DResource(ctx,
+                                             meshes ? *meshes : NULL,
+                                             materials ? *materials : NULL,
+                                             models ? *models : NULL,
+                                             opcode,
+                                             payload,
+                                             depthEnabled,
+                                             nearZ,
+                                             farZ);
+            }
+            return YES;
+        case 85:
+            if (payloadLen == 4) OrenAVMGfxRemoveMeshResource(meshes ? *meshes : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            return YES;
+        case 86: {
+            if (payloadLen >= 48 && ((payloadLen - 8) % 40) == 0) {
+                uint32_t meshID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t triangleCount = OrenAVMGfxResourceReadU32LE(payload + 4);
+                if (meshID != 0 && triangleCount == ((uint32_t)payloadLen - 8u) / 40u) {
+                    (void)OrenAVMGfxPutTriangleMeshResource(meshes,
+                                                            meshID,
+                                                            0,
+                                                            payload + 8,
+                                                            (NSUInteger)payloadLen - 8u,
+                                                            triangleCount,
+                                                            40u,
+                                                            YES);
+                }
+            }
+            return YES;
+        }
+        case 88: {
+            if (payloadLen >= 64) {
+                uint32_t meshID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t vertexCount = OrenAVMGfxResourceReadU32LE(payload + 8);
+                uint32_t indexCount = OrenAVMGfxResourceReadU32LE(payload + 12);
+                size_t vertexBytes = (size_t)vertexCount * 12u;
+                size_t indexBytes = (size_t)indexCount * 4u;
+                if (16u + vertexBytes + indexBytes == (size_t)payloadLen) {
+                    (void)OrenAVMGfxPutIndexedMeshResource(meshes,
+                                                           meshID,
+                                                           OrenAVMGfxResourceReadU32LE(payload + 4),
+                                                           payload + 16,
+                                                           vertexBytes,
+                                                           vertexCount,
+                                                           payload + 16 + vertexBytes,
+                                                           indexBytes,
+                                                           indexCount);
+                }
+            }
+            return YES;
+        }
+        case 89:
+            if (payloadLen == 8) {
+                uint32_t materialID = OrenAVMGfxResourceReadU32LE(payload);
+                (void)OrenAVMGfxPutMaterialResource(materials, materialID, OrenAVMGfxResourceReadU32LE(payload + 4));
+            }
+            return YES;
+        case 92:
+            if (payloadLen == 4) OrenAVMGfxRemoveMaterialResource(materials ? *materials : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            return YES;
+        case 93:
+            if (payloadLen == 28) {
+                uint32_t modelID = OrenAVMGfxResourceReadU32LE(payload);
+                uint32_t meshID = OrenAVMGfxResourceReadU32LE(payload + 4);
+                uint32_t scaleMilli = OrenAVMGfxResourceReadU32LE(payload + 24);
+                (void)OrenAVMGfxPutModelResource(models,
+                                                 modelID,
+                                                 meshID,
+                                                 OrenAVMGfxResourceReadU32LE(payload + 8),
+                                                 (int32_t)OrenAVMGfxResourceReadU32LE(payload + 12),
+                                                 (int32_t)OrenAVMGfxResourceReadU32LE(payload + 16),
+                                                 (int32_t)OrenAVMGfxResourceReadU32LE(payload + 20),
+                                                 scaleMilli);
+            }
+            return YES;
+        case 95:
+            if (payloadLen == 4) OrenAVMGfxRemoveModelResource(models ? *models : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            return YES;
+        default:
+            return NO;
     }
 }
 

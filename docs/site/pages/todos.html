@@ -3828,6 +3828,12 @@
 <p>  attribute caches, and image budgets, reducing <code>OrenAVMGraphicsView.m</code> to</p>
 <p>  310 lines while preserving UIKit ownership in the view.</p>
 <ul>
+<li>CoreGraphics retained image, text, mesh, material, and model opcode routing</li>
+</ul>
+<p>  now lives in <code>OrenAVMGraphicsResources</code>, reducing</p>
+<p>  <code>OrenAVMGraphicsFrame.m</code> to 194 lines while keeping only OGF0 traversal,</p>
+<p>  immediate primitive dispatch, and frame-state dispatch in the frame module.</p>
+<ul>
 <li>AVM deadline-backed scheduler wait scanning now lives in</li>
 </ul>
 <p>  <code>avm_vm_deadline_waits.inc</code>, reducing <code>avm_vm.c</code> to 1961 lines, and the iOS</p>

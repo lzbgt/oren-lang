@@ -112,30 +112,44 @@ def main() -> int:
     ):
         if forbidden in view_text:
             fail(f"CoreGraphics view must not define retained resource helper: {forbidden}")
-    if "OrenAVMGfxPutImageResource(context->images," not in frame_text:
-        fail("CoreGraphics retained image uploads must delegate map mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxRemoveImageResource(context->images ? *context->images : NULL" not in frame_text:
-        fail("CoreGraphics retained image removals must delegate pixel accounting to OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutTextResource(context->textResources," not in frame_text:
-        fail("CoreGraphics retained text uploads must delegate resource mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxDrawTextResourcePositions(context->textResources ? *context->textResources : NULL" not in frame_text:
-        fail("CoreGraphics retained text batched draws must delegate payload traversal to OrenAVMGraphicsResources")
-    if "OrenAVMGfxRemoveTextResource(context->textResources ? *context->textResources : NULL" not in frame_text:
-        fail("CoreGraphics retained text removals must delegate resource mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutTriangleMeshResource(context->meshes," not in frame_text:
-        fail("CoreGraphics retained triangle mesh uploads must delegate resource mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutIndexedMeshResource(context->meshes," not in frame_text:
-        fail("CoreGraphics retained indexed mesh uploads must delegate resource mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxRemoveMeshResource(context->meshes ? *context->meshes : NULL" not in frame_text:
-        fail("CoreGraphics retained mesh removals must delegate resource mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxDrawMesh2DResource(ctx, context->meshes ? *context->meshes : NULL" not in frame_text:
-        fail("CoreGraphics retained 2D mesh draws must delegate payload traversal to OrenAVMGraphicsResources")
-    if "OrenAVMGfxDrawMesh3DResource(ctx," not in frame_text:
-        fail("CoreGraphics retained 3D mesh draws must delegate payload traversal to OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutMaterialResource(context->materials3D," not in frame_text:
-        fail("CoreGraphics retained material uploads must delegate resource mutation to OrenAVMGraphicsResources")
-    if "OrenAVMGfxPutModelResource(context->models3D," not in frame_text:
-        fail("CoreGraphics retained model uploads must delegate resource mutation to OrenAVMGraphicsResources")
+    for token in (
+        "BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,",
+        "BOOL OrenAVMGfxHandleTextCommand(CGContextRef ctx,",
+        "BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,",
+        "case 64:",
+        "case 68:",
+        "case 80:",
+        "case 95:",
+    ):
+        if token not in resource_text:
+            fail(f"CoreGraphics resource command helper is missing expected routing: {token}")
+    for token in (
+        "OrenAVMGfxHandleMeshCommand(ctx,",
+        "context->materials3D",
+        "frameState.depthEnabled",
+        "OrenAVMGfxHandleTextCommand(ctx,",
+        "context->lastTextAttributes",
+        "OrenAVMGfxHandleImageCommand(ctx,",
+        "context->retainedImagePixelCount",
+    ):
+        if token not in frame_text:
+            fail(f"CoreGraphics frame traversal must delegate retained resource opcodes: {token}")
+    for forbidden in (
+        "OrenAVMGfxPutImageResource(context->images,",
+        "OrenAVMGfxRemoveImageResource(context->images ? *context->images : NULL",
+        "OrenAVMGfxPutTextResource(context->textResources,",
+        "OrenAVMGfxDrawTextResourcePositions(context->textResources ? *context->textResources : NULL",
+        "OrenAVMGfxRemoveTextResource(context->textResources ? *context->textResources : NULL",
+        "OrenAVMGfxPutTriangleMeshResource(context->meshes,",
+        "OrenAVMGfxPutIndexedMeshResource(context->meshes,",
+        "OrenAVMGfxRemoveMeshResource(context->meshes ? *context->meshes : NULL",
+        "OrenAVMGfxDrawMesh2DResource(ctx, context->meshes ? *context->meshes : NULL",
+        "OrenAVMGfxDrawMesh3DResource(ctx,",
+        "OrenAVMGfxPutMaterialResource(context->materials3D,",
+        "OrenAVMGfxPutModelResource(context->models3D,",
+    ):
+        if forbidden in frame_text:
+            fail(f"CoreGraphics frame traversal must not own retained resource payloads: {forbidden}")
 
     print("OK: CoreGraphics retained resource helpers live in OrenAVMGraphicsResources")
     return 0

@@ -2881,7 +2881,10 @@ Working evidence:
   `OrenAVMGraphicsFrame` behind a draw-context struct carrying view-owned
   retained resource maps, text attribute caches, and retained-image budgets,
   reducing `OrenAVMGraphicsView.m` to 310 lines while keeping UIKit ownership
-  in the view.
+  in the view. CoreGraphics retained image, text, mesh, material, and model
+  opcode routing now lives in `OrenAVMGraphicsResources`, reducing
+  `OrenAVMGraphicsFrame.m` to 194 lines while keeping OGF0 traversal,
+  immediate primitive dispatch, and frame-state dispatch in the frame module.
 - The retained fixes include child-owned OBC constant parsing with explicit VM
   ownership flags, a larger explicit AVM global table cap for the compiler OBC,
   VFS `write_bytes` support for BYTES, current CLI args (`--platform`,
