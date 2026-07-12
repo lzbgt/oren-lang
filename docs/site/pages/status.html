@@ -3004,6 +3004,10 @@
 <p>  opcode routing now lives in <code>OrenAVMGraphicsResources</code>, reducing</p>
 <p>  <code>OrenAVMGraphicsFrame.m</code> to 194 lines while keeping OGF0 traversal,</p>
 <p>  immediate primitive dispatch, and frame-state dispatch in the frame module.</p>
+<p>  The libavm iOS verifier host embed C smoke now lives in</p>
+<p>  <code>tests/fixtures/ios_avm/embed_smoke.c</code>, reducing</p>
+<p>  <code>scripts/verify_libavm_ios.sh</code> to 1424 lines while preserving the generated</p>
+<p>  header/copy/compile flow.</p>
 <ul>
 <li>The retained fixes include child-owned OBC constant parsing with explicit VM</li>
 </ul>

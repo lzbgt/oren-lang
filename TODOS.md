@@ -2769,6 +2769,10 @@ design evidence lives under `project-doc/`.
   now lives in `OrenAVMGraphicsResources`, reducing
   `OrenAVMGraphicsFrame.m` to 194 lines while keeping only OGF0 traversal,
   immediate primitive dispatch, and frame-state dispatch in the frame module.
+- The libavm iOS verifier host embed C smoke now lives in
+  `tests/fixtures/ios_avm/embed_smoke.c`, reducing
+  `scripts/verify_libavm_ios.sh` to 1424 lines while preserving the generated
+  header/copy/compile flow.
 - AVM deadline-backed scheduler wait scanning now lives in
   `avm_vm_deadline_waits.inc`, reducing `avm_vm.c` to 1961 lines, and the iOS
   verifier now shares `scripts/obc_to_c_header.py` for embedded OBC fixture
