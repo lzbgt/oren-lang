@@ -191,6 +191,77 @@ fn compose_transform(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw
     return compose_trs(tx, ty, tz, qx0, qy0, qz0, qw0, sx, sy, sz)
 }
 
+fn translation_of(m) {
+    var ok = _check(m, "mat4.translation_of")
+    if oren_is_err(ok) { return ok }
+    return [m[3], m[7], m[11]]
+}
+
+fn scale_of(m) {
+    var ok = _check(m, "mat4.scale_of")
+    if oren_is_err(ok) { return ok }
+    var m00: f64 = m[0]
+    var m01: f64 = m[1]
+    var m02: f64 = m[2]
+    var m10: f64 = m[4]
+    var m11: f64 = m[5]
+    var m12: f64 = m[6]
+    var m20: f64 = m[8]
+    var m21: f64 = m[9]
+    var m22: f64 = m[10]
+    var sx0 = math.hypot3(m00, m10, m20)
+    if oren_is_err(sx0) { return sx0 }
+    var sy0 = math.hypot3(m01, m11, m21)
+    if oren_is_err(sy0) { return sy0 }
+    var sz0 = math.hypot3(m02, m12, m22)
+    if oren_is_err(sz0) { return sz0 }
+    var sx: f64 = sx0
+    var sy: f64 = sy0
+    var sz: f64 = sz0
+    return [sx, sy, sz]
+}
+
+fn rotation_quat(m) {
+    var ok = _check(m, "mat4.rotation_quat")
+    if oren_is_err(ok) { return ok }
+    var s = scale_of(m)
+    if oren_is_err(s) { return s }
+    var sx: f64 = s[0]
+    var sy: f64 = s[1]
+    var sz: f64 = s[2]
+    if sx == 0.0 || sy == 0.0 || sz == 0.0 { return oren_err(4, "mat4.rotation_quat: zero scale") }
+    var m00: f64 = m[0]
+    var m01: f64 = m[1]
+    var m02: f64 = m[2]
+    var m10: f64 = m[4]
+    var m11: f64 = m[5]
+    var m12: f64 = m[6]
+    var m20: f64 = m[8]
+    var m21: f64 = m[9]
+    var m22: f64 = m[10]
+    return quat.from_basis_rows(
+        m00 / sx, m01 / sy, m02 / sz,
+        m10 / sx, m11 / sy, m12 / sz,
+        m20 / sx, m21 / sy, m22 / sz
+    )
+}
+
+fn decompose_trs(m) {
+    var ok = _check(m, "mat4.decompose_trs")
+    if oren_is_err(ok) { return ok }
+    var t = translation_of(m)
+    if oren_is_err(t) { return t }
+    var s = scale_of(m)
+    if oren_is_err(s) { return s }
+    var q = rotation_quat(m)
+    if oren_is_err(q) { return q }
+    return [t[0], t[1], t[2], q[0], q[1], q[2], q[3], s[0], s[1], s[2]]
+}
+
+fn decompose_transform(m) {
+    return decompose_trs(m)
+}
+
 fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
     var ok = _finite6(left, right, bottom, top, near_z, far_z, "mat4.ortho")
     if oren_is_err(ok) { return ok }

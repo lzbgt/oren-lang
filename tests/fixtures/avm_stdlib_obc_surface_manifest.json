@@ -204,6 +204,19 @@
         "if oren_is_err(m4r) { fail(113) }",
         "var m4trs = math_mat4.compose_transform(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0)",
         "if oren_is_err(m4trs) { fail(114) }",
+        "var m4trst = math_mat4.translation_of(m4trs)",
+        "if oren_is_err(m4trst) { fail(148) }",
+        "assert_close(m4trst[2], 3.0, 1e-12, 149)",
+        "var m4trss = math_mat4.scale_of(m4trs)",
+        "if oren_is_err(m4trss) { fail(150) }",
+        "assert_close(m4trss[0], 2.0, 1e-12, 151)",
+        "assert_close(m4trss[2], 4.0, 1e-12, 152)",
+        "var m4trsq = math_mat4.rotation_quat(m4trs)",
+        "if oren_is_err(m4trsq) { fail(153) }",
+        "var m4decomp = math_mat4.decompose_transform(m4trs)",
+        "if oren_is_err(m4decomp) { fail(154) }",
+        "assert_close(m4decomp[0], 1.0, 1e-12, 155)",
+        "assert_close(m4decomp[9], 4.0, 1e-12, 156)",
         "var m4rx = math_mat4.rotation_x(math.pi() / 2.0)",
         "if oren_is_err(m4rx) { fail(116) }",
         "var m4ry = math_mat4.rotation_y(math.pi() / 2.0)",
@@ -269,7 +282,9 @@
         "var m4tt = math_mat4.transpose(m4t)",
         "if oren_is_err(m4tt) { fail(100) }",
         "assert_close(m4tt[12], 3.0, 1e-12, 101)",
-        "if !oren_is_err(math_mat4.inverse(math_mat4.scale(0.0, 1.0, 1.0))) { fail(102) }"
+        "if !oren_is_err(math_mat4.inverse(math_mat4.scale(0.0, 1.0, 1.0))) { fail(102) }",
+        "if !oren_is_err(math_mat4.rotation_quat(math_mat4.scale(0.0, 1.0, 1.0))) { fail(157) }",
+        "if !oren_is_err(math_mat4.decompose_trs(math_mat4.scale(-1.0, 1.0, 1.0))) { fail(158) }"
       ]
     },
     {
