@@ -112,13 +112,7 @@ fn rotation_z(radians: f64) {
     ]
 }
 
-fn from_quat(x: f64, y: f64, z: f64, w: f64) {
-    var q = quat.normalize(x, y, z, w)
-    if oren_is_err(q) { return q }
-    var qx: f64 = q[0]
-    var qy: f64 = q[1]
-    var qz: f64 = q[2]
-    var qw: f64 = q[3]
+fn _compose_normalized_quat_trs(qx: f64, qy: f64, qz: f64, qw: f64, sx: f64, sy: f64, sz: f64, tx: f64, ty: f64, tz: f64) {
     var xx: f64 = qx * qx
     var yy: f64 = qy * qy
     var zz: f64 = qz * qz
@@ -129,11 +123,17 @@ fn from_quat(x: f64, y: f64, z: f64, w: f64) {
     var wy: f64 = qw * qy
     var wz: f64 = qw * qz
     return [
-        1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0,
-        2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0,
-        2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0,
+        (1.0 - 2.0 * (yy + zz)) * sx, (2.0 * (xy - wz)) * sy, (2.0 * (xz + wy)) * sz, tx,
+        (2.0 * (xy + wz)) * sx, (1.0 - 2.0 * (xx + zz)) * sy, (2.0 * (yz - wx)) * sz, ty,
+        (2.0 * (xz - wy)) * sx, (2.0 * (yz + wx)) * sy, (1.0 - 2.0 * (xx + yy)) * sz, tz,
         0.0, 0.0, 0.0, 1.0
     ]
+}
+
+fn from_quat(x: f64, y: f64, z: f64, w: f64) {
+    var q = quat.normalize(x, y, z, w)
+    if oren_is_err(q) { return q }
+    return _compose_normalized_quat_trs(q[0], q[1], q[2], q[3], 1.0, 1.0, 1.0, 0.0, 0.0, 0.0)
 }
 
 fn from_axis_angle(ax: f64, ay: f64, az: f64, radians: f64) {
@@ -157,34 +157,7 @@ fn compose_trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64
     if oren_is_err(s) { return s }
     var q = quat.normalize(qx0, qy0, qz0, qw0)
     if oren_is_err(q) { return q }
-    var qx: f64 = q[0]
-    var qy: f64 = q[1]
-    var qz: f64 = q[2]
-    var qw: f64 = q[3]
-    var xx: f64 = qx * qx
-    var yy: f64 = qy * qy
-    var zz: f64 = qz * qz
-    var xy: f64 = qx * qy
-    var xz: f64 = qx * qz
-    var yz: f64 = qy * qz
-    var wx: f64 = qw * qx
-    var wy: f64 = qw * qy
-    var wz: f64 = qw * qz
-    var r00: f64 = 1.0 - 2.0 * (yy + zz)
-    var r01: f64 = 2.0 * (xy - wz)
-    var r02: f64 = 2.0 * (xz + wy)
-    var r10: f64 = 2.0 * (xy + wz)
-    var r11: f64 = 1.0 - 2.0 * (xx + zz)
-    var r12: f64 = 2.0 * (yz - wx)
-    var r20: f64 = 2.0 * (xz - wy)
-    var r21: f64 = 2.0 * (yz + wx)
-    var r22: f64 = 1.0 - 2.0 * (xx + yy)
-    return [
-        r00 * sx, r01 * sy, r02 * sz, tx,
-        r10 * sx, r11 * sy, r12 * sz, ty,
-        r20 * sx, r21 * sy, r22 * sz, tz,
-        0.0, 0.0, 0.0, 1.0
-    ]
+    return _compose_normalized_quat_trs(q[0], q[1], q[2], q[3], sx, sy, sz, tx, ty, tz)
 }
 
 fn compose_transform(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f64, sy: f64, sz: f64) {
