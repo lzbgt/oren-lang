@@ -62,6 +62,14 @@ fn translation(tx: f64, ty: f64, tz: f64) {
     ]
 }
 
+fn from_translation(tx: f64, ty: f64, tz: f64) {
+    return translation(tx, ty, tz)
+}
+
+fn translate(tx: f64, ty: f64, tz: f64) {
+    return translation(tx, ty, tz)
+}
+
 fn scale(sx: f64, sy: f64, sz: f64) {
     var ok = _finite3(sx, sy, sz, "mat4.scale")
     if oren_is_err(ok) { return ok }
@@ -71,6 +79,14 @@ fn scale(sx: f64, sy: f64, sz: f64) {
         0.0, 0.0, sz, 0.0,
         0.0, 0.0, 0.0, 1.0
     ]
+}
+
+fn from_scale(sx: f64, sy: f64, sz: f64) {
+    return scale(sx, sy, sz)
+}
+
+fn scaling(sx: f64, sy: f64, sz: f64) {
+    return scale(sx, sy, sz)
 }
 
 fn rotation_x(radians: f64) {
@@ -164,6 +180,10 @@ fn compose_transform(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw
     return compose_trs(tx, ty, tz, qx0, qy0, qz0, qw0, sx, sy, sz)
 }
 
+fn trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f64, sy: f64, sz: f64) {
+    return compose_trs(tx, ty, tz, qx0, qy0, qz0, qw0, sx, sy, sz)
+}
+
 fn translation_of(m) {
     var ok = _check(m, "mat4.translation_of")
     if oren_is_err(ok) { return ok }
@@ -232,6 +252,10 @@ fn decompose_trs(m) {
 }
 
 fn decompose_transform(m) {
+    return decompose_trs(m)
+}
+
+fn decompose(m) {
     return decompose_trs(m)
 }
 
