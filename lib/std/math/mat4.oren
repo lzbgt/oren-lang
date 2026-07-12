@@ -42,6 +42,64 @@ fn _check(m, ctx) {
     return 0
 }
 
+fn is_finite(m) {
+    return !oren_is_err(_check(m, "mat4.is_finite"))
+}
+
+fn isfinite(m) {
+    return is_finite(m)
+}
+
+fn is_affine(m) {
+    var ok = _check(m, "mat4.is_affine")
+    if oren_is_err(ok) { return false }
+    var m12: f64 = m[12]
+    var m13: f64 = m[13]
+    var m14: f64 = m[14]
+    var m15: f64 = m[15]
+    if m12 != 0.0 { return false }
+    if m13 != 0.0 { return false }
+    if m14 != 0.0 { return false }
+    if m15 != 1.0 { return false }
+    return true
+}
+
+fn has_perspective(m) {
+    var ok = _check(m, "mat4.has_perspective")
+    if oren_is_err(ok) { return false }
+    return !is_affine(m)
+}
+
+fn basis_x(m) {
+    var ok = _check(m, "mat4.basis_x")
+    if oren_is_err(ok) { return ok }
+    return [m[0], m[4], m[8]]
+}
+
+fn basis_y(m) {
+    var ok = _check(m, "mat4.basis_y")
+    if oren_is_err(ok) { return ok }
+    return [m[1], m[5], m[9]]
+}
+
+fn basis_z(m) {
+    var ok = _check(m, "mat4.basis_z")
+    if oren_is_err(ok) { return ok }
+    return [m[2], m[6], m[10]]
+}
+
+fn right(m) {
+    return basis_x(m)
+}
+
+fn up(m) {
+    return basis_y(m)
+}
+
+fn forward(m) {
+    return basis_z(m)
+}
+
 fn identity() {
     return [
         1.0, 0.0, 0.0, 0.0,
