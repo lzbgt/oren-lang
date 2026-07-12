@@ -168,6 +168,37 @@ fn angular_distance(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f6
     return angle_between(ax, ay, az, aw, bx, by, bz, bw)
 }
 
+fn rotation_power(x: f64, y: f64, z: f64, w: f64, t: f64) {
+    var ot = _finite_scalar(t, "quat.rotation_power")
+    if oren_is_err(ot) { return ot }
+    var q = normalize(x, y, z, w)
+    if oren_is_err(q) { return q }
+    var qx: f64 = q[0]
+    var qy: f64 = q[1]
+    var qz: f64 = q[2]
+    var qw: f64 = q[3]
+    if qw < 0.0 {
+        qx = 0.0 - qx
+        qy = 0.0 - qy
+        qz = 0.0 - qz
+        qw = 0.0 - qw
+    }
+    var vl0 = math.hypot3(qx, qy, qz)
+    if oren_is_err(vl0) { return vl0 }
+    var vl: f64 = vl0
+    if vl == 0.0 { return identity() }
+    var base0 = math.atan2(vl, qw)
+    if oren_is_err(base0) { return base0 }
+    var half: f64 = base0 * t
+    var s: f64 = math.sin(half)
+    var c: f64 = math.cos(half)
+    return [qx / vl * s, qy / vl * s, qz / vl * s, c]
+}
+
+fn scale_angle(x: f64, y: f64, z: f64, w: f64, scale: f64) {
+    return rotation_power(x, y, z, w, scale)
+}
+
 fn from_euler_xyz(rx: f64, ry: f64, rz: f64) {
     var ok = _finite3(rx, ry, rz, "quat.from_euler_xyz")
     if oren_is_err(ok) { return ok }
@@ -526,4 +557,20 @@ fn slerp(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64,
     var z: f64 = s0 * qaz + s1 * qbz
     var w: f64 = s0 * qaw + s1 * qbw
     return normalize(x, y, z, w)
+}
+
+fn rotate_toward(ax: f64, ay: f64, az: f64, aw: f64, bx: f64, by: f64, bz: f64, bw: f64, max_radians: f64) {
+    var qa = normalize(ax, ay, az, aw)
+    if oren_is_err(qa) { return qa }
+    var qb = normalize(bx, by, bz, bw)
+    if oren_is_err(qb) { return qb }
+    var om = _finite_scalar(max_radians, "quat.rotate_toward")
+    if oren_is_err(om) { return om }
+    if max_radians < 0.0 { return oren_err(4, "quat.rotate_toward: negative max angle") }
+    var dist0 = angle_between(qa[0], qa[1], qa[2], qa[3], qb[0], qb[1], qb[2], qb[3])
+    if oren_is_err(dist0) { return dist0 }
+    var dist: f64 = dist0
+    if dist <= max_radians { return qb }
+    if dist == 0.0 { return qb }
+    return slerp(qa[0], qa[1], qa[2], qa[3], qb[0], qb[1], qb[2], qb[3], max_radians / dist)
 }
