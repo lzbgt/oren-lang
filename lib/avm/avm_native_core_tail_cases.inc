@@ -10,56 +10,40 @@
             break;
         }
         case 120: { // oren_sha256_range(bytes|list<int 0..255>|list_int, start:int, len:int) -> list<int 32>
-            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT &&
-                (args[0].type == AVM_VAL_BYTES || args[0].type == AVM_VAL_LIST || args[0].type == AVM_VAL_LIST_INT)) {
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
                 int64_t start = args[1].as.i;
                 int64_t len = args[2].as.i;
                 int64_t total = 0;
-                AvmBytes* bytes = NULL;
-                AvmList* list = NULL;
-                AvmListInt* list_int = NULL;
-                if (args[0].type == AVM_VAL_BYTES) {
-                    bytes = args[0].as.b;
-                    if (!bytes || bytes->len < 0 || (bytes->len > 0 && !bytes->data)) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: invalid u8_buf"); break; }
-                    total = (int64_t)bytes->len;
-                } else if (args[0].type == AVM_VAL_LIST) {
-                    list = args[0].as.l;
-                    if (!list || list->count < 0 || (list->count > 0 && !list->items)) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: invalid list"); break; }
-                    total = (int64_t)list->count;
-                } else {
-                    list_int = args[0].as.li;
-                    if (!list_int || list_int->count < 0 || (list_int->count > 0 && !list_int->items)) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: invalid list_int"); break; }
-                    total = (int64_t)list_int->count;
+                const char* err_msg = NULL;
+                if (!avm_native_bytes_len_checked(args[0], &total, &err_msg,
+                        "sha256_range: invalid u8_buf",
+                        "sha256_range: invalid list",
+                        "sha256_range: invalid list_int",
+                        "oren_sha256_range expects (bytes|list|list_int,int,int)")) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "oren_sha256_range expects (bytes|list|list_int,int,int)");
+                    break;
                 }
                 if (start < 0 || len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: negative range"); break; }
                 if (start > total || len > total - start) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: out of bounds"); break; }
 
                 AvmSha256Ctx ctx;
                 avm_sha256_init(&ctx);
-                if (bytes) {
-                    if (len > 0) avm_sha256_update(&ctx, bytes->data + (size_t)start, (size_t)len);
-                } else {
-                    uint8_t chunk[64 * 1024];
-                    int64_t off = 0;
-                    while (off < len) {
-                        int64_t remaining = len - off;
-                        size_t want = remaining > (int64_t)sizeof(chunk) ? sizeof(chunk) : (size_t)remaining;
-                        for (size_t i = 0; i < want; i++) {
-                            int64_t v = 0;
-                            if (list) {
-                                AvmValue it = list->items[(int)(start + off + (int64_t)i)];
-                                if (it.type != AVM_VAL_INT) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected list<int 0..255>"); break; }
-                                v = it.as.i;
-                            } else {
-                                v = list_int->items[(int)(start + off + (int64_t)i)];
-                            }
-                            if (v < 0 || v > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected bytes 0..255"); break; }
-                            chunk[i] = (uint8_t)v;
-                        }
-                        if (avm_is_err_val(res)) break;
-                        avm_sha256_update(&ctx, chunk, want);
-                        off += (int64_t)want;
+
+                uint8_t chunk[64 * 1024];
+                int64_t off = 0;
+                while (off < len) {
+                    int64_t remaining = len - off;
+                    int64_t want_i64 = remaining > (int64_t)sizeof(chunk) ? (int64_t)sizeof(chunk) : remaining;
+                    if (!avm_native_bytes_copy_span(args[0], start + off, want_i64, chunk, &err_msg,
+                            "sha256_range: out of bounds",
+                            "oren_sha256_range expects (bytes|list|list_int,int,int)",
+                            "sha256_range: expected list<int 0..255>",
+                            "sha256_range: expected list_int bytes 0..255")) {
+                        res = avm_err(AVM_ERR_INVALID_ARG, err_msg ? err_msg : "sha256_range: expected bytes 0..255");
+                        break;
                     }
+                    avm_sha256_update(&ctx, chunk, (size_t)want_i64);
+                    off += want_i64;
                 }
                 if (avm_is_err_val(res)) break;
 

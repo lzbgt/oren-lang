@@ -399,11 +399,15 @@ fi
 
 avm_sha256_impl="$(sed -n '/case 120:.*oren_sha256_range/,/case 121:/p' lib/avm/avm_native_core_tail_cases.inc)"
 if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$avm_sha256_impl" ||
-  ! grep -Fq 'avm_sha256_update(&ctx, chunk, want)' <<<"$avm_sha256_impl" ||
+  ! grep -Fq 'avm_native_bytes_copy_span(args[0], start + off, want_i64, chunk' <<<"$avm_sha256_impl" ||
+  ! grep -Fq 'avm_sha256_update(&ctx, chunk, (size_t)want_i64)' <<<"$avm_sha256_impl" ||
   grep -Fq 'avm_sha256_update(&ctx, &b, 1)' <<<"$avm_sha256_impl" ||
+  grep -Fq 'list->items[(int)(start + off' <<<"$avm_sha256_impl" ||
+  grep -Fq 'list_int->items[(int)(start + off' <<<"$avm_sha256_impl" ||
+  grep -Fq 'bytes->data + (size_t)start' <<<"$avm_sha256_impl" ||
   ! grep -Fq 'sha256 AVM long boxed list range' tests/avm/test_crypto_sha256_vectors.oren ||
   ! grep -Fq 'sha256 AVM long list_int range' tests/avm/test_crypto_sha256_vectors.oren; then
-  echo "ERROR: AVM sha256_range list/LIST_INT inputs must hash bounded chunks, not call sha256_update once per byte" >&2
+  echo "ERROR: AVM sha256_range bytes/list/LIST_INT inputs must hash bounded chunks through the shared byte copy-span helper" >&2
   exit 1
 fi
 
