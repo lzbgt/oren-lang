@@ -254,62 +254,6 @@ fn main() {
     assert_eq(_px(prism_buf, 4, 1, 1, 1), 204)
     assert_eq(_px(prism_buf, 4, 1, 1, 2), 68)
 
-    var from_heightfield = scene3d.commands_from_asset({
-        "meshes": [
-            {
-                "kind": "triangles",
-                "id": 141,
-                "heightfields_xy": [
-                    {"origin": [0, 0], "step_xy": [2, 2], "z_values": [[0, 1], [2, 3]]}
-                ],
-                "transform": {"translation_xyz": [1, 0, 5]},
-                "color": "#8844cc"
-            }
-        ],
-        "draw": [{"op": "draw_mesh3d", "id": 141}],
-        "destroy": true
-    })
-    assert_true(oren_is_err(from_heightfield) == false)
-    assert_eq(from_heightfield[0]["op"], "mesh3d")
-    assert_eq(bytes.len(from_heightfield[0]["triangles"]), 72)
-    assert_eq(_i32_at(from_heightfield[0]["triangles"], 0), 1)
-    assert_eq(_i32_at(from_heightfield[0]["triangles"], 4), 0)
-    assert_eq(_i32_at(from_heightfield[0]["triangles"], 8), 5)
-    assert_true(ui_cmds.validate(from_heightfield, 4, 4, {"strict_bounds": true}) == 0)
-    var heightfield_buf = ui_raster.rasterize(from_heightfield, 4, 4, {"strict_bounds": true})
-    assert_true(oren_is_err(heightfield_buf) == false)
-    assert_eq(_px(heightfield_buf, 4, 2, 1, 0), 136)
-    assert_eq(_px(heightfield_buf, 4, 2, 1, 1), 68)
-    assert_eq(_px(heightfield_buf, 4, 2, 1, 2), 204)
-
-    var from_surface = scene3d.commands_from_asset({
-        "meshes": [
-            {
-                "kind": "triangles",
-                "id": 142,
-                "surfaces_xyz": [
-                    {"vertices": [[[0, 0, 0], [2, 0, 1]], [[0, 2, 2], [2, 2, 3]]]}
-                ],
-                "transform": {"translation_xyz": [1, 0, 5]},
-                "color": "#44cc88"
-            }
-        ],
-        "draw": [{"op": "draw_mesh3d", "id": 142}],
-        "destroy": true
-    })
-    assert_true(oren_is_err(from_surface) == false)
-    assert_eq(from_surface[0]["op"], "mesh3d")
-    assert_eq(bytes.len(from_surface[0]["triangles"]), 72)
-    assert_eq(_i32_at(from_surface[0]["triangles"], 0), 1)
-    assert_eq(_i32_at(from_surface[0]["triangles"], 4), 0)
-    assert_eq(_i32_at(from_surface[0]["triangles"], 8), 5)
-    assert_true(ui_cmds.validate(from_surface, 4, 4, {"strict_bounds": true}) == 0)
-    var surface_buf = ui_raster.rasterize(from_surface, 4, 4, {"strict_bounds": true})
-    assert_true(oren_is_err(surface_buf) == false)
-    assert_eq(_px(surface_buf, 4, 2, 1, 0), 68)
-    assert_eq(_px(surface_buf, 4, 2, 1, 1), 204)
-    assert_eq(_px(surface_buf, 4, 2, 1, 2), 136)
-
     var from_triangles_xy = scene3d.commands_from_asset({
         "meshes": [
             {

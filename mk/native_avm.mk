@@ -107,6 +107,7 @@ AVM_TESTS ?= \
 	tests/avm/test_ui_2d_conformance_v0.oren \
 	tests/avm/test_ui_3d_conformance_v0.oren \
 	tests/avm/test_ui_scene3d_v0.oren \
+	tests/avm/test_ui_scene3d_grid_shapes_v0.oren \
 	tests/avm/test_ui_scene3d_transforms_v0.oren \
 	tests/avm/test_ui_scene3d_solid_shapes_v0.oren \
 	tests/avm/test_ui_retained_3d_republish_v0.oren \

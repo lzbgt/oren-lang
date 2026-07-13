@@ -2801,7 +2801,10 @@ Working evidence:
   capsules. Scene3D asset transform packing assertions now live in
   `tests/avm/test_ui_scene3d_transforms_v0.oren`, reducing
   `test_ui_scene3d_v0.oren` to 1389 lines while preserving default AVM and
-  release-manifest coverage. Scene3D byte-native `.os3d` binary package loading now lives in
+  release-manifest coverage. Scene3D generated grid-shape assertions now live
+  in `tests/avm/test_ui_scene3d_grid_shapes_v0.oren`, reducing
+  `test_ui_scene3d_v0.oren` to 1333 lines while preserving default AVM and
+  release-manifest heightfield/surface raster coverage. Scene3D byte-native `.os3d` binary package loading now lives in
   `std:ui/scene3d_binary`, reducing `std:ui/scene3d` to 1538 lines while
   preserving the public `scene_from_binary`/`commands_from_binary` wrapper
   API and iOS package-store asset coverage. Metal primitive vertex/RGBA
