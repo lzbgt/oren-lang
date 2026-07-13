@@ -47,6 +47,7 @@ design evidence lives under `project-doc/`.
 - `std:buffer` u8 matrix pack helpers now write validated row-list/string-row payloads directly into fresh dense `u8_buf` storage; strided u8 view copies from byte carriers, `u8_buf`, and strings now validate the source span once, then write directly into strided `u8_buf` storage before falling back to checked per-element view stores; strided `u8_buf` exports and non-dense u8 matrix exports now gather directly into exact-size `u8_buf` output before string conversion.
 - `std:buffer` contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string, flat-list, or row-list sources now route through shared byte-span copy/direct byte-write paths before falling back to checked per-element view stores for strided or non-u8 carriers.
 - `std:math/mat4` now exposes finite/affine/perspective predicates, exact equality, and allclose tolerance predicates, basis_x/basis_y/basis_z and right/up/forward basis extractors, fixed row0/row1/row2/row3 and column0/column1/column2/column3 extractors, checked from_rows/from_columns reconstruction, from_diagonal/diagonal_matrix constructors, plus diagonal/trace inspection and transpose/determinant/inverse aliases, with typed bottom-row and trace checks so generic list elements compare/accumulate deterministically across native, C, bytecode, AVM, and OBC bundle probes.
+- Scene3D generated solid-shape AVM coverage now lives in a dedicated manifest fixture, reducing `test_ui_scene3d_v0.oren` to 1650 lines while keeping cylinders/cones/spheres/ellipsoids/toruses/capsules raster checks grouped below the source-line guard.
 - Oren LSP imported constructor-field nested container facts now have regression proof for list-of-map and map-of-list field-chain completion/definition, alias preservation, and mixed-shape invalidation across an imported struct constructor.
 - Oren LSP indexed/returned/for-in container member regressions now live in a dedicated test shard, reducing `member_symbols_test.go` to 781 lines while keeping the container-inference cases grouped below the source-line guard.
 - Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing `server_test.go` to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.
@@ -2822,7 +2823,7 @@ design evidence lives under `project-doc/`.
   reducing the top-level `Makefile` to 1883 lines and preserving source-line
   guardrail headroom as verification targets continue to grow.
 - Native all-test, full verify, AVM build, and libavm verification targets now
-  live in `mk/native_avm.mk`, reducing the top-level `Makefile` to 1732 lines
+  live in `mk/native_avm.mk`, reducing the top-level `Makefile` to 1733 lines
   while preserving the existing target names and include-time variable scope.
 - Native quick integration math/module/codec follow-on smokes now live in
   `scripts/native_quick_math_followon_smokes.sh`, reducing
@@ -2835,6 +2836,10 @@ design evidence lives under `project-doc/`.
   `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
   `test_ui_scene3d_v0.oren` to 1782 lines without changing the curated AVM
   fixture entrypoint.
+- Scene3D generated solid-shape assertions now live in
+  `tests/avm/test_ui_scene3d_solid_shapes_v0.oren`, reducing
+  `test_ui_scene3d_v0.oren` to 1650 lines while preserving manifest AVM
+  coverage for cylinders, cones, spheres, ellipsoids, toruses, and capsules.
 - Std math inverse-trig and hypotenuse helpers now live in
   `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
   preserving the `std:math` import surface through compile-time include

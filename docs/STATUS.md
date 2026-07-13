@@ -2783,14 +2783,18 @@ Working evidence:
   expansion. Example build and cross-compile smoke targets now live in
   `mk/examples.mk`, and native all-test, full verify, AVM build, and libavm
   verification targets now live in `mk/native_avm.mk`, reducing the top-level
-  `Makefile` to 1732 lines. Native quick integration math/module/codec
+  `Makefile` to 1733 lines. Native quick integration math/module/codec
   follow-on smokes now live in
   `scripts/native_quick_math_followon_smokes.sh`, reducing
   `run_native_quick_integration.sh` to 1578 lines while preserving the sourced
   retry/logging context. Scene3D invalid JSON/package validation assertions now
   live in `tests/avm/includes/test_ui_scene3d_invalid_cases.oren`, reducing
   `test_ui_scene3d_v0.oren` to 1782 lines while preserving the curated AVM
-  fixture entrypoint. Metal primitive vertex/RGBA geometry helpers now live in
+  fixture entrypoint. Scene3D generated solid-shape assertions now live in
+  `tests/avm/test_ui_scene3d_solid_shapes_v0.oren`, reducing
+  `test_ui_scene3d_v0.oren` to 1650 lines while preserving manifest AVM
+  raster coverage for cylinders, cones, spheres, ellipsoids, toruses, and
+  capsules. Metal primitive vertex/RGBA geometry helpers now live in
   `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines. Metal
   shader and render-pipeline setup now lives in `OrenAVMMetalPipeline`,
   reducing `OrenAVMMetalView.m` to 1680 lines while keeping frame parsing and
