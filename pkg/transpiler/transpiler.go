@@ -101,6 +101,7 @@ func (t *Transpiler) Transpile(program *ast.Program) (string, error) {
 
 	// Process imports in the entry file.
 	rootAliases := map[string]string{}
+	rootAnonymousImports := []*moduleInfo{}
 	kept := []ast.Statement{}
 	for _, stmt := range program.Statements {
 		imp, ok := stmt.(*ast.ImportStatement)
@@ -111,16 +112,30 @@ func (t *Transpiler) Transpile(program *ast.Program) (string, error) {
 		if imp.Name == nil {
 			return "", fmt.Errorf("import missing alias")
 		}
-		if _, exists := rootAliases[imp.Name.Value]; exists {
-			return "", fmt.Errorf("duplicate import alias %q", imp.Name.Value)
-		}
 		mod, err := t.loadModule(t.baseDir, imp.Path)
 		if err != nil {
 			return "", err
 		}
+		if importIsAnonymous(imp) {
+			rootAnonymousImports = append(rootAnonymousImports, mod)
+			continue
+		}
+		if _, exists := rootAliases[imp.Name.Value]; exists {
+			return "", fmt.Errorf("duplicate import alias %q", imp.Name.Value)
+		}
 		rootAliases[imp.Name.Value] = mod.Prefix
 	}
 	program.Statements = kept
+
+	rootRenames := collectTopLevelIdentityMap(program)
+	for _, mod := range rootAnonymousImports {
+		if err := addAnonymousImportRenames(rootRenames, mod, t.baseDir); err != nil {
+			return "", err
+		}
+	}
+	if err := renameProgramInPlace(program, rootRenames); err != nil {
+		return "", err
+	}
 
 	typeNamespaces := map[string]struct{}{}
 	for _, mod := range t.moduleOrder {

@@ -394,7 +394,7 @@ func (p *Parser) parseAttributeLiteral() (interface{}, bool) {
 
 func (p *Parser) parseImportStatement() *ast.ImportStatement {
 	stmt := &ast.ImportStatement{Token: p.curToken}
-	if !p.expectPeek(token.IDENT) {
+	if !p.expectPeekOneOf(token.IDENT, token.DOT) {
 		return nil
 	}
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -408,6 +408,17 @@ func (p *Parser) parseImportStatement() *ast.ImportStatement {
 		p.nextToken()
 	}
 	return stmt
+}
+
+func (p *Parser) expectPeekOneOf(types ...token.TokenType) bool {
+	for _, typ := range types {
+		if p.peekTokenIs(typ) {
+			p.nextToken()
+			return true
+		}
+	}
+	p.peekError(types[0])
+	return false
 }
 
 func (p *Parser) parseTypeStatement() *ast.TypeStatement {

@@ -653,9 +653,13 @@ fn parse_for(p) {
 
 fn parse_import(p) {
     var tok = p["cur"]
-    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    if peek_is(p, token.TOK_DOT) {
+        parser_next_token(p)
+    } else if !expect_peek(p, token.TOK_IDENT) {
+        return nil
+    }
     var name = ast.new_identifier(p["cur"])
-    ident_prefix_validate(p, name["value"], "import alias")
+    if name["value"] != "." { ident_prefix_validate(p, name["value"], "import alias") }
     // GC safety (rolling): pin locals across expect_peek/parse to avoid stack-scan misses.
     p["_gc_import_name"] = name
     if !expect_peek(p, token.TOK_STRING) {

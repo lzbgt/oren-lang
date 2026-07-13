@@ -17,11 +17,12 @@ type transpileCtx struct {
 }
 
 type moduleInfo struct {
-	Prefix        string
-	Path          string
-	Program       *ast.Program
-	AliasToPrefix map[string]string
-	addedToOrder  bool
+	Prefix           string
+	Path             string
+	Program          *ast.Program
+	AliasToPrefix    map[string]string
+	AnonymousImports []*moduleInfo
+	addedToOrder     bool
 }
 
 type unit struct {
@@ -152,12 +153,16 @@ func (t *Transpiler) loadModule(importerDir, importPath string) (*moduleInfo, er
 		if !keep {
 			continue
 		}
-		if _, exists := mod.AliasToPrefix[imp.Name.Value]; exists {
-			return nil, fmt.Errorf("duplicate import alias %q in %s", imp.Name.Value, absPath)
-		}
 		dep, err := t.loadModule(moduleDir, imp.Path)
 		if err != nil {
 			return nil, err
+		}
+		if importIsAnonymous(imp) {
+			mod.AnonymousImports = append(mod.AnonymousImports, dep)
+			continue
+		}
+		if _, exists := mod.AliasToPrefix[imp.Name.Value]; exists {
+			return nil, fmt.Errorf("duplicate import alias %q in %s", imp.Name.Value, absPath)
 		}
 		mod.AliasToPrefix[imp.Name.Value] = dep.Prefix
 	}
@@ -170,6 +175,11 @@ func (t *Transpiler) loadModule(importerDir, importPath string) (*moduleInfo, er
 	for alias := range mod.AliasToPrefix {
 		if _, conflicts := mapping[alias]; conflicts {
 			return nil, fmt.Errorf("import alias %q conflicts with top-level name in %s", alias, absPath)
+		}
+	}
+	for _, dep := range mod.AnonymousImports {
+		if err := addAnonymousImportRenames(mapping, dep, absPath); err != nil {
+			return nil, err
 		}
 	}
 	if err := renameProgramInPlace(prog, mapping); err != nil {
@@ -332,6 +342,69 @@ func collectTopLevelRenameMap(program *ast.Program, prefix string) (map[string]s
 		}
 	}
 	return mapping, nil
+}
+
+func collectTopLevelIdentityMap(program *ast.Program) map[string]string {
+	mapping := map[string]string{}
+	for _, stmt := range program.Statements {
+		switch s := stmt.(type) {
+		case *ast.VarStatement:
+			if s.Name != nil {
+				mapping[s.Name.Value] = s.Name.Value
+			}
+		case *ast.ExpressionStatement:
+			if fn, ok := s.Expression.(*ast.FunctionLiteral); ok && fn.Name != "" {
+				mapping[fn.Name] = fn.Name
+			}
+		case *ast.TypeStatement:
+			if s.Name != nil {
+				mapping[s.Name.Value] = s.Name.Value
+			}
+		}
+	}
+	return mapping
+}
+
+func importIsAnonymous(imp *ast.ImportStatement) bool {
+	return imp != nil && imp.Name != nil && imp.Name.Value == "."
+}
+
+func addAnonymousImportRenames(mapping map[string]string, dep *moduleInfo, ownerPath string) error {
+	for name, target := range collectModuleExportRenameMap(dep) {
+		if existing, exists := mapping[name]; exists {
+			if existing == target {
+				continue
+			}
+			return fmt.Errorf("anonymous import symbol %q conflicts in %s", name, ownerPath)
+		}
+		mapping[name] = target
+	}
+	return nil
+}
+
+func collectModuleExportRenameMap(dep *moduleInfo) map[string]string {
+	out := map[string]string{}
+	if dep == nil || dep.Program == nil {
+		return out
+	}
+	prefix := dep.Prefix + "_"
+	for _, stmt := range dep.Program.Statements {
+		switch s := stmt.(type) {
+		case *ast.VarStatement:
+			if s.Name != nil {
+				out[strings.TrimPrefix(s.Name.Value, prefix)] = s.Name.Value
+			}
+		case *ast.ExpressionStatement:
+			if fn, ok := s.Expression.(*ast.FunctionLiteral); ok && fn.Name != "" {
+				out[strings.TrimPrefix(fn.Name, prefix)] = fn.Name
+			}
+		case *ast.TypeStatement:
+			if s.Name != nil {
+				out[strings.TrimPrefix(s.Name.Value, prefix)] = s.Name.Value
+			}
+		}
+	}
+	return out
 }
 
 type renameScope map[string]struct{}

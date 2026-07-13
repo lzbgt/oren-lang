@@ -1,0 +1,8 @@
+import . "../visibility/module_pub_surface.oren"
+
+fn take_box(x: Boxed): i32 {
+    return x.inner + exposed_value
+}
+
+var b = make_boxed(5)
+print(take_box(b) + exported_add(1))

@@ -1,0 +1,8 @@
+import . "../visibility/legacy_open_module.oren"
+
+fn take_open(x: OpenBox): i32 {
+    return x.inner + open_value
+}
+
+var b = make_open_box(9)
+print(take_open(b) + open_add(1))

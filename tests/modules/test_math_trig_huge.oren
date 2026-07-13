@@ -10,7 +10,7 @@ fn assert_true(x, code, msg) {
     fail(code, msg)
 }
 
-fn assert_close(a, b, eps, code, msg) {
+fn assert_close(a: f64, b: f64, eps: f64, code, msg) {
     var d = a - b
     if d < 0.0 { d = 0.0 - d }
     if d <= eps { return 0 }

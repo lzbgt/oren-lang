@@ -145,6 +145,7 @@
         LINK_GC_ROOT["parse_buckets"] = nil
         LINK_GC_ROOT["parse_handles"] = nil
     }
+    _ml_apply_anonymous_imports_to_modules_in_place()
     return 0
 }
 
@@ -224,17 +225,21 @@ fn load_module(base, path, config) {
     while i < oren_list_len(prog["statements"]) {
         var s = prog["statements"][i]
         if s["type"] == "Import" {
-            var alias = s["name"]["value"]
-            if seen_alias[alias] != nil {
-                print("Duplicate import alias: " + alias + " in " + full)
-                oren_exit(1)
-            }
-            seen_alias[alias] = true
+            var alias = _ml_import_alias_from_stmt(s)
             var dep = load_module(dir, s["path"], config)
-            var alias_ns = mod["prefix"] + alias
-            mod["aliases"][alias_ns] = dep["prefix"]
-            // Preserve import edges in deterministic source order for graph export.
-            oren_list_push(mod["imports"], {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"]})
+            if _ml_import_stmt_is_anonymous(s) == true {
+                oren_list_push(mod["imports"], {"alias": ".", "alias_ns": nil, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"], "anonymous": true, "dep": dep})
+            } else {
+                if seen_alias[alias] != nil {
+                    print("Duplicate import alias: " + alias + " in " + full)
+                    oren_exit(1)
+                }
+                seen_alias[alias] = true
+                var alias_ns = mod["prefix"] + alias
+                mod["aliases"][alias_ns] = dep["prefix"]
+                // Preserve import edges in deterministic source order for graph export.
+                oren_list_push(mod["imports"], {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"], "anonymous": false, "dep": dep})
+            }
         }
         i = i + 1
     }
@@ -248,10 +253,12 @@ fn load_module(base, path, config) {
     while i < oren_list_len(prog["statements"]) {
         var s2 = prog["statements"][i]
         if s2["type"] == "Import" {
-            var alias2 = s2["name"]["value"]
-            if renamer.rename_lookup(pairs, alias2) != "" {
-                print("Import alias conflicts with top-level name: " + alias2 + " in " + full)
-                oren_exit(1)
+            var alias2 = _ml_import_alias_from_stmt(s2)
+            if alias2 != "." {
+                if renamer.rename_lookup(pairs, alias2) != "" {
+                    print("Import alias conflicts with top-level name: " + alias2 + " in " + full)
+                    oren_exit(1)
+                }
             }
         }
         i = i + 1
@@ -265,12 +272,17 @@ fn load_module(base, path, config) {
     while i < oren_list_len(prog["statements"]) {
         var s3 = prog["statements"][i]
         if s3["type"] == "Import" {
-            var a3 = s3["name"]["value"]
-            pairs[a3] = mod["prefix"] + a3
+            var a3 = _ml_import_alias_from_stmt(s3)
+            if a3 != "." { pairs[a3] = mod["prefix"] + a3 }
         }
         i = i + 1
     }
-    renamer.rename_program_in_place(prog, pairs)
+    var ar_load = _ml_apply_anonymous_imports_to_program_in_place(full, prog, mod["imports"], pairs)
+    if ar_load["ok"] != true {
+        print("Anonymous import errors in " + full + ":")
+        if ar_load["err"] != nil { print(ar_load["err"]) }
+        oren_exit(1)
+    }
 
     // Attribute-driven JSON serde codegen (opt-in via `@json.derive(...)`).
     // Must run *after* module renaming so generated functions are naturally prefixed
@@ -435,12 +447,16 @@ fn link_program(entry_path, root_prog, config) {
     while i < oren_list_len(root_prog["statements"]) {
         var s = root_prog["statements"][i]
         if s["type"] == "Import" {
-            var alias = s["name"]["value"]
+            var alias = _ml_import_alias_from_stmt(s)
             var mod = discover_module(base, s["path"], config)
-            var alias_ns = root_prefix + alias
-            root_aliases[alias_ns] = mod["prefix"]
-            // Preserve root import edges in source order.
-            oren_list_push(root_imports, {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
+            if _ml_import_stmt_is_anonymous(s) == true {
+                oren_list_push(root_imports, {"alias": ".", "alias_ns": nil, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"], "anonymous": true, "dep": mod})
+            } else {
+                var alias_ns = root_prefix + alias
+                root_aliases[alias_ns] = mod["prefix"]
+                // Preserve root import edges in source order.
+                oren_list_push(root_imports, {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"], "anonymous": false, "dep": mod})
+            }
         }
         i = i + 1
     }
@@ -460,17 +476,29 @@ fn link_program(entry_path, root_prog, config) {
 
     // Apply the same alias namespacing rule to the root module so its imports are
     // scoped and do not collide with nested module imports after linking.
+    var root_has_anonymous_imports = _ml_imports_have_anonymous(root_imports)
     var root_pairs = {}
+    if root_has_anonymous_imports == true { root_pairs = _ml_collect_toplevel_identity_pairs(root_prog) }
     i = 0
     while i < oren_list_len(root_prog["statements"]) {
         var s0 = root_prog["statements"][i]
         if s0["type"] == "Import" {
-            var a0 = s0["name"]["value"]
-            root_pairs[a0] = root_prefix + a0
+            var a0 = _ml_import_alias_from_stmt(s0)
+            if a0 != "." { root_pairs[a0] = root_prefix + a0 }
         }
         i = i + 1
     }
-    renamer.rename_program_in_place(root_prog, root_pairs)
+    if root_has_anonymous_imports == true {
+        var ar_root = _ml_apply_anonymous_imports_to_program_in_place(entry_path, root_prog, root_imports, root_pairs)
+        if ar_root["ok"] != true {
+            emit_diag("compile", 1, ar_root["err"])
+            print("Anonymous import errors in " + entry_path + ":")
+            if ar_root["err"] != nil { print(ar_root["err"]) }
+            oren_exit(1)
+        }
+    } else {
+        renamer.rename_program_in_place(root_prog, root_pairs)
+    }
 
     // Attribute-driven JSON serde codegen for the root module.
     // Root is not renamed, so prefix is empty.
@@ -577,7 +605,7 @@ fn link_program(entry_path, root_prog, config) {
     var ri = 0
     while ri < oren_list_len(root_imports) {
         var e = root_imports[ri]
-        if e != nil {
+        if e != nil && e["anonymous"] != true && e["alias_ns"] != nil {
             all_aliases[e["alias_ns"]] = e["prefix"]
         }
         ri = ri + 1
@@ -593,7 +621,9 @@ fn link_program(entry_path, root_prog, config) {
                 var ie = imps[ii]
                 var a2 = ie["alias_ns"]
                 var p2 = ie["prefix"]
-                if all_aliases[a2] == nil {
+                if ie["anonymous"] == true || a2 == nil {
+                    // Anonymous imports are already resolved into direct rename pairs.
+                } else if all_aliases[a2] == nil {
                     all_aliases[a2] = p2
                 } else {
                     if all_aliases[a2] != p2 {

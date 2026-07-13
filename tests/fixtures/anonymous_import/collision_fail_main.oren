@@ -1,0 +1,4 @@
+import . "../visibility/module_pub_surface.oren"
+
+var exposed_value = 99
+print(exposed_value)

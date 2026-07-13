@@ -747,6 +747,42 @@ if [[ "${OREN_QI_SKIP_VISIBILITY_SMOKE:-0}" != "1" ]]; then
   fi
   echo "ok: module visibility legacy-open smoke" >>"$vis_legacy_log"
   tail -n 4 "$vis_legacy_log" >>"$log"
+
+  echo "== anonymous import pub smoke ==" >>"$log"
+  anon_pub_src="tests/fixtures/anonymous_import/pub_ok_main.oren"
+  anon_pub_out="build/tmp/${compiler_base}_anonymous_import_pub_smoke${exe_ext}"
+  anon_pub_log="build/logs/${compiler_base}_anonymous_import_pub_smoke.log"
+  rm -f "$anon_pub_out" "$anon_pub_log" 2>/dev/null || true
+  build_step_checked "anonymous import pub smoke" "$anon_pub_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$anon_pub_src" \
+    --backend native --platform "$platform" --debug -o "$anon_pub_out"
+  run_step_checked "anonymous import pub smoke" "$anon_pub_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$anon_pub_out"
+  if [[ "$(tail -n 1 "$anon_pub_log" | tr -d '\r')" != "31" ]]; then
+    echo "ERROR: anonymous import pub smoke expected final output 31" >&2
+    tail -n 80 "$anon_pub_log" >&2 2>/dev/null || true
+    exit 1
+  fi
+  echo "ok: anonymous import pub smoke" >>"$anon_pub_log"
+  tail -n 4 "$anon_pub_log" >>"$log"
+
+  echo "== anonymous import legacy-open smoke ==" >>"$log"
+  anon_legacy_src="tests/fixtures/anonymous_import/legacy_open_ok_main.oren"
+  anon_legacy_out="build/tmp/${compiler_base}_anonymous_import_legacy_open_smoke${exe_ext}"
+  anon_legacy_log="build/logs/${compiler_base}_anonymous_import_legacy_open_smoke.log"
+  rm -f "$anon_legacy_out" "$anon_legacy_log" 2>/dev/null || true
+  build_step_checked "anonymous import legacy-open smoke" "$anon_legacy_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$anon_legacy_src" \
+    --backend native --platform "$platform" --debug -o "$anon_legacy_out"
+  run_step_checked "anonymous import legacy-open smoke" "$anon_legacy_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$anon_legacy_out"
+  if [[ "$(tail -n 1 "$anon_legacy_log" | tr -d '\r')" != "18" ]]; then
+    echo "ERROR: anonymous import legacy-open smoke expected final output 18" >&2
+    tail -n 80 "$anon_legacy_log" >&2 2>/dev/null || true
+    exit 1
+  fi
+  echo "ok: anonymous import legacy-open smoke" >>"$anon_legacy_log"
+  tail -n 4 "$anon_legacy_log" >>"$log"
 fi
 
 echo "== ulock timeout portable smoke ==" >>"$log"
@@ -1350,6 +1386,21 @@ if ! grep -q "private imported type 'vis.Hidden' is not exported" "$vt_log" 2>/d
   exit 1
 fi
 tail -n 5 "$vt_log"
+
+echo "== anonymous import smoke (collision) =="
+ai_src="tests/fixtures/anonymous_import/collision_fail_main.oren"
+ai_log="build/logs/${compiler_base}_anonymous_import_collision_fail.log"
+ai_out="build/tmp/${compiler_base}_anonymous_import_collision_fail.obc"
+rm -f "$ai_log" "$ai_out" 2>/dev/null || true
+
+expect_compile_failure_step "anonymous import smoke (collision)" "$ai_log" \
+  "$compiler" build "$ai_src" --backend bytecode --typecheck -o "$ai_out"
+if ! grep -q "anonymous import symbol conflicts: exposed_value" "$ai_log" 2>/dev/null; then
+  echo "FAIL: anonymous import smoke (collision) missing expected diagnostic" >&2
+  tail -n 80 "$ai_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 5 "$ai_log"
 
 echo "== parser smoke (nested pub declaration) =="
 vp_src="tests/fixtures/visibility/nested_pub_fail_main.oren"

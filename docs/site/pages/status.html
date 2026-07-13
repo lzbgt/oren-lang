@@ -37,7 +37,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-06-04</p>
+<p><strong>Last updated:</strong> 2026-07-13</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -54,6 +54,16 @@
 <p>  stdout-capture helpers, plus a full compiler-in-AVM smoke gate, but still needs</p>
 <p>  app-host lifecycle coverage before it should be called a complete production</p>
 <p>  app package.</p>
+<h2 id="recent-evidence">Recent Evidence</h2>
+<ul>
+<li>Anonymous imports now support <code>import . &quot;path&quot;</code> in both bootstrap and</li>
+</ul>
+<p>  self-hosted parser/linker paths. Dot imports are dependency edges without</p>
+<p>  alias-table entries, import top-level names unqualified using the same</p>
+<p>  legacy-open/pub visibility policy as qualified imports, and fail on local or</p>
+<p>  duplicate anonymous-import collisions. Focused proof lives in</p>
+<p>  <code>tests/fixtures/anonymous_import/*</code> and</p>
+<p>  <code>build/logs/anonymous_import_focused.log</code>.</p>
 <h2 id="backend-readiness">Backend Readiness</h2>
 <table>
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
@@ -4681,6 +4691,7 @@ make docs-site</code></pre>
       <h2>On This Page</h2>
       <a class="toc-l1" href="#oren-status">Oren Status</a>
 <a class="toc-l2" href="#overall-verdict">Overall Verdict</a>
+<a class="toc-l2" href="#recent-evidence">Recent Evidence</a>
 <a class="toc-l2" href="#backend-readiness">Backend Readiness</a>
 <a class="toc-l2" href="#avm-sdk-readiness">AVM SDK Readiness</a>
 <a class="toc-l2" href="#compiler-in-avm">Compiler-in-AVM</a>

@@ -855,7 +855,7 @@ fn _ml_parse_include_bucket(bucket, out_dir) {
 }
 
 fn _ml_scan_imports_in_src(full_path, src, config) {
-    // Return {"ok":bool, "imports":[{"alias":..., "path":...}, ...], "err":string}
+    // Return {"ok":bool, "imports":[{"alias":..., "path":..., "anonymous":bool}, ...], "err":string}
     //
     // PERFORMANCE CRITICAL (stage2 self-hosting gate):
     // This is used only for dependency discovery. The old implementation used the full lexer,
@@ -863,6 +863,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
     //
     // We instead do a single-pass *string scan* for the grammar:
     //   import <ident> "<path>"
+    //   import . "<path>"
     //
     // and ignore everything else. This is sufficient because we only need import edges.
     if src == nil { return {"ok": true, "imports": []} }
@@ -887,7 +888,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
                 if s != nil && s["type"] == "Import" {
                     var alias = s["name"]["value"]
                     var path = s["path"]
-                    oren_list_push(imports, {"alias": alias, "path": path})
+                    oren_list_push(imports, {"alias": alias, "path": path, "anonymous": alias == "."})
                 }
                 pi = pi + 1
             }
@@ -967,19 +968,26 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
                     if _ml_scan_char_at(src, i, safe) == "\n" { break }
                     i = i + 1
                 }
-                // Parse alias ident
+                // Parse alias ident or anonymous dot import marker.
                 if i >= n { break }
                 var a0 = i
                 var c0 = _ml_scan_char_at(src, i, safe)
-                if !_ml_scan_is_ident_start(c0) {
-                    if trace { print("[import_scan] error invalid ident at i=" + oren_int_to_string(i)) }
-                    return {"ok": false, "err": "scan_imports: invalid import (expected identifier after import) in " + full_path}
-                }
-                i = i + 1
-                while i < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, i, safe)) {
+                var alias = nil
+                var is_anon = false
+                if c0 == "." {
+                    alias = "."
+                    is_anon = true
                     i = i + 1
+                } else if !_ml_scan_is_ident_start(c0) {
+                    if trace { print("[import_scan] error invalid ident at i=" + oren_int_to_string(i)) }
+                    return {"ok": false, "err": "scan_imports: invalid import (expected identifier or '.' after import) in " + full_path}
+                } else {
+                    i = i + 1
+                    while i < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, i, safe)) {
+                        i = i + 1
+                    }
+                    alias = oren_string_slice(src, a0, i)
                 }
-                var alias = oren_string_slice(src, a0, i)
                 // Skip ws
                 while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) {
                     if _ml_scan_char_at(src, i, safe) == "\n" { break }
@@ -1012,7 +1020,7 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
                 var path = oren_string_slice(src, p0, i)
                 i = i + 1
                 if kr["keep"] == true {
-                    oren_list_push(imports, {"alias": alias, "path": path})
+                    oren_list_push(imports, {"alias": alias, "path": path, "anonymous": is_anon})
                     if trace { print("[import_scan] import alias=" + alias + " path=" + path) }
                 } else {
                     if trace { print("[import_scan] skip import alias=" + alias + " path=" + path) }

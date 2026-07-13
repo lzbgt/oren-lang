@@ -1,6 +1,6 @@
 # Oren Status
 
-**Last updated:** 2026-06-04
+**Last updated:** 2026-07-13
 
 This is the current implementation status. It replaces the former rolling log with a
 small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.
@@ -19,6 +19,16 @@ surfaces, but the following blockers remain:
   stdout-capture helpers, plus a full compiler-in-AVM smoke gate, but still needs
   app-host lifecycle coverage before it should be called a complete production
   app package.
+
+## Recent Evidence
+
+- Anonymous imports now support `import . "path"` in both bootstrap and
+  self-hosted parser/linker paths. Dot imports are dependency edges without
+  alias-table entries, import top-level names unqualified using the same
+  legacy-open/pub visibility policy as qualified imports, and fail on local or
+  duplicate anonymous-import collisions. Focused proof lives in
+  `tests/fixtures/anonymous_import/*` and
+  `build/logs/anonymous_import_focused.log`.
 
 ## Backend Readiness
 

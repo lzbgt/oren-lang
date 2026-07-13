@@ -12,6 +12,179 @@
     return {"ok": true, "imports": out}
 }
 
+fn _ml_import_alias_from_stmt(stmt) {
+    if stmt == nil || stmt["name"] == nil { return "" }
+    var alias = stmt["name"]["value"]
+    if alias == nil { return "" }
+    return alias
+}
+
+fn _ml_import_entry_is_anonymous(entry) {
+    if entry == nil { return false }
+    if entry["anonymous"] == true { return true }
+    return entry["alias"] == "."
+}
+
+fn _ml_import_stmt_is_anonymous(stmt) {
+    return _ml_import_alias_from_stmt(stmt) == "."
+}
+
+fn _ml_str_starts_with(s, pref) {
+    if s == nil || pref == nil { return false }
+    var plen = oren_string_len(pref)
+    if oren_string_len(s) < plen { return false }
+    return oren_string_slice(s, 0, plen) == pref
+}
+
+fn _ml_strip_module_prefix(name, prefix) {
+    if name == nil { return nil }
+    if prefix == nil || prefix == "" { return name }
+    if _ml_str_starts_with(name, prefix) {
+        return oren_string_slice(name, oren_string_len(prefix), oren_string_len(name))
+    }
+    return name
+}
+
+fn _ml_stmt_symbol_name(stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" || t == "Type" || t == "FFI" {
+        if stmt["name"] != nil { return stmt["name"]["value"] }
+        return nil
+    }
+    if t == "Function" { return stmt["name"] }
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" { return expr["name"] }
+    }
+    return nil
+}
+
+fn _ml_stmt_is_pub(stmt) {
+    if stmt == nil { return false }
+    if stmt["is_pub"] == true { return true }
+    if stmt["type"] == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" && expr["is_pub"] == true { return true }
+    }
+    return false
+}
+
+fn _ml_collect_toplevel_identity_pairs(prog) {
+    var pairs = {}
+    if prog == nil || prog["statements"] == nil { return pairs }
+    var stmts = prog["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var name = _ml_stmt_symbol_name(stmts[i])
+        if name != nil && name != "" { pairs[name] = name }
+        i = i + 1
+    }
+    return pairs
+}
+
+fn _ml_collect_module_public_renames(dep) {
+    var out = {}
+    if dep == nil || dep["program"] == nil || dep["program"]["statements"] == nil { return out }
+    var prefix = dep["prefix"]
+    var stmts = dep["program"]["statements"]
+    var has_pub = false
+    var i = 0
+    while i < oren_list_len(stmts) {
+        if _ml_stmt_symbol_name(stmts[i]) != nil && _ml_stmt_is_pub(stmts[i]) == true { has_pub = true }
+        i = i + 1
+    }
+    i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var name = _ml_stmt_symbol_name(st)
+        if name != nil && name != "" && (has_pub != true || _ml_stmt_is_pub(st) == true) {
+            var public_name = _ml_strip_module_prefix(name, prefix)
+            out[public_name] = name
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _ml_collect_module_current_toplevel_pairs(mod) {
+    var pairs = {}
+    if mod == nil || mod["program"] == nil || mod["program"]["statements"] == nil { return pairs }
+    var prefix = mod["prefix"]
+    var stmts = mod["program"]["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var name = _ml_stmt_symbol_name(stmts[i])
+        if name != nil && name != "" {
+            pairs[_ml_strip_module_prefix(name, prefix)] = name
+        }
+        i = i + 1
+    }
+    return pairs
+}
+
+fn _ml_add_anonymous_import_pairs(pairs, dep, owner_full) {
+    if pairs == nil { pairs = {} }
+    var exports = _ml_collect_module_public_renames(dep)
+    for name in exports {
+        var target = exports[name]
+        if pairs[name] != nil && pairs[name] != target {
+            return {"ok": false, "err": "anonymous import symbol conflicts: " + name + " in " + owner_full}
+        }
+        pairs[name] = target
+    }
+    return {"ok": true, "pairs": pairs}
+}
+
+fn _ml_apply_anonymous_imports_to_program_in_place(owner_full, prog, imports, pairs) {
+    if prog == nil { return {"ok": true} }
+    if pairs == nil { pairs = renamer.collect_toplevel_rename_pairs(prog, "") }
+    if imports == nil { imports = [] }
+    var i = 0
+    while i < oren_list_len(imports) {
+        var imp = imports[i]
+        if imp != nil && imp["anonymous"] == true {
+            var dep = imp["dep"]
+            if dep != nil {
+                var ar = _ml_add_anonymous_import_pairs(pairs, dep, owner_full)
+                if ar["ok"] != true { return ar }
+            }
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(prog, pairs)
+    return {"ok": true}
+}
+
+fn _ml_imports_have_anonymous(imports) {
+    if imports == nil { return false }
+    var i = 0
+    while i < oren_list_len(imports) {
+        var imp = imports[i]
+        if imp != nil && imp["anonymous"] == true { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _ml_apply_anonymous_imports_to_modules_in_place() {
+    var i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m = MODULE_ORDER[i]
+        if m != nil && m["program"] != nil && _ml_imports_have_anonymous(m["imports"]) == true {
+            var pairs = _ml_collect_module_current_toplevel_pairs(m)
+            var ar = _ml_apply_anonymous_imports_to_program_in_place(m["path"], m["program"], m["imports"], pairs)
+            if ar["ok"] != true {
+                print("Anonymous import errors in " + m["path"] + ":")
+                if ar["err"] != nil { print(ar["err"]) }
+                oren_exit(1)
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
 fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     // Apply the same per-module passes as `load_module`, but for already-parsed `prog`:
     // - collect toplevel renames + namespace import aliases
@@ -42,11 +215,13 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     while i < oren_list_len(prog["statements"]) {
         var s = prog["statements"][i]
         if s["type"] == "Import" {
-            var alias = s["name"]["value"]
-            if renamer.rename_lookup(pairs, alias) != "" {
-                return {"ok": false, "err": "import alias conflicts with top-level name: " + alias + " in " + full}
+            var alias = _ml_import_alias_from_stmt(s)
+            if alias != "." {
+                if renamer.rename_lookup(pairs, alias) != "" {
+                    return {"ok": false, "err": "import alias conflicts with top-level name: " + alias + " in " + full}
+                }
+                pairs[alias] = prefix + alias
             }
-            pairs[alias] = prefix + alias
         }
         i = i + 1
     }
@@ -740,15 +915,19 @@ fn discover_module(base, path, config) {
         var e = imports[i]
         var alias = e["alias"]
         if alias == nil { alias = "" }
-        if seen_alias[alias] != nil {
-            print("Duplicate import alias: " + alias + " in " + full)
-            oren_exit(1)
-        }
-        seen_alias[alias] = true
         var dep = discover_module(dir, e["path"], config)
-        var alias_ns = mod2["prefix"] + alias
-        mod2["aliases"][alias_ns] = dep["prefix"]
-        oren_list_push(mod2["imports"], {"alias": alias, "alias_ns": alias_ns, "path": e["path"], "prefix": dep["prefix"], "full": dep["path"]})
+        if _ml_import_entry_is_anonymous(e) == true {
+            oren_list_push(mod2["imports"], {"alias": ".", "alias_ns": nil, "path": e["path"], "prefix": dep["prefix"], "full": dep["path"], "anonymous": true, "dep": dep})
+        } else {
+            if seen_alias[alias] != nil {
+                print("Duplicate import alias: " + alias + " in " + full)
+                oren_exit(1)
+            }
+            seen_alias[alias] = true
+            var alias_ns = mod2["prefix"] + alias
+            mod2["aliases"][alias_ns] = dep["prefix"]
+            oren_list_push(mod2["imports"], {"alias": alias, "alias_ns": alias_ns, "path": e["path"], "prefix": dep["prefix"], "full": dep["path"], "anonymous": false, "dep": dep})
+        }
         i = i + 1
     }
     var deps_ms = 0
