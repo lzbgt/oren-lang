@@ -48,6 +48,7 @@ design evidence lives under `project-doc/`.
 - `std:buffer` contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string, flat-list, or row-list sources now route through shared byte-span copy/direct byte-write paths before falling back to checked per-element view stores for strided or non-u8 carriers.
 - `std:math/mat4` now exposes finite/affine/perspective predicates, exact equality, and allclose tolerance predicates, basis_x/basis_y/basis_z and right/up/forward basis extractors, fixed row0/row1/row2/row3 and column0/column1/column2/column3 extractors, checked from_rows/from_columns reconstruction, from_diagonal/diagonal_matrix constructors, plus diagonal/trace inspection and transpose/determinant/inverse aliases, with typed bottom-row and trace checks so generic list elements compare/accumulate deterministically across native, C, bytecode, AVM, and OBC bundle probes.
 - Scene3D generated solid-shape AVM coverage now lives in a dedicated manifest fixture, reducing `test_ui_scene3d_v0.oren` to 1650 lines while keeping cylinders/cones/spheres/ellipsoids/toruses/capsules raster checks grouped below the source-line guard.
+- Scene3D byte-native `.os3d` binary package loading now lives in `std:ui/scene3d_binary`, reducing `std:ui/scene3d` to 1538 lines while preserving the public `scene_from_binary`/`commands_from_binary` wrapper surface and OBC/iOS package asset behavior.
 - Oren LSP imported constructor-field nested container facts now have regression proof for list-of-map and map-of-list field-chain completion/definition, alias preservation, and mixed-shape invalidation across an imported struct constructor.
 - Oren LSP indexed/returned/for-in container member regressions now live in a dedicated test shard, reducing `member_symbols_test.go` to 781 lines while keeping the container-inference cases grouped below the source-line guard.
 - Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing `server_test.go` to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.
@@ -2840,6 +2841,9 @@ design evidence lives under `project-doc/`.
   `tests/avm/test_ui_scene3d_solid_shapes_v0.oren`, reducing
   `test_ui_scene3d_v0.oren` to 1650 lines while preserving manifest AVM
   coverage for cylinders, cones, spheres, ellipsoids, toruses, and capsules.
+- Scene3D byte-native `.os3d` binary package loading now lives in
+  `std:ui/scene3d_binary`, reducing `std:ui/scene3d` to 1538 lines while
+  preserving the public wrapper API and iOS package-store asset coverage.
 - Std math inverse-trig and hypotenuse helpers now live in
   `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
   preserving the `std:math` import surface through compile-time include

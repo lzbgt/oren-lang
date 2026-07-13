@@ -17,6 +17,7 @@ import shapes "std:ui/scene3d_shapes"
 import shape_arch "std:ui/scene3d_shapes_arch"
 import shape_flats "std:ui/scene3d_shapes_flat"
 import shape_grids "std:ui/scene3d_shapes_grid"
+import scene_binary "std:ui/scene3d_binary"
 import ui_color "std:ui/color"
 
 fn _is_int(v) {
@@ -1373,134 +1374,8 @@ fn _asset_color(m, ctx) {
     return _color_hex(c["r"] * 16777216 + c["g"] * 65536 + c["b"] * 256 + c["a"])
 }
 
-fn _bin_view(data) {
-    return bytes.view(data, "ui.scene3d binary")
-}
-
-fn _bin_data(v) { return bytes.view_bytes(v) }
-fn _bin_len(v) { return bytes.view_len(v) }
-
-fn _bin_u32(v, off) {
-    var out = bytes.view_get_u32_le(v, off)
-    if oren_is_err(out) { return out }
-    return [out, off + 4]
-}
-
-fn _bin_i32(v, off) {
-    var out = bytes.view_get_i32_le(v, off)
-    if oren_is_err(out) { return out }
-    return [out, off + 4]
-}
-
-fn _bin_slice(v, off, n) {
-    if n < 0 { return oren_err(4, "ui.scene3d binary: negative slice") }
-    return bytes.slice(_bin_data(v), off, n)
-}
-
-fn _bin_byte(v, off) {
-    return bytes.view_get_u8_unchecked(v, off)
-}
-
-fn _bin_magic_ok(v) {
-    var n = _bin_len(v)
-    if oren_is_err(n) || n < 28 { return false }
-    return _bin_byte(v, 0) == 79 &&
-        _bin_byte(v, 1) == 83 &&
-        _bin_byte(v, 2) == 51 &&
-        _bin_byte(v, 3) == 68 &&
-        _bin_byte(v, 4) == 48 &&
-        _bin_byte(v, 5) == 49 &&
-        _bin_byte(v, 6) == 0 &&
-        _bin_byte(v, 7) == 0
-}
-
 fn scene_from_binary(data) {
-    var bv = _bin_view(data)
-    if oren_is_err(bv) { return bv }
-    if _bin_magic_ok(bv) == false { return oren_err(4, "ui.scene3d.scene_from_binary: bad magic") }
-    var n = _bin_len(bv)
-    if oren_is_err(n) { return n }
-    var off = 8
-    var r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var mesh_count = r[0]; off = r[1]
-    r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var material_count = r[0]; off = r[1]
-    r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var model_count = r[0]; off = r[1]
-    r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var draw_count = r[0]; off = r[1]
-    r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var flags = r[0]; off = r[1]
-    var camera = nil
-    if (flags / 2) % 2 == 1 {
-        r = _bin_i32(bv, off); if oren_is_err(r) { return r }; var near_z = r[0]; off = r[1]
-        r = _bin_i32(bv, off); if oren_is_err(r) { return r }; var far_z = r[0]; off = r[1]
-        camera = {"near_z": near_z, "far_z": far_z}
-    }
-
-    var meshes = []
-    var mi = 0
-    while mi < mesh_count {
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var mesh_id = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var kind = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var color = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var data_len = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var index_len = r[0]; off = r[1]
-        var payload = _bin_slice(bv, off, data_len)
-        if oren_is_err(payload) { return payload }
-        off = off + data_len
-        if kind == 1 {
-            var indices = _bin_slice(bv, off, index_len)
-            if oren_is_err(indices) { return indices }
-            off = off + index_len
-            list.push(meshes, mesh_indexed(mesh_id, payload, indices, _color_hex(color)))
-        } else if kind == 2 {
-            if index_len != 0 { return oren_err(4, "ui.scene3d binary: triangles index_len must be 0") }
-            list.push(meshes, mesh(mesh_id, payload, _color_hex(color)))
-        } else if kind == 3 {
-            if index_len != 0 { return oren_err(4, "ui.scene3d binary: rgba index_len must be 0") }
-            list.push(meshes, mesh_rgba(mesh_id, payload))
-        } else {
-            return oren_err(4, "ui.scene3d binary: unsupported mesh kind")
-        }
-        mi = mi + 1
-    }
-
-    var materials = []
-    var mati = 0
-    while mati < material_count {
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var mat_id = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var mat_color = r[0]; off = r[1]
-        list.push(materials, material(mat_id, _color_hex(mat_color)))
-        mati = mati + 1
-    }
-
-    var models = []
-    var modi = 0
-    while modi < model_count {
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var model_id = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var model_mesh = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var model_mat = r[0]; off = r[1]
-        r = _bin_i32(bv, off); if oren_is_err(r) { return r }; var x = r[0]; off = r[1]
-        r = _bin_i32(bv, off); if oren_is_err(r) { return r }; var y = r[0]; off = r[1]
-        r = _bin_i32(bv, off); if oren_is_err(r) { return r }; var z = r[0]; off = r[1]
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }; var scale = r[0]; off = r[1]
-        list.push(models, model(model_id, model_mesh, model_mat, x, y, z, scale))
-        modi = modi + 1
-    }
-
-    var draws = []
-    var di = 0
-    while di < draw_count {
-        r = _bin_u32(bv, off); if oren_is_err(r) { return r }
-        list.push(draws, r[0])
-        off = r[1]
-        di = di + 1
-    }
-    if off != n { return oren_err(4, "ui.scene3d binary: trailing bytes") }
-    return {
-        "meshes": meshes,
-        "materials": materials,
-        "models": models,
-        "camera": camera,
-        "draw": draws,
-        "destroy": (flags % 2) == 1
-    }
+    return scene_binary.scene_from_binary(data)
 }
 
 fn scene_from_asset_at(asset, time_milli) {

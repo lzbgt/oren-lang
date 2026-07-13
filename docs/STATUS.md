@@ -2794,7 +2794,11 @@ Working evidence:
   `tests/avm/test_ui_scene3d_solid_shapes_v0.oren`, reducing
   `test_ui_scene3d_v0.oren` to 1650 lines while preserving manifest AVM
   raster coverage for cylinders, cones, spheres, ellipsoids, toruses, and
-  capsules. Metal primitive vertex/RGBA geometry helpers now live in
+  capsules. Scene3D byte-native `.os3d` binary package loading now lives in
+  `std:ui/scene3d_binary`, reducing `std:ui/scene3d` to 1538 lines while
+  preserving the public `scene_from_binary`/`commands_from_binary` wrapper
+  API and iOS package-store asset coverage. Metal primitive vertex/RGBA
+  geometry helpers now live in
   `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1585 lines. Metal
   shader and render-pipeline setup now lives in `OrenAVMMetalPipeline`,
   reducing `OrenAVMMetalView.m` to 1680 lines while keeping frame parsing and
