@@ -3063,7 +3063,7 @@ Working evidence:
 	  and imported constructor-field nested container field-chain inference, returned/imported nested container
 	  selection field-chain coverage, and indexed map value field-chain inference,
   recursive nested constructor-bound call-site parameter and parameter-return field-chain inference including imported identity-return call sites,
-  source-brace scoped local/list-for-in receiver completions inside function blocks with member-completion regressions and indexed/returned/for-in container member regressions split below the source-line guard,
+  source-brace scoped local/list-for-in receiver completions inside function blocks with member-completion regressions, indexed/returned/for-in container member regressions, and imported workspace/field-navigation server regressions split below the source-line guard,
   consistent direct call-site parameter inference with conflict
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
