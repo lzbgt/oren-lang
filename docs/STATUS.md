@@ -2409,7 +2409,7 @@ mirror. AVM byte/string slice conversion now shares checked bytes/list/
 conversion, `bytes_to_hex`, `oren_string_from_bytes_slice`,
 `oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`; the native
 and legacy C runtimes now route the same
-full-buffer string, slice, pack, and unpack family through shared byte-span
+full-buffer string, `to_hex`, slice, pack, and unpack family through shared byte-span
 helpers, keeping byte carriers on the optimized path without duplicated
 boxed-list copy loops. Native, legacy C runtime, and AVM `oren_sha256_range`
 now hash boxed-list/list-int inputs through bounded 64 KiB stack chunks or

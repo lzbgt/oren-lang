@@ -313,6 +313,8 @@ fi
 
 c_runtime_copy_helper="$(sed -n '/static int runtime_bytes_copy_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
 c_runtime_copy_list_helper="$(sed -n '/static int runtime_bytes_copy_span_to_list(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+c_runtime_hex_helper="$(sed -n '/static int runtime_bytes_write_hex(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+c_runtime_to_hex_impl="$(sed -n '/OrenValue oren_bytes_to_hex/,/OrenValue oren_bytes_pack/p' lib/runtime/045_bytes_helpers.inc)"
 c_runtime_unpack_impl="$(sed -n '/OrenValue oren_bytes_unpack/,/OrenValue oren_bytes_get_u16_be/p' lib/runtime/040_lists_maps.inc)"
 c_runtime_pack_impl="$(sed -n '/OrenValue oren_bytes_pack/,/^}/p' lib/runtime/045_bytes_helpers.inc)"
 c_runtime_string_impl="$(sed -n '/OrenValue oren_string_from_bytes(OrenValue bytes)/,/OrenValue oren_string_from_bytes_slice/p' lib/runtime/050_io_misc.inc)"
@@ -326,6 +328,15 @@ fi
 if ! grep -Fq 'dst->items[i] = oren_int((int64_t)b->data[start + i])' <<<"$c_runtime_copy_list_helper" ||
   ! grep -Fq 'dst->items[i] = oren_int(it.as.int_val)' <<<"$c_runtime_copy_list_helper"; then
   echo "ERROR: C runtime bytes_unpack must share one checked list/u8_buf to list copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'runtime_bytes_write_hex(bytes, out' <<<"$c_runtime_to_hex_impl" ||
+  ! grep -Fq 'dst[i * 2u + 0u] = runtime_bytes_hex_char' <<<"$c_runtime_hex_helper" ||
+  ! grep -Fq 'OrenValue it = list->items[i]' <<<"$c_runtime_hex_helper" ||
+  grep -Fq 'bytes_hex_char' <<<"$c_runtime_to_hex_impl" ||
+  grep -Fq 'b->data[i]' <<<"$c_runtime_to_hex_impl" ||
+  grep -Fq 'list->items[i]' <<<"$c_runtime_to_hex_impl"; then
+  echo "ERROR: C runtime bytes_to_hex must route list/u8_buf carriers through the shared checked hex helper" >&2
   exit 1
 fi
 if ! grep -Fq 'runtime_bytes_copy_span_to_list(bytes, 0u, count_size, list' <<<"$c_runtime_unpack_impl" ||

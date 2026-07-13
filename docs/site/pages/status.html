@@ -2507,7 +2507,7 @@
 <p>conversion, <code>bytes_to_hex</code>, <code>oren_string_from_bytes_slice</code>,</p>
 <p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; the native</p>
 <p>and legacy C runtimes now route the same</p>
-<p>full-buffer string, slice, pack, and unpack family through shared byte-span</p>
+<p>full-buffer string, <code>to_hex</code>, slice, pack, and unpack family through shared byte-span</p>
 <p>helpers, keeping byte carriers on the optimized path without duplicated</p>
 <p>boxed-list copy loops. Native, legacy C runtime, and AVM <code>oren_sha256_range</code></p>
 <p>now hash boxed-list/list-int inputs through bounded 64 KiB stack chunks or</p>
