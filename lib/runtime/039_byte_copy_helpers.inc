@@ -103,6 +103,65 @@ static int runtime_bytes_write_span(OrenValue bytes, size_t start, const uint8_t
     return 1;
 }
 
+static int runtime_bytes_validate_span(OrenValue bytes, size_t start, size_t n, const char** err_msg) {
+    if (err_msg) *err_msg = NULL;
+    size_t total = 0;
+    if (!runtime_bytes_len_checked(bytes, &total, err_msg)) return 0;
+    if (!runtime_bytes_range_ok_size(total, start, n)) {
+        if (err_msg) *err_msg = "out of bounds";
+        return 0;
+    }
+    if (n == 0u) return 1;
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b->data) {
+            if (err_msg) *err_msg = "u8_buf payload is nil";
+            return 0;
+        }
+        return 1;
+    }
+    OrenList* list = bytes.as.list_val;
+    if (!list->items) {
+        if (err_msg) *err_msg = "list buffer is nil";
+        return 0;
+    }
+    for (size_t i = 0; i < n; i++) {
+        OrenValue it = list->items[start + i];
+        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
+            if (err_msg) *err_msg = "expected list<int 0..255>";
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int runtime_bytes_fwrite_span(FILE* f, OrenValue bytes, size_t start, size_t n, const char** err_msg) {
+    if (err_msg) *err_msg = NULL;
+    if (!f) {
+        if (err_msg) *err_msg = "file is nil";
+        return 0;
+    }
+    if (n == 0u) return 1;
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || b->elem_size != 1u || !runtime_bytes_range_ok_size((size_t)b->len, start, n) || !b->data) {
+            if (err_msg) *err_msg = "expected u8_buf";
+            return 0;
+        }
+        return fwrite(b->data + start, 1, n, f) == n;
+    }
+    uint8_t chunk[64 * 1024];
+    size_t off = 0;
+    while (off < n) {
+        size_t want = n - off;
+        if (want > sizeof(chunk)) want = sizeof(chunk);
+        if (!runtime_bytes_copy_span(bytes, start + off, want, chunk, err_msg)) return 0;
+        if (fwrite(chunk, 1, want, f) != want) return 0;
+        off += want;
+    }
+    return 1;
+}
+
 static int runtime_bytes_write_hex(OrenValue bytes, char* dst, const char** err_msg) {
     if (err_msg) *err_msg = NULL;
     if (!dst) {

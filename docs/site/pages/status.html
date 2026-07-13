@@ -2495,9 +2495,9 @@
 <p><code>oren_read_bytes</code> still returns a boxed compatibility byte list, but now fills</p>
 <p>that list from bounded 64 KiB read chunks instead of allocating a second</p>
 <p>full-file temporary byte buffer before list materialization. Legacy C runtime</p>
-<p><code>oren_write_bytes</code> now keeps list-input compatibility but validates the full</p>
-<p>list before opening/truncating the destination and writing bounded 64 KiB stack</p>
-<p>chunks, avoiding the former full-size temporary byte mirror while preserving</p>
+<p><code>oren_write_bytes</code> now keeps list-input compatibility but validates through</p>
+<p>shared byte-span carrier helpers before opening/truncating the destination, then</p>
+<p>streams bounded 64 KiB chunks through the same helper path while preserving</p>
 <p>invalid-input no-clobber behavior. Legacy native <code>oren_write_bytes</code> mirrors</p>
 <p>that contract for self-hosted tests by validating list bytes and allocating only</p>
 <p>a bounded scratch chunk before opening/truncating the destination, then</p>

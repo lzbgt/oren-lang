@@ -2397,9 +2397,9 @@ string conversion. Legacy C runtime
 `oren_read_bytes` still returns a boxed compatibility byte list, but now fills
 that list from bounded 64 KiB read chunks instead of allocating a second
 full-file temporary byte buffer before list materialization. Legacy C runtime
-`oren_write_bytes` now keeps list-input compatibility but validates the full
-list before opening/truncating the destination and writing bounded 64 KiB stack
-chunks, avoiding the former full-size temporary byte mirror while preserving
+`oren_write_bytes` now keeps list-input compatibility but validates through
+shared byte-span carrier helpers before opening/truncating the destination, then
+streams bounded 64 KiB chunks through the same helper path while preserving
 invalid-input no-clobber behavior. Legacy native `oren_write_bytes` mirrors
 that contract for self-hosted tests by validating list bytes and allocating only
 a bounded scratch chunk before opening/truncating the destination, then

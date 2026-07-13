@@ -147,14 +147,21 @@ if ! grep -Fq 'unsigned char chunk[64 * 1024]' <<<"$c_runtime_read_bytes_impl" |
 fi
 
 c_runtime_write_bytes_impl="$(sed -n '/OrenValue oren_write_bytes(OrenValue path, OrenValue bytes)/,/OrenValue oren_rename/p' lib/runtime/050_io_misc.inc)"
-if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$c_runtime_write_bytes_impl" ||
-  ! grep -Fq 'chunk[i] = (uint8_t)(bytes.as.list_val->items[off + (int)i].as.int_val & 255)' <<<"$c_runtime_write_bytes_impl" ||
-  ! grep -Fq 'size_t nw = fwrite(chunk, 1, want, f)' <<<"$c_runtime_write_bytes_impl" ||
+c_runtime_fwrite_helper="$(sed -n '/static int runtime_bytes_fwrite_span(FILE\* f/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+c_runtime_validate_helper="$(sed -n '/static int runtime_bytes_validate_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+if ! grep -Fq 'runtime_bytes_validate_span(bytes, 0u, nbytes' <<<"$c_runtime_write_bytes_impl" ||
+  ! grep -Fq 'runtime_bytes_fwrite_span(f, bytes, 0u, nbytes' <<<"$c_runtime_write_bytes_impl" ||
+  ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$c_runtime_fwrite_helper" ||
+  ! grep -Fq 'runtime_bytes_copy_span(bytes, start + off, want, chunk' <<<"$c_runtime_fwrite_helper" ||
+  ! grep -Fq 'fwrite(b->data + start, 1, n, f)' <<<"$c_runtime_fwrite_helper" ||
+  ! grep -Fq 'OrenValue it = list->items[start + i]' <<<"$c_runtime_validate_helper" ||
   ! grep -Fq 'FILE *f = fopen(path.as.string_val, "wb");' <<<"$c_runtime_write_bytes_impl" ||
   grep -Fq 'uint8_t* tmp = (uint8_t*)malloc((size_t)nbytes)' <<<"$c_runtime_write_bytes_impl" ||
   grep -Fq 'tmp[i] = (uint8_t)b' <<<"$c_runtime_write_bytes_impl" ||
-  grep -Fq 'fwrite(tmp, 1, (size_t)nbytes, f)' <<<"$c_runtime_write_bytes_impl"; then
-  echo "ERROR: legacy C runtime write_bytes must validate list input then write bounded stack chunks, not allocate a full-file temp buffer" >&2
+  grep -Fq 'fwrite(tmp, 1, (size_t)nbytes, f)' <<<"$c_runtime_write_bytes_impl" ||
+  grep -Fq 'bytes.as.list_val->items' <<<"$c_runtime_write_bytes_impl" ||
+  grep -Fq 'bytes.as.buf_val' <<<"$c_runtime_write_bytes_impl"; then
+  echo "ERROR: legacy C runtime write_bytes must validate before open and stream through shared byte-span helpers" >&2
   exit 1
 fi
 if ! grep -Fq 'invalid write clobbered existing file' tests/modules/test_read_bytes.oren; then
