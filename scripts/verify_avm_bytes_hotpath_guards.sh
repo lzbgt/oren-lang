@@ -377,10 +377,13 @@ fi
 
 c_runtime_sha256_impl="$(sed -n '/OrenValue oren_sha256_range/,/OrenValue oren_sha256_string/p' lib/runtime/050_io_misc_sha256.inc)"
 if ! grep -Fq 'uint8_t chunk[64 * 1024]' <<<"$c_runtime_sha256_impl" ||
+  ! grep -Fq 'runtime_bytes_copy_span(bytes, (size_t)s + off, want, chunk' <<<"$c_runtime_sha256_impl" ||
   ! grep -Fq 'oren_sha256_update(&ctx, chunk, want)' <<<"$c_runtime_sha256_impl" ||
   grep -Fq 'oren_sha256_update(&ctx, &byte, 1)' <<<"$c_runtime_sha256_impl" ||
+  grep -Fq 'bytes.as.list_val->items' <<<"$c_runtime_sha256_impl" ||
+  grep -Fq 'bytes.as.buf_val' <<<"$c_runtime_sha256_impl" ||
   ! grep -Fq 'sha256 C long boxed list range' tests/modules/test_crypto_sha256_c_list_chunks.oren; then
-  echo "ERROR: C runtime sha256_range list inputs must hash bounded chunks, not call sha256_update once per byte" >&2
+  echo "ERROR: C runtime sha256_range list/u8_buf inputs must hash bounded chunks through the shared byte copy-span helper" >&2
   exit 1
 fi
 

@@ -2507,12 +2507,12 @@
 <p>conversion, <code>bytes_to_hex</code>, <code>oren_string_from_bytes_slice</code>,</p>
 <p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; the native</p>
 <p>and legacy C runtimes now route the same byte/endian read-write,</p>
-<p>full-buffer string, <code>to_hex</code>, slice, pack, and unpack family through shared byte-span</p>
-<p>helpers, keeping byte carriers on the optimized path without duplicated</p>
-<p>boxed-list copy loops. Native, legacy C runtime, and AVM <code>oren_sha256_range</code></p>
-<p>now hash boxed-list/list-int inputs through bounded 64 KiB stack chunks or</p>
-<p>shared 64-byte copy-span block fills instead of invoking the SHA update routine</p>
-<p>once per byte or rejecting optimized <code>LIST_INT</code> carriers. The iOS SDK now</p>
+<p>full-buffer string, <code>to_hex</code>, slice, pack, unpack, and SHA range family through</p>
+<p>shared byte-span helpers, keeping byte carriers on the optimized path without</p>
+<p>duplicated boxed-list copy loops. Native, legacy C runtime, and AVM</p>
+<p><code>oren_sha256_range</code> now hash boxed-list/list-int inputs through bounded stack</p>
+<p>chunks filled by shared byte copy-span helpers instead of invoking the SHA update</p>
+<p>routine once per byte or rejecting optimized <code>LIST_INT</code> carriers. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>

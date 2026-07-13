@@ -137,28 +137,23 @@ static void oren_sha256_final(OrenSha256Ctx* ctx, uint8_t out[32]) {
 }
 
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) {
-    if (!(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF) || start.type != OREN_TYPE_INT || length.type != OREN_TYPE_INT) {
+    if (start.type != OREN_TYPE_INT || length.type != OREN_TYPE_INT) {
         oren_panic("sha256_range expects (list<int>|u8_buf, int, int)");
         return OREN_NIL; // Should not be reached
     }
     long long s = start.as.int_val;
     long long n = length.as.int_val;
 
-    long long total = 0;
-    if (bytes.type == OREN_TYPE_LIST) {
-        total = (long long)bytes.as.list_val->count;
-    } else {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || b->elem_size != 1u) {
-            oren_panic("sha256_range expects u8_buf");
-            return OREN_NIL;
-        }
-        total = (long long)b->len;
+    const char* err_msg = NULL;
+    size_t total = 0;
+    if (!runtime_bytes_len_checked(bytes, &total, &err_msg)) {
+        oren_panic(err_msg ? err_msg : "sha256_range expects (list<int>|u8_buf, int, int)");
+        return OREN_NIL;
     }
-
-    if (s < 0 || n < 0 || s + n > total) {
+    if (s < 0 || n < 0 || (uint64_t)s > (uint64_t)SIZE_MAX || (uint64_t)n > (uint64_t)SIZE_MAX ||
+        !runtime_bytes_range_ok_size(total, (size_t)s, (size_t)n)) {
         char buf[256];
-        snprintf(buf, sizeof(buf), "sha256_range out of bounds (s=%lld, n=%lld, count=%lld)", s, n, total);
+        snprintf(buf, sizeof(buf), "sha256_range out of bounds (s=%lld, n=%lld, count=%llu)", s, n, (unsigned long long)total);
         oren_panic(buf);
         return OREN_NIL; // Should not be reached
     }
@@ -166,43 +161,19 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) 
     OrenSha256Ctx ctx;
     oren_sha256_init(&ctx);
 
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (n > 0 && !b->data) {
-            oren_panic("sha256_range: u8_buf payload is nil");
+    uint8_t chunk[64 * 1024];
+    size_t off = 0;
+    while (off < (size_t)n) {
+        size_t want = (size_t)n - off;
+        if (want > sizeof(chunk)) {
+            want = sizeof(chunk);
+        }
+        if (!runtime_bytes_copy_span(bytes, (size_t)s + off, want, chunk, &err_msg)) {
+            oren_panic(err_msg ? err_msg : "sha256_range expects list<int>|u8_buf bytes");
             return OREN_NIL;
         }
-        if (n > 0) {
-            if ((uint64_t)n > (uint64_t)SIZE_MAX) {
-                oren_panic("sha256_range: length too large");
-                return OREN_NIL;
-            }
-            oren_sha256_update(&ctx, (uint8_t*)b->data + (size_t)s, (size_t)n);
-        }
-    } else {
-        uint8_t chunk[64 * 1024];
-        long long off = 0;
-        while (off < n) {
-            long long remaining = n - off;
-            size_t want = remaining > (long long)sizeof(chunk) ? sizeof(chunk) : (size_t)remaining;
-            for (size_t i = 0; i < want; i++) {
-                OrenValue b = bytes.as.list_val->items[(int)(s + off + (long long)i)];
-                if (b.type != OREN_TYPE_INT) {
-                    oren_panic("sha256_range expects list of ints");
-                    return OREN_NIL; // Should not be reached
-                }
-                long long v = b.as.int_val;
-                if (v < 0 || v > 255) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "sha256_range byte out of range (val=%lld)", v);
-                    oren_panic(buf);
-                    return OREN_NIL; // Should not be reached
-                }
-                chunk[i] = (uint8_t)v;
-            }
-            oren_sha256_update(&ctx, chunk, want);
-            off += (long long)want;
-        }
+        oren_sha256_update(&ctx, chunk, want);
+        off += want;
     }
 
     uint8_t digest[32];
