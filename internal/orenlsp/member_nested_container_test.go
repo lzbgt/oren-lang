@@ -252,3 +252,62 @@ func TestTypedMemberAnalysisUsesReturnedNestedContainerSelectionFieldChains(t *t
 		t.Fatalf("mixed returned nested selection field-chain match=%#v want none", match)
 	}
 }
+
+func TestTypedMemberAnalysisUsesCallSiteConstructorNestedSelectionFieldChains(t *testing.T) {
+	lines := []string{
+		"struct Leaf { x, y }",
+		"struct Inner { leaf }",
+		"struct Outer { inner }",
+		"struct Other { z }",
+		"struct Holder { groups, by_group }",
+		"fn first_holder_group(h) { return h.groups[0][\"home\"] }",
+		"fn first_holder_team(h) { return h.by_group[\"team\"][0] }",
+		"fn first_holder_group_mixed(h) { return h.groups[0][\"bad\"] }",
+		"var groups = [{\"home\": Outer(Inner(Leaf(1, 2)))}, {\"home\": Outer(Inner(Leaf(3, 4)))}]",
+		"var by_group = {\"team\": [Outer(Inner(Leaf(5, 6)))], \"away\": [Outer(Inner(Leaf(7, 8)))]}",
+		"var mixed_groups = [{\"bad\": Outer(Other(9))}, {\"bad\": Outer(Other(10))}]",
+		"var holder = Holder(groups, by_group)",
+		"var mixed_holder = Holder(mixed_groups, by_group)",
+		"var picked_group = first_holder_group(holder)",
+		"var picked_team = first_holder_team(holder)",
+		"var picked_mixed = first_holder_group_mixed(mixed_holder)",
+		"fn main() {",
+		"  var c0 = picked_group.inner.leaf.",
+		"  var d0 = picked_team.inner.leaf.y",
+		"  var c1 = first_holder_group(holder).inner.leaf.",
+		"  return picked_mixed.inner.leaf.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///call-site-constructor-nested-selection-field-chain.oren"
+
+	items, found := typedMemberCompletionItemsAt(text, uri, position{
+		Line:      17,
+		Character: len([]rune(lines[17])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("call-site constructor list-of-map selection completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(text, uri, position{
+		Line:      18,
+		Character: strings.LastIndex(lines[18], ".y") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("call-site constructor map-of-list selection y match=%#v ok=%v", match, ok)
+	}
+	items, found = typedMemberCompletionItemsAt(text, uri, position{
+		Line:      19,
+		Character: len([]rune(lines[19])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("direct call-site constructor selection completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      20,
+		Character: strings.LastIndex(lines[20], ".x") + 1,
+	}, nil, nil)
+	if ok {
+		t.Fatalf("mixed call-site constructor nested selection match=%#v want none", match)
+	}
+}
