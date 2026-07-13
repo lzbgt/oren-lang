@@ -2414,7 +2414,9 @@ conversion, `bytes_to_hex`, `oren_string_from_bytes_slice`,
 and legacy C runtimes now route the same byte/endian read-write,
 full-buffer string, `to_hex`, slice, pack, unpack, and SHA range family through
 shared byte-span helpers, keeping byte carriers on the optimized path without
-duplicated boxed-list copy loops. Native, legacy C runtime, and AVM
+duplicated boxed-list copy loops; the legacy C runtime byte access/endian
+entrypoints now live in `lib/runtime/044_byte_access.inc` instead of the
+list/map core shard. Native, legacy C runtime, and AVM
 `oren_sha256_range` now hash boxed-list/list-int inputs through bounded stack
 chunks filled by shared byte copy-span helpers instead of invoking the SHA update
 routine once per byte or rejecting optimized `LIST_INT` carriers. The iOS SDK now

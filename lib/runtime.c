@@ -22,5 +22,6 @@
 #include "runtime/041_err_helpers.inc"
 #include "runtime/042_generator_objects.inc"
 #include "runtime/043_print_iter_string.inc"
+#include "runtime/044_byte_access.inc"
 #include "runtime/045_bytes_helpers.inc"
 #include "runtime/050_io_misc.inc"
