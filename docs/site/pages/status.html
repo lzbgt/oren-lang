@@ -2492,6 +2492,9 @@
 <p>need boxed-list reconstruction before in-place byte writes; <code>oren_string_from_bytes</code></p>
 <p>now accepts the same optimized <code>LIST_INT</code> byte carriers directly for full-buffer</p>
 <p>string conversion. Legacy C runtime</p>
+<p><code>oren_bytes_len</code> now uses the shared byte-carrier length checker used by the</p>
+<p>rest of the byte-span helper family, so boxed lists and <code>u8_buf</code> carriers avoid</p>
+<p>another local branch copy in the public length intrinsic. Legacy C runtime</p>
 <p><code>oren_read_bytes</code> still returns a boxed compatibility byte list, but now fills</p>
 <p>that list from bounded 64 KiB read chunks instead of allocating a second</p>
 <p>full-file temporary byte buffer before list materialization. Legacy C runtime</p>

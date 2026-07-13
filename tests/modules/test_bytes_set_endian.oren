@@ -49,6 +49,8 @@ if oren_buf_load_u8(ub, 0) != 8 || oren_buf_load_u8(ub, 7) != 1 { exit(28) }
 if oren_is_err(oren_bytes_get_u16_be([0, 256], 0)) == false { exit(29) }
 if oren_is_err(oren_bytes_get_u16_be([0], 0)) == false { exit(30) }
 if oren_is_err(oren_bytes_set_u16_be([0], 0, 1)) == false { exit(31) }
+var boxed_len_ok = [1, 2, 3]
+if oren_bytes_len(boxed_len_ok) != 3 { exit(54) }
 
 var li = oren_new_list_int(0)
 oren_list_int_push(li, 65)

@@ -6,22 +6,12 @@ static int bytes_hex_nibble(int c) {
 }
 
 OrenValue oren_bytes_len(OrenValue bytes) {
-    if (bytes.type == OREN_TYPE_LIST) {
-        OrenList* list = bytes.as.list_val;
-        if (!list) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_len: list is nil"));
-        return oren_int((long long)list->count);
+    const char* err_msg = NULL;
+    size_t n = 0;
+    if (!runtime_bytes_len_checked(bytes, &n, &err_msg)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(err_msg ? err_msg : "bytes_len expects list<int> or u8_buf"));
     }
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || b->elem_size != 1u) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_len: expected u8_buf"));
-        }
-        return oren_int((long long)b->len);
-    }
-    if (bytes.type == OREN_TYPE_NIL) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_len: bytes is nil"));
-    }
-    return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_len expects list<int> or u8_buf"));
+    return oren_int((long long)n);
 }
 
 OrenValue oren_bytes_from_hex(OrenValue s) {

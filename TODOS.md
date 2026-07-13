@@ -2559,6 +2559,9 @@ design evidence lives under `project-doc/`.
 - C-runtime byte slice helpers now share the same overflow-safe range predicate,
   with module coverage proving list-int byte carriers across length, endian
   reads, pack/unpack, hex, string slices, and u8-buffer slices.
+- Legacy C runtime `oren_bytes_len` now shares the same byte-carrier length
+  checker as the byte-span helper family, with boxed-list fixture coverage and a
+  hotpath guard blocking local list/u8 branch regressions.
 - AVM byte helper intrinsics now match that list-int carrier surface for hex and
   slice conversion, keeping the module fixture green across native, C, and
   bytecode backends.

@@ -3512,6 +3512,11 @@
 <p>  with module coverage proving list-int byte carriers across length, endian</p>
 <p>  reads, pack/unpack, hex, string slices, and u8-buffer slices.</p>
 <ul>
+<li>Legacy C runtime <code>oren_bytes_len</code> now shares the same byte-carrier length</li>
+</ul>
+<p>  checker as the byte-span helper family, with boxed-list fixture coverage and a</p>
+<p>  hotpath guard blocking local list/u8 branch regressions.</p>
+<ul>
 <li>AVM byte helper intrinsics now match that list-int carrier surface for hex and</li>
 </ul>
 <p>  slice conversion, keeping the module fixture green across native, C, and</p>

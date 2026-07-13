@@ -169,6 +169,15 @@ if ! grep -Fq 'invalid write clobbered existing file' tests/modules/test_read_by
   exit 1
 fi
 
+c_runtime_bytes_len_impl="$(sed -n '/OrenValue oren_bytes_len(OrenValue bytes)/,/OrenValue oren_bytes_from_hex/p' lib/runtime/045_bytes_helpers.inc)"
+if ! grep -Fq 'runtime_bytes_len_checked(bytes, &n, &err_msg)' <<<"$c_runtime_bytes_len_impl" ||
+  grep -Fq 'OrenList* list = bytes.as.list_val' <<<"$c_runtime_bytes_len_impl" ||
+  grep -Fq 'OrenBuf* b = bytes.as.buf_val' <<<"$c_runtime_bytes_len_impl" ||
+  ! grep -Fq 'if oren_bytes_len(boxed_len_ok) != 3' tests/modules/test_bytes_set_endian.oren; then
+  echo "ERROR: legacy C runtime bytes_len must use the shared byte-carrier length helper with boxed-list fixture coverage" >&2
+  exit 1
+fi
+
 byte_setter_helper="$(sed -n '/static int avm_native_bytes_write_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
 if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_setter_helper" ||
   ! grep -Fq 'list->items[(int)idx + i] = (int64_t)src[i]' <<<"$byte_setter_helper"; then
