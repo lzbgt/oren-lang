@@ -312,8 +312,10 @@ if ! grep -Fq 'oren_string_from_bytes_slice(bytes, 0, total)' <<<"$native_string
 fi
 
 c_runtime_copy_helper="$(sed -n '/static int runtime_bytes_copy_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+c_runtime_write_helper="$(sed -n '/static int runtime_bytes_write_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
 c_runtime_copy_list_helper="$(sed -n '/static int runtime_bytes_copy_span_to_list(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
 c_runtime_hex_helper="$(sed -n '/static int runtime_bytes_write_hex(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
+c_runtime_byte_order_impl="$(sed -n '/static int bytes_get_u8_checked/,/OrenValue oren_bytes_get_u8/p' lib/runtime/040_lists_maps.inc)"
 c_runtime_to_hex_impl="$(sed -n '/OrenValue oren_bytes_to_hex/,/OrenValue oren_bytes_pack/p' lib/runtime/045_bytes_helpers.inc)"
 c_runtime_unpack_impl="$(sed -n '/OrenValue oren_bytes_unpack/,/OrenValue oren_bytes_get_u16_be/p' lib/runtime/040_lists_maps.inc)"
 c_runtime_pack_impl="$(sed -n '/OrenValue oren_bytes_pack/,/^}/p' lib/runtime/045_bytes_helpers.inc)"
@@ -323,6 +325,19 @@ c_runtime_u8_slice_impl="$(sed -n '/OrenValue oren_u8_buf_from_bytes_slice/,/Ore
 if ! grep -Fq 'memcpy(dst, b->data + start, n)' <<<"$c_runtime_copy_helper" ||
   ! grep -Fq 'dst[i] = (uint8_t)it.as.int_val' <<<"$c_runtime_copy_helper"; then
   echo "ERROR: C runtime byte slice/pack helpers must share one checked list/u8_buf copy-span helper" >&2
+  exit 1
+fi
+if ! grep -Fq 'memcpy(b->data + start, src, n)' <<<"$c_runtime_write_helper" ||
+  ! grep -Fq 'list->items[start + i] = oren_int((int64_t)src[i])' <<<"$c_runtime_write_helper" ||
+  ! grep -Fq 'runtime_bytes_copy_span(bytes, (size_t)idx, 1u, out' <<<"$c_runtime_byte_order_impl" ||
+  ! grep -Fq 'runtime_bytes_copy_span(bytes, (size_t)idx, (size_t)width, out' <<<"$c_runtime_byte_order_impl" ||
+  ! grep -Fq 'runtime_bytes_write_span(bytes, (size_t)idx, &val, 1u' <<<"$c_runtime_byte_order_impl" ||
+  ! grep -Fq 'runtime_bytes_write_span(bytes, (size_t)idx, src, (size_t)width' <<<"$c_runtime_byte_order_impl" ||
+  grep -Fq 'OrenValue v = list->items[idx + i]' <<<"$c_runtime_byte_order_impl" ||
+  grep -Fq 'list->items[idx + i] = oren_int' <<<"$c_runtime_byte_order_impl" ||
+  grep -Fq 'memcpy(out, b->data + (uint32_t)idx' <<<"$c_runtime_byte_order_impl" ||
+  grep -Fq 'memcpy(b->data + (uint32_t)idx' <<<"$c_runtime_byte_order_impl"; then
+  echo "ERROR: C runtime byte/endian get/set helpers must route through shared checked byte copy/write-span helpers" >&2
   exit 1
 fi
 if ! grep -Fq 'dst->items[i] = oren_int((int64_t)b->data[start + i])' <<<"$c_runtime_copy_list_helper" ||

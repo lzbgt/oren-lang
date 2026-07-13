@@ -697,88 +697,27 @@ OrenValue oren_list_int_dot_slots_unchecked(OrenValue a, OrenValue b) {
 }
 
 static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {
-    if (bytes.type == OREN_TYPE_LIST) {
-        if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
-        OrenValue v = bytes.as.list_val->items[idx];
-        if (v.type != OREN_TYPE_INT) return 0;
-        if (v.as.int_val < 0 || v.as.int_val > 255) return 0;
-        *out = (uint8_t)v.as.int_val;
-        return 1;
-    }
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b) return 0;
-        if (b->elem_size != 1u) return 0;
-        if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) return 0;
-        if (!b->data && b->len != 0) return 0;
-        *out = b->data[(uint32_t)idx];
-        return 1;
-    }
-    return 0;
+    if (idx < 0 || !out) return 0;
+    const char* err_msg = NULL;
+    return runtime_bytes_copy_span(bytes, (size_t)idx, 1u, out, &err_msg);
 }
 
 static int bytes_set_u8_checked(OrenValue bytes, int idx, uint8_t val) {
-    if (bytes.type == OREN_TYPE_LIST) {
-        if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
-        bytes.as.list_val->items[idx] = oren_int((int64_t)val);
-        return 1;
-    }
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b) return 0;
-        if (b->elem_size != 1u) return 0;
-        if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) return 0;
-        if (!b->data && b->len != 0) return 0;
-        b->data[(uint32_t)idx] = val;
-        return 1;
-    }
-    return 0;
+    if (idx < 0) return 0;
+    const char* err_msg = NULL;
+    return runtime_bytes_write_span(bytes, (size_t)idx, &val, 1u, &err_msg);
 }
 
 static int bytes_read_u8_span_checked(OrenValue bytes, int idx, uint8_t* out, int width) {
     if (idx < 0 || width < 0 || !out) return 0;
-    if (bytes.type == OREN_TYPE_LIST) {
-        OrenList* list = bytes.as.list_val;
-        if (!list || list->count < 0) return 0;
-        if ((uint64_t)idx + (uint64_t)width > (uint64_t)list->count) return 0;
-        for (int i = 0; i < width; i++) {
-            OrenValue v = list->items[idx + i];
-            if (v.type != OREN_TYPE_INT || v.as.int_val < 0 || v.as.int_val > 255) return 0;
-            out[i] = (uint8_t)v.as.int_val;
-        }
-        return 1;
-    }
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || b->elem_size != 1u) return 0;
-        if ((uint64_t)idx + (uint64_t)width > (uint64_t)b->len) return 0;
-        if (width > 0 && !b->data) return 0;
-        memcpy(out, b->data + (uint32_t)idx, (size_t)width);
-        return 1;
-    }
-    return 0;
+    const char* err_msg = NULL;
+    return runtime_bytes_copy_span(bytes, (size_t)idx, (size_t)width, out, &err_msg);
 }
 
 static int bytes_write_u8_span_checked(OrenValue bytes, int idx, const uint8_t* src, int width) {
     if (idx < 0 || width < 0 || !src) return 0;
-    if (bytes.type == OREN_TYPE_LIST) {
-        OrenList* list = bytes.as.list_val;
-        if (!list || list->count < 0) return 0;
-        if ((uint64_t)idx + (uint64_t)width > (uint64_t)list->count) return 0;
-        for (int i = 0; i < width; i++) {
-            list->items[idx + i] = oren_int((int64_t)src[i]);
-        }
-        return 1;
-    }
-    if (bytes.type == OREN_TYPE_U8_BUF) {
-        OrenBuf* b = bytes.as.buf_val;
-        if (!b || b->elem_size != 1u) return 0;
-        if ((uint64_t)idx + (uint64_t)width > (uint64_t)b->len) return 0;
-        if (width > 0 && !b->data) return 0;
-        memcpy(b->data + (uint32_t)idx, src, (size_t)width);
-        return 1;
-    }
-    return 0;
+    const char* err_msg = NULL;
+    return runtime_bytes_write_span(bytes, (size_t)idx, src, (size_t)width, &err_msg);
 }
 
 OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index) {

@@ -70,6 +70,39 @@ static int runtime_bytes_copy_span(OrenValue bytes, size_t start, size_t n, uint
     return 1;
 }
 
+static int runtime_bytes_write_span(OrenValue bytes, size_t start, const uint8_t* src, size_t n, const char** err_msg) {
+    if (err_msg) *err_msg = NULL;
+    if (n > 0u && !src) {
+        if (err_msg) *err_msg = "source is nil";
+        return 0;
+    }
+    size_t total = 0;
+    if (!runtime_bytes_len_checked(bytes, &total, err_msg)) return 0;
+    if (!runtime_bytes_range_ok_size(total, start, n)) {
+        if (err_msg) *err_msg = "out of bounds";
+        return 0;
+    }
+    if (n == 0u) return 1;
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b->data) {
+            if (err_msg) *err_msg = "u8_buf payload is nil";
+            return 0;
+        }
+        memcpy(b->data + start, src, n);
+        return 1;
+    }
+    OrenList* list = bytes.as.list_val;
+    if (!list->items) {
+        if (err_msg) *err_msg = "list buffer is nil";
+        return 0;
+    }
+    for (size_t i = 0; i < n; i++) {
+        list->items[start + i] = oren_int((int64_t)src[i]);
+    }
+    return 1;
+}
+
 static int runtime_bytes_write_hex(OrenValue bytes, char* dst, const char** err_msg) {
     if (err_msg) *err_msg = NULL;
     if (!dst) {
