@@ -82,6 +82,7 @@
 <li><code>std:buffer</code> u8 matrix pack helpers now write validated row-list/string-row payloads directly into fresh dense <code>u8_buf</code> storage; strided u8 view copies from byte carriers, <code>u8_buf</code>, and strings now validate the source span once, then write directly into strided <code>u8_buf</code> storage before falling back to checked per-element view stores; strided <code>u8_buf</code> exports and non-dense u8 matrix exports now gather directly into exact-size <code>u8_buf</code> output before string conversion.</li>
 <li><code>std:buffer</code> contiguous u8 slice and dense u8 matrix copies from <code>u8_buf</code>, string, flat-list, or row-list sources now route through shared byte-span copy/direct byte-write paths before falling back to checked per-element view stores for strided or non-u8 carriers.</li>
 <li><code>std:math/mat4</code> now exposes finite/affine/perspective predicates, exact equality, and allclose tolerance predicates, basis_x/basis_y/basis_z and right/up/forward basis extractors, fixed row0/row1/row2/row3 and column0/column1/column2/column3 extractors, checked from_rows/from_columns reconstruction, from_diagonal/diagonal_matrix constructors, plus diagonal/trace inspection and transpose/determinant/inverse aliases, with typed bottom-row and trace checks so generic list elements compare/accumulate deterministically across native, C, bytecode, AVM, and OBC bundle probes.</li>
+<li>The curated AVM default fixture list now lives in <code>mk/native_avm.mk</code> next to <code>test-avm</code>, reducing the top-level <code>Makefile</code> to 1612 lines while preserving <code>AVM_TESTS</code> overrides and the release-manifest gate.</li>
 <li>Scene3D generated solid-shape AVM coverage now lives in a dedicated manifest fixture, reducing <code>test_ui_scene3d_v0.oren</code> to 1650 lines while keeping cylinders/cones/spheres/ellipsoids/toruses/capsules raster checks grouped below the source-line guard.</li>
 <li>Scene3D asset transform AVM coverage now lives in <code>tests/avm/test_ui_scene3d_transforms_v0.oren</code>, reducing <code>test_ui_scene3d_v0.oren</code> to 1389 lines while keeping transform packing checks in the default AVM and release-manifest gates.</li>
 <li>Scene3D byte-native <code>.os3d</code> binary package loading now lives in <code>std:ui/scene3d_binary</code>, reducing <code>std:ui/scene3d</code> to 1538 lines while preserving the public <code>scene_from_binary</code>/<code>commands_from_binary</code> wrapper surface and OBC/iOS package asset behavior.</li>
@@ -3948,8 +3949,10 @@
 <ul>
 <li>Native all-test, full verify, AVM build, and libavm verification targets now</li>
 </ul>
-<p>  live in <code>mk/native_avm.mk</code>, reducing the top-level <code>Makefile</code> to 1733 lines</p>
-<p>  while preserving the existing target names and include-time variable scope.</p>
+<p>  live in <code>mk/native_avm.mk</code>, and the curated AVM default fixture list now</p>
+<p>  lives beside <code>test-avm</code> there, reducing the top-level <code>Makefile</code> to 1612</p>
+<p>  lines while preserving the existing target names, <code>AVM_TESTS</code> overrides, and</p>
+<p>  include-time variable scope.</p>
 <ul>
 <li>Native quick integration math/module/codec follow-on smokes now live in</li>
 </ul>

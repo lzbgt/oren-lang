@@ -2784,9 +2784,10 @@ Working evidence:
   `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
   preserving the `std:math` import surface through compile-time include
   expansion. Example build and cross-compile smoke targets now live in
-  `mk/examples.mk`, and native all-test, full verify, AVM build, and libavm
-  verification targets now live in `mk/native_avm.mk`, reducing the top-level
-  `Makefile` to 1733 lines. Native quick integration math/module/codec
+  `mk/examples.mk`, and native all-test, full verify, AVM build, libavm
+  verification targets, plus the curated AVM default fixture list now live in
+  `mk/native_avm.mk`, reducing the top-level `Makefile` to 1612 lines while
+  preserving `AVM_TESTS` overrides. Native quick integration math/module/codec
   follow-on smokes now live in
   `scripts/native_quick_math_followon_smokes.sh`, reducing
   `run_native_quick_integration.sh` to 1578 lines while preserving the sourced

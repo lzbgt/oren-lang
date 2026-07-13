@@ -47,6 +47,7 @@ design evidence lives under `project-doc/`.
 - `std:buffer` u8 matrix pack helpers now write validated row-list/string-row payloads directly into fresh dense `u8_buf` storage; strided u8 view copies from byte carriers, `u8_buf`, and strings now validate the source span once, then write directly into strided `u8_buf` storage before falling back to checked per-element view stores; strided `u8_buf` exports and non-dense u8 matrix exports now gather directly into exact-size `u8_buf` output before string conversion.
 - `std:buffer` contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string, flat-list, or row-list sources now route through shared byte-span copy/direct byte-write paths before falling back to checked per-element view stores for strided or non-u8 carriers.
 - `std:math/mat4` now exposes finite/affine/perspective predicates, exact equality, and allclose tolerance predicates, basis_x/basis_y/basis_z and right/up/forward basis extractors, fixed row0/row1/row2/row3 and column0/column1/column2/column3 extractors, checked from_rows/from_columns reconstruction, from_diagonal/diagonal_matrix constructors, plus diagonal/trace inspection and transpose/determinant/inverse aliases, with typed bottom-row and trace checks so generic list elements compare/accumulate deterministically across native, C, bytecode, AVM, and OBC bundle probes.
+- The curated AVM default fixture list now lives in `mk/native_avm.mk` next to `test-avm`, reducing the top-level `Makefile` to 1612 lines while preserving `AVM_TESTS` overrides and the release-manifest gate.
 - Scene3D generated solid-shape AVM coverage now lives in a dedicated manifest fixture, reducing `test_ui_scene3d_v0.oren` to 1650 lines while keeping cylinders/cones/spheres/ellipsoids/toruses/capsules raster checks grouped below the source-line guard.
 - Scene3D asset transform AVM coverage now lives in `tests/avm/test_ui_scene3d_transforms_v0.oren`, reducing `test_ui_scene3d_v0.oren` to 1389 lines while keeping transform packing checks in the default AVM and release-manifest gates.
 - Scene3D byte-native `.os3d` binary package loading now lives in `std:ui/scene3d_binary`, reducing `std:ui/scene3d` to 1538 lines while preserving the public `scene_from_binary`/`commands_from_binary` wrapper surface and OBC/iOS package asset behavior.
@@ -2828,8 +2829,10 @@ design evidence lives under `project-doc/`.
   reducing the top-level `Makefile` to 1883 lines and preserving source-line
   guardrail headroom as verification targets continue to grow.
 - Native all-test, full verify, AVM build, and libavm verification targets now
-  live in `mk/native_avm.mk`, reducing the top-level `Makefile` to 1733 lines
-  while preserving the existing target names and include-time variable scope.
+  live in `mk/native_avm.mk`, and the curated AVM default fixture list now
+  lives beside `test-avm` there, reducing the top-level `Makefile` to 1612
+  lines while preserving the existing target names, `AVM_TESTS` overrides, and
+  include-time variable scope.
 - Native quick integration math/module/codec follow-on smokes now live in
   `scripts/native_quick_math_followon_smokes.sh`, reducing
   `run_native_quick_integration.sh` to 1578 lines while preserving the same
