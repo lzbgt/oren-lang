@@ -3071,7 +3071,7 @@ Working evidence:
 	  and conservative prepare/rename workspace edits for exact scoped parameters and
 	  same-document typed fields, with rename server regressions split below the
 	  source-line guard, a single-parse imported-document return-fact
-	  environment builder that keeps the main member analyzer below the line guard,
+	  environment builder plus inferred-scope helper split that keep the main member analyzer below the line guard,
 	  plus full-document semantic-token classification for
   declarations/references/literals/operators and parser-derived
   parameter/property classes. The VS Code package now contributes `.oren`
