@@ -136,6 +136,82 @@ fn allclose(a, b, rel_tol: f64, abs_tol: f64) {
     return true
 }
 
+fn is_identity(m) {
+    return equals(m, identity())
+}
+
+fn is_identity_abs(m, abs_tol: f64) {
+    return allclose_abs(m, identity(), abs_tol)
+}
+
+fn _basis_dot(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, ctx) {
+    var out: f64 = x0 * x1 + y0 * y1 + z0 * z1
+    var ok = _finite_scalar(out, ctx)
+    if oren_is_err(ok) { return ok }
+    return out
+}
+
+fn _close_abs_scalar(a: f64, b: f64, abs_tol: f64, ctx) {
+    var ok = math.isclose_abs(a, b, abs_tol)
+    if oren_is_err(ok) { return oren_err(4, ctx + ": invalid tolerance") }
+    return ok
+}
+
+fn is_orthonormal_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    var xx = _basis_dot(m[0], m[4], m[8], m[0], m[4], m[8], "mat4.is_orthonormal_abs")
+    if oren_is_err(xx) { return xx }
+    var yy = _basis_dot(m[1], m[5], m[9], m[1], m[5], m[9], "mat4.is_orthonormal_abs")
+    if oren_is_err(yy) { return yy }
+    var zz = _basis_dot(m[2], m[6], m[10], m[2], m[6], m[10], "mat4.is_orthonormal_abs")
+    if oren_is_err(zz) { return zz }
+    var xy = _basis_dot(m[0], m[4], m[8], m[1], m[5], m[9], "mat4.is_orthonormal_abs")
+    if oren_is_err(xy) { return xy }
+    var xz = _basis_dot(m[0], m[4], m[8], m[2], m[6], m[10], "mat4.is_orthonormal_abs")
+    if oren_is_err(xz) { return xz }
+    var yz = _basis_dot(m[1], m[5], m[9], m[2], m[6], m[10], "mat4.is_orthonormal_abs")
+    if oren_is_err(yz) { return yz }
+
+    ok = _close_abs_scalar(xx, 1.0, abs_tol, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(yy, 1.0, abs_tol, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(zz, 1.0, abs_tol, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(xy, 0.0, abs_tol, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(xz, 0.0, abs_tol, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(yz, 0.0, abs_tol, "mat4.is_orthonormal_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return true
+}
+
+fn is_rigid_transform_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    ok = _close_abs_scalar(m[12], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[13], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[14], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[15], 1.0, abs_tol, "mat4.is_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return is_orthonormal_abs(m, abs_tol)
+}
+
 fn basis_x(m) {
     var ok = _check(m, "mat4.basis_x")
     if oren_is_err(ok) { return ok }
