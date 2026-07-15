@@ -143,38 +143,50 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
                     CGContextSaveGState(ctx);
                     CGContextSetAlpha(ctx, state->opacity);
                     state->stateDepth++;
+                } else {
+                    state->opacityOverflowDepth++;
                 }
             }
             return YES;
         }
         case 21: {
-            if (payloadLen == 0 && state->opacityDepth > 0 && state->stateDepth > 0) {
-                CGContextRestoreGState(ctx);
-                state->opacity = state->opacityStack[--state->opacityDepth];
-                state->stateDepth--;
+            if (payloadLen == 0) {
+                if (state->opacityOverflowDepth > 0) {
+                    state->opacityOverflowDepth--;
+                } else if (state->opacityDepth > 0 && state->stateDepth > 0) {
+                    CGContextRestoreGState(ctx);
+                    state->opacity = state->opacityStack[--state->opacityDepth];
+                    state->stateDepth--;
+                }
             }
             return YES;
         }
         case 22: {
-            if (payloadLen == 8 && state->cameraDepth < 64) {
-                state->depthEnabledStack[state->cameraDepth] = state->depthEnabled;
-                state->nearZStack[state->cameraDepth] = state->nearZ;
-                state->farZStack[state->cameraDepth] = state->farZ;
-                state->cameraDepth++;
-                state->depthEnabled = YES;
-                state->nearZ = (int32_t)OrenAVMGfxReadU32LE(payload);
-                state->farZ = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
-                state->stateDepth++;
+            if (payloadLen == 8) {
+                if (state->cameraDepth < 64) {
+                    state->depthEnabledStack[state->cameraDepth] = state->depthEnabled;
+                    state->nearZStack[state->cameraDepth] = state->nearZ;
+                    state->farZStack[state->cameraDepth] = state->farZ;
+                    state->cameraDepth++;
+                    state->depthEnabled = YES;
+                    state->nearZ = (int32_t)OrenAVMGfxReadU32LE(payload);
+                    state->farZ = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
+                } else {
+                    state->cameraOverflowDepth++;
+                }
             }
             return YES;
         }
         case 23: {
-            if (payloadLen == 0 && state->cameraDepth > 0 && state->stateDepth > 0) {
-                state->cameraDepth--;
-                state->depthEnabled = state->depthEnabledStack[state->cameraDepth];
-                state->nearZ = state->nearZStack[state->cameraDepth];
-                state->farZ = state->farZStack[state->cameraDepth];
-                state->stateDepth--;
+            if (payloadLen == 0) {
+                if (state->cameraOverflowDepth > 0) {
+                    state->cameraOverflowDepth--;
+                } else if (state->cameraDepth > 0) {
+                    state->cameraDepth--;
+                    state->depthEnabled = state->depthEnabledStack[state->cameraDepth];
+                    state->nearZ = state->nearZStack[state->cameraDepth];
+                    state->farZ = state->farZStack[state->cameraDepth];
+                }
             }
             return YES;
         }

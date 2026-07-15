@@ -18,9 +18,20 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
+def between(text: str, start: str, end: str) -> str:
+    start_index = text.find(start)
+    if start_index < 0:
+        fail(f"CoreGraphics frame helper is missing expected block start: {start}")
+    end_index = text.find(end, start_index + len(start))
+    if end_index < 0:
+        fail(f"CoreGraphics frame helper is missing expected block end after {start}: {end}")
+    return text[start_index:end_index]
+
+
 def main() -> int:
     view_text = VIEW_SOURCE.read_text()
-    frame_text = FRAME_HEADER.read_text() + "\n" + FRAME_SOURCE.read_text()
+    frame_source_text = FRAME_SOURCE.read_text()
+    frame_text = FRAME_HEADER.read_text() + "\n" + frame_source_text
     build_text = BUILD_SCRIPT.read_text()
     smoke_text = COMPILE_SMOKE.read_text()
 
@@ -41,9 +52,22 @@ def main() -> int:
         "void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context)",
         "CGFloat opacityStack[64]",
         "BOOL depthEnabledStack[64]",
+        "uint32_t opacityOverflowDepth",
+        "uint32_t cameraOverflowDepth",
+        "state->opacityOverflowDepth++",
+        "state->opacityOverflowDepth--",
+        "state->cameraOverflowDepth++",
+        "state->cameraOverflowDepth--",
     ):
         if token not in frame_text:
             fail(f"CoreGraphics frame helper is missing expected state logic: {token}")
+
+    push_camera_block = between(frame_source_text, "case 22:", "case 23:")
+    pop_camera_block = between(frame_source_text, "case 23:", "default:")
+    if "state->stateDepth++" in push_camera_block:
+        fail("CoreGraphics camera push must not increment CGContext stateDepth")
+    if "state->stateDepth--" in pop_camera_block or "state->stateDepth > 0" in pop_camera_block:
+        fail("CoreGraphics camera pop must not consume CGContext stateDepth")
 
     if "OrenAVMGfxFrameDrawContext context = {" not in view_text or "OrenAVMGfxDrawFrame(ctx, frame, &context)" not in view_text:
         fail("CoreGraphics drawRect must delegate OGF0 traversal to OrenAVMGraphicsFrame")

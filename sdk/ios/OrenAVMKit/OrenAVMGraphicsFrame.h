@@ -14,6 +14,7 @@ typedef struct {
     CGFloat opacity;
     CGFloat opacityStack[64];
     uint32_t opacityDepth;
+    uint32_t opacityOverflowDepth;
     BOOL depthEnabled;
     int32_t nearZ;
     int32_t farZ;
@@ -21,6 +22,7 @@ typedef struct {
     int32_t nearZStack[64];
     int32_t farZStack[64];
     uint32_t cameraDepth;
+    uint32_t cameraOverflowDepth;
 } OrenAVMGfxFrameState;
 
 typedef struct {
