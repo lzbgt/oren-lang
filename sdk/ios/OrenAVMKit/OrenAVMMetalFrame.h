@@ -17,14 +17,17 @@ typedef struct {
     OrenAVMMetalScissorState clip;
     OrenAVMMetalScissorState clipStack[64];
     uint32_t clipDepth;
+    uint32_t clipOverflowDepth;
     float tx;
     float ty;
     float txStack[64];
     float tyStack[64];
     uint32_t transformDepth;
+    uint32_t transformOverflowDepth;
     float opacity;
     float opacityStack[64];
     uint32_t opacityDepth;
+    uint32_t opacityOverflowDepth;
     BOOL depthEnabled;
     int32_t nearZ;
     int32_t farZ;
@@ -32,6 +35,7 @@ typedef struct {
     int32_t nearZStack[64];
     int32_t farZStack[64];
     uint32_t cameraDepth;
+    uint32_t cameraOverflowDepth;
 } OrenAVMMetalFrameState;
 
 typedef struct {

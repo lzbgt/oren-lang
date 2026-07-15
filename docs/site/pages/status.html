@@ -37,7 +37,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-07-13</p>
+<p><strong>Last updated:</strong> 2026-07-15</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -55,6 +55,12 @@
 <p>  app-host lifecycle coverage before it should be called a complete production</p>
 <p>  app package.</p>
 <h2 id="recent-evidence">Recent Evidence</h2>
+<ul>
+<li>iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry</li>
+</ul>
+<p>  clip, translation, opacity, and camera stacks. Overflow pushes are tracked as</p>
+<p>  no-op frames and consume matching pops without mutating the nearest real outer</p>
+<p>  state; <code>scripts/verify_ios_metal_vertex_uploads.py</code> guards the helper paths.</p>
 <ul>
 <li>Anonymous imports now support <code>import . &quot;path&quot;</code> in both bootstrap and</li>
 </ul>

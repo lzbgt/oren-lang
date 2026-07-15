@@ -1,6 +1,6 @@
 # Oren Status
 
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-15
 
 This is the current implementation status. It replaces the former rolling log with a
 small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.
@@ -22,6 +22,10 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry
+  clip, translation, opacity, and camera stacks. Overflow pushes are tracked as
+  no-op frames and consume matching pops without mutating the nearest real outer
+  state; `scripts/verify_ios_metal_vertex_uploads.py` guards the helper paths.
 - Anonymous imports now support `import . "path"` in both bootstrap and
   self-hosted parser/linker paths. Dot imports are dependency edges without
   alias-table entries, import top-level names unqualified using the same

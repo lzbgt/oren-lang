@@ -539,6 +539,22 @@ def main() -> int:
     for token in ("clipStack[64]", "txStack[64]", "opacityStack[64]", "depthEnabledStack[64]"):
         if token in text:
             fail("Metal view must not own frame state stacks directly")
+    for token in (
+        "uint32_t clipOverflowDepth",
+        "uint32_t transformOverflowDepth",
+        "uint32_t opacityOverflowDepth",
+        "uint32_t cameraOverflowDepth",
+        "state->clipOverflowDepth++",
+        "state->clipOverflowDepth--",
+        "state->transformOverflowDepth++",
+        "state->transformOverflowDepth--",
+        "state->opacityOverflowDepth++",
+        "state->opacityOverflowDepth--",
+        "state->cameraOverflowDepth++",
+        "state->cameraOverflowDepth--",
+    ):
+        if token not in frame_text:
+            fail(f"Metal frame-state overflow handling missing expected path: {token}")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in frame_text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "OrenAVMMetalEncodePreparedRuns(encoder," not in text:
