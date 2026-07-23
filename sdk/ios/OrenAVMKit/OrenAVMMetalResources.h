@@ -127,7 +127,8 @@ OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts
 BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
                                  uint32_t textID,
                                  uint32_t rgbaValue,
-                                 NSString* text);
+                                 const uint8_t* textBytes,
+                                 uint32_t textLen);
 void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textID);
 BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
                                    id<MTLDevice> device,

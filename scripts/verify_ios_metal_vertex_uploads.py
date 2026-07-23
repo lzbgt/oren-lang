@@ -25,6 +25,13 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
+def require_before(block: str, before: str, after: str, message: str) -> None:
+    before_pos = block.find(before)
+    after_pos = block.find(after)
+    if before_pos < 0 or after_pos < 0 or before_pos > after_pos:
+        fail(message)
+
+
 def main() -> int:
     text = SOURCE.read_text()
     frame_header = FRAME_HEADER.read_text()
@@ -327,6 +334,19 @@ def main() -> int:
         fail("retained Metal text uploads must use the resource-owned upload helper")
     if "OrenAVMMetalRemoveTextResource(texts ? *texts : NULL" not in resource_text:
         fail("retained Metal text removals must use the resource-owned removal helper")
+    put_text_start = resource_source_text.find("BOOL OrenAVMMetalPutTextResource")
+    put_text_end = resource_source_text.find("void OrenAVMMetalRemoveTextResource", put_text_start)
+    if put_text_start < 0 or put_text_end < 0:
+        fail("missing retained Metal text upload helper")
+    put_text_body = resource_source_text[put_text_start:put_text_end]
+    require_before(put_text_body,
+                   "OrenAVMMetalEnsureRetainedResourceMap(texts)",
+                   "[[NSString alloc] initWithBytes:textBytes",
+                   "retained Metal text uploads must preflight scalar-map storage before string creation")
+    require_before(put_text_body,
+                   "OrenAVMMetalEnsureRetainedResourceMap(texts)",
+                   "[[OrenAVMMetalTextResource alloc] init]",
+                   "retained Metal text uploads must preflight scalar-map storage before resource allocation")
     text_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleTextCommand") :]
     for token in (
         "case 2:",
@@ -362,6 +382,27 @@ def main() -> int:
         fail("missing retained Metal mesh raw payload copy helper")
     if "if (!src || len == 0) return NULL;" not in resource_text:
         fail("retained Metal mesh payload copy helper must reject null sources before memcpy")
+    put_mesh2d_start = resource_source_text.find("BOOL OrenAVMMetalPutMesh2DResource")
+    put_packed_start = resource_source_text.find("BOOL OrenAVMMetalPutPackedMesh3DResource", put_mesh2d_start)
+    put_indexed_start = resource_source_text.find("BOOL OrenAVMMetalPutIndexedMesh3DResource", put_packed_start)
+    put_mesh_end = resource_source_text.find("const void* OrenAVMMetalRetainedMaterialKey", put_indexed_start)
+    if put_mesh2d_start < 0 or put_packed_start < 0 or put_indexed_start < 0 or put_mesh_end < 0:
+        fail("missing retained Metal mesh upload helpers")
+    put_mesh2d_body = resource_source_text[put_mesh2d_start:put_packed_start]
+    put_packed_body = resource_source_text[put_packed_start:put_indexed_start]
+    put_indexed_body = resource_source_text[put_indexed_start:put_mesh_end]
+    require_before(put_mesh2d_body,
+                   "OrenAVMMetalEnsureRetainedResourceMap(meshes)",
+                   "OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes)",
+                   "retained Metal 2D mesh uploads must preflight scalar-map storage before payload copies")
+    require_before(put_packed_body,
+                   "OrenAVMMetalEnsureRetainedResourceMap(meshes)",
+                   "OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes)",
+                   "retained Metal packed 3D mesh uploads must preflight scalar-map storage before payload copies")
+    require_before(put_indexed_body,
+                   "OrenAVMMetalEnsureRetainedResourceMap(meshes)",
+                   "OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes)",
+                   "retained Metal indexed 3D mesh uploads must preflight scalar-map storage before payload copies")
     for token in (
         "uint8_t* triangleCopy = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);",
         "mesh.triangles = triangleCopy;",
@@ -624,6 +665,15 @@ def main() -> int:
         fail("retained Metal model uploads must use the resource-owned upload helper")
     if "OrenAVMMetalRemoveModelResource(models ? *models : NULL" not in resource_text:
         fail("retained Metal model removals must use the resource-owned removal helper")
+    put_model_start = resource_source_text.find("BOOL OrenAVMMetalPutModelResource")
+    put_model_end = resource_source_text.find("void OrenAVMMetalRemoveModelResource", put_model_start)
+    if put_model_start < 0 or put_model_end < 0:
+        fail("missing retained Metal model upload helper")
+    put_model_body = resource_source_text[put_model_start:put_model_end]
+    require_before(put_model_body,
+                   "OrenAVMMetalEnsureRetainedResourceMap(models)",
+                   "[[OrenAVMMetalModelResource alloc] init]",
+                   "retained Metal model uploads must preflight scalar-map storage before resource allocation")
     if "CFDictionarySetValue(_orenModels3DByID" in text or "CFDictionaryRemoveValue(_orenModels3DByID" in text:
         fail("retained Metal model map mutation must live in OrenAVMMetalResources")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:

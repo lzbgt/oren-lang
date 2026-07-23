@@ -98,6 +98,9 @@ surfaces, but the following blockers remain:
   retained-image table cannot be created.
 - CoreGraphics retained image uploads now preflight byte size, image budgets,
   and scalar-map storage before creating provider-backed `UIImage` objects.
+- CoreGraphics and Metal retained text, mesh, and model uploads now preflight
+  scalar-map storage before retained string/object allocation or raw payload
+  copies.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers
   (`cofactor`, `adjugate`, `adjoint`, `minor3`, and `minor`) that share the
   inverse cofactor formula while keeping singular finite matrices inspectable.

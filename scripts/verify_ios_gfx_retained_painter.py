@@ -19,6 +19,13 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
+def require_before(block: str, before: str, after: str, message: str) -> None:
+    before_pos = block.find(before)
+    after_pos = block.find(after)
+    if before_pos < 0 or after_pos < 0 or before_pos > after_pos:
+        fail(message)
+
+
 def main() -> int:
     view_text = SOURCE.read_text()
     frame_text = FRAME_SOURCE.read_text()
@@ -108,6 +115,34 @@ def main() -> int:
         fail("missing CoreGraphics retained mesh raw payload copy helper")
     if "if (!src || len == 0) return NULL;" not in resource_text:
         fail("CoreGraphics retained mesh payload copy helper must reject null sources before memcpy")
+    put_text_start = resource_source_text.find("BOOL OrenAVMGfxPutTextResource")
+    put_text_end = resource_source_text.find("void OrenAVMGfxDrawTextResource", put_text_start)
+    if put_text_start < 0 or put_text_end < 0:
+        fail("missing CoreGraphics retained text upload helper")
+    put_text_body = resource_source_text[put_text_start:put_text_end]
+    require_before(put_text_body,
+                   "OrenAVMGfxEnsureRetainedResourceMap(texts)",
+                   "[[NSString alloc] initWithBytes:textBytes",
+                   "CoreGraphics retained text uploads must preflight scalar-map storage before string creation")
+    require_before(put_text_body,
+                   "OrenAVMGfxEnsureRetainedResourceMap(texts)",
+                   "[[OrenAVMGfxTextResource alloc] init]",
+                   "CoreGraphics retained text uploads must preflight scalar-map storage before resource allocation")
+    put_triangle_start = resource_source_text.find("BOOL OrenAVMGfxPutTriangleMeshResource")
+    put_indexed_start = resource_source_text.find("BOOL OrenAVMGfxPutIndexedMeshResource", put_triangle_start)
+    put_mesh_end = resource_source_text.find("void OrenAVMGfxRemoveMeshResource", put_indexed_start)
+    if put_triangle_start < 0 or put_indexed_start < 0 or put_mesh_end < 0:
+        fail("missing CoreGraphics retained mesh upload helpers")
+    put_triangle_body = resource_source_text[put_triangle_start:put_indexed_start]
+    put_indexed_body = resource_source_text[put_indexed_start:put_mesh_end]
+    require_before(put_triangle_body,
+                   "OrenAVMGfxEnsureRetainedResourceMap(meshes)",
+                   "OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes)",
+                   "CoreGraphics retained triangle mesh uploads must preflight scalar-map storage before payload copies")
+    require_before(put_indexed_body,
+                   "OrenAVMGfxEnsureRetainedResourceMap(meshes)",
+                   "OrenAVMGfxCopyPayloadBytes(vertices, vertexBytes)",
+                   "CoreGraphics retained indexed mesh uploads must preflight scalar-map storage before payload copies")
     for token in (
         "uint8_t* triangleCopy = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);",
         "mesh.triangles = triangleCopy;",
@@ -247,6 +282,15 @@ def main() -> int:
         fail("CoreGraphics retained model uploads must live in OrenAVMGraphicsResources")
     if "OrenAVMGfxRemoveModelResource(models ? *models : NULL" not in resource_text:
         fail("CoreGraphics retained model removals must live in OrenAVMGraphicsResources")
+    put_model_start = resource_source_text.find("BOOL OrenAVMGfxPutModelResource")
+    put_model_end = resource_source_text.find("void OrenAVMGfxRemoveModelResource", put_model_start)
+    if put_model_start < 0 or put_model_end < 0:
+        fail("missing CoreGraphics retained model upload helper")
+    put_model_body = resource_source_text[put_model_start:put_model_end]
+    require_before(put_model_body,
+                   "OrenAVMGfxEnsureRetainedResourceMap(models)",
+                   "[[OrenAVMGfxModelResource alloc] init]",
+                   "CoreGraphics retained model uploads must preflight scalar-map storage before resource allocation")
     if "CFDictionarySetValue(_orenModels3DByID" in view_text or "CFDictionaryRemoveValue(_orenModels3DByID" in view_text:
         fail("CoreGraphics view must not mutate retained model maps directly")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:

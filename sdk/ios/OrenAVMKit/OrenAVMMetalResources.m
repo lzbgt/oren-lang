@@ -42,6 +42,18 @@ static const void* OrenAVMMetalRetainedKey(uint32_t idValue) {
     return (const void*)(uintptr_t)((uint64_t)idValue + 1ull);
 }
 
+static BOOL OrenAVMMetalEnsureRetainedResourceMap(CFMutableDictionaryRef* map) {
+    if (!map) return NO;
+    if (!*map) *map = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    return *map != NULL;
+}
+
+static BOOL OrenAVMMetalEnsureScalarResourceMap(CFMutableDictionaryRef* map) {
+    if (!map) return NO;
+    if (!*map) *map = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    return *map != NULL;
+}
+
 const void* OrenAVMMetalRetainedImageKey(uint32_t imageID) {
     return OrenAVMMetalRetainedKey(imageID);
 }
@@ -459,13 +471,17 @@ OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts
 BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
                                  uint32_t textID,
                                  uint32_t rgbaValue,
-                                 NSString* text) {
-    if (!texts || textID == 0 || !text) return NO;
+                                 const uint8_t* textBytes,
+                                 uint32_t textLen) {
+    if (!texts || textID == 0 || !textBytes) return NO;
+    if (!OrenAVMMetalEnsureRetainedResourceMap(texts)) return NO;
+    NSString* text = [[NSString alloc] initWithBytes:textBytes
+                                             length:(NSUInteger)textLen
+                                           encoding:NSUTF8StringEncoding];
+    if (!text) return NO;
     OrenAVMMetalTextResource* resource = [[OrenAVMMetalTextResource alloc] init];
     resource.text = text;
     resource.rgbaValue = rgbaValue;
-    if (!*texts) *texts = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*texts) return NO;
     CFDictionarySetValue(*texts, OrenAVMMetalRetainedTextKey(textID), (__bridge const void*)resource);
     return YES;
 }
@@ -540,13 +556,11 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
             if (payloadLen >= 12) {
                 uint32_t textLen = OrenAVMMetalReadU32LE(payload + 8);
                 if (textLen == (uint32_t)payloadLen - 12u) {
-                    NSString* text = [[NSString alloc] initWithBytes:payload + 12
-                                                              length:(NSUInteger)textLen
-                                                            encoding:NSUTF8StringEncoding];
                     (void)OrenAVMMetalPutTextResource(texts,
                                                       OrenAVMMetalReadU32LE(payload),
                                                       OrenAVMMetalReadU32LE(payload + 4),
-                                                      text);
+                                                      payload + 12,
+                                                      textLen);
                 }
             }
             return YES;
@@ -983,6 +997,7 @@ BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
                                    NSUInteger triangleBytes,
                                    uint32_t triangleCount) {
     if (!meshes || meshID == 0 || !triangles || triangleBytes == 0) return NO;
+    if (!OrenAVMMetalEnsureRetainedResourceMap(meshes)) return NO;
     uint8_t* triangleCopy = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
     if (!triangleCopy) return NO;
     OrenAVMMetalMesh2DResource* mesh = [[OrenAVMMetalMesh2DResource alloc] init];
@@ -994,8 +1009,6 @@ BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
     mesh.triangleBytes = triangleBytes;
     mesh.triangles = triangleCopy;
     mesh.triangleCount = triangleCount;
-    if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*meshes) return NO;
     CFDictionarySetValue(*meshes, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
     return YES;
 }
@@ -1013,6 +1026,7 @@ BOOL OrenAVMMetalPutPackedMesh3DResource(CFMutableDictionaryRef* meshes,
                                          uint32_t triangleCount,
                                          uint32_t stride) {
     if (!meshes || meshID == 0 || !triangles || triangleBytes == 0) return NO;
+    if (!OrenAVMMetalEnsureRetainedResourceMap(meshes)) return NO;
     uint8_t* triangleCopy = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
     if (!triangleCopy) return NO;
     OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
@@ -1026,8 +1040,6 @@ BOOL OrenAVMMetalPutPackedMesh3DResource(CFMutableDictionaryRef* meshes,
     mesh.triangles = triangleCopy;
     mesh.triangleCount = triangleCount;
     mesh.stride = stride;
-    if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*meshes) return NO;
     CFDictionarySetValue(*meshes, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
     return YES;
 }
@@ -1041,6 +1053,7 @@ BOOL OrenAVMMetalPutIndexedMesh3DResource(CFMutableDictionaryRef* meshes,
                                           NSUInteger indexBytes,
                                           uint32_t indexCount) {
     if (!meshes || meshID == 0 || !vertices || !indices || vertexBytes == 0 || indexBytes == 0) return NO;
+    if (!OrenAVMMetalEnsureRetainedResourceMap(meshes)) return NO;
     uint8_t* vertexCopy = OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes);
     if (!vertexCopy) return NO;
     uint8_t* indexCopy = OrenAVMMetalCopyPayloadBytes(indices, indexBytes);
@@ -1061,8 +1074,6 @@ BOOL OrenAVMMetalPutIndexedMesh3DResource(CFMutableDictionaryRef* meshes,
     mesh.vertices = vertexCopy;
     mesh.indices = indexCopy;
     mesh.indexCount = indexCount;
-    if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*meshes) return NO;
     CFDictionarySetValue(*meshes, OrenAVMMetalRetainedMeshKey(meshID), (__bridge const void*)mesh);
     return YES;
 }
@@ -1086,8 +1097,7 @@ BOOL OrenAVMMetalRetainedMaterialRGBA(CFDictionaryRef materials, uint32_t materi
 
 BOOL OrenAVMMetalPutMaterialResource(CFMutableDictionaryRef* materials, uint32_t materialID, uint32_t rgbaValue) {
     if (!materials || materialID == 0) return NO;
-    if (!*materials) *materials = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    if (!*materials) return NO;
+    if (!OrenAVMMetalEnsureScalarResourceMap(materials)) return NO;
     CFDictionarySetValue(*materials, OrenAVMMetalRetainedMaterialKey(materialID), OrenAVMMetalRetainedMaterialValue(rgbaValue));
     return YES;
 }
@@ -1114,6 +1124,7 @@ BOOL OrenAVMMetalPutModelResource(CFMutableDictionaryRef* models,
                                   int32_t z,
                                   uint32_t scaleMilli) {
     if (!models || modelID == 0 || meshID == 0 || scaleMilli == 0) return NO;
+    if (!OrenAVMMetalEnsureRetainedResourceMap(models)) return NO;
     OrenAVMMetalModelResource* model = [[OrenAVMMetalModelResource alloc] init];
     model.meshID = meshID;
     model.materialID = materialID;
@@ -1121,8 +1132,6 @@ BOOL OrenAVMMetalPutModelResource(CFMutableDictionaryRef* models,
     model.y = y;
     model.z = z;
     model.scaleMilli = scaleMilli;
-    if (!*models) *models = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*models) return NO;
     CFDictionarySetValue(*models, OrenAVMMetalRetainedModelKey(modelID), (__bridge const void*)model);
     return YES;
 }

@@ -34,6 +34,9 @@ static const void* OrenAVMGfxRetainedKey(uint32_t idValue) {
     return (const void*)(uintptr_t)((uint64_t)idValue + 1ull);
 }
 
+static BOOL OrenAVMGfxEnsureRetainedResourceMap(CFMutableDictionaryRef* map);
+static BOOL OrenAVMGfxEnsureScalarResourceMap(CFMutableDictionaryRef* map);
+
 uint8_t* OrenAVMGfxCopyPayloadBytes(const uint8_t* src, NSUInteger len) {
     if (!src || len == 0) return NULL;
     uint8_t* out = (uint8_t*)malloc(len);
@@ -326,12 +329,11 @@ BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
                                uint32_t textLen,
                                NSDictionary<NSAttributedStringKey, id>* attrs) {
     if (!texts || textID == 0 || !textBytes || !attrs) return NO;
+    if (!OrenAVMGfxEnsureRetainedResourceMap(texts)) return NO;
     NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
     if (!text) return NO;
     OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
     resource.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
-    if (!*texts) *texts = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*texts) return NO;
     CFDictionarySetValue(*texts, OrenAVMGfxRetainedTextKey(textID), (__bridge const void*)resource);
     return YES;
 }
@@ -453,6 +455,7 @@ BOOL OrenAVMGfxPutTriangleMeshResource(CFMutableDictionaryRef* meshes,
                                        uint32_t stride,
                                        BOOL hasRGBA) {
     if (meshID == 0 || !triangles || stride == 0 || triangleCount == 0 || triangleBytes != (NSUInteger)triangleCount * (NSUInteger)stride) return NO;
+    if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;
     uint8_t* triangleCopy = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);
     if (!triangleCopy) return NO;
     OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
@@ -466,7 +469,6 @@ BOOL OrenAVMGfxPutTriangleMeshResource(CFMutableDictionaryRef* meshes,
     mesh.triangleCount = triangleCount;
     mesh.stride = stride;
     mesh.hasRGBA = hasRGBA;
-    if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;
     CFDictionarySetValue(*meshes, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
     return YES;
 }
@@ -485,6 +487,7 @@ BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
     for (uint32_t ii = 0; ii < indexCount; ii++) {
         if (OrenAVMGfxResourceReadU32LE(indices + ((size_t)ii * 4u)) >= vertexCount) return NO;
     }
+    if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;
     uint8_t* vertexCopy = OrenAVMGfxCopyPayloadBytes(vertices, vertexBytes);
     if (!vertexCopy) return NO;
     uint8_t* indexCopy = OrenAVMGfxCopyPayloadBytes(indices, indexBytes);
@@ -505,7 +508,6 @@ BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
     mesh.indices = indexCopy;
     mesh.triangleCount = indexCount / 3u;
     mesh.indexCount = indexCount;
-    if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;
     CFDictionarySetValue(*meshes, OrenAVMGfxRetainedMeshKey(meshID), (__bridge const void*)mesh);
     return YES;
 }
@@ -864,6 +866,7 @@ BOOL OrenAVMGfxPutModelResource(CFMutableDictionaryRef* models,
                                 int32_t z,
                                 uint32_t scaleMilli) {
     if (modelID == 0 || meshID == 0 || scaleMilli == 0) return NO;
+    if (!OrenAVMGfxEnsureRetainedResourceMap(models)) return NO;
     OrenAVMGfxModelResource* model = [[OrenAVMGfxModelResource alloc] init];
     model.meshID = meshID;
     model.materialID = materialID;
@@ -871,7 +874,6 @@ BOOL OrenAVMGfxPutModelResource(CFMutableDictionaryRef* models,
     model.y = y;
     model.z = z;
     model.scaleMilli = scaleMilli;
-    if (!OrenAVMGfxEnsureRetainedResourceMap(models)) return NO;
     CFDictionarySetValue(*models, OrenAVMGfxRetainedModelKey(modelID), (__bridge const void*)model);
     return YES;
 }

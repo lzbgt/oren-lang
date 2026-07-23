@@ -41,6 +41,9 @@ design evidence lives under `project-doc/`.
   retained-image table cannot be created.
 - CoreGraphics retained image uploads now preflight byte size, image budgets,
   and scalar-map storage before creating provider-backed `UIImage` objects.
+- CoreGraphics and Metal retained text, mesh, and model uploads now preflight
+  scalar-map storage before retained string/object allocation or raw payload
+  copies.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers and
   checked Frobenius matrix norm helpers
   (`frobenius_norm`, `frobenius_norm_sq`, `norm_frobenius`, and `norm`) with
