@@ -577,16 +577,20 @@ func collectBranchAssignmentEffects(block *ast.BlockStatement, env memberTypeEnv
 	}
 	localStack := append([]map[string]string{}, stack...)
 	localStack = append(localStack, map[string]string{})
+	localNames := map[string]bool{}
 	for _, stmt := range block.Statements {
-		collectStatementAssignmentEffects(stmt, env, &localStack, effects)
+		collectStatementAssignmentEffects(stmt, env, &localStack, localNames, effects)
 	}
 	return effects
 }
 
-func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string, effects map[string]branchAssignmentEffect) {
+func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, stack *[]map[string]string, localNames map[string]bool, effects map[string]branchAssignmentEffect) {
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+		if validMemberIdentifier(stmt.Name) {
+			localNames[stmt.Name.Value] = true
+		}
 	case *ast.AssignStatement:
 		if !validMemberIdentifier(stmt.Name) {
 			return
@@ -598,18 +602,30 @@ func collectStatementAssignmentEffects(stmt ast.Statement, env memberTypeEnv, st
 	case *ast.BlockStatement:
 		localStack := append(*stack, map[string]string{})
 		for _, nested := range stmt.Statements {
-			collectStatementAssignmentEffects(nested, env, &localStack, effects)
+			collectStatementAssignmentEffects(nested, env, &localStack, localNames, effects)
 		}
 	case *ast.ForStatement:
-		collectStatementAssignmentEffects(stmt.Init, env, stack, effects)
+		collectStatementAssignmentEffects(stmt.Init, env, stack, localNames, effects)
 		collectExpressionAssignmentEffects(stmt.Condition, env, stack, effects)
-		collectStatementAssignmentEffects(stmt.Post, env, stack, effects)
+		collectStatementAssignmentEffects(stmt.Post, env, stack, localNames, effects)
 	case *ast.SetStatement:
 		collectExpressionAssignmentEffects(stmt.Left, env, stack, effects)
 		collectExpressionAssignmentEffects(stmt.Value, env, stack, effects)
+		if path := memberExpressionPath(stmt.Left); path != "" && !memberPathRootIsLocal(path, localNames) {
+			effects[path] = inferBranchAssignmentEffect(stmt.Value, env, *stack)
+		}
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		collectExpressionAssignmentEffects(stmt.ReturnValue, env, stack, effects)
 	}
+}
+
+func memberPathRootIsLocal(path string, localNames map[string]bool) bool {
+	if path == "" || len(localNames) == 0 {
+		return false
+	}
+	root, _, _ := strings.Cut(path, ".")
+	return localNames[root]
 }
 
 func collectExpressionAssignmentEffects(expr ast.Expression, env memberTypeEnv, stack *[]map[string]string, effects map[string]branchAssignmentEffect) {
@@ -744,6 +760,7 @@ func collectFunctionParamStatementTypes(stmt ast.Statement, env memberTypeEnv, f
 	case *ast.SetStatement:
 		collectFunctionParamExpressionTypes(stmt.Left, env, functions, stack, out, conflicts)
 		collectFunctionParamExpressionTypes(stmt.Value, env, functions, stack, out, conflicts)
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.WhileStatement:
 		collectFunctionParamExpressionTypes(stmt.Condition, env, functions, stack, out, conflicts)
 		collectFunctionParamBlockTypes(stmt.Body, env, functions, stack, out, conflicts)

@@ -179,6 +179,90 @@ func TestTypedMemberAnalysisUsesMemberAssignmentFieldTypes(t *testing.T) {
 	}
 }
 
+func TestTypedMemberAnalysisUsesConditionalMemberAssignmentFieldTypes(t *testing.T) {
+	lines := []string{
+		"struct Inner { x, y }",
+		"struct Other { z }",
+		"struct Holder { inner, items }",
+		"fn unknown() { return 0 }",
+		"fn main() {",
+		"  var holder = Holder(unknown(), [Other(0)])",
+		"  if true {",
+		"    holder.inner = Inner(1, 2)",
+		"    holder.items = [Inner(3, 4)]",
+		"  } else {",
+		"    holder.inner = Inner(5, 6)",
+		"    holder.items = [Inner(7, 8)]",
+		"  }",
+		"  var c0 = holder.inner.",
+		"  var d0 = holder.inner.x",
+		"  var c1 = holder.items[0].",
+		"  var d1 = holder.items[0].y",
+		"  var mixed = Holder(unknown(), [])",
+		"  if true {",
+		"    mixed.inner = Inner(9, 10)",
+		"  } else {",
+		"    mixed.inner = Other(11)",
+		"  }",
+		"  var bad0 = mixed.inner.x",
+		"  if true {",
+		"    var local = Holder(unknown(), [])",
+		"    local.inner = Inner(12, 13)",
+		"  } else {",
+		"    var local = Holder(unknown(), [])",
+		"    local.inner = Inner(14, 15)",
+		"  }",
+		"  return local.inner.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-conditional-member-assignment.oren"
+
+	items, found := typedMemberCompletionItemsAt(text, uri, position{
+		Line:      13,
+		Character: len([]rune(lines[13])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("conditional member assignment completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(text, uri, position{
+		Line:      14,
+		Character: strings.LastIndex(lines[14], ".x") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "x" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("conditional member assignment definition mismatch match=%#v ok=%v", match, ok)
+	}
+	items, found = typedMemberCompletionItemsAt(text, uri, position{
+		Line:      15,
+		Character: len([]rune(lines[15])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("conditional member list assignment completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      16,
+		Character: strings.LastIndex(lines[16], ".y") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("conditional member list assignment definition mismatch match=%#v ok=%v", match, ok)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      23,
+		Character: strings.LastIndex(lines[23], ".x") + 1,
+	}, nil, nil)
+	if ok {
+		t.Fatalf("conflicting conditional member assignment definition=%#v want none", match)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      31,
+		Character: strings.LastIndex(lines[31], ".x") + 1,
+	}, nil, nil)
+	if ok {
+		t.Fatalf("branch-local member assignment definition=%#v want none", match)
+	}
+}
+
 func TestServerNavigationUsesExpressionReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{
