@@ -47,6 +47,9 @@ design evidence lives under `project-doc/`.
 - `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
   through bounded `oren_memcpy` in native and bytecode, while fixtures cover both
   overlapping self-copy directions across AVM and native quick integration.
+- `std:bytes.concat` now copies direct `u8_buf` inputs into fresh output through
+  the same bounded non-overlap `oren_memcpy` helper instead of byte-by-byte
+  pointer loops.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.

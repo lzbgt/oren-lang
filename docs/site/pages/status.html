@@ -225,6 +225,10 @@
 <p>  fixtures cover both backward and forward overlapping self-copy directions to</p>
 <p>  preserve portable directional-loop semantics.</p>
 <ul>
+<li><code>std:bytes.concat</code> now uses the same bounded non-overlap <code>oren_memcpy</code> helper</li>
+</ul>
+<p>  when copying direct <code>u8_buf</code> inputs into fresh output buffers.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked viewport/NDC conversion helpers</li>
 </ul>
 <p>  (<code>viewport_matrix</code>, <code>inverse_viewport_matrix</code>, <code>ndc_to_window</code>, and</p>

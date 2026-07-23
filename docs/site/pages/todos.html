@@ -90,6 +90,11 @@
 <p>  through bounded <code>oren_memcpy</code> in native and bytecode, while fixtures cover both</p>
 <p>  overlapping self-copy directions across AVM and native quick integration.</p>
 <ul>
+<li><code>std:bytes.concat</code> now copies direct <code>u8_buf</code> inputs into fresh output through</li>
+</ul>
+<p>  the same bounded non-overlap <code>oren_memcpy</code> helper instead of byte-by-byte</p>
+<p>  pointer loops.</p>
+<ul>
 <li>LSP now advertises and serves same-document document highlights for exact</li>
 </ul>
 <p>  scoped locals/parameters, import aliases, typed fields, and imported</p>

@@ -475,7 +475,7 @@ fn concat(a, b): bytes {
     var outp = oren_buf_data_ptr_unchecked(out)
     var i = 0
     if na > 0 && oren_is_u8_buf(a) == true {
-        _copy_u8_ptr_forward(outp, oren_buf_data_ptr_unchecked(a), na)
+        _copy_u8_ptr_nonoverlap(outp, oren_buf_data_ptr_unchecked(a), na)
     } else {
         while i < na {
             var av = _load_u8(a, i)
@@ -486,7 +486,7 @@ fn concat(a, b): bytes {
     }
     var j = 0
     if nb > 0 && oren_is_u8_buf(b) == true {
-        _copy_u8_ptr_forward(outp + na, oren_buf_data_ptr_unchecked(b), nb)
+        _copy_u8_ptr_nonoverlap(outp + na, oren_buf_data_ptr_unchecked(b), nb)
     } else {
         while j < nb {
             var bv = _load_u8(b, j)

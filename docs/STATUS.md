@@ -135,6 +135,8 @@ surfaces, but the following blockers remain:
   through bounded `oren_memcpy` in native and bytecode, while direct-copy
   fixtures cover both backward and forward overlapping self-copy directions to
   preserve portable directional-loop semantics.
+- `std:bytes.concat` now uses the same bounded non-overlap `oren_memcpy` helper
+  when copying direct `u8_buf` inputs into fresh output buffers.
 - `std:math/mat4` now includes checked viewport/NDC conversion helpers
   (`viewport_matrix`, `inverse_viewport_matrix`, `ndc_to_window`, and
   `window_to_ndc`) and routes project/unproject through the same depth clamp

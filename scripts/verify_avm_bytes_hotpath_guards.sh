@@ -220,6 +220,8 @@ std_bytes_impl="$(sed -n '/fn _u16_be_from_ptr/,/fn set_u16_be/p' lib/std/bytes.
 if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _copy_u8_ptr_nonoverlap(dstp, srcp, n)' <<<"$std_bytes_impl" ||
   ! grep -Fq 'return oren_memcpy(dstp, srcp, n)' <<<"$std_bytes_impl" ||
+  ! grep -Fq '_copy_u8_ptr_nonoverlap(outp, oren_buf_data_ptr_unchecked(a), na)' <<<"$std_bytes_impl" ||
+  ! grep -Fq '_copy_u8_ptr_nonoverlap(outp + na, oren_buf_data_ptr_unchecked(b), nb)' <<<"$std_bytes_impl" ||
   ! grep -Fq '_copy_u8_ptr_nonoverlap(dstp + dst_off, srcp + src_off, n)' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _u64_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _u64_be_from_ptr' <<<"$std_bytes_impl" ||
