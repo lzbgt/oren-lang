@@ -98,11 +98,32 @@ fn _u16_be_from_ptr(p, off) {
         (ptr_get_byte(p + off + 1) & 255)
 }
 
+fn _u16_le_from_ptr(p, off) {
+    return (ptr_get_byte(p + off) & 255) |
+        ((ptr_get_byte(p + off + 1) & 255) << 8)
+}
+
 fn _u32_be_from_ptr(p, off) {
     return ((ptr_get_byte(p + off) & 255) << 24) |
         ((ptr_get_byte(p + off + 1) & 255) << 16) |
         ((ptr_get_byte(p + off + 2) & 255) << 8) |
         (ptr_get_byte(p + off + 3) & 255)
+}
+
+fn _u64_le_from_ptr(p, off) {
+    var lo = _u32_le_from_ptr(p, off)
+    var hi = _u32_le_from_ptr(p, off + 4)
+    return lo | (hi << 32)
+}
+
+fn _u64_be_from_ptr(p, off) {
+    var acc = 0
+    var i = 0
+    while i < 8 {
+        acc = (acc << 8) | (ptr_get_byte(p + off + i) & 255)
+        i = i + 1
+    }
+    return acc
 }
 
 fn view(bs, ctx) {
@@ -188,11 +209,7 @@ fn view_get_i32_le(v, idx) {
 
 fn view_get_u64_le_unchecked(v, idx) {
     var p = view_ptr(v)
-    if p != nil {
-        var lo = _u32_le_from_ptr(p, idx)
-        var hi = _u32_le_from_ptr(p, idx + 4)
-        return lo | (hi << 32)
-    }
+    if p != nil { return _u64_le_from_ptr(p, idx) }
     return get_u64_le(view_bytes(v), idx)
 }
 
@@ -203,13 +220,9 @@ fn view_get_u64_le(v, idx) {
 }
 
 fn view_get_u64_be_unchecked(v, idx) {
-    var acc = 0
-    var i = 0
-    while i < 8 {
-        acc = (acc << 8) | view_get_u8_unchecked(v, idx + i)
-        i = i + 1
-    }
-    return acc
+    var p = view_ptr(v)
+    if p != nil { return _u64_be_from_ptr(p, idx) }
+    return get_u64_be(view_bytes(v), idx)
 }
 
 fn view_get_u64_be(v, idx) {
@@ -559,12 +572,14 @@ fn to_u8_buf_slice(bytes, off, n) {
 fn get_u16_be(bytes, idx) {
     var ok = _check_span(bytes, idx, 2, "bytes.get_u16_be")
     if oren_is_err(ok) { return ok }
+    if oren_is_u8_buf(bytes) == true { return _u16_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }
     return oren_bytes_get_u16_be(bytes, idx)
 }
 
 fn get_u16_le(bytes, idx) {
     var ok = _check_span(bytes, idx, 2, "bytes.get_u16_le")
     if oren_is_err(ok) { return ok }
+    if oren_is_u8_buf(bytes) == true { return _u16_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }
     return oren_bytes_get_u16_le(bytes, idx)
 }
 
@@ -583,12 +598,14 @@ fn get_i16_le(bytes, idx) {
 fn get_u32_be(bytes, idx) {
     var ok = _check_span(bytes, idx, 4, "bytes.get_u32_be")
     if oren_is_err(ok) { return ok }
+    if oren_is_u8_buf(bytes) == true { return _u32_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }
     return oren_bytes_get_u32_be(bytes, idx)
 }
 
 fn get_u32_le(bytes, idx) {
     var ok = _check_span(bytes, idx, 4, "bytes.get_u32_le")
     if oren_is_err(ok) { return ok }
+    if oren_is_u8_buf(bytes) == true { return _u32_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }
     return oren_bytes_get_u32_le(bytes, idx)
 }
 
@@ -607,12 +624,14 @@ fn get_i32_le(bytes, idx) {
 fn get_u64_be(bytes, idx) {
     var ok = _check_span(bytes, idx, 8, "bytes.get_u64_be")
     if oren_is_err(ok) { return ok }
+    if oren_is_u8_buf(bytes) == true { return _u64_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }
     return oren_bytes_get_u64_be(bytes, idx)
 }
 
 fn get_u64_le(bytes, idx) {
     var ok = _check_span(bytes, idx, 8, "bytes.get_u64_le")
     if oren_is_err(ok) { return ok }
+    if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }
     return oren_bytes_get_u64_le(bytes, idx)
 }
 

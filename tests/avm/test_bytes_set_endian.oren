@@ -1,6 +1,7 @@
 @myorg.tag(name="avm-bytes-set-endian")
 
 import list "std:list"
+import bytes "std:bytes"
 
 fn fail() {
     var a = [1]
@@ -74,6 +75,15 @@ fn main() {
     assert_eq(oren_bytes_get_u8(b, 0), 18)
     assert_eq(oren_bytes_get_u8(b, 1), 52)
     assert_eq(oren_bytes_get_u16_be(b, 0), 4660)
+    assert_eq(bytes.get_u16_be(b, 0), 4660)
+    assert_eq(bytes.get_u16_le(b, 0), 13330)
+    var b8 = oren_bytes_from_hex("0102030405060708")
+    if oren_is_err(b8) { fail() }
+    assert_eq(bytes.get_u32_be(b8, 0), 16909060)
+    assert_eq(bytes.get_u32_le(b8, 0), 67305985)
+    assert_eq(bytes.get_u64_be(b8, 0), 72623859790382856)
+    assert_eq(bytes.get_u64_le(b8, 0), 578437695752307201)
+    if oren_is_err(bytes.get_u32_be(b8, 5)) == false { fail() }
 
     print("avm bytes_set_endian OK")
 }

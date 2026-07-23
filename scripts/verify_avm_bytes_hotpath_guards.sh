@@ -216,6 +216,20 @@ if ! grep -Fq 'avm_native_bytes_len_checked(args[0], &n, &err_msg' <<<"$bytes_le
   exit 1
 fi
 
+std_bytes_impl="$(sed -n '/fn _u16_be_from_ptr/,/fn set_u16_be/p' lib/std/bytes.oren)"
+if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'fn _u64_le_from_ptr' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'fn _u64_be_from_ptr' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u16_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u16_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u32_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u32_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl"; then
+  echo "ERROR: std:bytes public unsigned endian getters must read u8_buf carriers directly after public span validation" >&2
+  exit 1
+fi
+
 native_byte_order_impl="$(sed -n '/fn oren_bytes_set_u8/,/fn oren_bytes_get_u16_be/p' lib/runtime_native/190_byte_order.oren)"
 if ! grep -Fq 'if native_bytes_is_list_int(bytes) == true' <<<"$native_byte_order_impl" ||
   ! grep -Fq 'ptr_set(bufi + idx * 8, v)' <<<"$native_byte_order_impl" ||
