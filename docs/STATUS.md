@@ -96,7 +96,8 @@ surfaces, but the following blockers remain:
   vertex spans.
 - iOS Metal geometry-run preparation now coalesces adjacent same-scissor raw
   vertex runs into one owned span, reducing geometry draw calls and transient
-  vertex binds with geometric growth and without changing baked vertex
+  vertex binds with geometric growth, while zero-area rectangle helpers now
+  skip before vertex emission without changing baked valid-command
   color/position order.
 - iOS Metal retained mesh uploads now stage raw payload copies before resource
   install, reject null copy sources before `memcpy`, and free earlier staged

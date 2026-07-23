@@ -2804,6 +2804,9 @@ design evidence lives under `project-doc/`.
   `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1033 lines while
   keeping full-frame clear-color policy, state stacks, and opcode routing in
   the view.
+- Metal rectangle geometry helpers now skip zero-area fill/stroke spans before
+  vertex emission, matching no-op drawing semantics while avoiding degenerate
+  helper-generated vertices in malformed raw frames.
 - Metal retained-image upload/remove/draw/sub-rect/batched image opcode handling
   now lives in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to
   915 lines while keeping retained image budget configuration in the view.

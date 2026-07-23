@@ -130,6 +130,7 @@ void OrenAVMMetalAppendRect(OrenAVMMetalVertexBuffer* vertices,
                             float logicalWidth,
                             float logicalHeight,
                             const uint8_t* rgba) {
+    if (w <= 0.0f || h <= 0.0f) return;
     OrenAVMMetalVertex out[6];
     out[0] = OrenAVMMetalMakeVertex(x, y, logicalWidth, logicalHeight, rgba);
     out[1] = OrenAVMMetalMakeVertex(x + w, y, logicalWidth, logicalHeight, rgba);
@@ -179,6 +180,7 @@ void OrenAVMMetalAppendStrokeRect(OrenAVMMetalVertexBuffer* vertices,
                                   float logicalWidth,
                                   float logicalHeight,
                                   const uint8_t* rgba) {
+    if (w <= 0.0f || h <= 0.0f) return;
     float lw = width <= 0.0f ? 1.0f : width;
     OrenAVMMetalAppendRect(vertices, x, y, w, lw, logicalWidth, logicalHeight, rgba);
     OrenAVMMetalAppendRect(vertices, x, y + h - lw, w, lw, logicalWidth, logicalHeight, rgba);

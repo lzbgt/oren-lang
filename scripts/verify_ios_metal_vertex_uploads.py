@@ -37,7 +37,8 @@ def main() -> int:
     frame_header = FRAME_HEADER.read_text()
     frame_source = FRAME_SOURCE.read_text()
     frame_text = frame_header + "\n" + frame_source
-    geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
+    geometry_source_text = GEOMETRY_SOURCE.read_text()
+    geometry_text = GEOMETRY_HEADER.read_text() + "\n" + geometry_source_text
     resource_source_text = RESOURCE_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + resource_source_text
     pipeline_text = PIPELINE_HEADER.read_text() + "\n" + PIPELINE_SOURCE.read_text()
@@ -146,6 +147,18 @@ def main() -> int:
         fail("Metal frame traversal must delegate primitive payload expansion to OrenAVMMetalGeometry")
     if "static void OrenAVMMetalAppendRoundRect" in text or "static void OrenAVMMetalAppendCircle" in text:
         fail("Metal view must not inline primitive geometry append helpers")
+    rect_start = geometry_source_text.find("void OrenAVMMetalAppendRect")
+    rect_end = geometry_source_text.find("void OrenAVMMetalAppendLine", rect_start)
+    stroke_rect_start = geometry_source_text.find("void OrenAVMMetalAppendStrokeRect")
+    stroke_rect_end = geometry_source_text.find("void OrenAVMMetalAppendTriangle", stroke_rect_start)
+    if rect_start < 0 or rect_end < 0 or stroke_rect_start < 0 or stroke_rect_end < 0:
+        fail("missing Metal rectangle append helper bodies")
+    rect_body = geometry_source_text[rect_start:rect_end]
+    stroke_rect_body = geometry_source_text[stroke_rect_start:stroke_rect_end]
+    if "if (w <= 0.0f || h <= 0.0f) return;" not in rect_body:
+        fail("Metal filled rectangles must skip zero-area vertex emission")
+    if "if (w <= 0.0f || h <= 0.0f) return;" not in stroke_rect_body:
+        fail("Metal stroked rectangles must skip zero-area vertex emission before edge expansion")
     primitive_view_tokens = (
         "pointCount = OrenAVMMetalReadU32LE(payload + 4)",
         "triangleCount = OrenAVMMetalReadU32LE(payload)",
