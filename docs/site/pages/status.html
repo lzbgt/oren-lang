@@ -113,7 +113,14 @@
 <p>  aliases, and <code>std:</code> import literals before generic string matching; the</p>
 <p>  extension verifier has regex smoke coverage for <code>import . &quot;path&quot;</code>. LSP</p>
 <p>  semantic tokens now classify anonymous import dots and member-access dots as</p>
-<p>  operators, matching the grammar surface.</p>
+<p>  operators, matching the grammar surface. The extension launcher now uses a</p>
+<p>  workspace-local <code>oren-lsp</code> only when that binary exists, otherwise falling</p>
+<p>  back to PATH lookup, and trims explicitly configured server paths.</p>
+<ul>
+<li>LSP/VS Code is intentionally last-priority while Oren syntax and semantics are</li>
+</ul>
+<p>  still rolling; language completeness, runtime performance, AVM byte-hotpath</p>
+<p>  work, and GUI/runtime polish take priority before bulk LSP expansion.</p>
 <ul>
 <li>iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed</li>
 </ul>
@@ -3464,9 +3471,10 @@
 <p>	  environment builder plus inferred-scope helper split that keep the main member analyzer below the line guard,</p>
 <p>	  plus full-document semantic-token classification for</p>
 <p>  declarations/references/literals/operators and parser-derived</p>
-<p>  parameter/property classes. The VS Code package now contributes <code>.oren</code></p>
-<p>  syntax highlighting, language configuration, <code>vscode-languageclient</code></p>
-<p>  activation, and a smoke verifier; richer member inference beyond direct</p>
+<p>	  parameter/property classes. The VS Code package now contributes <code>.oren</code></p>
+<p>	  syntax highlighting, language configuration, <code>vscode-languageclient</code></p>
+<p>	  activation, workspace-binary-or-PATH server fallback, and a smoke verifier; broader LSP work is deferred until</p>
+<p>	  Oren language semantics stabilize, then richer member inference beyond direct</p>
 <p>					  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/imported-returned-container-field/imported-parameter-returned-container-field/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/member-assignment/conditional-member-assignment/returned-member-assignment/imported-returned-member-assignment/parameter-returned-member-assignment/imported-parameter-returned-member-assignment/returned-nested-container-field/imported-parameter-returned-nested-container-field/nested-indexed-container-field/aliased-nested-indexed-container-field/constructor-field-nested-container-field/imported-constructor-field-nested-container-field/returned-nested-container-selection-field/call-site-constructor-nested-selection-field/indexed-map-value-field/scoped-completion evidence remains.</p>
 <ul>
 <li>Documentation and source-file guardrails. Go transpiler expression codegen now</li>

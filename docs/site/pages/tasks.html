@@ -1823,7 +1823,13 @@
 <li>Current VS Code package slice adds the <code>.oren</code> language contribution, TextMate</li>
 </ul>
 <p>    syntax grammar, language configuration, <code>vscode-languageclient</code> activation, and</p>
-<p>    a smoke verifier for manifest/grammar/config/entrypoint integrity.</p>
+<p>    workspace-binary-or-PATH <code>oren-lsp</code> fallback with a smoke verifier for</p>
+<p>    manifest/grammar/config/entrypoint integrity.</p>
+<ul>
+<li>LSP/VS Code is now intentionally last-priority while Oren syntax and</li>
+</ul>
+<p>    semantics keep rolling; prioritize language completeness and performance</p>
+<p>    before bulk tooling expansion.</p>
 <ul>
 <li>Remaining work is richer member inference beyond direct constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/conditional-branch/return-if/indexed-container/list-for-in/scoped-completion evidence.</li>
 </ul>

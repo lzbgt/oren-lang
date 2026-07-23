@@ -66,8 +66,20 @@ def main() -> int:
     subprocess.run(["node", "--check", str(extension_js)], check=True, cwd=ROOT)
     probe = (
         "const ext = require('./editors/vscode-oren/src/extension.js');"
+        "const fs = require('fs');"
+        "const os = require('os');"
+        "const path = require('path');"
         "if (typeof ext.activate !== 'function' || typeof ext.deactivate !== 'function') process.exit(2);"
-        "if (ext.defaultServerCommand('/repo') !== require('path').join('/repo', process.platform === 'win32' ? 'oren-lsp.exe' : 'oren-lsp')) process.exit(3);"
+        "if (typeof ext.resolveServerCommand !== 'function') process.exit(3);"
+        "const exe = process.platform === 'win32' ? 'oren-lsp.exe' : 'oren-lsp';"
+        "const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oren-vscode-'));"
+        "if (ext.defaultServerCommand(dir) !== exe) process.exit(4);"
+        "const workspaceExe = path.join(dir, exe);"
+        "fs.writeFileSync(workspaceExe, '');"
+        "if (ext.defaultServerCommand(dir) !== workspaceExe) process.exit(5);"
+        "const configured = { workspace: { getConfiguration: () => ({ get: () => '  /custom/oren-lsp  ' }), workspaceFolders: [{ uri: { fsPath: dir } }] } };"
+        "if (ext.resolveServerCommand(configured) !== '/custom/oren-lsp') process.exit(6);"
+        "fs.rmSync(dir, { recursive: true, force: true });"
     )
     subprocess.run(["node", "-e", probe], check=True, cwd=ROOT)
     print("OK: VS Code Oren extension smoke passed")

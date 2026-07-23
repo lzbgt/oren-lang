@@ -1,18 +1,29 @@
 "use strict";
 
 const path = require("path");
+const fs = require("fs");
 
 let client;
 
+function serverExecutableName() {
+  return process.platform === "win32" ? "oren-lsp.exe" : "oren-lsp";
+}
+
 function defaultServerCommand(workspaceRoot) {
-  const exe = process.platform === "win32" ? "oren-lsp.exe" : "oren-lsp";
-  return workspaceRoot ? path.join(workspaceRoot, exe) : exe;
+  const exe = serverExecutableName();
+  if (workspaceRoot) {
+    const workspaceCommand = path.join(workspaceRoot, exe);
+    if (fs.existsSync(workspaceCommand)) {
+      return workspaceCommand;
+    }
+  }
+  return exe;
 }
 
 function resolveServerCommand(vscode) {
   const configured = vscode.workspace.getConfiguration("oren").get("lsp.path", "");
   if (configured && configured.trim() !== "") {
-    return configured;
+    return configured.trim();
   }
   const folders = vscode.workspace.workspaceFolders || [];
   const root = folders.length > 0 ? folders[0].uri.fsPath : "";
@@ -50,5 +61,6 @@ function deactivate() {
 module.exports = {
   activate,
   deactivate,
-  defaultServerCommand
+  defaultServerCommand,
+  resolveServerCommand
 };

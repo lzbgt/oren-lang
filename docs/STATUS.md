@@ -64,7 +64,12 @@ surfaces, but the following blockers remain:
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`. LSP
   semantic tokens now classify anonymous import dots and member-access dots as
-  operators, matching the grammar surface.
+  operators, matching the grammar surface. The extension launcher now uses a
+  workspace-local `oren-lsp` only when that binary exists, otherwise falling
+  back to PATH lookup, and trims explicitly configured server paths.
+- LSP/VS Code is intentionally last-priority while Oren syntax and semantics are
+  still rolling; language completeness, runtime performance, AVM byte-hotpath
+  work, and GUI/runtime polish take priority before bulk LSP expansion.
 - iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed
   fixed-capacity LIFO stack. Overflow pushes remain balanced no-op frames, and
   malformed out-of-order pops cannot restore a non-matching saved Metal state.
@@ -3246,9 +3251,10 @@ Working evidence:
 	  environment builder plus inferred-scope helper split that keep the main member analyzer below the line guard,
 	  plus full-document semantic-token classification for
   declarations/references/literals/operators and parser-derived
-  parameter/property classes. The VS Code package now contributes `.oren`
-  syntax highlighting, language configuration, `vscode-languageclient`
-  activation, and a smoke verifier; richer member inference beyond direct
+	  parameter/property classes. The VS Code package now contributes `.oren`
+	  syntax highlighting, language configuration, `vscode-languageclient`
+	  activation, workspace-binary-or-PATH server fallback, and a smoke verifier; broader LSP work is deferred until
+	  Oren language semantics stabilize, then richer member inference beyond direct
 					  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/imported-returned-container-field/imported-parameter-returned-container-field/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/member-assignment/conditional-member-assignment/returned-member-assignment/imported-returned-member-assignment/parameter-returned-member-assignment/imported-parameter-returned-member-assignment/returned-nested-container-field/imported-parameter-returned-nested-container-field/nested-indexed-container-field/aliased-nested-indexed-container-field/constructor-field-nested-container-field/imported-constructor-field-nested-container-field/returned-nested-container-selection-field/call-site-constructor-nested-selection-field/indexed-map-value-field/scoped-completion evidence remains.
 - Documentation and source-file guardrails. Go transpiler expression codegen now
   lives in `pkg/transpiler/transpiler_expr.go`, reducing
