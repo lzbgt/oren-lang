@@ -131,13 +131,14 @@ BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
                                       NSUInteger indexBytes,
                                       uint32_t indexCount);
 void OrenAVMGfxRemoveMeshResource(CFMutableDictionaryRef meshes, uint32_t meshID);
-void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID);
+void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID, CGFloat opacity);
 void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
                                   CFDictionaryRef meshes,
                                   CFDictionaryRef materials,
                                   CFDictionaryRef models,
                                   uint8_t opcode,
                                   const uint8_t* payload,
+                                  CGFloat opacity,
                                   BOOL depthEnabled,
                                   int32_t nearZ,
                                   int32_t farZ);
@@ -148,6 +149,7 @@ BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,
                                  uint8_t opcode,
                                  const uint8_t* payload,
                                  uint16_t payloadLen,
+                                 CGFloat opacity,
                                  BOOL depthEnabled,
                                  int32_t nearZ,
                                  int32_t farZ);

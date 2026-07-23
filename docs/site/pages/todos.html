@@ -3924,10 +3924,10 @@
 <p>  vertex emission, matching no-op drawing semantics while avoiding degenerate</p>
 <p>  helper-generated vertices in malformed raw frames.</p>
 <ul>
-<li>Fully transparent Metal primitive/image/text draw opcodes now return handled</li>
+<li>Fully transparent Metal primitive/image/text and retained mesh/model draw opcodes</li>
 </ul>
-<p>  before vertex, texture-run, or text-cache work while retained create/destroy</p>
-<p>  resource opcodes still execute.</p>
+<p>  now return handled before vertex, texture-run, text-cache, retained lookup, or</p>
+<p>  depth-order work while retained create/destroy resource opcodes still execute.</p>
 <ul>
 <li>Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills</li>
 </ul>

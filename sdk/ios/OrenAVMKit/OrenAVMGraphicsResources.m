@@ -551,10 +551,11 @@ static BOOL OrenAVMGfxTriangleIsDegenerate(CGFloat x1,
     return area2 == 0.0;
 }
 
-void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID) {
+void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID, CGFloat opacity) {
+    if (!ctx || opacity <= 0.0) return;
     OrenAVMGfxMeshResource* mesh = OrenAVMGfxRetainedMeshResource(meshes, meshID);
     const uint8_t* tris = mesh.triangles;
-    if (!ctx || !tris || mesh.triangleCount != mesh.triangleBytes / 24u) return;
+    if (!tris || mesh.triangleCount != mesh.triangleBytes / 24u) return;
     OrenAVMGfxSetFillColorValue(ctx, mesh.rgbaValue);
     for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
         const uint8_t* tri = tris + ((size_t)ti * 24u);
@@ -580,10 +581,11 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
                                   CFDictionaryRef models,
                                   uint8_t opcode,
                                   const uint8_t* payload,
+                                  CGFloat opacity,
                                   BOOL depthEnabled,
                                   int32_t nearZ,
                                   int32_t farZ) {
-    if (!ctx || !payload) return;
+    if (!ctx || !payload || opacity <= 0.0) return;
     uint32_t meshID = OrenAVMGfxResourceReadU32LE(payload);
     uint32_t materialID = 0;
     int32_t modelX = 0;
@@ -713,6 +715,7 @@ BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,
                                  uint8_t opcode,
                                  const uint8_t* payload,
                                  uint16_t payloadLen,
+                                 CGFloat opacity,
                                  BOOL depthEnabled,
                                  int32_t nearZ,
                                  int32_t farZ) {
@@ -736,7 +739,7 @@ BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,
             return YES;
         }
         case 81:
-            if (payloadLen == 4) OrenAVMGfxDrawMesh2DResource(ctx, meshes ? *meshes : NULL, OrenAVMGfxResourceReadU32LE(payload));
+            if (payloadLen == 4) OrenAVMGfxDrawMesh2DResource(ctx, meshes ? *meshes : NULL, OrenAVMGfxResourceReadU32LE(payload), opacity);
             return YES;
         case 82:
             if (payloadLen == 4) OrenAVMGfxRemoveMeshResource(meshes ? *meshes : NULL, OrenAVMGfxResourceReadU32LE(payload));
@@ -772,6 +775,7 @@ BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,
                                              models ? *models : NULL,
                                              opcode,
                                              payload,
+                                             opacity,
                                              depthEnabled,
                                              nearZ,
                                              farZ);

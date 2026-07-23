@@ -816,6 +816,19 @@ def main() -> int:
             fail(f"Metal clear-color command helper missing expected path: {token}")
     if "uint8_t clearRGBA[4]" in text or "OrenAVMMetalRGBAWithOpacity(payload + 16" in text:
         fail("Metal view must not inline clear-color payload decoding")
+    mesh2d_draw_start = resource_source_text.find("void OrenAVMMetalAppendMesh2DResource")
+    mesh3d_draw_start = resource_source_text.find("void OrenAVMMetalAppendMesh3DResource")
+    mesh_draw_end = resource_source_text.find("BOOL OrenAVMMetalHandleMeshCommand", mesh3d_draw_start)
+    if mesh2d_draw_start < 0 or mesh3d_draw_start < 0 or mesh_draw_end < 0:
+        fail("missing retained Metal mesh draw helper blocks")
+    mesh2d_draw_body = resource_source_text[mesh2d_draw_start:mesh3d_draw_start]
+    mesh3d_draw_body = resource_source_text[mesh3d_draw_start:mesh_draw_end]
+    for block, token in (
+        (mesh2d_draw_body, "if (!mesh || !vertices || opacity <= 0.0f) return;"),
+        (mesh3d_draw_body, "if (!payload || !vertices || opacity <= 0.0f) return;"),
+    ):
+        if token not in block:
+            fail(f"retained Metal mesh/model draws must skip fully transparent work before resource expansion: {token}")
     if "OrenAVMMetalHandleFrameStateCommand(opcode," not in frame_text:
         fail("Metal frame traversal must delegate state-stack opcodes to the frame-owned command helper")
     if "BOOL OrenAVMMetalHandleFrameStateCommand" not in frame_text:

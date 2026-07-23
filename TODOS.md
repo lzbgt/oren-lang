@@ -2821,9 +2821,9 @@ design evidence lives under `project-doc/`.
 - Metal rectangle geometry helpers now skip zero-area fill/stroke spans before
   vertex emission, matching no-op drawing semantics while avoiding degenerate
   helper-generated vertices in malformed raw frames.
-- Fully transparent Metal primitive/image/text draw opcodes now return handled
-  before vertex, texture-run, or text-cache work while retained create/destroy
-  resource opcodes still execute.
+- Fully transparent Metal primitive/image/text and retained mesh/model draw opcodes
+  now return handled before vertex, texture-run, text-cache, retained lookup, or
+  depth-order work while retained create/destroy resource opcodes still execute.
 - Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills
   now skip exact degenerate triangles, avoiding no-op triangle draw work for
   collapsed 2D/3D mesh payloads while preserving valid tiny triangles.

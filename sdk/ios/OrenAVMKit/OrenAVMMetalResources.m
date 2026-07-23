@@ -695,6 +695,7 @@ void OrenAVMMetalAppendMesh2DResource(OrenAVMMetalMesh2DResource* mesh,
                                       float logicalWidth,
                                       float logicalHeight,
                                       float opacity) {
+    if (!mesh || !vertices || opacity <= 0.0f) return;
     const uint8_t* tris = mesh.triangles;
     if (!tris || mesh.triangleCount != mesh.triangleBytes / 24u) return;
     uint8_t rgba[4];
@@ -728,7 +729,7 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
                                       BOOL depthEnabled,
                                       int32_t nearZ,
                                       int32_t farZ) {
-    if (!payload || !vertices) return;
+    if (!payload || !vertices || opacity <= 0.0f) return;
     uint32_t meshID = OrenAVMMetalReadU32LE(payload);
     uint32_t materialID = 0;
     int32_t modelX = 0;

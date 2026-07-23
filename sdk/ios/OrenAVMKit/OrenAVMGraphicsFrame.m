@@ -126,6 +126,7 @@ void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawCon
                                         opcode,
                                         payload,
                                         payloadLen,
+                                        frameState.opacity,
                                         frameState.depthEnabled,
                                         frameState.nearZ,
                                         frameState.farZ) ||

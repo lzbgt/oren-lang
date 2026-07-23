@@ -94,14 +94,19 @@ def main() -> int:
         fail("CoreGraphics view must not mutate retained mesh maps directly")
     if "OrenAVMGfxDrawMesh2DResource(ctx, meshes ? *meshes : NULL" not in resource_text:
         fail("CoreGraphics retained 2D mesh draws must live in OrenAVMGraphicsResources")
-    if "void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID)" not in resource_text:
+    if "void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID, CGFloat opacity)" not in resource_text:
         fail("CoreGraphics retained 2D mesh draw helper must live in OrenAVMGraphicsResources")
     if "mesh.triangleCount != mesh.triangleBytes / 24u" not in resource_text:
         fail("CoreGraphics retained 2D mesh draw helper must validate the raw 2D triangle payload")
-    mesh2d_draw_start = resource_text.find("void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx,")
-    mesh2d_draw_end = resource_text.find("void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,", mesh2d_draw_start)
+    mesh2d_draw_start = resource_source_text.find("void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx,")
+    mesh2d_draw_end = resource_source_text.find("void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,", mesh2d_draw_start)
     if mesh2d_draw_start < 0 or mesh2d_draw_end < 0:
         fail("missing CoreGraphics retained 2D mesh draw helper block")
+    mesh2d_draw_body = resource_source_text[mesh2d_draw_start:mesh2d_draw_end]
+    if "if (!ctx || opacity <= 0.0) return;" not in mesh2d_draw_body:
+        fail("CoreGraphics retained 2D mesh draws must skip fully transparent work before retained lookup")
+    if "OrenAVMGfxHandleMeshCommand(ctx," not in frame_text or "frameState.opacity" not in frame_text:
+        fail("CoreGraphics frame traversal must pass opacity into retained mesh command handling")
     if "const uint8_t* tri = tris + ((size_t)ti * 24u)" in frame_command_text:
         fail("CoreGraphics frame traversal must not expand retained 2D mesh triangle payloads directly")
     if "@property(nonatomic, strong) NSData* triangles" in text or "@property(nonatomic, strong) NSData* indices" in text:
@@ -303,10 +308,13 @@ def main() -> int:
         fail("CoreGraphics view must not mutate retained model maps directly")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
         fail("CoreGraphics retained model draws must not use string-key dictionary lookups")
-    retained3d_draw_start = resource_text.find("void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,")
-    retained3d_draw_end = resource_text.find("BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,", retained3d_draw_start)
+    retained3d_draw_start = resource_source_text.find("void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,")
+    retained3d_draw_end = resource_source_text.find("BOOL OrenAVMGfxHandleMeshCommand(CGContextRef ctx,", retained3d_draw_start)
     if retained3d_draw_start < 0 or retained3d_draw_end < 0:
         fail("missing CoreGraphics retained 3D draw helper block")
+    retained3d_draw_body = resource_source_text[retained3d_draw_start:retained3d_draw_end]
+    if "if (!ctx || !payload || opacity <= 0.0) return;" not in retained3d_draw_body:
+        fail("CoreGraphics retained 3D mesh/model draws must skip fully transparent work before retained lookup and ordering")
     for forbidden in (
         "OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity]",
         "OrenAVMGfxSortTriangleOrder(order, visibleCount)",

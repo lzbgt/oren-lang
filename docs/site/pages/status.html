@@ -149,9 +149,10 @@
 <p>  validated once before heap vertex allocation; known-size image/text batches</p>
 <p>  allocate exact heap vertex storage once, retained 3D draws skip sort/color</p>
 <p>  work when clipping leaves no visible triangles, fully transparent Metal</p>
-<p>  primitive/image/text draw opcodes skip vertex/texture/text-cache work while</p>
-<p>  resource create/destroy opcodes still execute, and later compatible-run</p>
-<p>  coalescing still grows geometrically.</p>
+<p>  primitive/image/text plus retained mesh/model draw opcodes skip</p>
+<p>  vertex/texture/text-cache/lookup/depth-order work while resource</p>
+<p>  create/destroy opcodes still execute, and later compatible-run coalescing</p>
+<p>  still grows geometrically.</p>
 <ul>
 <li>iOS Metal image-run preparation now coalesces adjacent compatible image runs</li>
 </ul>
