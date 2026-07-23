@@ -168,6 +168,8 @@ fn test_bytes_endian_writes() {
     assert_eq(bytesm.get_u64_be(ub, 0), 72623859790382856)
     assert_true(!oren_is_err(bytesm.put_i64_le(ub, 0, -2)))
     assert_eq(bytesm.get_i64_le(ub, 0), -2)
+    assert_true(!oren_is_err(bytesm.put_i64_be(ub, 0, -2)))
+    assert_eq(bytesm.get_i64_be(ub, 0), -2)
     assert_true(oren_is_err(bytesm.put_u16_be(ub, 7, 1)))
     assert_true(oren_is_err(bytesm.put_u64_be(ub, 0, -1)))
 

@@ -2551,7 +2551,9 @@ invalid-input no-clobber behavior. Legacy native `oren_write_bytes` mirrors
 that contract for self-hosted tests by validating list bytes and allocating only
 a bounded scratch chunk before opening/truncating the destination, then
 streaming short-write-safe chunks instead of materializing a full-size byte
-mirror. AVM byte/string slice conversion now shares checked bytes/list/
+mirror. `std:bytes` public signed 64-bit endian getters now read `u8_buf`
+carriers directly after one public span validation, matching the unsigned
+64-bit and signed 16/32-bit getter hot paths. AVM byte/string slice conversion now shares checked bytes/list/
 `LIST_INT` helpers for length checks, byte/endian reads, full-buffer string
 conversion, `bytes_to_hex`, `oren_string_from_bytes_slice`,
 `oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`; the native

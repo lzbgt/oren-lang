@@ -231,8 +231,10 @@ if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _i32_from_u32(_u32_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx)) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _i32_from_u32(_u32_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx)) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
-  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl"; then
-  echo "ERROR: std:bytes public endian getters must read u8_buf carriers directly after public span validation" >&2
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$(sed -n '/fn get_i64_be/,/fn set_u16_be/p' lib/std/bytes.oren)" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$(sed -n '/fn get_i64_be/,/fn set_u16_be/p' lib/std/bytes.oren)"; then
+  echo "ERROR: std:bytes public endian getters, including signed 64-bit getters, must read u8_buf carriers directly after public span validation" >&2
   exit 1
 fi
 
