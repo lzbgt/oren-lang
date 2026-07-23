@@ -491,12 +491,12 @@ BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         return YES;
     }
     if (!transientBuffers) return NO;
+    if (!*transientBuffers) *transientBuffers = [NSMutableArray array];
+    if (!*transientBuffers) return NO;
     id<MTLBuffer> buffer = [device newBufferWithBytes:bytes
                                                length:length
                                               options:MTLResourceStorageModeShared];
     if (!buffer) return NO;
-    if (!*transientBuffers) *transientBuffers = [NSMutableArray array];
-    if (!*transientBuffers) return NO;
     [*transientBuffers addObject:buffer];
     [encoder setVertexBuffer:buffer offset:0 atIndex:0];
     return YES;

@@ -100,9 +100,10 @@ surfaces, but the following blockers remain:
 - iOS Metal retained mesh uploads now stage raw payload copies before resource
   install, reject null copy sources before `memcpy`, and free earlier staged
   buffers if a later indexed-mesh copy fails.
-- iOS Metal large vertex uploads now validate transient-buffer retention storage
-  before allocating `MTLBuffer` objects, keeping invalid helper calls from
-  briefly allocating GPU memory that cannot be retained through the frame.
+- iOS Metal large vertex uploads now allocate transient-buffer retention storage
+  before allocating `MTLBuffer` objects, keeping invalid helper calls and
+  retention-array allocation failures from briefly allocating GPU memory that
+  cannot be retained through the frame.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.
@@ -2413,9 +2414,10 @@ Facts from the 2026-05-28 implementation pass:
 large geometry/image/text runs to transient `MTLBuffer` objects retained
 through command completion, so retained meshes and batches do not rely on
 unbounded `setVertexBytes` payloads. The iOS SDK verifier now guards that
-direct `setVertexBytes` usage stays inside the bounded helper and large
-transient uploads stay retained through command completion without a post-encode
-tracking-array copy, and guards geometry vertex-run flushing against copying the
+direct `setVertexBytes` usage stays inside the bounded helper, large-upload
+retention arrays are allocated before `MTLBuffer`, and large transient uploads
+stay retained through command completion without a post-encode tracking-array
+copy, and guards geometry vertex-run flushing against copying the
 completed mutable vertex buffer at every clip/transform/opacity/camera boundary.
 Metal batched text-run construction also transfers completed mutable vertex
 buffers into run ownership instead of copying positioned glyph quads, and

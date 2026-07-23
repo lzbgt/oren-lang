@@ -100,7 +100,7 @@ design evidence lives under `project-doc/`.
 - Native HTTP/2 header-only `END_STREAM` responses now return an exact empty `u8_buf` before allocating DATA accumulators, while content-length DATA bodies still use exact-capacity accumulation with mismatch checks.
 - Native WebSocket masked client sends now write the header/mask prefix and stream payloads through fixed-size masked chunks instead of allocating full payload-sized frame buffers.
 - Native WebSocket binary sends/receives now expose unfragmented opcode-2 payloads as validated byte-backed `u8_buf` values, byte-native ping/pong/close helpers send bounded `u8_buf` control payloads directly, and fragmented binary assembly plus ping/pong/close control receives use scratch/accumulator storage until the exact-size returned byte buffer is required; >4096-byte masked binary plus byte ping/pong/close plus fragmented text/binary loopback fixtures guard the byte-native path, and WSS loopback coverage now exercises byte ping/pong over TLS before text echo.
-- iOS Metal large vertex uploads now reject missing transient-buffer retention storage before allocating `MTLBuffer`, avoiding unretained GPU-buffer allocation work on invalid helper calls.
+- iOS Metal large vertex uploads now allocate transient-buffer retention storage before allocating `MTLBuffer`, avoiding unretained GPU-buffer allocation work on invalid helper calls or retention-array allocation failures.
 - `std:buffer` raw `u8_pack_into` now validates the full input list before mutating the destination and writes valid bytes directly into `u8_buf` storage before falling back to compatibility stores.
 - `std:buffer` raw `u8_copy_from_string*` now validates the public destination/string span once, then writes string bytes directly into `u8_buf` storage before falling back to compatibility stores for non-optimized carriers.
 - `std:buffer` u8 matrix pack helpers now write validated row-list/string-row payloads directly into fresh dense `u8_buf` storage; strided u8 view copies from byte carriers, `u8_buf`, and strings now validate the source span once, then write directly into strided `u8_buf` storage before falling back to checked per-element view stores; strided `u8_buf` exports and non-dense u8 matrix exports now gather directly into exact-size `u8_buf` output before string conversion.
@@ -2684,8 +2684,9 @@ design evidence lives under `project-doc/`.
   spans into the first owned run, cutting geometry draw calls and transient
   vertex binds with geometric growth while preserving baked vertex order.
 - `make verify-libavm-ios` now guards that Metal vertex uploads keep direct
-  `setVertexBytes` usage inside the bounded helper and retain large transient
-  `MTLBuffer` uploads through command completion.
+  `setVertexBytes` usage inside the bounded helper, allocate large-upload
+  retention arrays before `MTLBuffer`, and retain large transient `MTLBuffer`
+  uploads through command completion.
 - Metal large transient vertex uploads now retain their existing per-command
   buffer tracking array through command completion instead of copying that array
   after encoding.
