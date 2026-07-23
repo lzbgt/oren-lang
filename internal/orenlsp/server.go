@@ -122,6 +122,12 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.references(p.TextDocument.URI, p.Position, p.Context.IncludeDeclaration)})
+	case "textDocument/documentHighlight":
+		var p textDocumentParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.documentHighlights(p.TextDocument.URI, p.Position)})
 	case "textDocument/prepareRename":
 		var p textDocumentParams
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -210,10 +216,11 @@ func initializeResult() map[string]any {
 			"completionProvider": map[string]any{
 				"triggerCharacters": []string{".", ":"},
 			},
-			"documentSymbolProvider": true,
-			"definitionProvider":     true,
-			"hoverProvider":          true,
-			"referencesProvider":     true,
+			"documentSymbolProvider":    true,
+			"definitionProvider":        true,
+			"hoverProvider":             true,
+			"referencesProvider":        true,
+			"documentHighlightProvider": true,
 			"renameProvider": map[string]any{
 				"prepareProvider": true,
 			},

@@ -1696,8 +1696,9 @@ This file is the concise task view. Detailed implementation status lives in
     consistent direct call-site parameter inference with conflict
     invalidation, direct parameter-return propagation,
     consistent conditional branch return and assignment inference, unknown-assignment invalidation,
-    and conservative prepare/rename workspace
-    edits for exact scoped parameters/local variables and same-document typed fields, plus
+	    same-document document highlights for exact scoped locals/parameters,
+	    import aliases, typed fields, and imported top-level symbols, and conservative prepare/rename workspace
+	    edits for exact scoped parameters/local variables and same-document typed fields, plus
     full-document semantic-token classification for declarations/references/literals/operators and parser-derived
     parameter/property classes.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate

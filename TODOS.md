@@ -44,6 +44,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics and Metal retained text, mesh, and model uploads now preflight
   scalar-map storage before retained string/object allocation or raw payload
   copies.
+- LSP now advertises and serves same-document document highlights for exact
+  scoped locals/parameters, import aliases, typed fields, and imported
+  top-level symbols by reusing existing rename/reference resolution.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers and
   checked Frobenius matrix norm helpers
   (`frobenius_norm`, `frobenius_norm_sq`, `norm_frobenius`, and `norm`) with

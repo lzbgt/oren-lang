@@ -45,6 +45,9 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	if caps["referencesProvider"] != true {
 		t.Fatalf("missing referencesProvider capability: %#v", caps)
 	}
+	if caps["documentHighlightProvider"] != true {
+		t.Fatalf("missing documentHighlightProvider capability: %#v", caps)
+	}
 	renameProvider, ok := caps["renameProvider"].(map[string]any)
 	if !ok || renameProvider["prepareProvider"] != true {
 		t.Fatalf("missing renameProvider capability: %#v", caps)

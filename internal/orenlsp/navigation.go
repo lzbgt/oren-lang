@@ -12,6 +12,13 @@ type hoverContents struct {
 	Value string `json:"value"`
 }
 
+type documentHighlight struct {
+	Range diagnosticRange `json:"range"`
+	Kind  int             `json:"kind"`
+}
+
+const documentHighlightText = 1
+
 func (s *Server) hover(uri string, pos position) any {
 	text := s.docs[uri]
 	name := wordAtPosition(text, pos)
@@ -34,6 +41,24 @@ func (s *Server) hover(uri string, pos position) any {
 		return nil
 	}
 	return hoverForResolvedSymbol(match)
+}
+
+func (s *Server) documentHighlights(uri string, pos position) []documentHighlight {
+	if locs, _, ok := s.exactRenameLocations(uri, pos); ok {
+		return documentHighlightsForURI(uri, locs)
+	}
+	return documentHighlightsForURI(uri, s.references(uri, pos, true))
+}
+
+func documentHighlightsForURI(uri string, locs []location) []documentHighlight {
+	out := make([]documentHighlight, 0, len(locs))
+	for _, loc := range uniqueLocations(locs) {
+		if loc.URI != uri {
+			continue
+		}
+		out = append(out, documentHighlight{Range: loc.Range, Kind: documentHighlightText})
+	}
+	return out
 }
 
 func hoverForResolvedSymbol(match resolvedSymbol) hoverResult {
