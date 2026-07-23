@@ -234,6 +234,10 @@
 </ul>
 <p>  when copying direct <code>u8_buf</code> inputs into fresh output buffers.</p>
 <ul>
+<li><code>std:bytes.to_hex</code> now caches direct <code>u8_buf</code> data pointers once per call, so</li>
+</ul>
+<p>  hot lowercase hex emission avoids a carrier check for every source byte.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked viewport/NDC conversion helpers</li>
 </ul>
 <p>  (<code>viewport_matrix</code>, <code>inverse_viewport_matrix</code>, <code>ndc_to_window</code>, and</p>

@@ -95,6 +95,10 @@
 <p>  the same bounded non-overlap <code>oren_memcpy</code> helper instead of byte-by-byte</p>
 <p>  pointer loops.</p>
 <ul>
+<li><code>std:bytes.to_hex</code> now hoists direct <code>u8_buf</code> data pointers once per call,</li>
+</ul>
+<p>  avoiding a repeated carrier check in each lowercase hex byte iteration.</p>
+<ul>
 <li>LSP now advertises and serves same-document document highlights for exact</li>
 </ul>
 <p>  scoped locals/parameters, import aliases, typed fields, and imported</p>

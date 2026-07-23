@@ -420,10 +420,17 @@ fn to_hex(bytes) {
     if oren_is_err(out) { return out }
     var outp = oren_buf_data_ptr_unchecked(out)
     var digits = "0123456789abcdef"
+    var srcp = nil
+    if oren_is_u8_buf(bytes) == true { srcp = oren_buf_data_ptr_unchecked(bytes) }
     var i = 0
     while i < n {
-        var b = _load_u8(bytes, i)
-        if oren_is_err(b) { return b }
+        var b = 0
+        if srcp != nil {
+            b = ptr_get_byte(srcp + i) & 255
+        } else {
+            b = _load_u8(bytes, i)
+            if oren_is_err(b) { return b }
+        }
         ptr_set_byte(outp + i * 2, oren_string_byte_at_unchecked(digits, (b >> 4) & 15))
         ptr_set_byte(outp + i * 2 + 1, oren_string_byte_at_unchecked(digits, b & 15))
         i = i + 1
