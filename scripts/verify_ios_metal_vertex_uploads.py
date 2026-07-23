@@ -664,6 +664,18 @@ def main() -> int:
     ):
         if token not in image_batch_body:
             fail(f"Metal batched image-rect helper missing local destination validation: {token}")
+    require_before(
+        image_batch_body,
+        "if (dw == 0 || dh == 0) return nil;",
+        "OrenAVMMetalImageRunAllocateExactHeapVertices(run, vertexCount)",
+        "Metal batched image-rect helper must validate destination sizes before heap vertex allocation",
+    )
+    require_before(
+        image_batch_body,
+        "if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;",
+        "OrenAVMMetalImageRunAllocateExactHeapVertices(run, vertexCount)",
+        "Metal batched image-rect helper must validate source subrects before heap vertex allocation",
+    )
     if "OrenAVMMetalImageRunVertexBytes(run)" not in frame_text or "OrenAVMMetalImageRunVertexCount(run)" not in frame_text:
         fail("Metal image encoding must draw inline or batched image runs from their actual vertex span")
     if "NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns" not in resource_text:

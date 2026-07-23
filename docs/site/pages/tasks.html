@@ -1507,7 +1507,8 @@
 <p>	     directly from shared byte views, OGE0 event headers and little-endian</p>
 <p>	     payload fields read from cached u8-buffer pointers, UI command validation</p>
 <p>	     reads geometry/text-position/image-rect payload fields through shared</p>
-<p>	     byte views while software rasterization reads those payload</p>
+<p>	     byte views, and Metal batched image rects validate local draw/source</p>
+<p>	     spans before heap vertex allocation, while software rasterization reads those payload</p>
 <p>		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
 <p>		     package magic/header/table reads and payload slices through the shared</p>
 <p>		     checked byte view, and PPM/software-raster RGBA sampling</p>

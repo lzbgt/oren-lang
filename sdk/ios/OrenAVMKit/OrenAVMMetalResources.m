@@ -203,6 +203,17 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
     if (!texture || !rects || rectCount == 0) return nil;
     NSUInteger vertexCount = (NSUInteger)rectCount * 6u;
     if (vertexCount / 6u != (NSUInteger)rectCount) return nil;
+    for (uint32_t ri = 0; ri < rectCount; ri++) {
+        const uint8_t* r = rects + ((size_t)ri * 32u);
+        uint32_t sx = OrenAVMMetalReadU32LE(r);
+        uint32_t sy = OrenAVMMetalReadU32LE(r + 4);
+        uint32_t sw = OrenAVMMetalReadU32LE(r + 8);
+        uint32_t sh = OrenAVMMetalReadU32LE(r + 12);
+        uint32_t dw = OrenAVMMetalReadU32LE(r + 24);
+        uint32_t dh = OrenAVMMetalReadU32LE(r + 28);
+        if (dw == 0 || dh == 0) return nil;
+        if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
+    }
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
     run.opacity = opacity;

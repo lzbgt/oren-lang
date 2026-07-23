@@ -2747,7 +2747,7 @@ design evidence lives under `project-doc/`.
   parallel texture/pixel dictionaries, with overflow-safe upload accounting and
   sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture
   dimensions for batched image rects plus local zero-size sub-rect/destination
-  rejection.
+  rejection before batched image-run heap vertex allocation.
 - Metal retained 2D/3D mesh resources now use scalar-key maps instead of boxed
   mesh ID dictionary keys.
 - CoreGraphics and Metal retained model resources now use typed resource records
