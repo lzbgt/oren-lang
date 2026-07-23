@@ -141,7 +141,8 @@ void OrenAVMGfxRemoveImageResource(CFMutableDictionaryRef imagesByID,
 }
 
 static BOOL OrenAVMGfxSubrectInImage(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, size_t width, size_t height) {
-    return (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
+    return sw > 0 && sh > 0 &&
+        (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
         (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
 }
 
@@ -156,7 +157,7 @@ void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
                                 uint32_t y,
                                 uint32_t w,
                                 uint32_t h) {
-    if (!cgImage || !OrenAVMGfxSubrectInImage(sx, sy, sw, sh, imageWidth, imageHeight)) return;
+    if (!cgImage || w == 0 || h == 0 || !OrenAVMGfxSubrectInImage(sx, sy, sw, sh, imageWidth, imageHeight)) return;
     CGImageRef subImage = CGImageCreateWithImageInRect(cgImage, CGRectMake((CGFloat)sx, (CGFloat)sy, (CGFloat)sw, (CGFloat)sh));
     if (!subImage) return;
     UIImage* cropped = [UIImage imageWithCGImage:subImage];

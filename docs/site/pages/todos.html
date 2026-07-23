@@ -3669,7 +3669,8 @@
 <li>Metal batched image-rect commands now build one raw vertex-backed image run</li>
 </ul>
 <p>  per command instead of allocating one run and issuing one draw call per rect;</p>
-<p>  single image quads still stay inline.</p>
+<p>  single image quads still stay inline, and the batched helper rejects zero-size</p>
+<p>  destination rects before writing heap vertices.</p>
 <ul>
 <li>Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity</li>
 </ul>
@@ -3781,14 +3782,15 @@
 <p>  plus pixel accounting instead of parallel image/pixel dictionaries, with</p>
 <p>  overflow-safe retained sub-rect bounds checks, shared checked sub-rect drawing,</p>
 <p>  scalar-key retained image lookup, cached image dimensions for batched atlas</p>
-<p>  rects, and provider-owned raw upload bytes instead of intermediate <code>NSData</code></p>
-<p>  wrappers.</p>
+<p>  rects, local zero-size sub-rect/destination rejection, and provider-owned raw</p>
+<p>  upload bytes instead of intermediate <code>NSData</code> wrappers.</p>
 <ul>
 <li>Retained Metal image resources now use typed texture/pixel records instead of</li>
 </ul>
 <p>  parallel texture/pixel dictionaries, with overflow-safe upload accounting and</p>
 <p>  sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture</p>
-<p>  dimensions for batched image rects.</p>
+<p>  dimensions for batched image rects plus local zero-size sub-rect/destination</p>
+<p>  rejection.</p>
 <ul>
 <li>Metal retained 2D/3D mesh resources now use scalar-key maps instead of boxed</li>
 </ul>

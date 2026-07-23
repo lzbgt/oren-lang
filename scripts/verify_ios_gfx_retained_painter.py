@@ -262,8 +262,12 @@ def main() -> int:
         fail("CoreGraphics retained image command path must let the upload helper create images after preflight")
     if "OrenAVMGfxSubrectInImage" not in text:
         fail("CoreGraphics retained image sub-rect checks must use the overflow-safe helper")
+    if "return sw > 0 && sh > 0 &&" not in text:
+        fail("CoreGraphics retained image sub-rect checks must reject zero source dimensions locally")
     if "OrenAVMGfxDrawImageSubrect" not in text:
         fail("CoreGraphics retained image sub-rect draws must share the checked draw helper")
+    if "if (!cgImage || w == 0 || h == 0 || !OrenAVMGfxSubrectInImage" not in text:
+        fail("CoreGraphics retained image sub-rect draws must reject zero destination dimensions locally")
     if "OrenAVMGfxSubrectInImage(sx, sy, sw, sh, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))" in text:
         fail("CoreGraphics batched image sub-rect draws must cache CGImage dimensions")
     if "size_t imageWidth = CGImageGetWidth(cgImage)" not in text or "size_t imageHeight = CGImageGetHeight(cgImage)" not in text:

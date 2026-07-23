@@ -72,7 +72,8 @@ static inline uint32_t OrenAVMMetalReadU32LE(const uint8_t* p) {
 }
 
 static inline BOOL OrenAVMMetalSubrectInTexture(uint32_t sx, uint32_t sy, uint32_t sw, uint32_t sh, NSUInteger width, NSUInteger height) {
-    return (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
+    return sw > 0 && sh > 0 &&
+        (uint64_t)sx + (uint64_t)sw <= (uint64_t)width &&
         (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
 }
 

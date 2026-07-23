@@ -2665,7 +2665,8 @@ design evidence lives under `project-doc/`.
   usage for retained meshes and batches.
 - Metal batched image-rect commands now build one raw vertex-backed image run
   per command instead of allocating one run and issuing one draw call per rect;
-  single image quads still stay inline.
+  single image quads still stay inline, and the batched helper rejects zero-size
+  destination rects before writing heap vertices.
 - Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity
   runs into one raw vertex span with geometric growth, cutting sprite draw calls
   without losing inline storage for isolated quads.
@@ -2731,12 +2732,13 @@ design evidence lives under `project-doc/`.
   plus pixel accounting instead of parallel image/pixel dictionaries, with
   overflow-safe retained sub-rect bounds checks, shared checked sub-rect drawing,
   scalar-key retained image lookup, cached image dimensions for batched atlas
-  rects, and provider-owned raw upload bytes instead of intermediate `NSData`
-  wrappers.
+  rects, local zero-size sub-rect/destination rejection, and provider-owned raw
+  upload bytes instead of intermediate `NSData` wrappers.
 - Retained Metal image resources now use typed texture/pixel records instead of
   parallel texture/pixel dictionaries, with overflow-safe upload accounting and
   sub-rect UV bounds checks, scalar-key retained image lookup, and cached texture
-  dimensions for batched image rects.
+  dimensions for batched image rects plus local zero-size sub-rect/destination
+  rejection.
 - Metal retained 2D/3D mesh resources now use scalar-key maps instead of boxed
   mesh ID dictionary keys.
 - CoreGraphics and Metal retained model resources now use typed resource records

@@ -204,16 +204,21 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
         uint32_t sy = OrenAVMMetalReadU32LE(r + 4);
         uint32_t sw = OrenAVMMetalReadU32LE(r + 8);
         uint32_t sh = OrenAVMMetalReadU32LE(r + 12);
+        uint32_t dx = OrenAVMMetalReadU32LE(r + 16);
+        uint32_t dy = OrenAVMMetalReadU32LE(r + 20);
+        uint32_t dw = OrenAVMMetalReadU32LE(r + 24);
+        uint32_t dh = OrenAVMMetalReadU32LE(r + 28);
+        if (dw == 0 || dh == 0) return nil;
         if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
         float u0 = (float)sx / (float)textureWidth;
         float v0 = (float)sy / (float)textureHeight;
         float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
         float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
         OrenAVMMetalWriteTextureQuad(run->heapVertices + run->heapVertexCount,
-                                     (float)OrenAVMMetalReadU32LE(r + 16) + tx,
-                                     (float)OrenAVMMetalReadU32LE(r + 20) + ty,
-                                     (float)OrenAVMMetalReadU32LE(r + 24),
-                                     (float)OrenAVMMetalReadU32LE(r + 28),
+                                     (float)dx + tx,
+                                     (float)dy + ty,
+                                     (float)dw,
+                                     (float)dh,
                                      logicalWidth,
                                      logicalHeight,
                                      u0,

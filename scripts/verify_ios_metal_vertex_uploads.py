@@ -600,6 +600,8 @@ def main() -> int:
         fail("Metal image runs must not allocate mutable vertex data for one quad")
     if "OrenAVMMetalSubrectInTexture" not in frame_text or "OrenAVMMetalSubrectInTexture" not in resource_text:
         fail("retained Metal image sub-rect checks must use the overflow-safe helper")
+    if "return sw > 0 && sh > 0 &&" not in frame_text:
+        fail("retained Metal image sub-rect checks must reject zero source dimensions locally")
     if "orenImageRunWithID:" in text:
         fail("Metal image runs must be built from cached texture/dimensions, not ID lookups")
     if "OrenAVMMetalImageRunCreate(texture," not in resource_text:
@@ -628,6 +630,20 @@ def main() -> int:
         fail("batched Metal image-rect commands must not append one image run per rect")
     if "OrenAVMMetalImageBatchRunCreate(texture," not in batched_block:
         fail("batched Metal image-rect commands must create one raw vertex batch run")
+    image_batch_start = resource_text.find("OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate")
+    image_batch_end = resource_text.find("OrenAVMMetalImageRunVertexBytes", image_batch_start)
+    if image_batch_start < 0 or image_batch_end < 0:
+        fail("missing Metal image batch-run helper")
+    image_batch_body = resource_text[image_batch_start:image_batch_end]
+    for token in (
+        "uint32_t dx = OrenAVMMetalReadU32LE(r + 16);",
+        "uint32_t dy = OrenAVMMetalReadU32LE(r + 20);",
+        "uint32_t dw = OrenAVMMetalReadU32LE(r + 24);",
+        "uint32_t dh = OrenAVMMetalReadU32LE(r + 28);",
+        "if (dw == 0 || dh == 0) return nil;",
+    ):
+        if token not in image_batch_body:
+            fail(f"Metal batched image-rect helper missing local destination validation: {token}")
     if "OrenAVMMetalImageRunVertexBytes(run)" not in frame_text or "OrenAVMMetalImageRunVertexCount(run)" not in frame_text:
         fail("Metal image encoding must draw inline or batched image runs from their actual vertex span")
     if "NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns" not in resource_text:

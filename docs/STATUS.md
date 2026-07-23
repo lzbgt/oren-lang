@@ -79,7 +79,8 @@ surfaces, but the following blockers remain:
   active cache instead of glyph-pixel accounting alone.
 - iOS Metal batched image-rect commands now emit one raw vertex-backed image run
   per command instead of one run and draw call per rect, while single image
-  quads stay inline.
+  quads stay inline and batched zero-size destinations are rejected before heap
+  vertices are written.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing
   sprite draw calls while preserving single-quad inline storage.
@@ -2451,12 +2452,14 @@ MRU before scalar-key cache lookup/storage; CoreGraphics retained image
 fallback records now use typed resources for image plus pixel accounting instead
 of parallel image/pixel dictionaries, with overflow-safe retained sub-rect
 bounds checks, shared checked sub-rect drawing, scalar-key retained image lookup,
-and cached image dimensions for batched atlas rects. CoreGraphics retained image uploads now transfer raw copied
+and cached image dimensions for batched atlas rects, with local zero-size
+sub-rect/destination rejection. CoreGraphics retained image uploads now transfer raw copied
 bytes to the CG data provider release callback instead of wrapping them in
 intermediate `NSData` objects. Retained Metal image resources now use typed texture/pixel
 records instead of parallel texture/pixel dictionaries, with overflow-safe
 upload accounting, sub-rect UV bounds checks, scalar-key retained image lookup,
-and cached texture dimensions for batched image rects. CoreGraphics and Metal retained
+and cached texture dimensions for batched image rects plus local zero-size
+sub-rect/destination rejection. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
 dictionaries and boxed model ID lookups, removing per-draw model field lookups;
 retained material resources use scalar-key/scalar-value maps instead of boxed
