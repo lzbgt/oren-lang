@@ -82,6 +82,9 @@ surfaces, but the following blockers remain:
   vertex runs into one owned span, reducing geometry draw calls and transient
   vertex binds with geometric growth and without changing baked vertex
   color/position order.
+- iOS Metal retained mesh uploads now stage raw payload copies before resource
+  install, reject null copy sources before `memcpy`, and free earlier staged
+  buffers if a later indexed-mesh copy fails.
 - `std:math/mat4` now includes checked viewport/NDC conversion helpers
   (`viewport_matrix`, `inverse_viewport_matrix`, `ndc_to_window`, and
   `window_to_ndc`) and routes project/unproject through the same depth clamp

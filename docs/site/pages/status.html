@@ -144,6 +144,11 @@
 <p>  vertex binds with geometric growth and without changing baked vertex</p>
 <p>  color/position order.</p>
 <ul>
+<li>iOS Metal retained mesh uploads now stage raw payload copies before resource</li>
+</ul>
+<p>  install, reject null copy sources before <code>memcpy</code>, and free earlier staged</p>
+<p>  buffers if a later indexed-mesh copy fails.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked viewport/NDC conversion helpers</li>
 </ul>
 <p>  (<code>viewport_matrix</code>, <code>inverse_viewport_matrix</code>, <code>ndc_to_window</code>, and</p>

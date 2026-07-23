@@ -978,11 +978,16 @@ BOOL OrenAVMMetalPutMesh2DResource(CFMutableDictionaryRef* meshes,
                                    NSUInteger triangleBytes,
                                    uint32_t triangleCount) {
     if (!meshes || meshID == 0 || !triangles || triangleBytes == 0) return NO;
+    uint8_t* triangleCopy = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
+    if (!triangleCopy) return NO;
     OrenAVMMetalMesh2DResource* mesh = [[OrenAVMMetalMesh2DResource alloc] init];
+    if (!mesh) {
+        free(triangleCopy);
+        return NO;
+    }
     mesh.rgbaValue = rgbaValue;
     mesh.triangleBytes = triangleBytes;
-    mesh.triangles = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
-    if (!mesh.triangles) return NO;
+    mesh.triangles = triangleCopy;
     mesh.triangleCount = triangleCount;
     if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!*meshes) return NO;
@@ -1003,12 +1008,17 @@ BOOL OrenAVMMetalPutPackedMesh3DResource(CFMutableDictionaryRef* meshes,
                                          uint32_t triangleCount,
                                          uint32_t stride) {
     if (!meshes || meshID == 0 || !triangles || triangleBytes == 0) return NO;
+    uint8_t* triangleCopy = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
+    if (!triangleCopy) return NO;
     OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
+    if (!mesh) {
+        free(triangleCopy);
+        return NO;
+    }
     mesh.rgbaValue = rgbaValue;
     mesh.hasRGBA = hasRGBA;
     mesh.triangleBytes = triangleBytes;
-    mesh.triangles = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);
-    if (!mesh.triangles) return NO;
+    mesh.triangles = triangleCopy;
     mesh.triangleCount = triangleCount;
     mesh.stride = stride;
     if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
@@ -1026,14 +1036,25 @@ BOOL OrenAVMMetalPutIndexedMesh3DResource(CFMutableDictionaryRef* meshes,
                                           NSUInteger indexBytes,
                                           uint32_t indexCount) {
     if (!meshes || meshID == 0 || !vertices || !indices || vertexBytes == 0 || indexBytes == 0) return NO;
+    uint8_t* vertexCopy = OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes);
+    if (!vertexCopy) return NO;
+    uint8_t* indexCopy = OrenAVMMetalCopyPayloadBytes(indices, indexBytes);
+    if (!indexCopy) {
+        free(vertexCopy);
+        return NO;
+    }
     OrenAVMMetalMesh3DResource* mesh = [[OrenAVMMetalMesh3DResource alloc] init];
+    if (!mesh) {
+        free(vertexCopy);
+        free(indexCopy);
+        return NO;
+    }
     mesh.rgbaValue = rgbaValue;
     mesh.hasRGBA = YES;
     mesh.vertexBytes = vertexBytes;
     mesh.indexBytes = indexBytes;
-    mesh.vertices = OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes);
-    mesh.indices = OrenAVMMetalCopyPayloadBytes(indices, indexBytes);
-    if (!mesh.vertices || !mesh.indices) return NO;
+    mesh.vertices = vertexCopy;
+    mesh.indices = indexCopy;
     mesh.indexCount = indexCount;
     if (!*meshes) *meshes = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!*meshes) return NO;
@@ -1169,7 +1190,7 @@ float OrenAVMMetalMesh3DModelCoord(const uint8_t* p, int32_t offset, uint32_t sc
 }
 
 uint8_t* OrenAVMMetalCopyPayloadBytes(const uint8_t* src, NSUInteger len) {
-    if (len == 0) return NULL;
+    if (!src || len == 0) return NULL;
     uint8_t* out = (uint8_t*)malloc(len);
     if (!out) return NULL;
     memcpy(out, src, len);

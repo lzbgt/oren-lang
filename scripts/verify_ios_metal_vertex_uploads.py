@@ -350,6 +350,27 @@ def main() -> int:
             fail("retained Metal mesh payload path regressed to NSData-backed access")
     if "OrenAVMMetalCopyPayloadBytes" not in metal_text:
         fail("missing retained Metal mesh raw payload copy helper")
+    if "if (!src || len == 0) return NULL;" not in resource_text:
+        fail("retained Metal mesh payload copy helper must reject null sources before memcpy")
+    for token in (
+        "uint8_t* triangleCopy = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);",
+        "mesh.triangles = triangleCopy;",
+        "uint8_t* vertexCopy = OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes);",
+        "if (!vertexCopy) return NO;",
+        "uint8_t* indexCopy = OrenAVMMetalCopyPayloadBytes(indices, indexBytes);",
+        "if (!indexCopy) {\n        free(vertexCopy);\n        return NO;\n    }",
+        "mesh.vertices = vertexCopy;",
+        "mesh.indices = indexCopy;",
+    ):
+        if token not in resource_text:
+            fail(f"retained Metal mesh payload copies must be staged and checked before resource install: {token}")
+    for pattern in (
+        "mesh.triangles = OrenAVMMetalCopyPayloadBytes(triangles, triangleBytes);",
+        "mesh.vertices = OrenAVMMetalCopyPayloadBytes(vertices, vertexBytes);",
+        "mesh.indices = OrenAVMMetalCopyPayloadBytes(indices, indexBytes);",
+    ):
+        if pattern in resource_text:
+            fail("retained Metal mesh payload path must not assign unchecked direct copy results")
     if "OrenAVMMetalInlineTriangleOrderCapacity = 128" not in resource_text:
         fail("retained Metal 3D triangle ordering must have a small stack buffer")
     if "OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,\n                                                           OrenAVMMetalTriangleOrder* inlineOrder" not in resource_text:
