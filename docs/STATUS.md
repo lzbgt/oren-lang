@@ -2701,7 +2701,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 						  responses with `content-length` accumulate into exact-capacity `u8_buf`
 							  bodies with length mismatch checks; fragmented HEADERS writes stream raw
 							  header-block spans across all CONTINUATION frames and inbound
-					  single-CONTINUATION header blocks assemble with exact-size copies,
+						  single-CONTINUATION header blocks use the shared exact-capacity accumulator path,
 				  full regex
   pattern/text matching, and public `std:strings`
   prefix/suffix/search/equality/trim helpers use direct string byte reads and
@@ -2820,8 +2820,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 			  continuation/header-block and unknown-length DATA response buffers now
 			  accumulate through amortized `u8_buf` builders, fragmented outbound
 				  HEADERS writes stream raw header-block spans across all CONTINUATION frames instead of copied split
-			  buffers, single-CONTINUATION inbound header blocks exact-combine without
-			  an overcapacity finish copy, `content-length` DATA bodies use exact-capacity accumulation
+			  buffers, single-CONTINUATION inbound header blocks use the shared exact-capacity
+				  accumulator path without an overcapacity finish copy, `content-length` DATA bodies use exact-capacity accumulation
 			  with mismatch checks, including header-only response termination,
           and native WebSocket upgrade headers read into reserved storage while
           receive-side frame prefixes share one scratch buffer, unmasked sends stream

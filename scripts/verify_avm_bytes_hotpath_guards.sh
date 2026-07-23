@@ -767,11 +767,14 @@ if [[ -z "$http2_empty_body_line" || -z "$http2_body_acc_line" || "$http2_empty_
   exit 1
 fi
 
-if ! grep -Fq 'fn _u8_concat2_exact(a, b)' lib/std/net/http2_client.oren ||
-  ! grep -Fq 'hb = _u8_concat2_exact(hb, fr["payload"])' <<<"$http2_read_header_impl" ||
+if ! grep -Fq 'var exact_acc = _u8_acc_new_exact(hb_len + fr_len)' <<<"$http2_read_header_impl" ||
+  ! grep -Fq 'exact_rc = _u8_acc_append(exact_acc, fr["payload"])' <<<"$http2_read_header_impl" ||
+  ! grep -Fq 'hb = _u8_acc_finish(exact_acc)' <<<"$http2_read_header_impl" ||
   ! grep -Fq 'var acc = _u8_acc_new(hb_len + fr_len + 64)' <<<"$http2_read_header_impl" ||
+  grep -Fq 'fn _u8_concat2_exact(a, b)' lib/std/net/http2_client.oren ||
+  grep -Fq 'hb = _u8_concat2_exact(hb, fr["payload"])' <<<"$http2_read_header_impl" ||
   grep -Fq 'var acc = _u8_acc_new(hb_len + 64)' <<<"$http2_read_header_impl"; then
-  echo "ERROR: HTTP/2 inbound single-CONTINUATION header blocks must exact-combine instead of overallocating then shrink-copying" >&2
+  echo "ERROR: HTTP/2 inbound header blocks must exact-accumulate single CONTINUATION and reserve first continuation length before geometric multi-frame accumulation" >&2
   exit 1
 fi
 

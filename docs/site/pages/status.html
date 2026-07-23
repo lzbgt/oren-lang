@@ -2883,7 +2883,7 @@
 <p>						  responses with <code>content-length</code> accumulate into exact-capacity <code>u8_buf</code></p>
 <p>							  bodies with length mismatch checks; fragmented HEADERS writes stream raw</p>
 <p>							  header-block spans across all CONTINUATION frames and inbound</p>
-<p>					  single-CONTINUATION header blocks assemble with exact-size copies,</p>
+<p>						  single-CONTINUATION header blocks use the shared exact-capacity accumulator path,</p>
 <p>				  full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>
 <p>  prefix/suffix/search/equality/trim helpers use direct string byte reads and</p>
@@ -3002,8 +3002,8 @@
 <p>			  continuation/header-block and unknown-length DATA response buffers now</p>
 <p>			  accumulate through amortized <code>u8_buf</code> builders, fragmented outbound</p>
 <p>				  HEADERS writes stream raw header-block spans across all CONTINUATION frames instead of copied split</p>
-<p>			  buffers, single-CONTINUATION inbound header blocks exact-combine without</p>
-<p>			  an overcapacity finish copy, <code>content-length</code> DATA bodies use exact-capacity accumulation</p>
+<p>			  buffers, single-CONTINUATION inbound header blocks use the shared exact-capacity</p>
+<p>				  accumulator path without an overcapacity finish copy, <code>content-length</code> DATA bodies use exact-capacity accumulation</p>
 <p>			  with mismatch checks, including header-only response termination,</p>
 <p>          and native WebSocket upgrade headers read into reserved storage while</p>
 <p>          receive-side frame prefixes share one scratch buffer, unmasked sends stream</p>
