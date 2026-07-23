@@ -2682,9 +2682,9 @@ design evidence lives under `project-doc/`.
 - Metal batched image-rect commands now build one raw vertex-backed image run
   per command instead of allocating one run and issuing one draw call per rect;
   single image quads still stay inline, and the batched helper rejects zero-size
-  destination rects before writing heap vertices. Known-size batched image runs
-  allocate exact heap vertex storage once, while compatible-run coalescing still
-  grows geometrically.
+  destination/source rects in one preflight pass before exact heap allocation.
+  Known-size batched image runs allocate exact heap vertex storage once, while
+  compatible-run coalescing still grows geometrically.
 - Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity
   runs into one raw vertex span with geometric growth, cutting sprite draw calls
   without losing inline storage for isolated quads.

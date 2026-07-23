@@ -228,8 +228,6 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
         uint32_t dy = OrenAVMMetalReadU32LE(r + 20);
         uint32_t dw = OrenAVMMetalReadU32LE(r + 24);
         uint32_t dh = OrenAVMMetalReadU32LE(r + 28);
-        if (dw == 0 || dh == 0) return nil;
-        if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
         float u0 = (float)sx / (float)textureWidth;
         float v0 = (float)sy / (float)textureHeight;
         float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;

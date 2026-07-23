@@ -3696,9 +3696,9 @@
 </ul>
 <p>  per command instead of allocating one run and issuing one draw call per rect;</p>
 <p>  single image quads still stay inline, and the batched helper rejects zero-size</p>
-<p>  destination rects before writing heap vertices. Known-size batched image runs</p>
-<p>  allocate exact heap vertex storage once, while compatible-run coalescing still</p>
-<p>  grows geometrically.</p>
+<p>  destination/source rects in one preflight pass before exact heap allocation.</p>
+<p>  Known-size batched image runs allocate exact heap vertex storage once, while</p>
+<p>  compatible-run coalescing still grows geometrically.</p>
 <ul>
 <li>Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity</li>
 </ul>

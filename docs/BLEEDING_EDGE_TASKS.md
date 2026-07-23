@@ -1436,9 +1436,9 @@ This file is the concise task view. Detailed implementation status lives in
 			     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
 			     directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths, and little-endian
 		     payload fields read from cached u8-buffer pointers, UI command validation
-	     reads geometry/text-position/image-rect payload fields through shared
-		     byte views, Metal batched image rects validate local draw/source
-		     spans before heap vertex allocation, and Metal/CoreGraphics zero-area
+		     reads geometry/text-position/image-rect payload fields through shared
+			     byte views, Metal batched image rects validate local draw/source
+			     spans in one preflight pass before heap vertex allocation, and Metal/CoreGraphics zero-area
 		     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
 		     while software rasterization reads those payload
 		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary
