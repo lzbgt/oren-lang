@@ -1445,8 +1445,9 @@ This file is the concise task view. Detailed implementation status lives in
 		     while software rasterization reads those payload
 		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary
 		     package magic/header/table reads and payload slices through the shared
-		     checked byte view, and PPM/software-raster RGBA sampling
-	     plus clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
+			     checked byte view, PPM RGBA encoding hoists validated byte-view
+			     carrier/pointers once per call, and software-raster RGBA sampling
+		     plus clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`
      caches typed response body bytes for `.bytes()` on content-length and
      chunked responses. Native `oren_write_file` writes strings directly
      through syscalls without a transient byte list, and SHA-1/SHA-256 string

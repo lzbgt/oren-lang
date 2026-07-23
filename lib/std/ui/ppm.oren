@@ -43,6 +43,8 @@ fn encode_rgba(rgba, w, h) {
     if oren_is_err(rgba_view) { return rgba_view }
     var ln = bytes.view_len(rgba_view)
     if ln != n { return oren_err(4, "ppm.encode_rgba: rgba length mismatch") }
+    var rgba_data = bytes.view_bytes(rgba_view)
+    var rgba_ptr = bytes.view_ptr(rgba_view)
 
     // Allocate exact output length: header + w*h*3 (RGB).
     var ws = _digits(w)
@@ -66,9 +68,10 @@ fn encode_rgba(rgba, w, h) {
     var pos = cur["pos"]
     var i = 0
     while i < w * h {
-        var r = bytes.view_get_u8_unchecked(rgba_view, i * 4 + 0)
-        var g = bytes.view_get_u8_unchecked(rgba_view, i * 4 + 1)
-        var b = bytes.view_get_u8_unchecked(rgba_view, i * 4 + 2)
+        var rgba_off = i * 4
+        var r = bytes.view_get_u8_from(rgba_data, rgba_ptr, rgba_off + 0)
+        var g = bytes.view_get_u8_from(rgba_data, rgba_ptr, rgba_off + 1)
+        var b = bytes.view_get_u8_from(rgba_data, rgba_ptr, rgba_off + 2)
         if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return oren_err(4, "ppm.encode_rgba: invalid rgba") }
         ptr_set_byte(iadd(outp, pos + 0), r & 255)
         ptr_set_byte(iadd(outp, pos + 1), g & 255)

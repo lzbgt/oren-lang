@@ -2734,9 +2734,10 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  fields through shared unchecked byte-view readers, PPM header/body output, Scene3D binary
 	  package magic/header/table reads and payload slices through the shared
 	  checked byte view, runtime-object cache metadata check fields read through
-	  shared compiler byte-view readers, PPM RGBA input reads, software raster
-	  image/mesh RGBA sampling, and software raster clear/pixel writes now use raw
-	  exact-size buffer stores or direct u8-buffer access, and
+	  shared compiler byte-view readers, PPM RGBA input reads hoist the validated
+	  byte-view carrier/pointer once per encode, software raster image/mesh RGBA
+	  sampling, and software raster clear/pixel writes now use raw exact-size
+	  buffer stores or direct u8-buffer access, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and
   read digest inputs through shared byte views during virtual padding expansion, SHA hex helpers and

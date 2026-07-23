@@ -4177,6 +4177,10 @@
 </ul>
 <p>  <code>oren_read_u8_buf</code> instead of the legacy <code>oren_read_bytes</code> list bridge.</p>
 <ul>
+<li>PPM RGBA encoding now hoists the validated byte view&#x27;s backing carrier/pointer</li>
+</ul>
+<p>  once per call, avoiding per-channel view metadata reads in the pixel loop.</p>
+<ul>
 <li>The AVM VFS no-host-FS fixture now validates in-memory VFS binary reads through</li>
 </ul>
 <p>  <code>oren_read_u8_buf</code> instead of the legacy list bridge.</p>

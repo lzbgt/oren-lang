@@ -2978,6 +2978,8 @@ design evidence lives under `project-doc/`.
   `oren_read_bytes` plus list-shaped validation or repacking.
 - The PPM write roundtrip fixture now reads generated binary image output through
   `oren_read_u8_buf` instead of the legacy `oren_read_bytes` list bridge.
+- PPM RGBA encoding now hoists the validated byte view's backing carrier/pointer
+  once per call, avoiding per-channel view metadata reads in the pixel loop.
 - The AVM VFS no-host-FS fixture now validates in-memory VFS binary reads through
   `oren_read_u8_buf` instead of the legacy list bridge.
 - Native capsule FS read/mount fixtures now validate binary reads through

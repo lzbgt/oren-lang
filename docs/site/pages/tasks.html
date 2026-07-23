@@ -1515,8 +1515,9 @@
 <p>		     while software rasterization reads those payload</p>
 <p>		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
 <p>		     package magic/header/table reads and payload slices through the shared</p>
-<p>		     checked byte view, and PPM/software-raster RGBA sampling</p>
-<p>	     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
+<p>			     checked byte view, PPM RGBA encoding hoists validated byte-view</p>
+<p>			     carrier/pointers once per call, and software-raster RGBA sampling</p>
+<p>		     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
 <p>     chunked responses. Native <code>oren_write_file</code> writes strings directly</p>
 <p>     through syscalls without a transient byte list, and SHA-1/SHA-256 string</p>
