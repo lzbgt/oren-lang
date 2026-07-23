@@ -102,6 +102,9 @@ surfaces, but the following blockers remain:
 - iOS Metal triangle helpers and CoreGraphics immediate/retained mesh painters
   now skip exact degenerate triangles before vertex emission or path filling,
   avoiding no-op triangle draw work from malformed or collapsed 2D/3D meshes.
+- iOS CoreGraphics immediate rectangles, circles/ellipses, and rounded
+  rectangles now skip zero-size shape work before CGContext/UIBezierPath calls,
+  matching the Metal no-op geometry guards.
 - iOS Metal retained mesh uploads now stage raw payload copies before resource
   install, reject null copy sources before `memcpy`, and free earlier staged
   buffers if a later indexed-mesh copy fails.

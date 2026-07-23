@@ -172,6 +172,11 @@
 <p>  now skip exact degenerate triangles before vertex emission or path filling,</p>
 <p>  avoiding no-op triangle draw work from malformed or collapsed 2D/3D meshes.</p>
 <ul>
+<li>iOS CoreGraphics immediate rectangles, circles/ellipses, and rounded</li>
+</ul>
+<p>  rectangles now skip zero-size shape work before CGContext/UIBezierPath calls,</p>
+<p>  matching the Metal no-op geometry guards.</p>
+<ul>
 <li>iOS Metal retained mesh uploads now stage raw payload copies before resource</li>
 </ul>
 <p>  install, reject null copy sources before <code>memcpy</code>, and free earlier staged</p>

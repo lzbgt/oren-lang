@@ -324,6 +324,12 @@ def main() -> int:
         fail("CoreGraphics immediate painter must have a local degenerate-triangle predicate")
     if geometry_text.count("OrenAVMGfxGeometryTriangleIsDegenerate") < 3:
         fail("CoreGraphics immediate triangle paths must skip degenerate triangle fills")
+    for token in (
+        "if (w == 0 || h == 0) return YES;",
+        "if (radius == 0) return YES;",
+    ):
+        if token not in geometry_text:
+            fail(f"CoreGraphics immediate primitive painter must skip zero-size shape work: {token}")
     print("OK: CoreGraphics retained resources use compact typed records")
     return 0
 

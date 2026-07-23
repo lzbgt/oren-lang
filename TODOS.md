@@ -2818,6 +2818,9 @@ design evidence lives under `project-doc/`.
 - Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills
   now skip exact degenerate triangles, avoiding no-op triangle draw work for
   collapsed 2D/3D mesh payloads while preserving valid tiny triangles.
+- CoreGraphics immediate rectangles, circles/ellipses, and rounded rectangles
+  now skip zero-size shape work before CGContext/UIBezierPath calls, matching
+  Metal no-op geometry semantics.
 - Metal retained-image upload/remove/draw/sub-rect/batched image opcode handling
   now lives in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to
   915 lines while keeping retained image budget configuration in the view.

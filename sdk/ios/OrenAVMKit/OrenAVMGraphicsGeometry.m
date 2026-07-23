@@ -47,6 +47,7 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                 uint32_t y = OrenAVMGfxGeometryReadU32LE(payload + 4);
                 uint32_t w = OrenAVMGfxGeometryReadU32LE(payload + 8);
                 uint32_t h = OrenAVMGfxGeometryReadU32LE(payload + 12);
+                if (w == 0 || h == 0) return YES;
                 OrenAVMGfxGeometrySetFillColor(ctx, payload + 16);
                 CGContextFillRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
             }
@@ -73,6 +74,7 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                 uint32_t cy = OrenAVMGfxGeometryReadU32LE(payload + 4);
                 uint32_t radius = OrenAVMGfxGeometryReadU32LE(payload + 8);
                 uint32_t flags = OrenAVMGfxGeometryReadU32LE(payload + 12);
+                if (radius == 0) return YES;
                 int32_t ox = (int32_t)cx - (int32_t)radius;
                 int32_t oy = (int32_t)cy - (int32_t)radius;
                 CGRect oval = CGRectMake((CGFloat)ox,
@@ -121,6 +123,7 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                 uint32_t w = OrenAVMGfxGeometryReadU32LE(payload + 8);
                 uint32_t h = OrenAVMGfxGeometryReadU32LE(payload + 12);
                 uint32_t width = OrenAVMGfxGeometryReadU32LE(payload + 16);
+                if (w == 0 || h == 0) return YES;
                 OrenAVMGfxGeometrySetStrokeColor(ctx, payload + 20);
                 CGContextStrokeRectWithWidth(ctx,
                                              CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h),
@@ -136,6 +139,7 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                 uint32_t h = OrenAVMGfxGeometryReadU32LE(payload + 12);
                 uint32_t width = OrenAVMGfxGeometryReadU32LE(payload + 16);
                 uint32_t flags = OrenAVMGfxGeometryReadU32LE(payload + 20);
+                if (w == 0 || h == 0) return YES;
                 CGRect oval = CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h);
                 if ((flags & 1u) != 0) {
                     OrenAVMGfxGeometrySetFillColor(ctx, payload + 24);
@@ -180,6 +184,7 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                 uint32_t radius = OrenAVMGfxGeometryReadU32LE(payload + 16);
                 uint32_t width = OrenAVMGfxGeometryReadU32LE(payload + 20);
                 uint32_t flags = OrenAVMGfxGeometryReadU32LE(payload + 24);
+                if (w == 0 || h == 0) return YES;
                 UIBezierPath* path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)
                                                                  cornerRadius:(CGFloat)radius];
                 if ((flags & 1u) != 0) {

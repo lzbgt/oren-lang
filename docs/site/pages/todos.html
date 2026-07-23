@@ -3921,6 +3921,11 @@
 <p>  now skip exact degenerate triangles, avoiding no-op triangle draw work for</p>
 <p>  collapsed 2D/3D mesh payloads while preserving valid tiny triangles.</p>
 <ul>
+<li>CoreGraphics immediate rectangles, circles/ellipses, and rounded rectangles</li>
+</ul>
+<p>  now skip zero-size shape work before CGContext/UIBezierPath calls, matching</p>
+<p>  Metal no-op geometry semantics.</p>
+<ul>
 <li>Metal retained-image upload/remove/draw/sub-rect/batched image opcode handling</li>
 </ul>
 <p>  now lives in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to</p>
