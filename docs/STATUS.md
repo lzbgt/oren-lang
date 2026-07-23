@@ -2723,8 +2723,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 				  tolerant Base64 decode derives clean length plus trailing padding from one
 				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,
 				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,
-				  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
-	  directly from shared byte views, OGE0 event headers and little-endian
+					  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
+	  directly from shared byte views with hoisted backing pointers, OGE0 event headers and little-endian
 	  payload fields read through shared byte-view readers, UI command validation
 	  reads geometry/text-position/image-rect payload fields through shared
 	  byte views while software rasterization reads those payload

@@ -2905,8 +2905,8 @@
 <p>				  tolerant Base64 decode derives clean length plus trailing padding from one</p>
 <p>				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,</p>
 <p>				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,</p>
-<p>				  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
-<p>	  directly from shared byte views, OGE0 event headers and little-endian</p>
+<p>					  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
+<p>	  directly from shared byte views with hoisted backing pointers, OGE0 event headers and little-endian</p>
 <p>	  payload fields read through shared byte-view readers, UI command validation</p>
 <p>	  reads geometry/text-position/image-rect payload fields through shared</p>
 <p>	  byte views while software rasterization reads those payload</p>

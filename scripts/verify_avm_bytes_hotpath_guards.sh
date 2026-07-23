@@ -491,12 +491,17 @@ if grep -Fq 'while i < n' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
 fi
 
 std_bytes_view_impl="$(sed -n '/fn view_get_u16_be_unchecked/,/fn view_get_u32_be_unchecked/p' lib/std/bytes.oren)"
+ui_avm_append_bytes_impl="$(sed -n '/fn _append_bytes/,/fn _string_byte_len/p' lib/std/ui/avm.oren)"
 if ! grep -Fq 'fn view_get_u16_le_unchecked(v, idx)' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'if p != nil { return _u16_le_from_ptr(p, idx) }' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'return get_u16_le(view_bytes(v), idx)' <<<"$std_bytes_view_impl" ||
+  ! grep -Fq 'var input_ptr = bytes.view_ptr(bv)' <<<"$ui_avm_append_bytes_impl" ||
+  ! grep -Fq 'raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], input_ptr, n)' <<<"$ui_avm_append_bytes_impl" ||
+  ! grep -Fq 'var b = bytes.view_get_u8_from(input_data, input_ptr, i)' <<<"$ui_avm_append_bytes_impl" ||
   ! grep -Fq 'var payload_len = bytes.view_get_u16_le_unchecked(ev_view, 10)' lib/std/ui/avm.oren ||
+  grep -Fq 'var b = bytes.view_get_u8_unchecked(bv, i)' <<<"$ui_avm_append_bytes_impl" ||
   grep -Fq 'bytes.view_get_u8_unchecked(ev_view, 10) | (bytes.view_get_u8_unchecked(ev_view, 11) << 8)' lib/std/ui/avm.oren; then
-  echo "ERROR: OGE0 event payload length must use direct little-endian std:bytes view reads" >&2
+  echo "ERROR: UI/AVM frame/event byte paths must use direct std:bytes view reads" >&2
   exit 1
 fi
 if grep -Fq '_padded_string_byte_at' lib/std/crypto/sha1.oren ||

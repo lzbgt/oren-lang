@@ -3440,8 +3440,8 @@
 <ul>
 <li><code>std:ui/avm</code> frame payload appends now copy <code>u8_buf</code> command payloads directly</li>
 </ul>
-<p>  into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for</p>
-<p>  non-u8 byte carriers.</p>
+<p>  into exact-size OGF0 frame buffers and hoist shared byte-view backing pointers</p>
+<p>  for list-compatible payload fallback.</p>
 <ul>
 <li><code>std:ui/avm</code> event decoding now caches u8 event-buffer pointers for OGE0</li>
 </ul>

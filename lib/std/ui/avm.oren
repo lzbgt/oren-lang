@@ -64,17 +64,18 @@ fn _append_bytes(wr, bs) {
     var bv = bytes.view(bs, "ui.avm frame bytes")
     if oren_is_err(bv) { return bv }
     var n = bytes.view_len(bv)
-    var p = bytes.view_ptr(bv)
-    if p != nil {
+    var input_data = bytes.view_bytes(bv)
+    var input_ptr = bytes.view_ptr(bv)
+    if input_ptr != nil {
         if n > 0 {
-            raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], p, n)
+            raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], input_ptr, n)
         }
         wr[1] = wr[1] + n
         return 0
     }
     var i = 0
     while i < n {
-        var b = bytes.view_get_u8_unchecked(bv, i)
+        var b = bytes.view_get_u8_from(input_data, input_ptr, i)
         _push_u8(wr, b)
         i = i + 1
     }

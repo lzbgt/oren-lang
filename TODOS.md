@@ -2516,8 +2516,8 @@ design evidence lives under `project-doc/`.
   metadata, avoiding a second length-only scan and boxed per-literal length
   metadata while preserving exact-size `u8_buf` output and dynamic-table simulation.
 - `std:ui/avm` frame payload appends now copy `u8_buf` command payloads directly
-  into exact-size OGF0 frame buffers, keeping list-compatible payload fallback for
-  non-u8 byte carriers.
+  into exact-size OGF0 frame buffers and hoist shared byte-view backing pointers
+  for list-compatible payload fallback.
 - `std:ui/avm` event decoding now caches u8 event-buffer pointers for OGE0
   magic/opcode/payload-length reads while retaining list-compatible byte input.
 - `std:cbor` byte-string encoding now hoists shared byte-view backing pointers
