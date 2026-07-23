@@ -1435,7 +1435,7 @@ This file is the concise task view. Detailed implementation status lives in
 	     Base64/Base64URL
 			     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
 			     directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths, and little-endian
-		     payload fields read from cached u8-buffer pointers, UI command validation
+			     payload fields read from hoisted shared byte-view backing pointers, UI command validation
 		     reads geometry/text-position/image-rect payload fields through shared
 			     byte views, Metal batched image rects validate local draw/source
 				     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D

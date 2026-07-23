@@ -167,6 +167,21 @@ fn view_get_u8_from(input_bytes, input_ptr, idx) {
     return oren_bytes_get_u8(input_bytes, idx)
 }
 
+fn view_get_u16_le_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return _u16_le_from_ptr(input_ptr, idx) }
+    return get_u16_le(input_bytes, idx)
+}
+
+fn view_get_u32_le_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return _u32_le_from_ptr(input_ptr, idx) }
+    return get_u32_le(input_bytes, idx)
+}
+
+fn view_get_u64_le_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return _u64_le_from_ptr(input_ptr, idx) }
+    return get_u64_le(input_bytes, idx)
+}
+
 fn view_get_u8(v, idx) {
     var ok = _view_check(v, idx, 1, "u8 read")
     if oren_is_err(ok) { return ok }

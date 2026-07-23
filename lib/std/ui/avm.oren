@@ -746,19 +746,21 @@ fn decode_event_bytes(ev) {
     if n < 12 { return oren_err(4, "ui.avm.decode_event_bytes: short event") }
     var ev_view = bytes.view(ev, "ui.avm.decode_event_bytes")
     if oren_is_err(ev_view) { return ev_view }
-    if bytes.view_get_u8_unchecked(ev_view, 0) != 79 || bytes.view_get_u8_unchecked(ev_view, 1) != 71 || bytes.view_get_u8_unchecked(ev_view, 2) != 69 || bytes.view_get_u8_unchecked(ev_view, 3) != 48 {
+    var ev_data = bytes.view_bytes(ev_view)
+    var ev_ptr = bytes.view_ptr(ev_view)
+    if bytes.view_get_u8_from(ev_data, ev_ptr, 0) != 79 || bytes.view_get_u8_from(ev_data, ev_ptr, 1) != 71 || bytes.view_get_u8_from(ev_data, ev_ptr, 2) != 69 || bytes.view_get_u8_from(ev_data, ev_ptr, 3) != 48 {
         return oren_err(4, "ui.avm.decode_event_bytes: bad OGE0 magic")
     }
-    var opcode = bytes.view_get_u8_unchecked(ev_view, 8)
+    var opcode = bytes.view_get_u8_from(ev_data, ev_ptr, 8)
     if oren_is_err(opcode) { return opcode }
-    var payload_len = bytes.view_get_u16_le_unchecked(ev_view, 10)
+    var payload_len = bytes.view_get_u16_le_from(ev_data, ev_ptr, 10)
     if n < 12 + payload_len { return oren_err(4, "ui.avm.decode_event_bytes: truncated payload") }
 
     if opcode >= 1 && opcode <= 4 {
         if payload_len != 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad pointer payload") }
-        var x = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var y = bytes.view_get_u32_le_unchecked(ev_view, 16)
-        var pid = bytes.view_get_u32_le_unchecked(ev_view, 20)
+        var x = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var y = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
+        var pid = bytes.view_get_u32_le_from(ev_data, ev_ptr, 20)
         if oren_is_err(x) { return x }
         if oren_is_err(y) { return y }
         if oren_is_err(pid) { return pid }
@@ -767,9 +769,9 @@ fn decode_event_bytes(ev) {
 
     if opcode == 16 {
         if payload_len != 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad resize payload") }
-        var w = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var h = bytes.view_get_u32_le_unchecked(ev_view, 16)
-        var scale = bytes.view_get_u32_le_unchecked(ev_view, 20)
+        var w = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var h = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
+        var scale = bytes.view_get_u32_le_from(ev_data, ev_ptr, 20)
         if oren_is_err(w) { return w }
         if oren_is_err(h) { return h }
         if oren_is_err(scale) { return scale }
@@ -778,13 +780,13 @@ fn decode_event_bytes(ev) {
 
     if opcode == 17 {
         if payload_len != 28 { return oren_err(4, "ui.avm.decode_event_bytes: bad media payload") }
-        var mw = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var mh = bytes.view_get_u32_le_unchecked(ev_view, 16)
-        var mscale = bytes.view_get_u32_le_unchecked(ev_view, 20)
-        var drawable_w = bytes.view_get_u32_le_unchecked(ev_view, 24)
-        var drawable_h = bytes.view_get_u32_le_unchecked(ev_view, 28)
-        var target_hz = bytes.view_get_u32_le_unchecked(ev_view, 32)
-        var flags = bytes.view_get_u32_le_unchecked(ev_view, 36)
+        var mw = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var mh = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
+        var mscale = bytes.view_get_u32_le_from(ev_data, ev_ptr, 20)
+        var drawable_w = bytes.view_get_u32_le_from(ev_data, ev_ptr, 24)
+        var drawable_h = bytes.view_get_u32_le_from(ev_data, ev_ptr, 28)
+        var target_hz = bytes.view_get_u32_le_from(ev_data, ev_ptr, 32)
+        var flags = bytes.view_get_u32_le_from(ev_data, ev_ptr, 36)
         if oren_is_err(mw) { return mw }
         if oren_is_err(mh) { return mh }
         if oren_is_err(mscale) { return mscale }
@@ -807,11 +809,11 @@ fn decode_event_bytes(ev) {
 
     if opcode == 18 {
         if payload_len != 28 { return oren_err(4, "ui.avm.decode_event_bytes: bad frame_tick payload") }
-        var seq = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var now_ns = bytes.view_get_u64_le_unchecked(ev_view, 16)
-        var delta_ns = bytes.view_get_u64_le_unchecked(ev_view, 24)
-        var tick_hz = bytes.view_get_u32_le_unchecked(ev_view, 32)
-        var tick_flags = bytes.view_get_u32_le_unchecked(ev_view, 36)
+        var seq = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var now_ns = bytes.view_get_u64_le_from(ev_data, ev_ptr, 16)
+        var delta_ns = bytes.view_get_u64_le_from(ev_data, ev_ptr, 24)
+        var tick_hz = bytes.view_get_u32_le_from(ev_data, ev_ptr, 32)
+        var tick_flags = bytes.view_get_u32_le_from(ev_data, ev_ptr, 36)
         if oren_is_err(seq) { return seq }
         if oren_is_err(now_ns) { return now_ns }
         if oren_is_err(delta_ns) { return delta_ns }
@@ -830,8 +832,8 @@ fn decode_event_bytes(ev) {
 
     if opcode == 32 || opcode == 33 {
         if payload_len != 8 { return oren_err(4, "ui.avm.decode_event_bytes: bad key payload") }
-        var key_code = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var mods = bytes.view_get_u32_le_unchecked(ev_view, 16)
+        var key_code = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var mods = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
         if oren_is_err(key_code) { return key_code }
         if oren_is_err(mods) { return mods }
         return {"kind": "key", "phase": _key_phase(opcode), "opcode": opcode, "key_code": key_code, "modifiers": mods}
@@ -839,7 +841,7 @@ fn decode_event_bytes(ev) {
 
     if opcode == 48 {
         if payload_len < 4 { return oren_err(4, "ui.avm.decode_event_bytes: bad text payload") }
-        var text_len = bytes.view_get_u32_le_unchecked(ev_view, 12)
+        var text_len = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
         if oren_is_err(text_len) { return text_len }
         if text_len != payload_len - 4 { return oren_err(4, "ui.avm.decode_event_bytes: text length mismatch") }
         var text = bytes.to_string_slice(ev, 16, text_len)
@@ -849,12 +851,12 @@ fn decode_event_bytes(ev) {
 
     if opcode == 64 {
         if payload_len != 24 { return oren_err(4, "ui.avm.decode_event_bytes: bad gamepad payload") }
-        var controller_id = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var buttons = bytes.view_get_u32_le_unchecked(ev_view, 16)
-        var lx = bytes.view_get_u32_le_unchecked(ev_view, 20)
-        var ly = bytes.view_get_u32_le_unchecked(ev_view, 24)
-        var rx = bytes.view_get_u32_le_unchecked(ev_view, 28)
-        var ry = bytes.view_get_u32_le_unchecked(ev_view, 32)
+        var controller_id = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var buttons = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
+        var lx = bytes.view_get_u32_le_from(ev_data, ev_ptr, 20)
+        var ly = bytes.view_get_u32_le_from(ev_data, ev_ptr, 24)
+        var rx = bytes.view_get_u32_le_from(ev_data, ev_ptr, 28)
+        var ry = bytes.view_get_u32_le_from(ev_data, ev_ptr, 32)
         if oren_is_err(controller_id) { return controller_id }
         if oren_is_err(buttons) { return buttons }
         if oren_is_err(lx) { return lx }
@@ -875,15 +877,15 @@ fn decode_event_bytes(ev) {
 
     if opcode == 96 {
         if payload_len != 40 { return oren_err(4, "ui.avm.decode_event_bytes: bad motion payload") }
-        var source_id = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var motion_seq = bytes.view_get_u32_le_unchecked(ev_view, 16)
-        var ts_ns = bytes.view_get_u64_le_unchecked(ev_view, 20)
-        var ax = bytes.view_get_u32_le_unchecked(ev_view, 28)
-        var ay = bytes.view_get_u32_le_unchecked(ev_view, 32)
-        var az = bytes.view_get_u32_le_unchecked(ev_view, 36)
-        var gx = bytes.view_get_u32_le_unchecked(ev_view, 40)
-        var gy = bytes.view_get_u32_le_unchecked(ev_view, 44)
-        var gz = bytes.view_get_u32_le_unchecked(ev_view, 48)
+        var source_id = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var motion_seq = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
+        var ts_ns = bytes.view_get_u64_le_from(ev_data, ev_ptr, 20)
+        var ax = bytes.view_get_u32_le_from(ev_data, ev_ptr, 28)
+        var ay = bytes.view_get_u32_le_from(ev_data, ev_ptr, 32)
+        var az = bytes.view_get_u32_le_from(ev_data, ev_ptr, 36)
+        var gx = bytes.view_get_u32_le_from(ev_data, ev_ptr, 40)
+        var gy = bytes.view_get_u32_le_from(ev_data, ev_ptr, 44)
+        var gz = bytes.view_get_u32_le_from(ev_data, ev_ptr, 48)
         if oren_is_err(source_id) { return source_id }
         if oren_is_err(motion_seq) { return motion_seq }
         if oren_is_err(ts_ns) { return ts_ns }
@@ -910,8 +912,8 @@ fn decode_event_bytes(ev) {
 
     if opcode == 112 || opcode == 113 {
         if payload_len != 8 { return oren_err(4, "ui.avm.decode_event_bytes: bad focus payload") }
-        var focus_id = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var focus_flags = bytes.view_get_u32_le_unchecked(ev_view, 16)
+        var focus_id = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var focus_flags = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
         if oren_is_err(focus_id) { return focus_id }
         if oren_is_err(focus_flags) { return focus_flags }
         return {"kind": "focus", "phase": _focus_phase(opcode), "opcode": opcode, "focus_id": focus_id, "flags": focus_flags}
@@ -919,9 +921,9 @@ fn decode_event_bytes(ev) {
 
     if opcode >= 128 && opcode <= 130 {
         if payload_len < 12 { return oren_err(4, "ui.avm.decode_event_bytes: bad composition payload") }
-        var comp_len = bytes.view_get_u32_le_unchecked(ev_view, 12)
-        var sel_start = bytes.view_get_u32_le_unchecked(ev_view, 16)
-        var sel_end = bytes.view_get_u32_le_unchecked(ev_view, 20)
+        var comp_len = bytes.view_get_u32_le_from(ev_data, ev_ptr, 12)
+        var sel_start = bytes.view_get_u32_le_from(ev_data, ev_ptr, 16)
+        var sel_end = bytes.view_get_u32_le_from(ev_data, ev_ptr, 20)
         if oren_is_err(comp_len) { return comp_len }
         if oren_is_err(sel_start) { return sel_start }
         if oren_is_err(sel_end) { return sel_end }
