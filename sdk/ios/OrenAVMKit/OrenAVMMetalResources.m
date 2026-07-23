@@ -74,6 +74,8 @@ BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
     NSUInteger pixelAfter = retainedAfterOld + pixels;
     if (retainedImageCountLimit == 0 || countAfter > retainedImageCountLimit) return NO;
     if (retainedImagePixelLimit == 0 || pixels > retainedImagePixelLimit || pixelAfter > retainedImagePixelLimit) return NO;
+    if (!*imagesByID) *imagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*imagesByID) return NO;
 
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                           width:(NSUInteger)width
@@ -90,8 +92,6 @@ BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
     OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
     resource.texture = texture;
     resource.pixels = pixels;
-    if (!*imagesByID) *imagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*imagesByID) return NO;
     CFDictionarySetValue(*imagesByID, OrenAVMMetalRetainedImageKey(imageID), (__bridge const void*)resource);
     *retainedImagePixelCount = pixelAfter;
     return YES;

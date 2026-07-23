@@ -93,6 +93,9 @@ surfaces, but the following blockers remain:
 - iOS Metal large vertex uploads now validate transient-buffer retention storage
   before allocating `MTLBuffer` objects, keeping invalid helper calls from
   briefly allocating GPU memory that cannot be retained through the frame.
+- iOS Metal retained image uploads now preflight scalar-map storage before
+  allocating or filling `MTLTexture` objects, avoiding GPU work when the
+  retained-image table cannot be created.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers
   (`cofactor`, `adjugate`, `adjoint`, `minor3`, and `minor`) that share the
   inverse cofactor formula while keeping singular finite matrices inspectable.

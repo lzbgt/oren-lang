@@ -31,7 +31,8 @@ def main() -> int:
     frame_source = FRAME_SOURCE.read_text()
     frame_text = frame_header + "\n" + frame_source
     geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
-    resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
+    resource_source_text = RESOURCE_SOURCE.read_text()
+    resource_text = RESOURCE_HEADER.read_text() + "\n" + resource_source_text
     pipeline_text = PIPELINE_HEADER.read_text() + "\n" + PIPELINE_SOURCE.read_text()
     metal_text = text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
     text_source = TEXT_SOURCE.read_text()
@@ -512,6 +513,18 @@ def main() -> int:
         fail("retained Metal image draw paths must use the typed scalar-map resource helper")
     if "@(imageID)" in text:
         fail("retained Metal image draw/upload paths must not box image IDs")
+    put_image_start = resource_source_text.find("BOOL OrenAVMMetalPutImageResource")
+    put_image_end = resource_source_text.find("void OrenAVMMetalRemoveImageResource", put_image_start)
+    if put_image_start < 0 or put_image_end < 0:
+        fail("missing retained Metal image upload helper")
+    put_image_body = resource_source_text[put_image_start:put_image_end]
+    image_map_alloc = put_image_body.find("CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks)")
+    texture_alloc = put_image_body.find("[device newTextureWithDescriptor:descriptor]")
+    texture_upload = put_image_body.find("[texture replaceRegion:")
+    if image_map_alloc < 0 or texture_alloc < 0 or texture_upload < 0:
+        fail("retained Metal image upload helper missing scalar map or texture upload path")
+    if image_map_alloc > texture_alloc or image_map_alloc > texture_upload:
+        fail("retained Metal image uploads must preflight scalar-map storage before allocating/filling MTLTexture")
     image_run_start = resource_text.find("@interface OrenAVMMetalImageRun")
     image_run_end = resource_text.find("@end", image_run_start)
     if image_run_start < 0 or image_run_end < 0:

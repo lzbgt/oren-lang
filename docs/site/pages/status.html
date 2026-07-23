@@ -161,6 +161,11 @@
 <p>  before allocating <code>MTLBuffer</code> objects, keeping invalid helper calls from</p>
 <p>  briefly allocating GPU memory that cannot be retained through the frame.</p>
 <ul>
+<li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
+</ul>
+<p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>
+<p>  retained-image table cannot be created.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked cofactor/adjugate/minor helpers</li>
 </ul>
 <p>  (<code>cofactor</code>, <code>adjugate</code>, <code>adjoint</code>, <code>minor3</code>, and <code>minor</code>) that share the</p>

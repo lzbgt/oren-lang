@@ -71,6 +71,11 @@
 </table>
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
+<li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
+</ul>
+<p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>
+<p>  retained-image table cannot be created.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked cofactor/adjugate/minor helpers and</li>
 </ul>
 <p>  checked Frobenius matrix norm helpers</p>

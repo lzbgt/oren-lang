@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- iOS Metal retained image uploads now preflight scalar-map storage before
+  allocating or filling `MTLTexture` objects, avoiding GPU work when the
+  retained-image table cannot be created.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers and
   checked Frobenius matrix norm helpers
   (`frobenius_norm`, `frobenius_norm_sq`, `norm_frobenius`, and `norm`) with
