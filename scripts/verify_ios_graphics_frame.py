@@ -50,29 +50,57 @@ def main() -> int:
         "typedef struct {",
         "CFMutableDictionaryRef* textResources",
         "void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context)",
+        "OrenAVMGfxFrameStateStackCapacity = 64",
+        "uint32_t stateOverflowDepth",
+        "uint8_t stateStack[OrenAVMGfxFrameStateStackCapacity]",
         "uint32_t transformDepth",
-        "CGFloat opacityStack[64]",
-        "BOOL depthEnabledStack[64]",
-        "uint32_t opacityOverflowDepth",
+        "CGFloat opacityStack[OrenAVMGfxFrameStateStackCapacity]",
+        "BOOL depthEnabledStack[OrenAVMGfxFrameStateStackCapacity]",
         "uint32_t cameraOverflowDepth",
+        "static BOOL OrenAVMGfxPushCGState(CGContextRef ctx,",
+        "static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,",
+        "OrenAVMGfxStateKindClip",
+        "OrenAVMGfxStateKindTransform",
+        "OrenAVMGfxStateKindOpacity",
+        "OrenAVMGfxPopResultRestored",
+        "state->stateOverflowDepth++",
+        "state->stateOverflowDepth--",
         "state->transformDepth++",
         "state->transformDepth--",
-        "state->opacityOverflowDepth++",
-        "state->opacityOverflowDepth--",
         "state->cameraOverflowDepth++",
         "state->cameraOverflowDepth--",
     ):
         if token not in frame_text:
             fail(f"CoreGraphics frame helper is missing expected state logic: {token}")
+    if "opacityOverflowDepth" in frame_text:
+        fail("CoreGraphics opacity overflow must use the shared typed CGContext state overflow")
 
+    push_clip_block = between(frame_source_text, "case 16:", "case 17:")
+    pop_clip_block = between(frame_source_text, "case 17:", "case 18:")
     push_transform_block = between(frame_source_text, "case 18:", "case 19:")
     pop_transform_block = between(frame_source_text, "case 19:", "case 20:")
-    if "state->transformDepth++" not in push_transform_block:
-        fail("CoreGraphics transform push must track transformDepth")
-    if "state->transformDepth > 0" not in pop_transform_block:
-        fail("CoreGraphics transform pop must require a matching transform push")
-    if "state->transformDepth--" not in pop_transform_block:
-        fail("CoreGraphics transform pop must consume transformDepth")
+    push_opacity_block = between(frame_source_text, "case 20:", "case 21:")
+    pop_opacity_block = between(frame_source_text, "case 21:", "case 22:")
+    for name, block, kind in (
+        ("clip push", push_clip_block, "OrenAVMGfxStateKindClip"),
+        ("transform push", push_transform_block, "OrenAVMGfxStateKindTransform"),
+        ("opacity push", push_opacity_block, "OrenAVMGfxStateKindOpacity"),
+    ):
+        if f"OrenAVMGfxPushCGState(ctx, state, {kind})" not in block:
+            fail(f"CoreGraphics {name} must use the typed CGContext push helper")
+        if "CGContextSaveGState(ctx)" in block:
+            fail(f"CoreGraphics {name} must not save CGContext state outside the typed helper")
+    for name, block, kind in (
+        ("clip pop", pop_clip_block, "OrenAVMGfxStateKindClip"),
+        ("transform pop", pop_transform_block, "OrenAVMGfxStateKindTransform"),
+        ("opacity pop", pop_opacity_block, "OrenAVMGfxStateKindOpacity"),
+    ):
+        if f"OrenAVMGfxPopCGState(ctx, state, {kind})" not in block:
+            fail(f"CoreGraphics {name} must use the typed CGContext pop helper")
+        if "CGContextRestoreGState(ctx)" in block:
+            fail(f"CoreGraphics {name} must not restore CGContext state outside the typed helper")
+    if "state->transformDepth++" not in push_transform_block or "state->transformDepth--" not in pop_transform_block:
+        fail("CoreGraphics transform push/pop must track transformDepth around the typed stack")
 
     push_camera_block = between(frame_source_text, "case 22:", "case 23:")
     pop_camera_block = between(frame_source_text, "case 23:", "default:")

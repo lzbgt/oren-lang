@@ -8,20 +8,23 @@
 #import <UIKit/UIKit.h>
 #include <stdint.h>
 
+enum { OrenAVMGfxFrameStateStackCapacity = 64 };
+
 typedef struct {
     uint32_t clipDepth;
     uint32_t stateDepth;
+    uint32_t stateOverflowDepth;
+    uint8_t stateStack[OrenAVMGfxFrameStateStackCapacity];
     uint32_t transformDepth;
     CGFloat opacity;
-    CGFloat opacityStack[64];
+    CGFloat opacityStack[OrenAVMGfxFrameStateStackCapacity];
     uint32_t opacityDepth;
-    uint32_t opacityOverflowDepth;
     BOOL depthEnabled;
     int32_t nearZ;
     int32_t farZ;
-    BOOL depthEnabledStack[64];
-    int32_t nearZStack[64];
-    int32_t farZStack[64];
+    BOOL depthEnabledStack[OrenAVMGfxFrameStateStackCapacity];
+    int32_t nearZStack[OrenAVMGfxFrameStateStackCapacity];
+    int32_t farZStack[OrenAVMGfxFrameStateStackCapacity];
     uint32_t cameraDepth;
     uint32_t cameraOverflowDepth;
 } OrenAVMGfxFrameState;

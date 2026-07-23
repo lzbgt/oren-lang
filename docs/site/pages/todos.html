@@ -77,17 +77,12 @@
 <p>  frames and consume matching pops without corrupting the nearest real outer</p>
 <p>  state. The guard lives in <code>scripts/verify_ios_metal_vertex_uploads.py</code>.</p>
 <ul>
-<li>CoreGraphics OGF0 opacity and camera stack overflow is now balanced too:</li>
+<li>CoreGraphics OGF0 clip/transform/opacity CGContext state now uses one typed</li>
 </ul>
-<p>  overflow pushes consume matching pops without corrupting the nearest real</p>
-<p>  outer state, and camera state no longer mutates CGContext <code>stateDepth</code> because</p>
-<p>  it only changes retained 3D depth windows. The guard lives in</p>
+<p>  fixed-capacity LIFO stack: overflow pushes become balanced no-op frames, and</p>
+<p>  malformed out-of-order pops cannot restore unrelated saved states. Camera</p>
+<p>  state remains separate retained 3D depth-window state. The guard lives in</p>
 <p>  <code>scripts/verify_ios_graphics_frame.py</code>.</p>
-<ul>
-<li>CoreGraphics OGF0 transform pops now require a matching transform push via</li>
-</ul>
-<p>  <code>transformDepth</code>, preventing malformed <code>pop_transform</code> commands from consuming</p>
-<p>  unrelated clip/opacity CGContext saves; the verifier guards the push/pop pair.</p>
 <ul>
 <li>Oren LSP now recognizes anonymous <code>import . &quot;path&quot;</code> imports for workspace</li>
 </ul>

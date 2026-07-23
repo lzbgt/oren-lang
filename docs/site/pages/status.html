@@ -62,17 +62,12 @@
 <p>  no-op frames and consume matching pops without mutating the nearest real outer</p>
 <p>  state; <code>scripts/verify_ios_metal_vertex_uploads.py</code> guards the helper paths.</p>
 <ul>
-<li>iOS CoreGraphics OGF0 opacity and camera stack overflow is balanced the same</li>
+<li>iOS CoreGraphics OGF0 clip/transform/opacity CGContext state now uses one</li>
 </ul>
-<p>  way, and camera push/pop no longer mutates CGContext <code>stateDepth</code> because it</p>
-<p>  only changes retained 3D depth-window state; <code>scripts/verify_ios_graphics_frame.py</code></p>
-<p>  guards that split.</p>
-<ul>
-<li>iOS CoreGraphics OGF0 transform pops now require a matching transform push via</li>
-</ul>
-<p>  <code>transformDepth</code>, preventing malformed <code>pop_transform</code> commands from consuming</p>
-<p>  unrelated clip/opacity CGContext saves; <code>scripts/verify_ios_graphics_frame.py</code></p>
-<p>  guards the push/pop pair.</p>
+<p>  typed fixed-capacity LIFO stack. Overflow pushes become balanced no-op frames,</p>
+<p>  malformed out-of-order pops cannot restore unrelated saved states, and camera</p>
+<p>  state stays separate as retained 3D depth-window state;</p>
+<p>  <code>scripts/verify_ios_graphics_frame.py</code> guards the helper paths.</p>
 <ul>
 <li>Anonymous imports now support <code>import . &quot;path&quot;</code> in both bootstrap and</li>
 </ul>

@@ -26,14 +26,11 @@ surfaces, but the following blockers remain:
   clip, translation, opacity, and camera stacks. Overflow pushes are tracked as
   no-op frames and consume matching pops without mutating the nearest real outer
   state; `scripts/verify_ios_metal_vertex_uploads.py` guards the helper paths.
-- iOS CoreGraphics OGF0 opacity and camera stack overflow is balanced the same
-  way, and camera push/pop no longer mutates CGContext `stateDepth` because it
-  only changes retained 3D depth-window state; `scripts/verify_ios_graphics_frame.py`
-  guards that split.
-- iOS CoreGraphics OGF0 transform pops now require a matching transform push via
-  `transformDepth`, preventing malformed `pop_transform` commands from consuming
-  unrelated clip/opacity CGContext saves; `scripts/verify_ios_graphics_frame.py`
-  guards the push/pop pair.
+- iOS CoreGraphics OGF0 clip/transform/opacity CGContext state now uses one
+  typed fixed-capacity LIFO stack. Overflow pushes become balanced no-op frames,
+  malformed out-of-order pops cannot restore unrelated saved states, and camera
+  state stays separate as retained 3D depth-window state;
+  `scripts/verify_ios_graphics_frame.py` guards the helper paths.
 - Anonymous imports now support `import . "path"` in both bootstrap and
   self-hosted parser/linker paths. Dot imports are dependency edges without
   alias-table entries, import top-level names unqualified using the same

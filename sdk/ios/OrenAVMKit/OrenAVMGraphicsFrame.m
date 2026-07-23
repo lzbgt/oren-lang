@@ -6,6 +6,20 @@
 #import "OrenAVMGraphicsResources.h"
 #include <string.h>
 
+typedef uint8_t OrenAVMGfxStateKind;
+enum {
+    OrenAVMGfxStateKindClip = 1,
+    OrenAVMGfxStateKindTransform = 2,
+    OrenAVMGfxStateKindOpacity = 3,
+};
+
+typedef uint8_t OrenAVMGfxPopResult;
+enum {
+    OrenAVMGfxPopResultNone = 0,
+    OrenAVMGfxPopResultNoOp = 1,
+    OrenAVMGfxPopResultRestored = 2,
+};
+
 BOOL OrenAVMGfxFrameDataIsValid(NSData* frame) {
     if (frame.length < 24) return NO;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -21,6 +35,36 @@ void OrenAVMGfxFrameStateInit(OrenAVMGfxFrameState* state) {
     if (!state) return;
     memset(state, 0, sizeof(*state));
     state->opacity = 1.0;
+}
+
+static BOOL OrenAVMGfxPushCGState(CGContextRef ctx,
+                                  OrenAVMGfxFrameState* state,
+                                  OrenAVMGfxStateKind kind) {
+    if (!ctx || !state || kind == 0) return NO;
+    if (state->stateDepth >= OrenAVMGfxFrameStateStackCapacity) {
+        state->stateOverflowDepth++;
+        return NO;
+    }
+    CGContextSaveGState(ctx);
+    state->stateStack[state->stateDepth++] = kind;
+    return YES;
+}
+
+static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,
+                                                OrenAVMGfxFrameState* state,
+                                                OrenAVMGfxStateKind kind) {
+    if (!ctx || !state || kind == 0) return OrenAVMGfxPopResultNone;
+    if (state->stateOverflowDepth > 0) {
+        state->stateOverflowDepth--;
+        return OrenAVMGfxPopResultNoOp;
+    }
+    if (state->stateDepth == 0 || state->stateStack[state->stateDepth - 1] != kind) {
+        return OrenAVMGfxPopResultNone;
+    }
+    state->stateDepth--;
+    state->stateStack[state->stateDepth] = 0;
+    CGContextRestoreGState(ctx);
+    return OrenAVMGfxPopResultRestored;
 }
 
 void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context) {
@@ -102,18 +146,17 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
                 uint32_t y = OrenAVMGfxReadU32LE(payload + 4);
                 uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
                 uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
-                CGContextSaveGState(ctx);
-                CGContextClipToRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
-                state->clipDepth++;
-                state->stateDepth++;
+                if (OrenAVMGfxPushCGState(ctx, state, OrenAVMGfxStateKindClip)) {
+                    CGContextClipToRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
+                    state->clipDepth++;
+                }
             }
             return YES;
         }
         case 17: {
-            if (payloadLen == 0 && state->clipDepth > 0) {
-                CGContextRestoreGState(ctx);
+            if (payloadLen == 0 &&
+                OrenAVMGfxPopCGState(ctx, state, OrenAVMGfxStateKindClip) == OrenAVMGfxPopResultRestored) {
                 state->clipDepth--;
-                if (state->stateDepth > 0) state->stateDepth--;
             }
             return YES;
         }
@@ -121,44 +164,36 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
             if (payloadLen == 8) {
                 int32_t dx = (int32_t)OrenAVMGfxReadU32LE(payload);
                 int32_t dy = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
-                CGContextSaveGState(ctx);
-                CGContextTranslateCTM(ctx, (CGFloat)dx, (CGFloat)dy);
-                state->stateDepth++;
-                state->transformDepth++;
+                if (OrenAVMGfxPushCGState(ctx, state, OrenAVMGfxStateKindTransform)) {
+                    CGContextTranslateCTM(ctx, (CGFloat)dx, (CGFloat)dy);
+                    state->transformDepth++;
+                }
             }
             return YES;
         }
         case 19: {
-            if (payloadLen == 0 && state->transformDepth > 0 && state->stateDepth > 0) {
-                CGContextRestoreGState(ctx);
+            if (payloadLen == 0 &&
+                OrenAVMGfxPopCGState(ctx, state, OrenAVMGfxStateKindTransform) == OrenAVMGfxPopResultRestored) {
                 state->transformDepth--;
-                state->stateDepth--;
             }
             return YES;
         }
         case 20: {
             if (payloadLen == 4) {
                 uint32_t alphaMilli = OrenAVMGfxReadU32LE(payload);
-                if (state->opacityDepth < 64) {
+                if (OrenAVMGfxPushCGState(ctx, state, OrenAVMGfxStateKindOpacity)) {
                     state->opacityStack[state->opacityDepth++] = state->opacity;
                     state->opacity = state->opacity * ((CGFloat)alphaMilli / 1000.0);
-                    CGContextSaveGState(ctx);
                     CGContextSetAlpha(ctx, state->opacity);
-                    state->stateDepth++;
-                } else {
-                    state->opacityOverflowDepth++;
                 }
             }
             return YES;
         }
         case 21: {
             if (payloadLen == 0) {
-                if (state->opacityOverflowDepth > 0) {
-                    state->opacityOverflowDepth--;
-                } else if (state->opacityDepth > 0 && state->stateDepth > 0) {
-                    CGContextRestoreGState(ctx);
+                OrenAVMGfxPopResult popResult = OrenAVMGfxPopCGState(ctx, state, OrenAVMGfxStateKindOpacity);
+                if (popResult == OrenAVMGfxPopResultRestored) {
                     state->opacity = state->opacityStack[--state->opacityDepth];
-                    state->stateDepth--;
                 }
             }
             return YES;
@@ -200,9 +235,14 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
 void OrenAVMGfxRestoreFrameState(CGContextRef ctx, OrenAVMGfxFrameState* state) {
     if (!ctx || !state) return;
     while (state->stateDepth > 0) {
+        state->stateStack[state->stateDepth - 1] = 0;
         CGContextRestoreGState(ctx);
         state->stateDepth--;
     }
+    state->stateOverflowDepth = 0;
+    state->clipDepth = 0;
+    state->transformDepth = 0;
+    state->opacityDepth = 0;
 }
 
 #endif
