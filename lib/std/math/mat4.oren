@@ -37,6 +37,36 @@ fn _viewport(viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64,
     return 0
 }
 
+fn _depth_from_ndc_z(ndc_z: f64, ctx) {
+    var ok = _finite_scalar(ndc_z, ctx)
+    if oren_is_err(ok) { return ok }
+    var depth: f64 = (ndc_z + 1.0) * 0.5
+    if depth < 0.0 {
+        if depth < -1e-9 { return oren_err(4, ctx + ": invalid depth") }
+        depth = 0.0
+    }
+    if depth > 1.0 {
+        if depth > 1.000000001 { return oren_err(4, ctx + ": invalid depth") }
+        depth = 1.0
+    }
+    return depth
+}
+
+fn _depth_to_ndc_z(win_z: f64, ctx) {
+    var ok = _finite_scalar(win_z, ctx)
+    if oren_is_err(ok) { return ok }
+    var depth: f64 = win_z
+    if depth < 0.0 {
+        if depth < -1e-9 { return oren_err(4, ctx + ": invalid depth") }
+        depth = 0.0
+    }
+    if depth > 1.0 {
+        if depth > 1.000000001 { return oren_err(4, ctx + ": invalid depth") }
+        depth = 1.0
+    }
+    return depth * 2.0 - 1.0
+}
+
 fn _check(m, ctx) {
     if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
     var i = 0
@@ -1117,20 +1147,7 @@ fn project_point3(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, v
     var pz: f64 = p[2]
     var ok = _finite3(px, py, pz, "mat4.project_point3")
     if oren_is_err(ok) { return ok }
-    var depth: f64 = (pz + 1.0) * 0.5
-    if depth < 0.0 {
-        if depth < -1e-9 { return oren_err(4, "mat4.project_point3: invalid depth") }
-        depth = 0.0
-    }
-    if depth > 1.0 {
-        if depth > 1.000000001 { return oren_err(4, "mat4.project_point3: invalid depth") }
-        depth = 1.0
-    }
-    return [
-        viewport_x + (px + 1.0) * viewport_w * 0.5,
-        viewport_y + (py + 1.0) * viewport_h * 0.5,
-        depth
-    ]
+    return ndc_to_window(px, py, pz, viewport_x, viewport_y, viewport_w, viewport_h)
 }
 
 fn project_point(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
@@ -1144,23 +1161,63 @@ fn unproject_point3(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, view
     if oren_is_err(ok) { return ok }
     ok = _finite_scalar(win_z, "mat4.unproject_point3")
     if oren_is_err(ok) { return ok }
-    var depth: f64 = win_z
-    if depth < 0.0 {
-        if depth < -1e-9 { return oren_err(4, "mat4.unproject_point3: invalid depth") }
-        depth = 0.0
-    }
-    if depth > 1.0 {
-        if depth > 1.000000001 { return oren_err(4, "mat4.unproject_point3: invalid depth") }
-        depth = 1.0
-    }
-    var ndc_x: f64 = (win_x - viewport_x) * 2.0 / viewport_w - 1.0
-    var ndc_y: f64 = (win_y - viewport_y) * 2.0 / viewport_h - 1.0
-    var ndc_z: f64 = depth * 2.0 - 1.0
+    var ndc = window_to_ndc(win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
+    if oren_is_err(ndc) { return ndc }
     var inv = inverse(m)
     if oren_is_err(inv) { return inv }
-    return transform_point3(inv, ndc_x, ndc_y, ndc_z)
+    return transform_point3(inv, ndc[0], ndc[1], ndc[2])
 }
 
 fn unproject_point(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
     return unproject_point3(m, win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
+}
+
+fn viewport_matrix(viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.viewport_matrix")
+    if oren_is_err(vp) { return vp }
+    return [
+        viewport_w * 0.5, 0.0, 0.0, viewport_x + viewport_w * 0.5,
+        0.0, viewport_h * 0.5, 0.0, viewport_y + viewport_h * 0.5,
+        0.0, 0.0, 0.5, 0.5,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn inverse_viewport_matrix(viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.inverse_viewport_matrix")
+    if oren_is_err(vp) { return vp }
+    return [
+        2.0 / viewport_w, 0.0, 0.0, 0.0 - (2.0 * viewport_x / viewport_w) - 1.0,
+        0.0, 2.0 / viewport_h, 0.0, 0.0 - (2.0 * viewport_y / viewport_h) - 1.0,
+        0.0, 0.0, 2.0, 0.0 - 1.0,
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn ndc_to_window(ndc_x: f64, ndc_y: f64, ndc_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.ndc_to_window")
+    if oren_is_err(vp) { return vp }
+    var ok = _finite3(ndc_x, ndc_y, ndc_z, "mat4.ndc_to_window")
+    if oren_is_err(ok) { return ok }
+    var depth = _depth_from_ndc_z(ndc_z, "mat4.ndc_to_window")
+    if oren_is_err(depth) { return depth }
+    return [
+        viewport_x + (ndc_x + 1.0) * viewport_w * 0.5,
+        viewport_y + (ndc_y + 1.0) * viewport_h * 0.5,
+        depth
+    ]
+}
+
+fn window_to_ndc(win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.window_to_ndc")
+    if oren_is_err(vp) { return vp }
+    var ok = _finite3(win_x, win_y, win_z, "mat4.window_to_ndc")
+    if oren_is_err(ok) { return ok }
+    var ndc_z = _depth_to_ndc_z(win_z, "mat4.window_to_ndc")
+    if oren_is_err(ndc_z) { return ndc_z }
+    return [
+        (win_x - viewport_x) * 2.0 / viewport_w - 1.0,
+        (win_y - viewport_y) * 2.0 / viewport_h - 1.0,
+        ndc_z
+    ]
 }
