@@ -329,6 +329,10 @@ fn is_orthonormal_abs(m, abs_tol: f64) {
     return true
 }
 
+fn is_orthonormal(m) {
+    return is_orthonormal_abs(m, 0.0)
+}
+
 fn is_rigid_transform_abs(m, abs_tol: f64) {
     var ok = _check(m, "mat4.is_rigid_transform_abs")
     if oren_is_err(ok) { return ok }
@@ -345,6 +349,18 @@ fn is_rigid_transform_abs(m, abs_tol: f64) {
     if oren_is_err(ok) { return ok }
     if !ok { return false }
     return is_orthonormal_abs(m, abs_tol)
+}
+
+fn is_rigid_abs(m, abs_tol: f64) {
+    return is_rigid_transform_abs(m, abs_tol)
+}
+
+fn is_rigid_transform(m) {
+    return is_rigid_transform_abs(m, 0.0)
+}
+
+fn is_rigid(m) {
+    return is_rigid_transform(m)
 }
 
 fn inverse_rigid_transform_abs(m, abs_tol: f64) {
