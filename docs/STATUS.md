@@ -85,6 +85,9 @@ surfaces, but the following blockers remain:
 - iOS Metal retained mesh uploads now stage raw payload copies before resource
   install, reject null copy sources before `memcpy`, and free earlier staged
   buffers if a later indexed-mesh copy fails.
+- iOS Metal large vertex uploads now validate transient-buffer retention storage
+  before allocating `MTLBuffer` objects, keeping invalid helper calls from
+  briefly allocating GPU memory that cannot be retained through the frame.
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.

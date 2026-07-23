@@ -107,6 +107,15 @@ def main() -> int:
         fail("Metal geometry vertex runs must expose raw bytes with explicit cleanup")
     if "OrenAVMMetalVertexBufferTakeBytes" not in frame_text or "run.vertexBytes = vertexBytes" not in frame_text:
         fail("Metal geometry flush must transfer raw vertex buffers into runs")
+    bind_start = frame_source.find("BOOL OrenAVMMetalBindVertexPayload")
+    bind_end = frame_source.find("void OrenAVMMetalEncodePreparedRuns", bind_start)
+    if bind_start < 0 or bind_end < 0:
+        fail("missing Metal vertex payload binding helper")
+    bind_body = frame_source[bind_start:bind_end]
+    retention_guard = bind_body.find("if (!transientBuffers) return NO;")
+    large_upload = bind_body.find("id<MTLBuffer> buffer = [device newBufferWithBytes:bytes")
+    if retention_guard < 0 or large_upload < 0 or retention_guard > large_upload:
+        fail("large Metal vertex uploads must validate transient retention storage before allocating MTLBuffer")
     if "OrenAVMMetalInitialVertexBuilderCapacity" not in frame_text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in frame_text:
         fail("geometry vertex builder must cap its lazy initial reservation")
     if (

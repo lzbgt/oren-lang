@@ -149,6 +149,11 @@
 <p>  install, reject null copy sources before <code>memcpy</code>, and free earlier staged</p>
 <p>  buffers if a later indexed-mesh copy fails.</p>
 <ul>
+<li>iOS Metal large vertex uploads now validate transient-buffer retention storage</li>
+</ul>
+<p>  before allocating <code>MTLBuffer</code> objects, keeping invalid helper calls from</p>
+<p>  briefly allocating GPU memory that cannot be retained through the frame.</p>
+<ul>
 <li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
 </ul>
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>
