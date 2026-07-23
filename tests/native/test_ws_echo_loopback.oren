@@ -366,6 +366,13 @@ fn server(listen_fd) {
         return 23
     }
 
+    var cr = conn.recv_text(10000)
+    if oren_is_err(cr) != true {
+        if cr != 0 { free(cr) }
+        print("ws_echo_loopback: server expected client close frame")
+        return 24
+    }
+
     conn.close()
     return 0
 }
@@ -549,6 +556,30 @@ fn run_one(listen_fd, url, resolver) {
                 } else if _bytes_equal(fbody_bytes, frag_bytes) != 1 {
                     print("ws_echo_loopback: FAIL fragmented bytes mismatch")
                     rc = 36
+                }
+            }
+        }
+
+        if rc == 0 {
+            var close_payload = _make_binary_payload(2)
+            if oren_is_err(close_payload) {
+                print("ws_echo_loopback: FAIL close payload alloc")
+                rc = 41
+            } else {
+                var cp = native_buf_data_ptr(close_payload)
+                ptr_set_byte(cp + 0, 3)
+                ptr_set_byte(cp + 1, 232) // 1000 normal closure.
+                var clrc = conn.send_close_bytes_client(close_payload, 5000)
+                if oren_is_err(clrc) {
+                    print("ws_echo_loopback: FAIL close bytes: " + oren_err_msg(clrc))
+                    rc = 42
+                } else {
+                    var ack = conn.recv_text(10000)
+                    if oren_is_err(ack) != true {
+                        if ack != 0 { free(ack) }
+                        print("ws_echo_loopback: FAIL expected close ack")
+                        rc = 43
+                    }
                 }
             }
         }

@@ -36,6 +36,10 @@ trait WebSocketConn {
     fn send_ping_bytes_server(self, bytes, timeout_ms);
     fn send_pong_bytes_client(self, bytes, timeout_ms);
     fn send_pong_bytes_server(self, bytes, timeout_ms);
+    fn send_close_client(self, timeout_ms);
+    fn send_close_server(self, timeout_ms);
+    fn send_close_bytes_client(self, bytes, timeout_ms);
+    fn send_close_bytes_server(self, bytes, timeout_ms);
     fn recv_text(self, timeout_ms);
     fn recv_bytes(self, timeout_ms);
     fn close(self);
@@ -912,6 +916,13 @@ fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, masked) {
     return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)
 }
 
+fn _send_frame_close_bytes(conn, bytes, timeout_ms, masked) {
+    if bytes == nil { return 0 - 22 } // EINVAL
+    if oren_is_u8_buf(bytes) != true { return 0 - 22 } // EINVAL
+    if oren_bytes_len(bytes) == 1 { return 0 - 22 } // EINVAL: close payload cannot be exactly one byte.
+    return _send_frame_control_bytes(conn, 8, bytes, timeout_ms, masked)
+}
+
 fn _send_frame_text(conn, text, timeout_ms, masked) {
     return _send_frame_str(conn, 1, text, timeout_ms, masked)
 }
@@ -1020,6 +1031,50 @@ fn _send_pong_bytes_server_value(conn, payload, timeout_ms) {
     var rc = send_pong_bytes_server(conn, payload, timeout_ms)
     if rc >= 0 { return 0 }
     return _err_from_errno(rc, "ws.send_pong_bytes_server failed")
+}
+
+fn send_close_client(conn, timeout_ms) {
+    // Client-to-server close must be masked.
+    return _send_frame_raw(conn, 8, 0, 0, timeout_ms, 1)
+}
+
+fn _send_close_client_value(conn, timeout_ms) {
+    var rc = send_close_client(conn, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_close_client failed")
+}
+
+fn send_close_server(conn, timeout_ms) {
+    // Server-to-client close must be unmasked.
+    return _send_frame_raw(conn, 8, 0, 0, timeout_ms, 0)
+}
+
+fn _send_close_server_value(conn, timeout_ms) {
+    var rc = send_close_server(conn, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_close_server failed")
+}
+
+fn send_close_bytes_client(conn, payload, timeout_ms) {
+    // Client-to-server close must be masked.
+    return _send_frame_close_bytes(conn, payload, timeout_ms, 1)
+}
+
+fn _send_close_bytes_client_value(conn, payload, timeout_ms) {
+    var rc = send_close_bytes_client(conn, payload, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_close_bytes_client failed")
+}
+
+fn send_close_bytes_server(conn, payload, timeout_ms) {
+    // Server-to-client close must be unmasked.
+    return _send_frame_close_bytes(conn, payload, timeout_ms, 0)
+}
+
+fn _send_close_bytes_server_value(conn, payload, timeout_ms) {
+    var rc = send_close_bytes_server(conn, payload, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_close_bytes_server failed")
 }
 
 fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
@@ -1256,6 +1311,10 @@ impl WebSocketConn for Conn {
     fn send_ping_bytes_server(self, bytes, timeout_ms) { return _send_ping_bytes_server_value(self, bytes, timeout_ms) }
     fn send_pong_bytes_client(self, bytes, timeout_ms) { return _send_pong_bytes_client_value(self, bytes, timeout_ms) }
     fn send_pong_bytes_server(self, bytes, timeout_ms) { return _send_pong_bytes_server_value(self, bytes, timeout_ms) }
+    fn send_close_client(self, timeout_ms) { return _send_close_client_value(self, timeout_ms) }
+    fn send_close_server(self, timeout_ms) { return _send_close_server_value(self, timeout_ms) }
+    fn send_close_bytes_client(self, bytes, timeout_ms) { return _send_close_bytes_client_value(self, bytes, timeout_ms) }
+    fn send_close_bytes_server(self, bytes, timeout_ms) { return _send_close_bytes_server_value(self, bytes, timeout_ms) }
     fn recv_text(self, timeout_ms) { return _recv_text_value(self, timeout_ms) }
     fn recv_bytes(self, timeout_ms) { return _recv_bytes_value(self, timeout_ms) }
     fn close(self) { return close(self) }
