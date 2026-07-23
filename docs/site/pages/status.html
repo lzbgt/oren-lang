@@ -76,6 +76,12 @@
 <p>  duplicate anonymous-import collisions. Focused proof lives in</p>
 <p>  <code>tests/fixtures/anonymous_import/*</code> and</p>
 <p>  <code>build/logs/anonymous_import_focused.log</code>.</p>
+<ul>
+<li>The Oren LSP now follows anonymous imports for unopened-workspace dependency</li>
+</ul>
+<p>  traversal, unqualified imported symbol completion/definition, and typed-member</p>
+<p>  completion/definition through anonymously imported constructors. Regression</p>
+<p>  proof lives in <code>internal/orenlsp/server_import_test.go</code>.</p>
 <h2 id="backend-readiness">Backend Readiness</h2>
 <table>
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>

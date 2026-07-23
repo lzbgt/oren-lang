@@ -83,6 +83,34 @@ func completionItems(text string) []completionItem {
 	return items
 }
 
+func completionItemsWithAnonymousImports(text string, importedDocs []documentSnapshot, aliasByURI map[string]string) []completionItem {
+	items := completionItems(text)
+	seen := map[string]bool{}
+	for _, item := range items {
+		seen[item.Label] = true
+	}
+	for _, doc := range importedDocs {
+		alias, ok := aliasByURI[doc.URI]
+		if !ok || alias != "" {
+			continue
+		}
+		for _, sym := range collectSymbols(doc.Text) {
+			if seen[sym.Name] {
+				continue
+			}
+			seen[sym.Name] = true
+			items = append(items, completionItem{Label: sym.Name, Kind: completionKind(sym.Kind), Detail: sym.Detail})
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Label == items[j].Label {
+			return items[i].Detail < items[j].Detail
+		}
+		return items[i].Label < items[j].Label
+	})
+	return items
+}
+
 func importedModuleCompletionItems(receiver, partial string, importedDocs []documentSnapshot, aliasByURI map[string]string) ([]completionItem, bool) {
 	if receiver == "" {
 		return nil, false
@@ -234,13 +262,15 @@ func collectSymbols(text string) []sourceSymbol {
 				out = append(out, newSourceSymbol(name, "variable", "variable"))
 			}
 		case token.IMPORT:
-			if name := l.NextToken(); name.Type == token.IDENT {
-				detail := "import"
-				if spec := l.NextToken(); spec.Type == token.STRING && spec.Literal != "" {
-					detail = "import " + spec.Literal
-				}
-				out = append(out, newSourceSymbol(name, "module", detail))
+			name := l.NextToken()
+			if name.Type != token.IDENT {
+				continue
 			}
+			detail := "import"
+			if spec := l.NextToken(); spec.Type == token.STRING && spec.Literal != "" {
+				detail = "import " + spec.Literal
+			}
+			out = append(out, newSourceSymbol(name, "module", detail))
 		case token.STRUCT:
 			if name := l.NextToken(); name.Type == token.IDENT {
 				out = append(out, newSourceSymbol(name, "struct", "struct"))
@@ -266,14 +296,19 @@ func collectImports(text string) []importSpec {
 			continue
 		}
 		name := l.NextToken()
-		if name.Type != token.IDENT {
+		if name.Type != token.IDENT && name.Type != token.DOT {
 			continue
 		}
 		spec := l.NextToken()
 		if spec.Type != token.STRING || spec.Literal == "" {
 			continue
 		}
-		out = append(out, importSpec{Alias: name.Literal, Spec: spec.Literal})
+		alias := name.Literal
+		anonymous := name.Type == token.DOT
+		if anonymous {
+			alias = ""
+		}
+		out = append(out, importSpec{Alias: alias, Spec: spec.Literal})
 	}
 	return out
 }

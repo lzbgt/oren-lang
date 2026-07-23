@@ -58,6 +58,71 @@ func TestServerDefinitionFindsUnopenedImportedFileSymbol(t *testing.T) {
 	assertDefinition(t, defs, fileURIFromPath(helperPath), 0, 4, 16)
 }
 
+func TestServerDefinitionFindsAnonymousImportedFileSymbol(t *testing.T) {
+	tmp := t.TempDir()
+	helperPath := filepath.Join(tmp, "helper.oren")
+	helperText := strings.Join([]string{
+		"var helper_value = 7",
+		"fn helper_call() { return helper_value }",
+		"",
+	}, "\n")
+	if err := os.WriteFile(helperPath, []byte(helperText), 0o644); err != nil {
+		t.Fatalf("WriteFile helper: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainText := strings.Join([]string{
+		"import . \"helper.oren\"",
+		"fn main() {",
+		"  return helper_value",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(mainPath, []byte(mainText), 0o644); err != nil {
+		t.Fatalf("WriteFile main: %v", err)
+	}
+
+	var in bytes.Buffer
+	mainURI := fileURIFromPath(mainPath)
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      17,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      18,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 9},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	defs := messageByID(t, msgs, 17)["result"].([]any)
+	assertDefinition(t, defs, fileURIFromPath(helperPath), 0, 4, 16)
+	items := messageByID(t, msgs, 18)["result"].([]any)
+	if !hasCompletion(items, "helper_value", 6) || !hasCompletion(items, "helper_call", 3) {
+		t.Fatalf("anonymous import completion missing imported symbols: %#v", items)
+	}
+}
+
 func TestServerDefinitionFindsTransitiveImportedFileSymbol(t *testing.T) {
 	tmp := t.TempDir()
 	moduleDir := filepath.Join(tmp, "modules")
@@ -118,6 +183,66 @@ func TestServerDefinitionFindsTransitiveImportedFileSymbol(t *testing.T) {
 	msgs := readTestMessages(t, out.Bytes())
 	defs := messageByID(t, msgs, 16)["result"].([]any)
 	assertDefinition(t, defs, fileURIFromPath(leafPath), 0, 4, 14)
+}
+
+func TestServerNavigationUsesAnonymousImportedConstructorFields(t *testing.T) {
+	tmp := t.TempDir()
+	shapesPath := filepath.Join(tmp, "shapes.oren")
+	shapesText := "struct Point { x, y }\n"
+	if err := os.WriteFile(shapesPath, []byte(shapesText), 0o644); err != nil {
+		t.Fatalf("WriteFile shapes: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainText := strings.Join([]string{
+		"import . \"shapes.oren\"",
+		"var p = Point(1, 2)",
+		"var value = p.",
+		"fn main() {",
+		"  return p.x",
+		"}",
+		"",
+	}, "\n")
+	mainURI := fileURIFromPath(mainPath)
+
+	var in bytes.Buffer
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      19,
+		"method":  "textDocument/completion",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": len("var value = p.")},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      20,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 4, "character": len("  return p.x")},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	items := messageByID(t, msgs, 19)["result"].([]any)
+	if !hasCompletion(items, "x", 5) || !hasCompletion(items, "y", 5) {
+		t.Fatalf("anonymous imported member completion missing fields: %#v", items)
+	}
+	defs := messageByID(t, msgs, 20)["result"].([]any)
+	assertDefinition(t, defs, fileURIFromPath(shapesPath), 0, 15, 16)
 }
 
 func TestImportedDocumentSnapshotsSkipsImportCycles(t *testing.T) {

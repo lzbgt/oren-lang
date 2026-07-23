@@ -15,8 +15,8 @@ type memberImportedProgram struct {
 func parseMemberImportedPrograms(importedDocs []documentSnapshot, aliasByURI map[string]string) []memberImportedProgram {
 	imports := make([]memberImportedProgram, 0, len(importedDocs))
 	for _, doc := range importedDocs {
-		alias := aliasByURI[doc.URI]
-		if alias == "" {
+		alias, ok := aliasByURI[doc.URI]
+		if !ok {
 			continue
 		}
 		imports = append(imports, memberImportedProgram{
@@ -38,11 +38,18 @@ func newMemberTypeEnv(program *ast.Program, uri string, imports []memberImported
 		FunctionMapValueElementFields: map[string]map[string]string{},
 	}
 	for _, imported := range imports {
-		for key, info := range collectTypeInfos(imported.Program, imported.URI, imported.Alias+".") {
+		for key, info := range collectTypeInfos(imported.Program, imported.URI, imported.Prefix()) {
 			env.Types[key] = info
 		}
 	}
 	return env
+}
+
+func (imported memberImportedProgram) Prefix() string {
+	if imported.Alias == "" {
+		return ""
+	}
+	return imported.Alias + "."
 }
 
 func addMemberFunctionReturnTypes(env *memberTypeEnv, program *ast.Program, prefix string, params map[string]map[string]string) {
@@ -59,7 +66,7 @@ func addMemberFunctionReturnTypes(env *memberTypeEnv, program *ast.Program, pref
 
 func addImportedMemberFunctionReturnTypes(env *memberTypeEnv, imports []memberImportedProgram, params map[string]map[string]string) {
 	for _, imported := range imports {
-		addMemberFunctionReturnTypes(env, imported.Program, imported.Alias+".", params)
+		addMemberFunctionReturnTypes(env, imported.Program, imported.Prefix(), params)
 	}
 }
 
@@ -88,14 +95,14 @@ func addMemberReturnFieldFacts(env *memberTypeEnv, program *ast.Program, prefix 
 
 func addImportedMemberReturnFieldFacts(env *memberTypeEnv, imports []memberImportedProgram) {
 	for _, imported := range imports {
-		addMemberReturnFieldFacts(env, imported.Program, imported.Alias+".")
+		addMemberReturnFieldFacts(env, imported.Program, imported.Prefix())
 	}
 }
 
 func collectMemberFunctionLiterals(program *ast.Program, imports []memberImportedProgram) map[string]*ast.FunctionLiteral {
 	functions := collectNamedFunctionLiterals(program, "")
 	for _, imported := range imports {
-		for key, fn := range collectNamedFunctionLiterals(imported.Program, imported.Alias+".") {
+		for key, fn := range collectNamedFunctionLiterals(imported.Program, imported.Prefix()) {
 			functions[key] = fn
 		}
 	}

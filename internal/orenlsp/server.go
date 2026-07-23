@@ -168,7 +168,7 @@ func (s *Server) completionItems(uri string, pos position) []completionItem {
 		}
 		return []completionItem{}
 	}
-	return completionItems(text)
+	return completionItemsWithAnonymousImports(text, importedDocs, aliasByURI)
 }
 
 func (s *Server) definitionLocations(uri string, pos position) []location {
