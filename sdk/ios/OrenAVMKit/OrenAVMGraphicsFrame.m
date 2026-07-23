@@ -88,6 +88,41 @@ static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,
     return OrenAVMGfxPopState(ctx, state, kind, YES);
 }
 
+static BOOL OrenAVMGfxClipIsEmpty(CGContextRef ctx, BOOL alreadyEmpty) {
+    if (alreadyEmpty) return YES;
+    CGRect clip = CGContextGetClipBoundingBox(ctx);
+    return CGRectIsEmpty(clip) || clip.size.width <= 0.0 || clip.size.height <= 0.0;
+}
+
+static BOOL OrenAVMGfxOpcodeIsClipScopedDraw(uint8_t opcode) {
+    switch (opcode) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 65:
+        case 67:
+        case 69:
+        case 71:
+        case 72:
+        case 81:
+        case 84:
+        case 87:
+        case 90:
+        case 91:
+        case 94:
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context) {
     if (!ctx || !context || !OrenAVMGfxFrameDataIsValid(frame)) return;
     const uint8_t* data = (const uint8_t*)frame.bytes;
@@ -110,11 +145,16 @@ void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawCon
         if (off + (size_t)payloadLen > len) return;
         const uint8_t* payload = data + off;
 
-        if (OrenAVMGfxDrawImmediatePrimitive(ctx, opcode, payload, payloadLen)) {
+        if (OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)) {
             off += payloadLen;
             continue;
         }
-        if (OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)) {
+        if (frameState.clipEmpty && OrenAVMGfxOpcodeIsClipScopedDraw(opcode)) {
+            off += payloadLen;
+            continue;
+        }
+
+        if (OrenAVMGfxDrawImmediatePrimitive(ctx, opcode, payload, payloadLen)) {
             off += payloadLen;
             continue;
         }
@@ -169,7 +209,10 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
                 uint32_t w = OrenAVMGfxReadU32LE(payload + 8);
                 uint32_t h = OrenAVMGfxReadU32LE(payload + 12);
                 if (OrenAVMGfxPushCGState(ctx, state, OrenAVMGfxStateKindClip)) {
+                    BOOL previousClipEmpty = state->clipEmpty;
+                    state->clipEmptyStack[state->clipDepth] = previousClipEmpty;
                     CGContextClipToRect(ctx, CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h));
+                    state->clipEmpty = w == 0 || h == 0 || OrenAVMGfxClipIsEmpty(ctx, previousClipEmpty);
                     state->clipDepth++;
                 }
             }
@@ -179,6 +222,8 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
             if (payloadLen == 0 &&
                 OrenAVMGfxPopCGState(ctx, state, OrenAVMGfxStateKindClip) == OrenAVMGfxPopResultRestored) {
                 state->clipDepth--;
+                state->clipEmpty = state->clipEmptyStack[state->clipDepth];
+                state->clipEmptyStack[state->clipDepth] = NO;
             }
             return YES;
         }
@@ -262,6 +307,7 @@ void OrenAVMGfxRestoreFrameState(CGContextRef ctx, OrenAVMGfxFrameState* state) 
     }
     state->stateOverflowDepth = 0;
     state->clipDepth = 0;
+    state->clipEmpty = NO;
     state->transformDepth = 0;
     state->opacityDepth = 0;
     state->cameraDepth = 0;

@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsView.m"
+FRAME_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsFrame.h"
 FRAME_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsFrame.m"
 GEOMETRY_HEADER = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsGeometry.h"
 GEOMETRY_SOURCE = ROOT / "sdk/ios/OrenAVMKit/OrenAVMGraphicsGeometry.m"
@@ -28,12 +29,13 @@ def require_before(block: str, before: str, after: str, message: str) -> None:
 
 def main() -> int:
     view_text = SOURCE.read_text()
+    frame_header_text = FRAME_HEADER.read_text()
     frame_text = FRAME_SOURCE.read_text()
     geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
     resource_source_text = RESOURCE_SOURCE.read_text()
     resource_text = RESOURCE_HEADER.read_text() + "\n" + resource_source_text
     frame_command_text = frame_text
-    text = view_text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
+    text = view_text + "\n" + frame_header_text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
     required = [
         "OrenAVMGfxTriangleOrder",
         "OrenAVMGfxTriangleOrderAppend",
@@ -80,6 +82,31 @@ def main() -> int:
         fail("CoreGraphics retained 3D mesh draws must use the scalar-map resource helper")
     if "OrenAVMGfxHandleMeshCommand(ctx," not in frame_command_text:
         fail("CoreGraphics frame traversal must delegate retained mesh opcodes to OrenAVMGraphicsResources")
+    for token in (
+        "static BOOL OrenAVMGfxClipIsEmpty(CGContextRef ctx, BOOL alreadyEmpty)",
+        "static BOOL OrenAVMGfxOpcodeIsClipScopedDraw(uint8_t opcode)",
+        "BOOL clipEmpty;",
+        "BOOL clipEmptyStack[OrenAVMGfxFrameStateStackCapacity];",
+        "case 1:",
+        "case 2:",
+        "case 65:",
+        "case 72:",
+        "case 81:",
+        "case 94:",
+    ):
+        if token not in text:
+            fail(f"CoreGraphics empty-clip draw skip missing expected coverage: {token}")
+    draw_frame_start = frame_text.find("void OrenAVMGfxDrawFrame")
+    state_handler_start = frame_text.find("BOOL OrenAVMGfxHandleFrameStateCommand", draw_frame_start)
+    draw_frame_body = frame_text[draw_frame_start:state_handler_start]
+    require_before(draw_frame_body,
+                   "OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)",
+                   "frameState.clipEmpty && OrenAVMGfxOpcodeIsClipScopedDraw(opcode)",
+                   "CoreGraphics frame traversal must handle state before empty-clip draw skips")
+    require_before(draw_frame_body,
+                   "frameState.clipEmpty && OrenAVMGfxOpcodeIsClipScopedDraw(opcode)",
+                   "OrenAVMGfxDrawImmediatePrimitive(ctx, opcode, payload, payloadLen)",
+                   "CoreGraphics frame traversal must skip empty-clip draws before immediate primitive work")
     if "OrenAVMGfxDrawMesh3DResource(ctx," not in resource_text:
         fail("CoreGraphics retained 3D mesh draws must live in OrenAVMGraphicsResources")
     if "void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx," not in resource_text:

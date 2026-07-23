@@ -12,6 +12,8 @@ enum { OrenAVMGfxFrameStateStackCapacity = 64 };
 
 typedef struct {
     uint32_t clipDepth;
+    BOOL clipEmpty;
+    BOOL clipEmptyStack[OrenAVMGfxFrameStateStackCapacity];
     uint32_t stateDepth;
     uint32_t stateOverflowDepth;
     uint8_t stateStack[OrenAVMGfxFrameStateStackCapacity];
