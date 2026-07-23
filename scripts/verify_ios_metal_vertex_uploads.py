@@ -878,7 +878,7 @@ def main() -> int:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     for token in (
         "static BOOL OrenAVMMetalScissorIsEmpty(OrenAVMMetalScissorState clip)",
-        "static BOOL OrenAVMMetalOpcodeIsClipScopedDraw(uint8_t opcode)",
+        "static BOOL OrenAVMMetalOpcodeIsDrawOnly(uint8_t opcode)",
         "case 1:",
         "case 2:",
         "case 65:",
@@ -887,13 +887,13 @@ def main() -> int:
         "case 94:",
     ):
         if token not in frame_text:
-            fail(f"Metal empty-scissor draw skip missing expected draw opcode coverage: {token}")
+            fail(f"Metal elided draw skip missing expected draw opcode coverage: {token}")
     build_runs = frame_text[frame_text.find("NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame") :]
     require_before(
         build_runs,
-        "OrenAVMMetalScissorIsEmpty(frameState.clip) && OrenAVMMetalOpcodeIsClipScopedDraw(opcode)",
+        "(OrenAVMMetalScissorIsEmpty(frameState.clip) || frameState.opacity <= 0.0f) &&\n            OrenAVMMetalOpcodeIsDrawOnly(opcode)",
         "BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,",
-        "Metal frame traversal must skip clip-elided draw work before vertex/resource/text preparation",
+        "Metal frame traversal must skip clip/opacity-elided draw work before vertex/resource/text preparation",
     )
     if "OrenAVMMetalEncodePreparedRuns(encoder," not in text:
         fail("Metal view must delegate prepared-run draw submission to the frame helper")

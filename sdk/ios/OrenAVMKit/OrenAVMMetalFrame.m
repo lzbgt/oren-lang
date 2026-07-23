@@ -228,7 +228,7 @@ static BOOL OrenAVMMetalScissorIsEmpty(OrenAVMMetalScissorState clip) {
     return clip.enabled && (clip.rect.width == 0 || clip.rect.height == 0);
 }
 
-static BOOL OrenAVMMetalOpcodeIsClipScopedDraw(uint8_t opcode) {
+static BOOL OrenAVMMetalOpcodeIsDrawOnly(uint8_t opcode) {
     switch (opcode) {
         case 1:
         case 2:
@@ -290,7 +290,8 @@ NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* fra
         if (off + (size_t)payloadLen > frame.length) break;
         const uint8_t* payload = data + off;
         OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
-        if (OrenAVMMetalScissorIsEmpty(frameState.clip) && OrenAVMMetalOpcodeIsClipScopedDraw(opcode)) {
+        if ((OrenAVMMetalScissorIsEmpty(frameState.clip) || frameState.opacity <= 0.0f) &&
+            OrenAVMMetalOpcodeIsDrawOnly(opcode)) {
             off += payloadLen;
             continue;
         }

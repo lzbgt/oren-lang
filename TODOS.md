@@ -2824,7 +2824,7 @@ design evidence lives under `project-doc/`.
   helper-generated vertices in malformed raw frames.
 - Fully transparent Metal draw-only and retained mesh/model opcodes plus
   CoreGraphics draw-only opcodes now return handled before vertex, texture-run,
-  text-cache, retained lookup, or depth-order work, and active
+  text-cache, retained lookup, or depth-order work at frame traversal, and active
   empty-scissor/empty-clip spans now skip Metal and CoreGraphics draw-only
   opcodes before frame-prep or CGContext/resource/text draw work while retained
   create/destroy resource opcodes still execute.

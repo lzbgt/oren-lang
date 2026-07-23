@@ -150,9 +150,10 @@
 <p>	  allocate exact heap vertex storage once, retained 3D draws skip sort/color</p>
 <p>		  work when clipping leaves no visible triangles, fully transparent Metal</p>
 <p>		  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only</p>
-<p>		  opcodes skip vertex/texture/text-cache/lookup/depth-order work, active</p>
-<p>		  empty-scissor or empty-clip spans skip Metal and CoreGraphics draw-only</p>
-<p>		  opcodes before frame-prep or CGContext/resource/text draw work while resource</p>
+<p>			  opcodes skip vertex/texture/text-cache/lookup/depth-order work at</p>
+<p>			  frame traversal, active empty-scissor or empty-clip spans skip Metal</p>
+<p>			  and CoreGraphics draw-only opcodes before frame-prep or</p>
+<p>			  CGContext/resource/text draw work while resource</p>
 <p>		  create/destroy opcodes still execute, and later compatible-run coalescing</p>
 <p>	  still grows geometrically.</p>
 <ul>
