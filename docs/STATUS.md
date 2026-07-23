@@ -57,6 +57,9 @@ surfaces, but the following blockers remain:
   stale navigation/completion evidence on conflicting, unknown, or branch-local
   member reassignment.
   Regression proof lives in `internal/orenlsp/member_symbols_test.go`.
+- Oren LSP now advertises and serves import document links, workspace symbol
+  search across open/imported documents, brace-based folding ranges, and
+  token/braced-block selection ranges.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`. LSP
@@ -3231,7 +3234,7 @@ Working evidence:
   consistent conditional branch return and assignment inference,
 	  unknown-assignment invalidation,
 				  import document links, workspace symbol search across open/imported
-				  documents, brace-based folding ranges, same-document document
+				  documents, brace-based folding ranges, token/braced-block selection ranges, same-document document
 				  highlights for exact scoped locals/parameters, import aliases,
 				  typed fields, and imported top-level symbols,
 			  and conservative prepare/rename workspace edits for import aliases, exact

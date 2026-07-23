@@ -115,6 +115,12 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: foldingRanges(s.docs[p.TextDocument.URI])})
+	case "textDocument/selectionRange":
+		var p selectionRangeParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: selectionRanges(s.docs[p.TextDocument.URI], p.Positions)})
 	case "textDocument/definition":
 		var p textDocumentParams
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -237,6 +243,7 @@ func initializeResult() map[string]any {
 			"documentSymbolProvider":    true,
 			"documentLinkProvider":      map[string]any{"resolveProvider": false},
 			"foldingRangeProvider":      true,
+			"selectionRangeProvider":    true,
 			"definitionProvider":        true,
 			"hoverProvider":             true,
 			"referencesProvider":        true,
@@ -294,6 +301,13 @@ type textDocumentOnlyParams struct {
 	TextDocument struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
+}
+
+type selectionRangeParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Positions []position `json:"positions"`
 }
 
 type referenceParams struct {

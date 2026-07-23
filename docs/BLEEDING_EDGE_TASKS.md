@@ -1697,7 +1697,7 @@ This file is the concise task view. Detailed implementation status lives in
     invalidation, direct parameter-return propagation,
     consistent conditional branch return and assignment inference, unknown-assignment invalidation,
 	    import document links, workspace symbol search across open/imported documents,
-	    brace-based folding ranges, same-document document highlights for exact scoped locals/parameters,
+	    brace-based folding ranges, token/braced-block selection ranges, same-document document highlights for exact scoped locals/parameters,
 	    import aliases, typed fields, and imported top-level symbols, and conservative prepare/rename workspace
 	    edits for exact scoped parameters/local variables and same-document typed fields, plus
     full-document semantic-token classification for declarations/references/literals/operators and parser-derived

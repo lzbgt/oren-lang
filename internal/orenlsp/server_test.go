@@ -42,6 +42,9 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	if caps["foldingRangeProvider"] != true {
 		t.Fatalf("missing foldingRangeProvider capability: %#v", caps)
 	}
+	if caps["selectionRangeProvider"] != true {
+		t.Fatalf("missing selectionRangeProvider capability: %#v", caps)
+	}
 	if caps["definitionProvider"] != true {
 		t.Fatalf("missing definitionProvider capability: %#v", caps)
 	}

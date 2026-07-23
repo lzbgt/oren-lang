@@ -36,6 +36,7 @@ func TestServerDocumentLinksWorkspaceSymbolsAndFoldingRanges(t *testing.T) {
 		"  if true {",
 		"    shapes.make_widget()",
 		"    Extra(1)",
+		"    ",
 		"  }",
 		"}",
 		"",
@@ -73,6 +74,18 @@ func TestServerDocumentLinksWorkspaceSymbolsAndFoldingRanges(t *testing.T) {
 			"textDocument": map[string]any{"uri": mainURI},
 		},
 	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      103,
+		"method":  "textDocument/selectionRange",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"positions": []map[string]any{
+				{"line": 5, "character": 6},
+				{"line": 6, "character": 4},
+			},
+		},
+	})
 	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
 
 	var out bytes.Buffer
@@ -87,9 +100,23 @@ func TestServerDocumentLinksWorkspaceSymbolsAndFoldingRanges(t *testing.T) {
 	})
 	assertWorkspaceSymbolNames(t, messageByID(t, msgs, 101)["result"].([]any), []string{"Extra"})
 	assertFoldingRanges(t, messageByID(t, msgs, 102)["result"].([]any), []foldingRange{
-		{StartLine: 2, StartCharacter: 10, EndLine: 7, EndCharacter: 1, Kind: "region"},
-		{StartLine: 3, StartCharacter: 10, EndLine: 6, EndCharacter: 3, Kind: "region"},
+		{StartLine: 2, StartCharacter: 10, EndLine: 8, EndCharacter: 1, Kind: "region"},
+		{StartLine: 3, StartCharacter: 10, EndLine: 7, EndCharacter: 3, Kind: "region"},
 	})
+	assertSelectionRanges(t, messageByID(t, msgs, 103)["result"].([]any), []selectionRange{
+		{
+			Range: diagnosticRange{Start: position{Line: 5, Character: 4}, End: position{Line: 5, Character: 9}},
+			Parent: &selectionRange{
+				Range: diagnosticRange{Start: position{Line: 3, Character: 10}, End: position{Line: 7, Character: 3}},
+				Parent: &selectionRange{
+					Range: diagnosticRange{Start: position{Line: 2, Character: 10}, End: position{Line: 8, Character: 1}},
+				},
+			},
+		},
+	})
+	if got := messageByID(t, msgs, 103)["result"].([]any)[1]; got != nil {
+		t.Fatalf("blank selection range=%#v want nil", got)
+	}
 }
 
 func assertDocumentLinks(t *testing.T, got []any, want []documentLink) {
@@ -138,4 +165,30 @@ func assertFoldingRanges(t *testing.T, got []any, want []foldingRange) {
 			t.Fatalf("folding range[%d]=%#v want %#v", i, fr, want[i])
 		}
 	}
+}
+
+func assertSelectionRanges(t *testing.T, got []any, want []selectionRange) {
+	t.Helper()
+	if len(got) < len(want) {
+		t.Fatalf("selection ranges=%#v want at least %#v", got, want)
+	}
+	for i := range want {
+		assertSelectionRangeMap(t, got[i].(map[string]any), &want[i])
+	}
+}
+
+func assertSelectionRangeMap(t *testing.T, got map[string]any, want *selectionRange) {
+	t.Helper()
+	assertRangeMap(t, got["range"].(map[string]any), want.Range)
+	if want.Parent == nil {
+		if got["parent"] != nil {
+			t.Fatalf("selection parent=%#v want nil", got["parent"])
+		}
+		return
+	}
+	parent, ok := got["parent"].(map[string]any)
+	if !ok {
+		t.Fatalf("selection parent=%#v want %#v", got["parent"], want.Parent)
+	}
+	assertSelectionRangeMap(t, parent, want.Parent)
 }

@@ -29,6 +29,11 @@ type foldingRange struct {
 	Kind           string `json:"kind,omitempty"`
 }
 
+type selectionRange struct {
+	Range  diagnosticRange `json:"range"`
+	Parent *selectionRange `json:"parent,omitempty"`
+}
+
 func (s *Server) documentLinks(uri string) []documentLink {
 	text := s.docs[uri]
 	currentPath, ok := filePathFromURI(uri)
@@ -149,6 +154,98 @@ func foldingRanges(text string) []foldingRange {
 		return out[i].StartCharacter < out[j].StartCharacter
 	})
 	return out
+}
+
+func selectionRanges(text string, positions []position) []any {
+	out := make([]any, 0, len(positions))
+	tokens := sourceTokens(text)
+	for _, pos := range positions {
+		rng, ok := tokenRangeAtPosition(tokens, pos)
+		if !ok {
+			out = append(out, nil)
+			continue
+		}
+		out = append(out, selectionRangeForToken(tokens, pos, rng))
+	}
+	return out
+}
+
+func tokenRangeAtPosition(tokens []token.Token, pos position) (diagnosticRange, bool) {
+	for _, tok := range tokens {
+		rng := tokenRange(tok)
+		if positionInRange(pos, rng) {
+			return rng, true
+		}
+	}
+	return diagnosticRange{}, false
+}
+
+func selectionRangeForToken(tokens []token.Token, pos position, rng diagnosticRange) *selectionRange {
+	child := &selectionRange{Range: rng}
+	parents := enclosingBraceRanges(tokens, pos, rng)
+	current := child
+	for _, parentRange := range parents {
+		parent := &selectionRange{Range: parentRange}
+		current.Parent = parent
+		current = parent
+	}
+	return child
+}
+
+func enclosingBraceRanges(tokens []token.Token, pos position, inner diagnosticRange) []diagnosticRange {
+	stack := make([]token.Token, 0)
+	out := make([]diagnosticRange, 0)
+	for _, tok := range tokens {
+		switch tok.Type {
+		case token.LBRACE:
+			stack = append(stack, tok)
+		case token.RBRACE:
+			if len(stack) == 0 {
+				continue
+			}
+			open := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			rng := diagnosticRange{Start: tokenRange(open).Start, End: tokenRange(tok).End}
+			if rangeContainsPosition(rng, pos) && rangeStrictlyContains(rng, inner) {
+				out = append(out, rng)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Start.Line != out[j].Start.Line {
+			return out[i].Start.Line > out[j].Start.Line
+		}
+		if out[i].Start.Character != out[j].Start.Character {
+			return out[i].Start.Character > out[j].Start.Character
+		}
+		if out[i].End.Line != out[j].End.Line {
+			return out[i].End.Line < out[j].End.Line
+		}
+		return out[i].End.Character < out[j].End.Character
+	})
+	return out
+}
+
+func positionInRange(pos position, rng diagnosticRange) bool {
+	return comparePosition(pos, rng.Start) >= 0 && comparePosition(pos, rng.End) < 0
+}
+
+func rangeContainsPosition(rng diagnosticRange, pos position) bool {
+	return comparePosition(pos, rng.Start) >= 0 && comparePosition(pos, rng.End) <= 0
+}
+
+func rangeStrictlyContains(outer, inner diagnosticRange) bool {
+	startOK := comparePosition(outer.Start, inner.Start) <= 0
+	endOK := comparePosition(outer.End, inner.End) >= 0
+	strict := comparePosition(outer.Start, inner.Start) < 0 || comparePosition(outer.End, inner.End) > 0
+	return startOK && endOK && strict
+}
+
+func comparePosition(a, b position) int {
+	if a.Line != b.Line {
+		return a.Line - b.Line
+	}
+	return a.Character - b.Character
 }
 
 func stringTokenRange(text string, tok token.Token) diagnosticRange {
