@@ -40,11 +40,11 @@ design evidence lives under `project-doc/`.
   translation, opacity, and camera stacks: overflow pushes are counted as no-op
   frames and consume matching pops without corrupting the nearest real outer
   state. The guard lives in `scripts/verify_ios_metal_vertex_uploads.py`.
-- CoreGraphics OGF0 clip/transform/opacity CGContext state now uses one typed
-  fixed-capacity LIFO stack: overflow pushes become balanced no-op frames, and
-  malformed out-of-order pops cannot restore unrelated saved states. Camera
-  state remains separate retained 3D depth-window state. The guard lives in
-  `scripts/verify_ios_graphics_frame.py`.
+- CoreGraphics OGF0 clip/transform/opacity/camera frame state now uses one
+  typed fixed-capacity LIFO stack: overflow pushes become balanced no-op
+  frames, malformed out-of-order pops cannot restore unrelated saved states,
+  and camera remains retained 3D depth-window state without CGContext
+  save/restore. The guard lives in `scripts/verify_ios_graphics_frame.py`.
 - Oren LSP now recognizes anonymous `import . "path"` imports for workspace
   dependency traversal, unqualified imported symbol completion/definition, and
   typed-member completion/definition through anonymously imported constructors.

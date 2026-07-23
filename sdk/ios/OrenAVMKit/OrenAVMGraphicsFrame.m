@@ -11,6 +11,7 @@ enum {
     OrenAVMGfxStateKindClip = 1,
     OrenAVMGfxStateKindTransform = 2,
     OrenAVMGfxStateKindOpacity = 3,
+    OrenAVMGfxStateKindCamera = 4,
 };
 
 typedef uint8_t OrenAVMGfxPopResult;
@@ -37,23 +38,31 @@ void OrenAVMGfxFrameStateInit(OrenAVMGfxFrameState* state) {
     state->opacity = 1.0;
 }
 
-static BOOL OrenAVMGfxPushCGState(CGContextRef ctx,
-                                  OrenAVMGfxFrameState* state,
-                                  OrenAVMGfxStateKind kind) {
-    if (!ctx || !state || kind == 0) return NO;
+static BOOL OrenAVMGfxStateKindSavesCGState(OrenAVMGfxStateKind kind) {
+    return kind == OrenAVMGfxStateKindClip ||
+        kind == OrenAVMGfxStateKindTransform ||
+        kind == OrenAVMGfxStateKindOpacity;
+}
+
+static BOOL OrenAVMGfxPushState(CGContextRef ctx,
+                                OrenAVMGfxFrameState* state,
+                                OrenAVMGfxStateKind kind,
+                                BOOL saveCGState) {
+    if (!state || kind == 0 || (saveCGState && !ctx)) return NO;
     if (state->stateDepth >= OrenAVMGfxFrameStateStackCapacity) {
         state->stateOverflowDepth++;
         return NO;
     }
-    CGContextSaveGState(ctx);
+    if (saveCGState) CGContextSaveGState(ctx);
     state->stateStack[state->stateDepth++] = kind;
     return YES;
 }
 
-static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,
-                                                OrenAVMGfxFrameState* state,
-                                                OrenAVMGfxStateKind kind) {
-    if (!ctx || !state || kind == 0) return OrenAVMGfxPopResultNone;
+static OrenAVMGfxPopResult OrenAVMGfxPopState(CGContextRef ctx,
+                                              OrenAVMGfxFrameState* state,
+                                              OrenAVMGfxStateKind kind,
+                                              BOOL restoreCGState) {
+    if (!state || kind == 0 || (restoreCGState && !ctx)) return OrenAVMGfxPopResultNone;
     if (state->stateOverflowDepth > 0) {
         state->stateOverflowDepth--;
         return OrenAVMGfxPopResultNoOp;
@@ -63,8 +72,20 @@ static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,
     }
     state->stateDepth--;
     state->stateStack[state->stateDepth] = 0;
-    CGContextRestoreGState(ctx);
+    if (restoreCGState) CGContextRestoreGState(ctx);
     return OrenAVMGfxPopResultRestored;
+}
+
+static BOOL OrenAVMGfxPushCGState(CGContextRef ctx,
+                                  OrenAVMGfxFrameState* state,
+                                  OrenAVMGfxStateKind kind) {
+    return OrenAVMGfxPushState(ctx, state, kind, YES);
+}
+
+static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,
+                                                OrenAVMGfxFrameState* state,
+                                                OrenAVMGfxStateKind kind) {
+    return OrenAVMGfxPopState(ctx, state, kind, YES);
 }
 
 void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context) {
@@ -200,7 +221,7 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
         }
         case 22: {
             if (payloadLen == 8) {
-                if (state->cameraDepth < 64) {
+                if (OrenAVMGfxPushState(ctx, state, OrenAVMGfxStateKindCamera, NO)) {
                     state->depthEnabledStack[state->cameraDepth] = state->depthEnabled;
                     state->nearZStack[state->cameraDepth] = state->nearZ;
                     state->farZStack[state->cameraDepth] = state->farZ;
@@ -208,17 +229,15 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
                     state->depthEnabled = YES;
                     state->nearZ = (int32_t)OrenAVMGfxReadU32LE(payload);
                     state->farZ = (int32_t)OrenAVMGfxReadU32LE(payload + 4);
-                } else {
-                    state->cameraOverflowDepth++;
                 }
             }
             return YES;
         }
         case 23: {
             if (payloadLen == 0) {
-                if (state->cameraOverflowDepth > 0) {
-                    state->cameraOverflowDepth--;
-                } else if (state->cameraDepth > 0) {
+                OrenAVMGfxPopResult popResult =
+                    OrenAVMGfxPopState(ctx, state, OrenAVMGfxStateKindCamera, NO);
+                if (popResult == OrenAVMGfxPopResultRestored && state->cameraDepth > 0) {
                     state->cameraDepth--;
                     state->depthEnabled = state->depthEnabledStack[state->cameraDepth];
                     state->nearZ = state->nearZStack[state->cameraDepth];
@@ -235,14 +254,19 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
 void OrenAVMGfxRestoreFrameState(CGContextRef ctx, OrenAVMGfxFrameState* state) {
     if (!ctx || !state) return;
     while (state->stateDepth > 0) {
+        OrenAVMGfxStateKind kind = state->stateStack[state->stateDepth - 1];
         state->stateStack[state->stateDepth - 1] = 0;
-        CGContextRestoreGState(ctx);
         state->stateDepth--;
+        if (OrenAVMGfxStateKindSavesCGState(kind)) CGContextRestoreGState(ctx);
     }
     state->stateOverflowDepth = 0;
     state->clipDepth = 0;
     state->transformDepth = 0;
     state->opacityDepth = 0;
+    state->cameraDepth = 0;
+    state->depthEnabled = NO;
+    state->nearZ = 0;
+    state->farZ = 0;
 }
 
 #endif

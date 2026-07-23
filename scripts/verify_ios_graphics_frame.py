@@ -56,24 +56,30 @@ def main() -> int:
         "uint32_t transformDepth",
         "CGFloat opacityStack[OrenAVMGfxFrameStateStackCapacity]",
         "BOOL depthEnabledStack[OrenAVMGfxFrameStateStackCapacity]",
-        "uint32_t cameraOverflowDepth",
+        "static BOOL OrenAVMGfxStateKindSavesCGState(OrenAVMGfxStateKind kind)",
+        "static BOOL OrenAVMGfxPushState(CGContextRef ctx,",
+        "static OrenAVMGfxPopResult OrenAVMGfxPopState(CGContextRef ctx,",
         "static BOOL OrenAVMGfxPushCGState(CGContextRef ctx,",
         "static OrenAVMGfxPopResult OrenAVMGfxPopCGState(CGContextRef ctx,",
         "OrenAVMGfxStateKindClip",
         "OrenAVMGfxStateKindTransform",
         "OrenAVMGfxStateKindOpacity",
+        "OrenAVMGfxStateKindCamera",
         "OrenAVMGfxPopResultRestored",
         "state->stateOverflowDepth++",
         "state->stateOverflowDepth--",
+        "state->stateStack[state->stateDepth - 1] != kind",
         "state->transformDepth++",
         "state->transformDepth--",
-        "state->cameraOverflowDepth++",
-        "state->cameraOverflowDepth--",
+        "OrenAVMGfxPushState(ctx, state, OrenAVMGfxStateKindCamera, NO)",
+        "OrenAVMGfxPopState(ctx, state, OrenAVMGfxStateKindCamera, NO)",
     ):
         if token not in frame_text:
             fail(f"CoreGraphics frame helper is missing expected state logic: {token}")
     if "opacityOverflowDepth" in frame_text:
         fail("CoreGraphics opacity overflow must use the shared typed CGContext state overflow")
+    if "cameraOverflowDepth" in frame_text:
+        fail("CoreGraphics camera overflow must use the shared typed frame-state overflow")
 
     push_clip_block = between(frame_source_text, "case 16:", "case 17:")
     pop_clip_block = between(frame_source_text, "case 17:", "case 18:")
@@ -104,10 +110,14 @@ def main() -> int:
 
     push_camera_block = between(frame_source_text, "case 22:", "case 23:")
     pop_camera_block = between(frame_source_text, "case 23:", "default:")
-    if "state->stateDepth++" in push_camera_block:
-        fail("CoreGraphics camera push must not increment CGContext stateDepth")
-    if "state->stateDepth--" in pop_camera_block or "state->stateDepth > 0" in pop_camera_block:
-        fail("CoreGraphics camera pop must not consume CGContext stateDepth")
+    if "OrenAVMGfxPushState(ctx, state, OrenAVMGfxStateKindCamera, NO)" not in push_camera_block:
+        fail("CoreGraphics camera push must use the typed non-CG frame-state helper")
+    if "OrenAVMGfxPopState(ctx, state, OrenAVMGfxStateKindCamera, NO)" not in pop_camera_block:
+        fail("CoreGraphics camera pop must use the typed non-CG frame-state helper")
+    if "CGContextSaveGState" in push_camera_block or "OrenAVMGfxPushCGState" in push_camera_block:
+        fail("CoreGraphics camera push must not save CGContext state")
+    if "CGContextRestoreGState" in pop_camera_block or "OrenAVMGfxPopCGState" in pop_camera_block:
+        fail("CoreGraphics camera pop must not restore CGContext state")
 
     if "OrenAVMGfxFrameDrawContext context = {" not in view_text or "OrenAVMGfxDrawFrame(ctx, frame, &context)" not in view_text:
         fail("CoreGraphics drawRect must delegate OGF0 traversal to OrenAVMGraphicsFrame")

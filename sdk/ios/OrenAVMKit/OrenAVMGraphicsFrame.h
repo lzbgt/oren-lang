@@ -26,7 +26,6 @@ typedef struct {
     int32_t nearZStack[OrenAVMGfxFrameStateStackCapacity];
     int32_t farZStack[OrenAVMGfxFrameStateStackCapacity];
     uint32_t cameraDepth;
-    uint32_t cameraOverflowDepth;
 } OrenAVMGfxFrameState;
 
 typedef struct {
