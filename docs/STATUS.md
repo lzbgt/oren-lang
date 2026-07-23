@@ -53,6 +53,9 @@ surfaces, but the following blockers remain:
 - iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed
   fixed-capacity LIFO stack. Overflow pushes remain balanced no-op frames, and
   malformed out-of-order pops cannot restore a non-matching saved Metal state.
+- iOS Metal same-atlas text-run coalescing keeps raw owned vertex buffers and
+  grows heap capacity geometrically, avoiding repeated exact-size realloc/copy
+  churn while preserving bounded overflow checks.
 - `std:math/mat4` now includes checked rigid-transform inverse helpers
   (`inverse_rigid_transform_abs`, `inverse_rigid_transform`,
   `rigid_inverse_abs`, and `rigid_inverse`) that validate affine orthonormal

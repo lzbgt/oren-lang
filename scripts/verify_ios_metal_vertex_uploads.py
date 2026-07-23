@@ -114,6 +114,14 @@ def main() -> int:
         fail("Metal text quad writes must target caller-owned raw or inline buffers")
     if "OrenAVMMetalTextVertex* heapVertices" not in text_header or "free(heapVertices)" not in text_source:
         fail("Metal text runs must own raw heap vertex buffers with explicit cleanup")
+    if "NSUInteger heapVertexCapacity" not in text_header:
+        fail("Metal text runs must track heap vertex capacity separately from count")
+    if "newCapacity *= 2u" not in text_source or "run->heapVertexCapacity = newCapacity" not in text_source:
+        fail("Metal text heap vertex growth must be geometric, not exact-size per append")
+    if "newCapacity > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)" not in text_source:
+        fail("Metal text heap vertex reserve must clamp geometric growth before byte-size overflow")
+    if "realloc(run->heapVertices, neededCount * sizeof(OrenAVMMetalTextVertex))" in text_source:
+        fail("Metal text heap vertex reserve must not realloc to the exact requested count")
     if "OrenAVMMetalEnsureHeapTextVerticesForCoalescing" not in text_source:
         fail("missing raw text coalescing heap-vertex helper")
     if "[vertices isKindOfClass:[NSMutableData class]]" in text_source or "dataWithBytes:pending->inlineVertices" in text_source:

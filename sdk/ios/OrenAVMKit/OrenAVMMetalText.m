@@ -423,10 +423,19 @@ static BOOL OrenAVMMetalTextRunReserveHeapVertices(OrenAVMMetalTextRun* run, NSU
     if (!run) return NO;
     if (neededCount <= run->heapVertexCapacity) return YES;
     if (neededCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
-    OrenAVMMetalTextVertex* grown = (OrenAVMMetalTextVertex*)realloc(run->heapVertices, neededCount * sizeof(OrenAVMMetalTextVertex));
+    NSUInteger newCapacity = run->heapVertexCapacity > 0 ? run->heapVertexCapacity : 8u;
+    while (newCapacity < neededCount) {
+        if (newCapacity > NSUIntegerMax / 2u) {
+            newCapacity = neededCount;
+            break;
+        }
+        newCapacity *= 2u;
+    }
+    if (newCapacity > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) newCapacity = neededCount;
+    OrenAVMMetalTextVertex* grown = (OrenAVMMetalTextVertex*)realloc(run->heapVertices, newCapacity * sizeof(OrenAVMMetalTextVertex));
     if (!grown) return NO;
     run->heapVertices = grown;
-    run->heapVertexCapacity = neededCount;
+    run->heapVertexCapacity = newCapacity;
     return YES;
 }
 

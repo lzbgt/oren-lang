@@ -99,6 +99,11 @@
 <p>  fixed-capacity LIFO stack. Overflow pushes remain balanced no-op frames, and</p>
 <p>  malformed out-of-order pops cannot restore a non-matching saved Metal state.</p>
 <ul>
+<li>iOS Metal same-atlas text-run coalescing keeps raw owned vertex buffers and</li>
+</ul>
+<p>  grows heap capacity geometrically, avoiding repeated exact-size realloc/copy</p>
+<p>  churn while preserving bounded overflow checks.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked rigid-transform inverse helpers</li>
 </ul>
 <p>  (<code>inverse_rigid_transform_abs</code>, <code>inverse_rigid_transform</code>,</p>
