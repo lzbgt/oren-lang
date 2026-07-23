@@ -2684,7 +2684,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  JSON full decode, scalar parse, tag equality, and escape paths
 			  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
 				  now exposes shared checked byte views plus explicit unchecked hot-loop
-					  u8/u32/i32/u64 little-endian and u16/u32/u64 big-endian readers,
+					  u8/u16/u32/i32/u64 little-endian and u16/u32/u64 big-endian readers,
 				  CBOR canonical key ordering/text
 					  encoding writes growable `u8_buf` output while byte-string
 					  encoding plus recursive/sequence decode use shared `std:bytes` byte views,

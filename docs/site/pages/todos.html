@@ -3486,6 +3486,11 @@
 <p>  little-endian payload fields through shared <code>std:bytes</code> view readers after</p>
 <p>  event/header/payload length checks.</p>
 <ul>
+<li><code>std:bytes</code> now exposes little-endian u16 checked/unchecked byte-view readers,</li>
+</ul>
+<p>  and <code>std:ui/avm</code> uses the unchecked view reader for OGE0 payload lengths</p>
+<p>  instead of rebuilding them from two byte reads.</p>
+<ul>
 <li><code>std:buffer</code> slice/strided/matrix byte-copy fallbacks now cache u8 source</li>
 </ul>
 <p>  pointers for non-contiguous destinations while retaining list-compatible byte</p>

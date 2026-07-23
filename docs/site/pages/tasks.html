@@ -1503,9 +1503,9 @@
 <p>     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy</p>
 <p>     through <code>oren_memcpy</code> after validation;</p>
 <p>	     Base64/Base64URL</p>
-<p>	     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
-<p>	     directly from shared byte views, OGE0 event headers and little-endian</p>
-<p>	     payload fields read from cached u8-buffer pointers, UI command validation</p>
+<p>		     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
+<p>		     directly from shared byte views, OGE0 event headers, payload lengths, and little-endian</p>
+<p>		     payload fields read from cached u8-buffer pointers, UI command validation</p>
 <p>	     reads geometry/text-position/image-rect payload fields through shared</p>
 <p>		     byte views, Metal batched image rects validate local draw/source</p>
 <p>		     spans before heap vertex allocation, and Metal/CoreGraphics zero-area</p>

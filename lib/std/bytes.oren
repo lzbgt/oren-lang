@@ -180,6 +180,18 @@ fn view_get_u16_be(v, idx) {
     return view_get_u16_be_unchecked(v, idx)
 }
 
+fn view_get_u16_le_unchecked(v, idx) {
+    var p = view_ptr(v)
+    if p != nil { return _u16_le_from_ptr(p, idx) }
+    return get_u16_le(view_bytes(v), idx)
+}
+
+fn view_get_u16_le(v, idx) {
+    var ok = _view_check(v, idx, 2, "u16 read")
+    if oren_is_err(ok) { return ok }
+    return view_get_u16_le_unchecked(v, idx)
+}
+
 fn view_get_u32_be_unchecked(v, idx) {
     var p = view_ptr(v)
     if p != nil { return _u32_be_from_ptr(p, idx) }

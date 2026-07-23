@@ -2543,6 +2543,9 @@ design evidence lives under `project-doc/`.
 - `std:ui/avm` OGE0 event decoding now reads magic, opcode, payload length, and
   little-endian payload fields through shared `std:bytes` view readers after
   event/header/payload length checks.
+- `std:bytes` now exposes little-endian u16 checked/unchecked byte-view readers,
+  and `std:ui/avm` uses the unchecked view reader for OGE0 payload lengths
+  instead of rebuilding them from two byte reads.
 - `std:buffer` slice/strided/matrix byte-copy fallbacks now cache u8 source
   pointers for non-contiguous destinations while retaining list-compatible byte
   fallback.

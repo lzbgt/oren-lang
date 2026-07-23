@@ -489,6 +489,16 @@ if grep -Fq 'while i < n' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
   echo "ERROR: pure Oren SHA byte inputs must validate during schedule loads, not through a separate full pre-scan" >&2
   exit 1
 fi
+
+std_bytes_view_impl="$(sed -n '/fn view_get_u16_be_unchecked/,/fn view_get_u32_be_unchecked/p' lib/std/bytes.oren)"
+if ! grep -Fq 'fn view_get_u16_le_unchecked(v, idx)' <<<"$std_bytes_view_impl" ||
+  ! grep -Fq 'if p != nil { return _u16_le_from_ptr(p, idx) }' <<<"$std_bytes_view_impl" ||
+  ! grep -Fq 'return get_u16_le(view_bytes(v), idx)' <<<"$std_bytes_view_impl" ||
+  ! grep -Fq 'var payload_len = bytes.view_get_u16_le_unchecked(ev_view, 10)' lib/std/ui/avm.oren ||
+  grep -Fq 'bytes.view_get_u8_unchecked(ev_view, 10) | (bytes.view_get_u8_unchecked(ev_view, 11) << 8)' lib/std/ui/avm.oren; then
+  echo "ERROR: OGE0 event payload length must use direct little-endian std:bytes view reads" >&2
+  exit 1
+fi
 if grep -Fq '_padded_string_byte_at' lib/std/crypto/sha1.oren ||
   grep -Fq '_padded_string_byte_at' lib/std/crypto/sha256.oren ||
   grep -Fq '_u32_be_string_at' lib/std/crypto/sha1.oren ||

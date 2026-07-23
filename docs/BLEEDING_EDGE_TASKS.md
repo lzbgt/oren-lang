@@ -1433,9 +1433,9 @@ This file is the concise task view. Detailed implementation status lives in
      DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy
      through `oren_memcpy` after validation;
 	     Base64/Base64URL
-	     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
-	     directly from shared byte views, OGE0 event headers and little-endian
-	     payload fields read from cached u8-buffer pointers, UI command validation
+		     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
+		     directly from shared byte views, OGE0 event headers, payload lengths, and little-endian
+		     payload fields read from cached u8-buffer pointers, UI command validation
 	     reads geometry/text-position/image-rect payload fields through shared
 		     byte views, Metal batched image rects validate local draw/source
 		     spans before heap vertex allocation, and Metal/CoreGraphics zero-area

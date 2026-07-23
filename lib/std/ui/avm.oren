@@ -750,7 +750,7 @@ fn decode_event_bytes(ev) {
     }
     var opcode = bytes.view_get_u8_unchecked(ev_view, 8)
     if oren_is_err(opcode) { return opcode }
-    var payload_len = bytes.view_get_u8_unchecked(ev_view, 10) | (bytes.view_get_u8_unchecked(ev_view, 11) << 8)
+    var payload_len = bytes.view_get_u16_le_unchecked(ev_view, 10)
     if n < 12 + payload_len { return oren_err(4, "ui.avm.decode_event_bytes: truncated payload") }
 
     if opcode >= 1 && opcode <= 4 {
