@@ -127,6 +127,9 @@ surfaces, but the following blockers remain:
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.
+- Metal retained 3D mesh draws now build painter-depth order arrays only from
+  visible triangles, staying inline for small visible spans and growing raw heap
+  storage geometrically only when the visible output exceeds the stack buffer.
 - `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
   through bounded `oren_memcpy` in native and bytecode, while direct-copy
   fixtures cover both backward and forward overlapping self-copy directions to

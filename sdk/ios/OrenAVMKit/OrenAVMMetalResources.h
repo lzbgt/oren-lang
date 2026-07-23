@@ -232,10 +232,6 @@ void OrenAVMMetalRemoveModelResource(CFMutableDictionaryRef models, uint32_t mod
 
 int64_t OrenAVMMetalMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli);
 BOOL OrenAVMMetalMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ);
-OrenAVMMetalTriangleOrder* OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,
-                                                           OrenAVMMetalTriangleOrder* inlineOrder,
-                                                           uint32_t inlineCapacity,
-                                                           OrenAVMMetalTriangleOrder** heapStorage);
 void OrenAVMMetalSortTriangleOrder(OrenAVMMetalTriangleOrder* order, uint32_t count);
 int64_t OrenAVMMetalMesh3DIndexedZSumModel(const uint8_t* vertices,
                                            const uint8_t* indices,

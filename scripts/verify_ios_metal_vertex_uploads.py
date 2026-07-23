@@ -452,8 +452,10 @@ def main() -> int:
             fail("retained Metal mesh payload path must not assign unchecked direct copy results")
     if "OrenAVMMetalInlineTriangleOrderCapacity = 128" not in resource_text:
         fail("retained Metal 3D triangle ordering must have a small stack buffer")
-    if "OrenAVMMetalTriangleOrderBuffer(uint32_t triangleCount,\n                                                           OrenAVMMetalTriangleOrder* inlineOrder" not in resource_text:
-        fail("retained Metal 3D triangle ordering must try inline storage before heap storage")
+    if "static BOOL OrenAVMMetalTriangleOrderAppend" not in resource_text:
+        fail("retained Metal 3D triangle ordering must append visible triangles through a bounded helper")
+    if "OrenAVMMetalTriangleOrderBuffer(triangleTotal" in resource_text:
+        fail("retained Metal 3D triangle ordering must not allocate order storage for fully clipped triangles")
     for helper in (
         "static int64_t OrenAVMMetalMesh3DZSum",
         "OrenAVMMetalMesh3DZSumModel",
@@ -462,6 +464,7 @@ def main() -> int:
         "OrenAVMMetalSortTriangleOrder",
         "OrenAVMMetalMesh3DIndexedZSumModel",
         "OrenAVMMetalMesh3DModelCoord",
+        "OrenAVMMetalTriangleOrderAppend",
     ):
         if helper not in resource_text:
             fail(f"retained Metal 3D ordering helper must live in OrenAVMMetalResources: {helper}")
@@ -482,6 +485,8 @@ def main() -> int:
         fail("retained Metal 3D triangle ordering must not use NSMutableData heap fallbacks")
     if "OrenAVMMetalTriangleOrder* heapOrder = NULL" not in resource_text or "free(heapOrder)" not in resource_text:
         fail("retained Metal 3D triangle ordering must free raw heap fallbacks")
+    if "order[visibleTotal++] = (OrenAVMMetalTriangleOrder)" in resource_text:
+        fail("retained Metal 3D draw paths must grow order storage as visible triangles are appended")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" in text:
         fail("retained Metal materials must avoid boxed NSNumber IDs/RGBA values")
     if "CFMutableDictionaryRef _orenMaterials3DByID" not in text:
