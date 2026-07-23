@@ -51,9 +51,11 @@ const void* OrenAVMGfxRetainedImageKey(uint32_t imageID);
 OrenAVMGfxImageResource* OrenAVMGfxRetainedImageResource(CFDictionaryRef images, uint32_t imageID);
 UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount);
 BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
-                                UIImage* image,
+                                const uint8_t* rgba,
                                 uint32_t imageID,
-                                NSUInteger pixels,
+                                uint32_t width,
+                                uint32_t height,
+                                uint32_t byteCount,
                                 NSUInteger retainedImageCountLimit,
                                 NSUInteger retainedImagePixelLimit,
                                 NSUInteger* retainedImagePixelCount);

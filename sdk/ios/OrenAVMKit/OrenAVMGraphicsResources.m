@@ -89,13 +89,20 @@ UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t heigh
 }
 
 BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
-                                UIImage* image,
+                                const uint8_t* rgba,
                                 uint32_t imageID,
-                                NSUInteger pixels,
+                                uint32_t width,
+                                uint32_t height,
+                                uint32_t byteCount,
                                 NSUInteger retainedImageCountLimit,
                                 NSUInteger retainedImagePixelLimit,
                                 NSUInteger* retainedImagePixelCount) {
-    if (!imagesByID || !image || imageID == 0 || !retainedImagePixelCount) return NO;
+    if (!imagesByID || !rgba || imageID == 0 || width == 0 || height == 0 || !retainedImagePixelCount) return NO;
+    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
+    if (expected != (uint64_t)byteCount) return NO;
+    uint64_t pixel64 = (uint64_t)width * (uint64_t)height;
+    if (pixel64 > (uint64_t)NSUIntegerMax) return NO;
+    NSUInteger pixels = (NSUInteger)pixel64;
     const void* key = OrenAVMGfxRetainedImageKey(imageID);
     OrenAVMGfxImageResource* oldResource = OrenAVMGfxRetainedImageResource(*imagesByID, imageID);
     NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
@@ -106,11 +113,13 @@ BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
     NSUInteger pixelAfter = retainedAfterOld + pixels;
     if (retainedImageCountLimit == 0 || countAfter > retainedImageCountLimit) return NO;
     if (retainedImagePixelLimit == 0 || pixels > retainedImagePixelLimit || pixelAfter > retainedImagePixelLimit) return NO;
+    if (!*imagesByID) *imagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    if (!*imagesByID) return NO;
+    UIImage* image = OrenAVMGfxImageRGBA(rgba, width, height, byteCount);
+    if (!image) return NO;
     OrenAVMGfxImageResource* resource = [[OrenAVMGfxImageResource alloc] init];
     resource.image = image;
     resource.pixels = pixels;
-    if (!*imagesByID) *imagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    if (!*imagesByID) return NO;
     CFDictionarySetValue(*imagesByID, key, (__bridge const void*)resource);
     *retainedImagePixelCount = pixelAfter;
     return YES;
@@ -169,11 +178,12 @@ BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
                 uint32_t ih = OrenAVMGfxResourceReadU32LE(payload + 8);
                 uint32_t imageLen = OrenAVMGfxResourceReadU32LE(payload + 12);
                 if (imageLen == (uint32_t)payloadLen - 16u) {
-                    UIImage* image = OrenAVMGfxImageRGBA(payload + 16, iw, ih, imageLen);
                     (void)OrenAVMGfxPutImageResource(images,
-                                                     image,
+                                                     payload + 16,
                                                      imageID,
-                                                     (NSUInteger)iw * (NSUInteger)ih,
+                                                     iw,
+                                                     ih,
+                                                     imageLen,
                                                      retainedImageCountLimit,
                                                      retainedImagePixelLimit,
                                                      retainedImagePixelCount);

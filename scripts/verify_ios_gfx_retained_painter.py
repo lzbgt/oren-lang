@@ -23,7 +23,8 @@ def main() -> int:
     view_text = SOURCE.read_text()
     frame_text = FRAME_SOURCE.read_text()
     geometry_text = GEOMETRY_HEADER.read_text() + "\n" + GEOMETRY_SOURCE.read_text()
-    resource_text = RESOURCE_HEADER.read_text() + "\n" + RESOURCE_SOURCE.read_text()
+    resource_source_text = RESOURCE_SOURCE.read_text()
+    resource_text = RESOURCE_HEADER.read_text() + "\n" + resource_source_text
     frame_command_text = frame_text
     text = view_text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
     required = [
@@ -211,6 +212,19 @@ def main() -> int:
         fail("CoreGraphics retained image uploads must use provider-owned raw bytes, not NSData wrappers")
     if "CGDataProviderCreateWithData(NULL, imageBytes" not in text or "OrenAVMGfxReleaseImageBytes" not in text:
         fail("CoreGraphics retained image uploads must transfer raw bytes to the CG provider release callback")
+    put_image_start = resource_source_text.find("BOOL OrenAVMGfxPutImageResource")
+    put_image_end = resource_source_text.find("void OrenAVMGfxRemoveImageResource", put_image_start)
+    if put_image_start < 0 or put_image_end < 0:
+        fail("missing CoreGraphics retained image upload helper")
+    put_image_body = resource_source_text[put_image_start:put_image_end]
+    image_map_alloc = put_image_body.find("CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks)")
+    image_create = put_image_body.find("OrenAVMGfxImageRGBA(rgba, width, height, byteCount)")
+    if image_map_alloc < 0 or image_create < 0:
+        fail("CoreGraphics retained image upload helper missing scalar map or image creation path")
+    if image_map_alloc > image_create:
+        fail("CoreGraphics retained image uploads must preflight scalar-map storage before CoreGraphics image creation")
+    if "UIImage* image = OrenAVMGfxImageRGBA(payload + 16" in resource_text:
+        fail("CoreGraphics retained image command path must let the upload helper create images after preflight")
     if "OrenAVMGfxSubrectInImage" not in text:
         fail("CoreGraphics retained image sub-rect checks must use the overflow-safe helper")
     if "OrenAVMGfxDrawImageSubrect" not in text:
