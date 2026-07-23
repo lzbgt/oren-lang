@@ -157,6 +157,12 @@
 <p>  basis/projection entries while replacing or clearing the row-major</p>
 <p>  translation column.</p>
 <ul>
+<li><code>std:math/mat4</code> now includes checked affine inverse helpers</li>
+</ul>
+<p>  (<code>inverse_affine</code>, <code>affine_inverse</code>, and <code>affine_inverse_transform</code>) for</p>
+<p>  row-major affine transforms, rejecting non-affine bottom rows and singular</p>
+<p>  linear parts before returning the specialized inverse.</p>
+<ul>
 <li>Scene3D flat generated-shape AVM coverage now has a dedicated release-gated</li>
 </ul>
 <p>  shard, <code>tests/avm/test_ui_scene3d_flat_shapes_v0.oren</code>, leaving</p>

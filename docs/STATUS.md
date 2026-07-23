@@ -91,6 +91,10 @@ surfaces, but the following blockers remain:
   `set_translation_vec`, and `without_translation`) that preserve existing
   basis/projection entries while replacing or clearing the row-major
   translation column.
+- `std:math/mat4` now includes checked affine inverse helpers
+  (`inverse_affine`, `affine_inverse`, and `affine_inverse_transform`) for
+  row-major affine transforms, rejecting non-affine bottom rows and singular
+  linear parts before returning the specialized inverse.
 - Scene3D flat generated-shape AVM coverage now has a dedicated release-gated
   shard, `tests/avm/test_ui_scene3d_flat_shapes_v0.oren`, leaving
   `test_ui_scene3d_v0.oren` focused on retained-scene asset/model/material,
