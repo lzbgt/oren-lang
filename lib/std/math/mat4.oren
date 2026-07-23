@@ -279,6 +279,33 @@ fn is_uniform_scale_abs(m, abs_tol: f64) {
     return ok
 }
 
+fn is_symmetric_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    ok = _close_abs_scalar(m[1], m[4], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[2], m[8], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[3], m[12], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[6], m[9], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[7], m[13], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[11], m[14], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    return ok
+}
+
+fn is_symmetric(m) {
+    return is_symmetric_abs(m, 0.0)
+}
+
 fn _basis_dot(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, ctx) {
     var out: f64 = x0 * x1 + y0 * y1 + z0 * z1
     var ok = _finite_scalar(out, ctx)
