@@ -42,7 +42,9 @@ surfaces, but the following blockers remain:
   traversal, unqualified imported symbol completion/definition, hover,
   references, and typed-member completion/definition through anonymously
   imported constructors. Exact typed-member rename now emits multi-file
-  workspace edits for import-resolved and anonymous-imported fields. Regression
+  workspace edits for import-resolved and anonymous-imported fields, and
+  import-alias rename now rewrites the alias declaration plus exact `alias.`
+  qualifiers in the current document. Regression
   proof lives in `internal/orenlsp/server_import_test.go` and
   `internal/orenlsp/server_rename_test.go`.
 - Oren LSP nested container facts now cover same-kind list-of-list and map-of-map
@@ -3202,8 +3204,8 @@ Working evidence:
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
 	  unknown-assignment invalidation,
-	  and conservative prepare/rename workspace edits for exact scoped parameters and
-	  same-document typed fields, with rename server regressions split below the
+	  and conservative prepare/rename workspace edits for import aliases, exact
+	  scoped parameters, and same-document/import-resolved typed fields, with rename server regressions split below the
 	  source-line guard, a single-parse imported-document return-fact
 	  environment builder plus inferred-scope helper split that keep the main member analyzer below the line guard,
 	  plus full-document semantic-token classification for

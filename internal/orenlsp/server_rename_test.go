@@ -257,3 +257,69 @@ func TestServerRenameAnonymousImportedTypedMembers(t *testing.T) {
 		{Start: position{Line: 3, Character: 11}, End: position{Line: 3, Character: 12}},
 	})
 }
+
+func TestServerRenameImportAlias(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"import shapes \"shapes.oren\"",
+		"var p = shapes.Point(1, 2)",
+		"fn main() {",
+		"  return shapes.make().x + p.x",
+		"}",
+		"",
+	}, "\n")
+	uri := "file:///rename-import-alias.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      69,
+		"method":  "textDocument/prepareRename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 0, "character": 8},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      70,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 1, "character": 10},
+			"newName":      "geo",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      71,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 1, "character": 10},
+			"newName":      "bad-name",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertRangeMap(t, messageByID(t, msgs, 69)["result"].(map[string]any), diagnosticRange{
+		Start: position{Line: 0, Character: 7},
+		End:   position{Line: 0, Character: 13},
+	})
+	assertWorkspaceEdit(t, messageByID(t, msgs, 70)["result"].(map[string]any), uri, "geo", []diagnosticRange{
+		{Start: position{Line: 0, Character: 7}, End: position{Line: 0, Character: 13}},
+		{Start: position{Line: 1, Character: 8}, End: position{Line: 1, Character: 14}},
+		{Start: position{Line: 3, Character: 9}, End: position{Line: 3, Character: 15}},
+	})
+	assertWorkspaceEdit(t, messageByID(t, msgs, 71)["result"].(map[string]any), uri, "bad-name", nil)
+}

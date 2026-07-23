@@ -1,5 +1,10 @@
 package orenlsp
 
+import (
+	"oren/pkg/lexer"
+	"oren/pkg/token"
+)
+
 type textEdit struct {
 	Range   diagnosticRange `json:"range"`
 	NewText string          `json:"newText"`
@@ -38,6 +43,9 @@ func (s *Server) exactRenameLocations(uri string, pos position) ([]location, dia
 	if name == "" {
 		return nil, diagnosticRange{}, false
 	}
+	if refs, ok := importAliasRenameLocationsAt(text, uri, name, rng); ok {
+		return refs, rng, true
+	}
 	importedDocs := s.importedDocumentSnapshots(uri, text)
 	aliasByURI := s.importedAliasByURI(uri, text)
 	if refs, ok := typedMemberReferencesAt(text, uri, pos, true, importedDocs, aliasByURI); ok {
@@ -65,4 +73,54 @@ func validRenameIdentifier(name string) bool {
 		}
 	}
 	return true
+}
+
+func importAliasRenameLocationsAt(text, uri, name string, rng diagnosticRange) ([]location, bool) {
+	if name == "" {
+		return nil, false
+	}
+	tokens := sourceTokens(text)
+	var locs []location
+	selected := false
+	for i, tok := range tokens {
+		if tok.Type == token.IMPORT && i+2 < len(tokens) && tokens[i+1].Type == token.IDENT && tokens[i+2].Type == token.STRING && tokens[i+1].Literal == name {
+			loc := location{URI: uri, Range: tokenRange(tokens[i+1])}
+			locs = append(locs, loc)
+			if rangeEqual(loc.Range, rng) {
+				selected = true
+			}
+			continue
+		}
+		if tok.Type == token.IDENT && tok.Literal == name && i+1 < len(tokens) && tokens[i+1].Type == token.DOT {
+			loc := location{URI: uri, Range: tokenRange(tok)}
+			locs = append(locs, loc)
+			if rangeEqual(loc.Range, rng) {
+				selected = true
+			}
+		}
+	}
+	if !selected || len(locs) == 0 {
+		return nil, false
+	}
+	return uniqueLocations(locs), true
+}
+
+func sourceTokens(text string) []token.Token {
+	l := lexer.New(text)
+	var tokens []token.Token
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF {
+			break
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens
+}
+
+func rangeEqual(a, b diagnosticRange) bool {
+	return a.Start.Line == b.Start.Line &&
+		a.Start.Character == b.Start.Character &&
+		a.End.Line == b.End.Line &&
+		a.End.Character == b.End.Character
 }
