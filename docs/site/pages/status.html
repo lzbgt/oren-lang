@@ -154,6 +154,12 @@
 <p>  before allocating <code>MTLBuffer</code> objects, keeping invalid helper calls from</p>
 <p>  briefly allocating GPU memory that cannot be retained through the frame.</p>
 <ul>
+<li><code>std:math/mat4</code> now includes checked Frobenius matrix norm helpers</li>
+</ul>
+<p>  (<code>frobenius_norm</code>, <code>frobenius_norm_sq</code>, <code>norm_frobenius</code>, and <code>norm</code>) with a</p>
+<p>  scaled public norm path and native/C/bytecode, AVM, and stdlib OBC bundle</p>
+<p>  coverage.</p>
+<ul>
 <li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
 </ul>
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>

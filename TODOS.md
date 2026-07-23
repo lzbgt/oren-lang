@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- `std:math/mat4` now includes checked Frobenius matrix norm helpers
+  (`frobenius_norm`, `frobenius_norm_sq`, `norm_frobenius`, and `norm`) with
+  native/C/bytecode, AVM, and stdlib OBC bundle coverage.
 - LSP typed dotted member-path assignment propagation is covered for
   parameter-returned and imported parameter-returned receivers, including direct
   member paths, list element member paths, and mixed reassignment invalidation.

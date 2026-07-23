@@ -695,6 +695,55 @@ fn trace(m) {
     return out
 }
 
+fn frobenius_norm_sq(m) {
+    var ok = _check(m, "mat4.frobenius_norm_sq")
+    if oren_is_err(ok) { return ok }
+    var out: f64 = 0.0
+    var i = 0
+    while i < 16 {
+        var v: f64 = m[i]
+        out = out + v * v
+        if !math.is_finite(out) { return oren_err(4, "mat4.frobenius_norm_sq: non-finite") }
+        i = i + 1
+    }
+    return out
+}
+
+fn frobenius_norm(m) {
+    var ok = _check(m, "mat4.frobenius_norm")
+    if oren_is_err(ok) { return ok }
+    var scale: f64 = 0.0
+    var ssq: f64 = 1.0
+    var i = 0
+    while i < 16 {
+        var v: f64 = m[i]
+        if v < 0.0 { v = 0.0 - v }
+        if v != 0.0 {
+            if scale < v {
+                var r: f64 = scale / v
+                ssq = 1.0 + ssq * r * r
+                scale = v
+            } else {
+                var r2: f64 = v / scale
+                ssq = ssq + r2 * r2
+            }
+        }
+        i = i + 1
+    }
+    if scale == 0.0 { return 0.0 }
+    var out: f64 = scale * math.sqrt(ssq)
+    if !math.is_finite(out) { return oren_err(4, "mat4.frobenius_norm: non-finite") }
+    return out
+}
+
+fn norm_frobenius(m) {
+    return frobenius_norm(m)
+}
+
+fn norm(m) {
+    return frobenius_norm(m)
+}
+
 fn identity() {
     return [
         1.0, 0.0, 0.0, 0.0,
