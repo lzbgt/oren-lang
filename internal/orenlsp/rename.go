@@ -54,6 +54,9 @@ func (s *Server) exactRenameLocations(uri string, pos position) ([]location, dia
 	if refs, ok := scopedParameterReferencesAt(text, uri, pos, true); ok {
 		return refs, rng, true
 	}
+	if refs, ok := scopedLocalReferencesAt(text, uri, pos, true); ok {
+		return refs, rng, true
+	}
 	if refs, ok := topLevelSymbolRenameLocationsAt(text, uri, name, rng); ok {
 		return refs, rng, true
 	}

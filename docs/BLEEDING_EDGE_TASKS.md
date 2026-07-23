@@ -1683,8 +1683,8 @@ This file is the concise task view. Detailed implementation status lives in
     opened-document cross-file, and import-resolved unopened-module definition
     navigation for relative and `std:` modules, plus lexer-backed hover and
     references over the same current/open/imported workspace graph with bounded
-    transitive import traversal and cycle guards, scoped function-parameter
-    definition/hover/reference navigation with nested shadowing,
+    transitive import traversal and cycle guards, scoped function-parameter and
+    local-variable definition/hover/reference navigation with nested shadowing,
     constructor-inferred same-file and direct-import-alias struct/class field
     definition/hover/reference navigation with direct variable-alias propagation,
     direct named factory-return inference including `return if/else` expression branches plus factory-return field-chain evidence, direct typed constructor/factory
@@ -1697,7 +1697,7 @@ This file is the concise task view. Detailed implementation status lives in
     invalidation, direct parameter-return propagation,
     consistent conditional branch return and assignment inference, unknown-assignment invalidation,
     and conservative prepare/rename workspace
-    edits for exact scoped parameters and same-document typed fields, plus
+    edits for exact scoped parameters/local variables and same-document typed fields, plus
     full-document semantic-token classification for declarations/references/literals/operators and parser-derived
     parameter/property classes.
   - Current VS Code package slice adds the `.oren` language contribution, TextMate

@@ -42,9 +42,9 @@ surfaces, but the following blockers remain:
   traversal, unqualified imported symbol completion/definition, hover,
   references, and typed-member completion/definition through anonymously
   imported constructors. Conservative prepare/rename now covers import aliases,
-  exact scoped parameters, same-document and import-resolved top-level
-  functions/types, and exact typed-member workspace edits for import-resolved
-  and anonymous-imported fields. Regression
+  exact scoped parameters/local variables, same-document and import-resolved
+  top-level functions/types, and exact typed-member workspace edits for
+  import-resolved and anonymous-imported fields. Regression
   proof lives in `internal/orenlsp/server_import_test.go` and
   `internal/orenlsp/server_rename_test.go`.
 - Oren LSP nested container facts now cover same-kind list-of-list and map-of-map
@@ -3187,8 +3187,8 @@ Working evidence:
   after proven receivers, lexer-backed document symbols, same-file/opened-document/import-resolved
   definition navigation for relative and `std:` modules, lexer-backed hover plus
   references over the same current/open/imported workspace graph, and bounded
-  transitive import traversal with cycle guards, scoped function-parameter
-  definition/hover/reference navigation with nested shadowing,
+  transitive import traversal with cycle guards, scoped function-parameter and
+  local-variable definition/hover/reference navigation with nested shadowing,
   constructor-inferred same-file and direct-import-alias struct/class field
   definition/hover/reference navigation with direct variable-alias propagation,
   direct named factory-return inference including `return if/else` expression branches plus factory-return field-chain evidence, direct typed constructor/factory
@@ -3219,8 +3219,8 @@ Working evidence:
   invalidation, direct parameter-return propagation,
   consistent conditional branch return and assignment inference,
 	  unknown-assignment invalidation,
-	  and conservative prepare/rename workspace edits for import aliases, exact
-	  scoped parameters, and same-document/import-resolved typed fields, with rename server regressions split below the
+		  and conservative prepare/rename workspace edits for import aliases, exact
+		  scoped parameters/local variables, and same-document/import-resolved typed fields, with rename server regressions split below the
 	  source-line guard, a single-parse imported-document return-fact
 	  environment builder plus inferred-scope helper split that keep the main member analyzer below the line guard,
 	  plus full-document semantic-token classification for

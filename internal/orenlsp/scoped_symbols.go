@@ -17,7 +17,7 @@ func scopedParameterSymbolAt(text, uri string, pos position) (resolvedSymbol, bo
 	if name == "" {
 		return resolvedSymbol{}, false
 	}
-	index := collectScopedParameterSymbols(text, uri)
+	index := collectScopedSymbols(text, uri, false)
 	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
 	if !ok || match.Symbol.Name != name {
 		return resolvedSymbol{}, false
@@ -30,11 +30,41 @@ func scopedParameterReferencesAt(text, uri string, pos position, includeDeclarat
 	if name == "" {
 		return nil, false
 	}
-	index := collectScopedParameterSymbols(text, uri)
+	index := collectScopedSymbols(text, uri, false)
 	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
 	if !ok || match.Symbol.Name != name {
 		return nil, false
 	}
+	return scopedSymbolReferencesForMatch(index, match, includeDeclaration), true
+}
+
+func scopedLocalSymbolAt(text, uri string, pos position) (resolvedSymbol, bool) {
+	name, rng := wordRangeAtPosition(text, pos)
+	if name == "" {
+		return resolvedSymbol{}, false
+	}
+	index := collectScopedSymbols(text, uri, true)
+	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
+	if !ok || match.Symbol.Name != name || match.Symbol.Kind != "variable" {
+		return resolvedSymbol{}, false
+	}
+	return match, true
+}
+
+func scopedLocalReferencesAt(text, uri string, pos position, includeDeclaration bool) ([]location, bool) {
+	name, rng := wordRangeAtPosition(text, pos)
+	if name == "" {
+		return nil, false
+	}
+	index := collectScopedSymbols(text, uri, true)
+	match, ok := index.usesByLocation[locationKey(location{URI: uri, Range: rng})]
+	if !ok || match.Symbol.Name != name || match.Symbol.Kind != "variable" {
+		return nil, false
+	}
+	return scopedSymbolReferencesForMatch(index, match, includeDeclaration), true
+}
+
+func scopedSymbolReferencesForMatch(index scopedSymbolIndex, match resolvedSymbol, includeDeclaration bool) []location {
 	decl := location{URI: match.URI, Range: match.Symbol.Range}
 	refs := index.refsByDecl[locationKey(decl)]
 	out := make([]location, 0, len(refs)+1)
@@ -42,10 +72,10 @@ func scopedParameterReferencesAt(text, uri string, pos position, includeDeclarat
 		out = append(out, decl)
 	}
 	out = append(out, refs...)
-	return uniqueLocations(out), true
+	return uniqueLocations(out)
 }
 
-func collectScopedParameterSymbols(text, uri string) scopedSymbolIndex {
+func collectScopedSymbols(text, uri string, includeLocals bool) scopedSymbolIndex {
 	index := scopedSymbolIndex{
 		usesByLocation: map[string]resolvedSymbol{},
 		refsByDecl:     map[string][]location{},
@@ -57,66 +87,77 @@ func collectScopedParameterSymbols(text, uri string) scopedSymbolIndex {
 	}
 	var stack []map[string]resolvedSymbol
 	for _, stmt := range program.Statements {
-		collectScopedParameterStatement(stmt, uri, &stack, index)
+		collectScopedSymbolStatement(stmt, uri, &stack, index, includeLocals)
 	}
 	return index
 }
 
-func collectScopedParameterStatement(stmt ast.Statement, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex) {
+func collectScopedSymbolStatement(stmt ast.Statement, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex, includeLocals bool) {
 	switch stmt := stmt.(type) {
 	case *ast.VarStatement:
-		collectScopedParameterExpression(stmt.Value, uri, stack, index)
+		collectScopedSymbolExpression(stmt.Value, uri, stack, index, includeLocals)
+		if includeLocals {
+			addScopedLocalBinding(stmt.Name, uri, stack, index)
+		}
 	case *ast.ReturnStatement:
-		collectScopedParameterExpression(stmt.ReturnValue, uri, stack, index)
+		collectScopedSymbolExpression(stmt.ReturnValue, uri, stack, index, includeLocals)
 	case *ast.ExpressionStatement:
-		collectScopedParameterExpression(stmt.Expression, uri, stack, index)
+		collectScopedSymbolExpression(stmt.Expression, uri, stack, index, includeLocals)
 	case *ast.AssignStatement:
-		addScopedParameterRef(stmt.Name, uri, *stack, index)
-		collectScopedParameterExpression(stmt.Value, uri, stack, index)
+		addScopedSymbolRef(stmt.Name, uri, *stack, index)
+		collectScopedSymbolExpression(stmt.Value, uri, stack, index, includeLocals)
 	case *ast.SetStatement:
-		collectScopedParameterExpression(stmt.Left, uri, stack, index)
-		collectScopedParameterExpression(stmt.Value, uri, stack, index)
+		collectScopedSymbolExpression(stmt.Left, uri, stack, index, includeLocals)
+		collectScopedSymbolExpression(stmt.Value, uri, stack, index, includeLocals)
 	case *ast.WhileStatement:
-		collectScopedParameterExpression(stmt.Condition, uri, stack, index)
-		collectScopedParameterBlock(stmt.Body, uri, stack, index)
+		collectScopedSymbolExpression(stmt.Condition, uri, stack, index, includeLocals)
+		collectScopedSymbolBlock(stmt.Body, uri, stack, index, includeLocals)
 	case *ast.ForStatement:
-		collectScopedParameterStatement(stmt.Init, uri, stack, index)
-		collectScopedParameterExpression(stmt.Condition, uri, stack, index)
-		collectScopedParameterStatement(stmt.Post, uri, stack, index)
-		collectScopedParameterBlock(stmt.Body, uri, stack, index)
+		if includeLocals {
+			*stack = append(*stack, map[string]resolvedSymbol{})
+			defer func() { *stack = (*stack)[:len(*stack)-1] }()
+		}
+		collectScopedSymbolStatement(stmt.Init, uri, stack, index, includeLocals)
+		collectScopedSymbolExpression(stmt.Condition, uri, stack, index, includeLocals)
+		collectScopedSymbolStatement(stmt.Post, uri, stack, index, includeLocals)
+		collectScopedSymbolBlock(stmt.Body, uri, stack, index, includeLocals)
 	case *ast.BlockStatement:
-		collectScopedParameterBlock(stmt, uri, stack, index)
+		collectScopedSymbolBlock(stmt, uri, stack, index, includeLocals)
 	}
 }
 
-func collectScopedParameterBlock(block *ast.BlockStatement, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex) {
+func collectScopedSymbolBlock(block *ast.BlockStatement, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex, includeLocals bool) {
 	if block == nil {
 		return
 	}
+	if includeLocals {
+		*stack = append(*stack, map[string]resolvedSymbol{})
+		defer func() { *stack = (*stack)[:len(*stack)-1] }()
+	}
 	for _, stmt := range block.Statements {
-		collectScopedParameterStatement(stmt, uri, stack, index)
+		collectScopedSymbolStatement(stmt, uri, stack, index, includeLocals)
 	}
 }
 
-func collectScopedParameterExpression(expr ast.Expression, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex) {
+func collectScopedSymbolExpression(expr ast.Expression, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex, includeLocals bool) {
 	switch expr := expr.(type) {
 	case *ast.Identifier:
-		addScopedParameterRef(expr, uri, *stack, index)
+		addScopedSymbolRef(expr, uri, *stack, index)
 	case *ast.PrefixExpression:
-		collectScopedParameterExpression(expr.Right, uri, stack, index)
+		collectScopedSymbolExpression(expr.Right, uri, stack, index, includeLocals)
 	case *ast.InfixExpression:
-		collectScopedParameterExpression(expr.Left, uri, stack, index)
-		collectScopedParameterExpression(expr.Right, uri, stack, index)
+		collectScopedSymbolExpression(expr.Left, uri, stack, index, includeLocals)
+		collectScopedSymbolExpression(expr.Right, uri, stack, index, includeLocals)
 	case *ast.SpawnExpression:
-		collectScopedParameterExpression(expr.Call, uri, stack, index)
+		collectScopedSymbolExpression(expr.Call, uri, stack, index, includeLocals)
 	case *ast.IfExpression:
-		collectScopedParameterExpression(expr.Condition, uri, stack, index)
-		collectScopedParameterBlock(expr.Consequence, uri, stack, index)
-		collectScopedParameterBlock(expr.Alternative, uri, stack, index)
+		collectScopedSymbolExpression(expr.Condition, uri, stack, index, includeLocals)
+		collectScopedSymbolBlock(expr.Consequence, uri, stack, index, includeLocals)
+		collectScopedSymbolBlock(expr.Alternative, uri, stack, index, includeLocals)
 	case *ast.FunctionLiteral:
 		frame := map[string]resolvedSymbol{}
 		for _, param := range expr.Parameters {
-			if !validScopedParameterIdentifier(param) {
+			if !validScopedIdentifier(param) {
 				continue
 			}
 			sym := resolvedSymbol{URI: uri, Symbol: sourceSymbol{
@@ -134,32 +175,51 @@ func collectScopedParameterExpression(expr ast.Expression, uri string, stack *[]
 			}
 		}
 		*stack = append(*stack, frame)
-		collectScopedParameterBlock(expr.Body, uri, stack, index)
+		collectScopedSymbolBlock(expr.Body, uri, stack, index, includeLocals)
 		*stack = (*stack)[:len(*stack)-1]
 	case *ast.CallExpression:
-		collectScopedParameterExpression(expr.Function, uri, stack, index)
+		collectScopedSymbolExpression(expr.Function, uri, stack, index, includeLocals)
 		for _, arg := range expr.Arguments {
-			collectScopedParameterExpression(arg, uri, stack, index)
+			collectScopedSymbolExpression(arg, uri, stack, index, includeLocals)
 		}
 	case *ast.MemberExpression:
-		collectScopedParameterExpression(expr.Left, uri, stack, index)
+		collectScopedSymbolExpression(expr.Left, uri, stack, index, includeLocals)
 	case *ast.ArrayLiteral:
 		for _, elem := range expr.Elements {
-			collectScopedParameterExpression(elem, uri, stack, index)
+			collectScopedSymbolExpression(elem, uri, stack, index, includeLocals)
 		}
 	case *ast.IndexExpression:
-		collectScopedParameterExpression(expr.Left, uri, stack, index)
-		collectScopedParameterExpression(expr.Index, uri, stack, index)
+		collectScopedSymbolExpression(expr.Left, uri, stack, index, includeLocals)
+		collectScopedSymbolExpression(expr.Index, uri, stack, index, includeLocals)
 	case *ast.HashLiteral:
 		for key, value := range expr.Pairs {
-			collectScopedParameterExpression(key, uri, stack, index)
-			collectScopedParameterExpression(value, uri, stack, index)
+			collectScopedSymbolExpression(key, uri, stack, index, includeLocals)
+			collectScopedSymbolExpression(value, uri, stack, index, includeLocals)
 		}
 	}
 }
 
-func addScopedParameterRef(ident *ast.Identifier, uri string, stack []map[string]resolvedSymbol, index scopedSymbolIndex) {
-	if !validScopedParameterIdentifier(ident) {
+func addScopedLocalBinding(ident *ast.Identifier, uri string, stack *[]map[string]resolvedSymbol, index scopedSymbolIndex) {
+	if !validScopedIdentifier(ident) || len(*stack) == 0 {
+		return
+	}
+	sym := resolvedSymbol{URI: uri, Symbol: sourceSymbol{
+		Name:   ident.Value,
+		Kind:   "variable",
+		Detail: "local variable",
+		Range:  tokenRange(ident.Token),
+	}}
+	(*stack)[len(*stack)-1][ident.Value] = sym
+	decl := location{URI: uri, Range: sym.Symbol.Range}
+	declKey := locationKey(decl)
+	index.usesByLocation[declKey] = sym
+	if _, ok := index.refsByDecl[declKey]; !ok {
+		index.refsByDecl[declKey] = nil
+	}
+}
+
+func addScopedSymbolRef(ident *ast.Identifier, uri string, stack []map[string]resolvedSymbol, index scopedSymbolIndex) {
+	if !validScopedIdentifier(ident) {
 		return
 	}
 	for i := len(stack) - 1; i >= 0; i-- {
@@ -175,6 +235,6 @@ func addScopedParameterRef(ident *ast.Identifier, uri string, stack []map[string
 	}
 }
 
-func validScopedParameterIdentifier(ident *ast.Identifier) bool {
+func validScopedIdentifier(ident *ast.Identifier) bool {
 	return ident != nil && ident.Token.Type == token.IDENT && ident.Token.Line > 0 && ident.Token.Column > 0
 }

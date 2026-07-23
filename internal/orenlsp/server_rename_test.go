@@ -74,6 +74,116 @@ func TestServerRenameExactScopedParameters(t *testing.T) {
 	assertWorkspaceEdit(t, messageByID(t, msgs, 62)["result"].(map[string]any), uri, "fn", nil)
 }
 
+func TestServerRenameExactScopedLocals(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"fn main() {",
+		"  var count = 1",
+		"  count = count + 1",
+		"  var field = count",
+		"  point.count = count",
+		"  fn inner(count) {",
+		"    var local = count",
+		"    return local",
+		"  }",
+		"  return count",
+		"}",
+		"var count = 99",
+		"",
+	}, "\n")
+	uri := "file:///rename-scoped-locals.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      260,
+		"method":  "textDocument/prepareRename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 2, "character": 3},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      261,
+		"method":  "textDocument/definition",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 9, "character": 11},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      262,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 9, "character": 11},
+			"context":      map[string]any{"includeDeclaration": false},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      263,
+		"method":  "textDocument/hover",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 9, "character": 11},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      264,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 2, "character": 3},
+			"newName":      "total",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertRangeMap(t, messageByID(t, msgs, 260)["result"].(map[string]any), diagnosticRange{
+		Start: position{Line: 2, Character: 2},
+		End:   position{Line: 2, Character: 7},
+	})
+	assertDefinition(t, messageByID(t, msgs, 261)["result"].([]any), uri, 1, 6, 11)
+	assertLocations(t, messageByID(t, msgs, 262)["result"].([]any), []location{
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 2, Character: 2}, End: position{Line: 2, Character: 7}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 2, Character: 10}, End: position{Line: 2, Character: 15}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 3, Character: 14}, End: position{Line: 3, Character: 19}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 4, Character: 16}, End: position{Line: 4, Character: 21}}},
+		{URI: uri, Range: diagnosticRange{Start: position{Line: 9, Character: 9}, End: position{Line: 9, Character: 14}}},
+	})
+	hover := messageByID(t, msgs, 263)["result"].(map[string]any)
+	value := hover["contents"].(map[string]any)["value"].(string)
+	if !strings.Contains(value, "variable count") || !strings.Contains(value, "local variable") || !strings.Contains(value, uri) {
+		t.Fatalf("hover value=%q missing local variable detail", value)
+	}
+	assertRangeMap(t, hover["range"].(map[string]any), diagnosticRange{
+		Start: position{Line: 1, Character: 6},
+		End:   position{Line: 1, Character: 11},
+	})
+	assertWorkspaceEdit(t, messageByID(t, msgs, 264)["result"].(map[string]any), uri, "total", []diagnosticRange{
+		{Start: position{Line: 1, Character: 6}, End: position{Line: 1, Character: 11}},
+		{Start: position{Line: 2, Character: 2}, End: position{Line: 2, Character: 7}},
+		{Start: position{Line: 2, Character: 10}, End: position{Line: 2, Character: 15}},
+		{Start: position{Line: 3, Character: 14}, End: position{Line: 3, Character: 19}},
+		{Start: position{Line: 4, Character: 16}, End: position{Line: 4, Character: 21}},
+		{Start: position{Line: 9, Character: 9}, End: position{Line: 9, Character: 14}},
+	})
+}
+
 func TestServerRenameExactTypedMembers(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

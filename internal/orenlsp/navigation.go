@@ -26,6 +26,9 @@ func (s *Server) hover(uri string, pos position) any {
 	if match, ok := scopedParameterSymbolAt(text, uri, pos); ok {
 		return hoverForResolvedSymbol(match)
 	}
+	if match, ok := scopedLocalSymbolAt(text, uri, pos); ok {
+		return hoverForResolvedSymbol(match)
+	}
 	match, ok := s.resolveSymbol(uri, text, name)
 	if !ok {
 		return nil
@@ -57,6 +60,9 @@ func (s *Server) references(uri string, pos position, includeDeclaration bool) [
 		return refs
 	}
 	if refs, ok := scopedParameterReferencesAt(text, uri, pos, includeDeclaration); ok {
+		return refs
+	}
+	if refs, ok := scopedLocalReferencesAt(text, uri, pos, includeDeclaration); ok {
 		return refs
 	}
 	docs := append([]documentSnapshot{{URI: uri, Text: text}}, s.openDocumentSnapshots(uri)...)
