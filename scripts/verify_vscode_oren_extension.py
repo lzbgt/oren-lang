@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -32,10 +33,30 @@ def main() -> int:
 
     grammar = load_json("syntaxes/oren.tmLanguage.json")
     require(grammar.get("scopeName") == "source.oren", "grammar scopeName mismatch")
-    require(bool(grammar.get("patterns")), "grammar must define patterns")
+    patterns = grammar.get("patterns")
+    require(bool(patterns), "grammar must define patterns")
+    includes = [pattern.get("include") for pattern in patterns if isinstance(pattern, dict)]
+    require("#imports" in includes and "#strings" in includes, "grammar must include imports and strings")
+    require(includes.index("#imports") < includes.index("#strings"), "import statement patterns must run before generic strings")
     repository = grammar.get("repository", {})
-    for name in ("comments", "strings", "keywords", "declarations", "numbers"):
+    for name in ("comments", "strings", "keywords", "imports", "declarations", "numbers"):
         require(name in repository, f"grammar missing {name} repository")
+    import_patterns = repository.get("imports", {}).get("patterns", [])
+    import_text = json.dumps(import_patterns)
+    for scope in (
+        "keyword.operator.import.anonymous.oren",
+        "entity.name.namespace.import.oren",
+        "keyword.declaration.import.oren",
+        "support.module.oren",
+    ):
+        require(scope in import_text, f"grammar missing import scope {scope}")
+    import_regexes = [re.compile(pattern["match"]) for pattern in import_patterns if "match" in pattern]
+    for source in (
+        'import . "helper.oren"',
+        'import math "std:math"',
+        'import helper "modules/helper.oren"',
+    ):
+        require(any(regex.search(source) for regex in import_regexes), f"grammar import regexes do not match {source!r}")
 
     config = load_json("language-configuration.json")
     require(config.get("comments", {}).get("lineComment") == "//", "language config missing line comments")

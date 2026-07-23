@@ -84,6 +84,11 @@
 <p>  completion/definition through anonymously imported constructors. Regression</p>
 <p>  proof lives in <code>internal/orenlsp/server_import_test.go</code>.</p>
 <ul>
+<li>The VS Code Oren TextMate grammar now scopes anonymous dot imports, import</li>
+</ul>
+<p>  aliases, and <code>std:</code> import literals before generic string matching; the</p>
+<p>  extension verifier has regex smoke coverage for <code>import . &quot;path&quot;</code>.</p>
+<ul>
 <li>Scene3D flat generated-shape AVM coverage now has a dedicated release-gated</li>
 </ul>
 <p>  shard, <code>tests/avm/test_ui_scene3d_flat_shapes_v0.oren</code>, leaving</p>

@@ -49,6 +49,9 @@ design evidence lives under `project-doc/`.
   dependency traversal, unqualified imported symbol completion/definition, and
   typed-member completion/definition through anonymously imported constructors.
   Focused coverage lives in `internal/orenlsp/server_import_test.go`.
+- The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
+  aliases, and `std:` import literals before generic string matching; the
+  extension verifier has regex smoke coverage for `import . "path"`.
 - Scene3D flat generated-shape AVM coverage now lives in
   `tests/avm/test_ui_scene3d_flat_shapes_v0.oren`, keeping the core
   `test_ui_scene3d_v0.oren` focused on retained-scene asset/model/material,
