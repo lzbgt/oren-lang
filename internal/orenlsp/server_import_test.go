@@ -108,6 +108,35 @@ func TestServerDefinitionFindsAnonymousImportedFileSymbol(t *testing.T) {
 			"position":     map[string]any{"line": 2, "character": 9},
 		},
 	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      19,
+		"method":  "textDocument/hover",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      20,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+			"context":      map[string]any{"includeDeclaration": true},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      21,
+		"method":  "textDocument/references",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 12},
+			"context":      map[string]any{"includeDeclaration": false},
+		},
+	})
 	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
 
 	var out bytes.Buffer
@@ -121,6 +150,20 @@ func TestServerDefinitionFindsAnonymousImportedFileSymbol(t *testing.T) {
 	if !hasCompletion(items, "helper_value", 6) || !hasCompletion(items, "helper_call", 3) {
 		t.Fatalf("anonymous import completion missing imported symbols: %#v", items)
 	}
+	hover := messageByID(t, msgs, 19)["result"].(map[string]any)
+	value := hover["contents"].(map[string]any)["value"].(string)
+	if !strings.Contains(value, "variable helper_value") || !strings.Contains(value, fileURIFromPath(helperPath)) {
+		t.Fatalf("anonymous import hover value=%q missing imported symbol detail", value)
+	}
+	assertLocations(t, messageByID(t, msgs, 20)["result"].([]any), []location{
+		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 21}}},
+		{URI: fileURIFromPath(helperPath), Range: diagnosticRange{Start: position{Line: 0, Character: 4}, End: position{Line: 0, Character: 16}}},
+		{URI: fileURIFromPath(helperPath), Range: diagnosticRange{Start: position{Line: 1, Character: 26}, End: position{Line: 1, Character: 38}}},
+	})
+	assertLocations(t, messageByID(t, msgs, 21)["result"].([]any), []location{
+		{URI: mainURI, Range: diagnosticRange{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 21}}},
+		{URI: fileURIFromPath(helperPath), Range: diagnosticRange{Start: position{Line: 1, Character: 26}, End: position{Line: 1, Character: 38}}},
+	})
 }
 
 func TestServerDefinitionFindsTransitiveImportedFileSymbol(t *testing.T) {

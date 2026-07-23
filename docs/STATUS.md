@@ -39,9 +39,10 @@ surfaces, but the following blockers remain:
   `tests/fixtures/anonymous_import/*` and
   `build/logs/anonymous_import_focused.log`.
 - The Oren LSP now follows anonymous imports for unopened-workspace dependency
-  traversal, unqualified imported symbol completion/definition, and typed-member
-  completion/definition through anonymously imported constructors. Regression
-  proof lives in `internal/orenlsp/server_import_test.go`.
+  traversal, unqualified imported symbol completion/definition, hover,
+  references, and typed-member completion/definition through anonymously
+  imported constructors. Regression proof lives in
+  `internal/orenlsp/server_import_test.go`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`. LSP

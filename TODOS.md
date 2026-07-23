@@ -46,8 +46,9 @@ design evidence lives under `project-doc/`.
   and camera remains retained 3D depth-window state without CGContext
   save/restore. The guard lives in `scripts/verify_ios_graphics_frame.py`.
 - Oren LSP now recognizes anonymous `import . "path"` imports for workspace
-  dependency traversal, unqualified imported symbol completion/definition, and
-  typed-member completion/definition through anonymously imported constructors.
+  dependency traversal, unqualified imported symbol completion/definition,
+  hover, references, and typed-member completion/definition through
+  anonymously imported constructors.
   Focused coverage lives in `internal/orenlsp/server_import_test.go`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
