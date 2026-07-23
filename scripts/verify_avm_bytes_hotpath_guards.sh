@@ -263,6 +263,18 @@ if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   exit 1
 fi
 
+std_store_u64_be_impl="$(sed -n '/fn _store_u64_be/,/fn _store_u64_le/p' lib/std/bytes.oren)"
+std_store_u64_le_impl="$(sed -n '/fn _store_u64_le/,/fn get_u8/p' lib/std/bytes.oren)"
+if ! grep -Fq 'ptr_set_byte(p + 0, (v >> 56) & 255)' <<<"$std_store_u64_be_impl" ||
+  ! grep -Fq 'ptr_set_byte(p + 7, v & 255)' <<<"$std_store_u64_be_impl" ||
+  ! grep -Fq 'ptr_set_byte(p + 0, v & 255)' <<<"$std_store_u64_le_impl" ||
+  ! grep -Fq 'ptr_set_byte(p + 7, (v >> 56) & 255)' <<<"$std_store_u64_le_impl" ||
+  grep -Fq 'while i < 8' <<<"$std_store_u64_be_impl" ||
+  grep -Fq 'while i < 8' <<<"$std_store_u64_le_impl"; then
+  echo "ERROR: std:bytes u8_buf 64-bit endian stores must be unrolled direct byte writes, not Oren loops" >&2
+  exit 1
+fi
+
 bytecode_codegen_impl="$(sed -n '/if name == "ptr_get"/,/Reflection-ish helpers/p' lib/compiler/codegen_bytecode/010_codegen_a.oren)"
 avm_ptr_helper_impl="$(sed -n '/static AvmValue avm_ptr_memcpy_value/,/^}/p' lib/avm/avm_native_ptr_helpers.inc)"
 c_runtime_ptr_impl="$(sed -n '/OrenValue oren_memcpy/,/^}/p' lib/runtime/060_ptr_unsafe.inc)"

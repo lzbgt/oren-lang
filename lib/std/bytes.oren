@@ -340,11 +340,14 @@ fn _store_u32_le(bytes, idx, v) {
 fn _store_u64_be(bytes, idx, v) {
     if oren_is_u8_buf(bytes) == true {
         var p = oren_buf_data_ptr_unchecked(bytes) + idx
-        var i = 0
-        while i < 8 {
-            ptr_set_byte(p + i, (v >> ((7 - i) * 8)) & 255)
-            i = i + 1
-        }
+        ptr_set_byte(p + 0, (v >> 56) & 255)
+        ptr_set_byte(p + 1, (v >> 48) & 255)
+        ptr_set_byte(p + 2, (v >> 40) & 255)
+        ptr_set_byte(p + 3, (v >> 32) & 255)
+        ptr_set_byte(p + 4, (v >> 24) & 255)
+        ptr_set_byte(p + 5, (v >> 16) & 255)
+        ptr_set_byte(p + 6, (v >> 8) & 255)
+        ptr_set_byte(p + 7, v & 255)
         return v
     }
     return oren_bytes_set_u64_be(bytes, idx, v)
@@ -353,11 +356,14 @@ fn _store_u64_be(bytes, idx, v) {
 fn _store_u64_le(bytes, idx, v) {
     if oren_is_u8_buf(bytes) == true {
         var p = oren_buf_data_ptr_unchecked(bytes) + idx
-        var i = 0
-        while i < 8 {
-            ptr_set_byte(p + i, (v >> (i * 8)) & 255)
-            i = i + 1
-        }
+        ptr_set_byte(p + 0, v & 255)
+        ptr_set_byte(p + 1, (v >> 8) & 255)
+        ptr_set_byte(p + 2, (v >> 16) & 255)
+        ptr_set_byte(p + 3, (v >> 24) & 255)
+        ptr_set_byte(p + 4, (v >> 32) & 255)
+        ptr_set_byte(p + 5, (v >> 40) & 255)
+        ptr_set_byte(p + 6, (v >> 48) & 255)
+        ptr_set_byte(p + 7, (v >> 56) & 255)
         return v
     }
     return oren_bytes_set_u64_le(bytes, idx, v)

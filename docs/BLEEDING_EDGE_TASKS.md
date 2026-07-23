@@ -1418,8 +1418,8 @@ This file is the concise task view. Detailed implementation status lives in
 		     blocks use the shared exact-capacity accumulator path, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and
-		     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
-			     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, and public signed 64-bit endian getters read `u8_buf` carriers directly after span validation.
+			     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
+				     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, public signed 64-bit endian getters read `u8_buf` carriers directly after span validation, and public 64-bit endian stores use unrolled direct `u8_buf` byte writes.
 		     `std:strings` prefix/suffix/search/equality
 			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
 					     encoding through growable `u8_buf` output plus hoisted shared `std:bytes` byte-view backing pointers for byte-string encode and
@@ -1477,7 +1477,7 @@ This file is the concise task view. Detailed implementation status lives in
      append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`/`from_hex`, `std:strings` byte roundtrips,
-     `std:bytes` u8/endian writes, concat/copy u8-buffer spans, overlap-safe
+     `std:bytes` u8/endian writes with unrolled u64 `u8_buf` stores, concat/copy u8-buffer spans, overlap-safe
 	     u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
 	     carrier reads through shared checked byte views with hoisted backing pointers for non-contiguous fallbacks,
      contiguous slice/dense-matrix byte/text exports, and
