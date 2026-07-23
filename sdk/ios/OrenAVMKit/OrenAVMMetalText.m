@@ -218,7 +218,10 @@ static NSDictionary<NSAttributedStringKey, id>* OrenAVMMetalTextAttributesForRGB
         NSForegroundColorAttributeName: color,
         NSFontAttributeName: font
     };
-    if (cache && cache.entries && (NSUInteger)CFDictionaryGetCount(cache.entries) < OrenAVMMetalTextAttributeCacheEntryLimit) {
+    if (cache && cache.entries) {
+        if ((NSUInteger)CFDictionaryGetCount(cache.entries) >= OrenAVMMetalTextAttributeCacheEntryLimit) {
+            CFDictionaryRemoveAllValues(cache.entries);
+        }
         CFDictionarySetValue(cache.entries, key, (__bridge const void*)attrs);
     }
     cache.lastRGBA = rgbaValue;

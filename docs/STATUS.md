@@ -56,6 +56,9 @@ surfaces, but the following blockers remain:
 - iOS Metal same-atlas text-run coalescing keeps raw owned vertex buffers and
   grows heap capacity geometrically, avoiding repeated exact-size realloc/copy
   churn while preserving bounded overflow checks.
+- iOS Metal text attribute caching uses scalar RGBA keys with a bounded
+  clear-on-full admission policy, so new hot colors remain cacheable after the
+  256-entry cache fills.
 - `std:math/mat4` now includes checked rigid-transform inverse helpers
   (`inverse_rigid_transform_abs`, `inverse_rigid_transform`,
   `rigid_inverse_abs`, and `rigid_inverse`) that validate affine orthonormal

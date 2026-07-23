@@ -104,6 +104,11 @@
 <p>  grows heap capacity geometrically, avoiding repeated exact-size realloc/copy</p>
 <p>  churn while preserving bounded overflow checks.</p>
 <ul>
+<li>iOS Metal text attribute caching uses scalar RGBA keys with a bounded</li>
+</ul>
+<p>  clear-on-full admission policy, so new hot colors remain cacheable after the</p>
+<p>  256-entry cache fills.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked rigid-transform inverse helpers</li>
 </ul>
 <p>  (<code>inverse_rigid_transform_abs</code>, <code>inverse_rigid_transform</code>,</p>

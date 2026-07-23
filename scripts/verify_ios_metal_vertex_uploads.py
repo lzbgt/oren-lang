@@ -141,6 +141,8 @@ def main() -> int:
         fail("Metal text cache hits must return before looking up UIKit attributes")
     if "OrenAVMMetalTextAttributeCacheEntryLimit = 256u" not in text_source:
         fail("Metal text attribute cache must stay bounded")
+    if "CFDictionaryRemoveAllValues(cache.entries)" not in text_source:
+        fail("Metal text attribute cache must admit new colors after hitting its bounded entry limit")
     if "OrenAVMMetalTextAttributeCache* orenTextAttributes" not in text:
         fail("Metal text attributes must be cached through a typed view-owned cache")
     if "self.orenTextAttributes" not in text or "textAttributes" not in resource_text:
