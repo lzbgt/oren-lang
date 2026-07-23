@@ -395,3 +395,122 @@ func TestServerRenameTopLevelFunctionAndTypes(t *testing.T) {
 		{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 12}},
 	})
 }
+
+func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
+	tmp := t.TempDir()
+	shapesPath := filepath.Join(tmp, "shapes.oren")
+	shapesText := strings.Join([]string{
+		"struct Widget { label }",
+		"fn make_widget(): Widget {",
+		"  return Widget(1)",
+		"}",
+		"fn keep(make_widget) {",
+		"  return make_widget",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(shapesPath, []byte(shapesText), 0o644); err != nil {
+		t.Fatalf("WriteFile shapes: %v", err)
+	}
+	extraPath := filepath.Join(tmp, "extra.oren")
+	extraText := strings.Join([]string{
+		"struct Extra { v }",
+		"fn new_extra(): Extra {",
+		"  return Extra(1)",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(extraPath, []byte(extraText), 0o644); err != nil {
+		t.Fatalf("WriteFile extra: %v", err)
+	}
+	mainPath := filepath.Join(tmp, "main.oren")
+	mainText := strings.Join([]string{
+		"import shapes \"shapes.oren\"",
+		"import . \"extra.oren\"",
+		"var a = shapes.make_widget()",
+		"var b = shapes.Widget(1)",
+		"var c = Extra(1)",
+		"fn main(make_widget) {",
+		"  return make_widget",
+		"}",
+		"",
+	}, "\n")
+	mainURI := fileURIFromPath(mainPath)
+
+	var in bytes.Buffer
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI, "text": mainText},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      75,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 20},
+			"newName":      "build_widget",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      76,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 3, "character": 18},
+			"newName":      "Gizmo",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      77,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 4, "character": 10},
+			"newName":      "Thing",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+
+	edit := messageByID(t, msgs, 75)["result"].(map[string]any)
+	assertWorkspaceEditFileCount(t, edit, 2)
+	assertWorkspaceEdit(t, edit, fileURIFromPath(shapesPath), "build_widget", []diagnosticRange{
+		{Start: position{Line: 1, Character: 3}, End: position{Line: 1, Character: 14}},
+	})
+	assertWorkspaceEdit(t, edit, mainURI, "build_widget", []diagnosticRange{
+		{Start: position{Line: 2, Character: 15}, End: position{Line: 2, Character: 26}},
+	})
+
+	edit = messageByID(t, msgs, 76)["result"].(map[string]any)
+	assertWorkspaceEditFileCount(t, edit, 2)
+	assertWorkspaceEdit(t, edit, fileURIFromPath(shapesPath), "Gizmo", []diagnosticRange{
+		{Start: position{Line: 0, Character: 7}, End: position{Line: 0, Character: 13}},
+		{Start: position{Line: 1, Character: 18}, End: position{Line: 1, Character: 24}},
+		{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 15}},
+	})
+	assertWorkspaceEdit(t, edit, mainURI, "Gizmo", []diagnosticRange{
+		{Start: position{Line: 3, Character: 15}, End: position{Line: 3, Character: 21}},
+	})
+
+	edit = messageByID(t, msgs, 77)["result"].(map[string]any)
+	assertWorkspaceEditFileCount(t, edit, 2)
+	assertWorkspaceEdit(t, edit, fileURIFromPath(extraPath), "Thing", []diagnosticRange{
+		{Start: position{Line: 0, Character: 7}, End: position{Line: 0, Character: 12}},
+		{Start: position{Line: 1, Character: 16}, End: position{Line: 1, Character: 21}},
+		{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 14}},
+	})
+	assertWorkspaceEdit(t, edit, mainURI, "Thing", []diagnosticRange{
+		{Start: position{Line: 4, Character: 8}, End: position{Line: 4, Character: 13}},
+	})
+}

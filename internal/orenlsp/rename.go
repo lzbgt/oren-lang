@@ -57,6 +57,9 @@ func (s *Server) exactRenameLocations(uri string, pos position) ([]location, dia
 	if refs, ok := topLevelSymbolRenameLocationsAt(text, uri, name, rng); ok {
 		return refs, rng, true
 	}
+	if refs, ok := topLevelImportedSymbolRenameLocationsAt(text, uri, name, rng, importedDocs); ok {
+		return refs, rng, true
+	}
 	return nil, diagnosticRange{}, false
 }
 
@@ -65,22 +68,45 @@ func topLevelSymbolRenameLocationsAt(text, uri, name string, rng diagnosticRange
 	if !ok || match.URI != uri {
 		return nil, false
 	}
+	return topLevelSymbolRenameLocationsForMatch(match, rng, []documentSnapshot{{URI: uri, Text: text}})
+}
+
+func topLevelImportedSymbolRenameLocationsAt(text, uri, name string, rng diagnosticRange, importedDocs []documentSnapshot) ([]location, bool) {
+	if _, local := symbolDefinition(text, uri, name); local {
+		return nil, false
+	}
+	for _, doc := range importedDocs {
+		match, ok := symbolDefinition(doc.Text, doc.URI, name)
+		if !ok {
+			continue
+		}
+		return topLevelSymbolRenameLocationsForMatch(match, rng, []documentSnapshot{
+			{URI: doc.URI, Text: doc.Text},
+			{URI: uri, Text: text},
+		})
+	}
+	return nil, false
+}
+
+func topLevelSymbolRenameLocationsForMatch(match resolvedSymbol, rng diagnosticRange, docs []documentSnapshot) ([]location, bool) {
 	switch match.Symbol.Kind {
 	case "function", "struct", "class":
 	default:
 		return nil, false
 	}
-	locs := identifierLocations(text, uri, name)
-	out := make([]location, 0, len(locs))
 	selected := rangeEqual(match.Symbol.Range, rng)
-	for _, loc := range locs {
-		if rangeEqual(loc.Range, rng) {
-			selected = true
+	var out []location
+	for _, doc := range docs {
+		locs := identifierLocations(doc.Text, doc.URI, match.Symbol.Name)
+		for _, loc := range locs {
+			if rangeEqual(loc.Range, rng) {
+				selected = true
+			}
+			if isScopedParameterLocation(doc.Text, doc.URI, loc.Range.Start) {
+				continue
+			}
+			out = append(out, loc)
 		}
-		if isScopedParameterLocation(text, uri, loc.Range.Start) {
-			continue
-		}
-		out = append(out, loc)
 	}
 	if !selected || len(out) == 0 {
 		return nil, false
