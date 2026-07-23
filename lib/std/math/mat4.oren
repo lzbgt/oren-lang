@@ -663,6 +663,45 @@ fn trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f6
     return compose_trs(tx, ty, tz, qx0, qy0, qz0, qw0, sx, sy, sz)
 }
 
+fn _with_translation_unchecked(m, tx: f64, ty: f64, tz: f64) {
+    return [
+        m[0], m[1], m[2], tx,
+        m[4], m[5], m[6], ty,
+        m[8], m[9], m[10], tz,
+        m[12], m[13], m[14], m[15]
+    ]
+}
+
+fn with_translation(m, tx: f64, ty: f64, tz: f64) {
+    var ok = _check(m, "mat4.with_translation")
+    if oren_is_err(ok) { return ok }
+    ok = _finite3(tx, ty, tz, "mat4.with_translation")
+    if oren_is_err(ok) { return ok }
+    return _with_translation_unchecked(m, tx, ty, tz)
+}
+
+fn set_translation(m, tx: f64, ty: f64, tz: f64) {
+    return with_translation(m, tx, ty, tz)
+}
+
+fn with_translation_vec(m, translation_vec) {
+    var ok = _check(m, "mat4.with_translation_vec")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(translation_vec, "mat4.with_translation_vec")
+    if oren_is_err(ok) { return ok }
+    return _with_translation_unchecked(m, translation_vec[0], translation_vec[1], translation_vec[2])
+}
+
+fn set_translation_vec(m, translation_vec) {
+    return with_translation_vec(m, translation_vec)
+}
+
+fn without_translation(m) {
+    var ok = _check(m, "mat4.without_translation")
+    if oren_is_err(ok) { return ok }
+    return _with_translation_unchecked(m, 0.0, 0.0, 0.0)
+}
+
 fn translation_of(m) {
     var ok = _check(m, "mat4.translation_of")
     if oren_is_err(ok) { return ok }
