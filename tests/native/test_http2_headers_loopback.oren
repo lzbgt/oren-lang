@@ -176,20 +176,22 @@ fn _read_header_block(conn, first_fr, timeout_ms) {
     var flags = first_fr["flags"]
     var hb = first_fr["payload"]
     if (flags & h2.FLAG_END_HEADERS) != 0 {
-        return {"ok": 1, "b": hb, "flags": flags}
+        return {"ok": 1, "b": hb, "flags": flags, "continuations": 0}
     }
 
     // Must read one or more CONTINUATION frames on the same stream until END_HEADERS.
+    var continuations = 0
     while true {
         var fr = _read_frame(conn, timeout_ms)
         if fr["ok"] != 1 { return {"ok": 0, "err": "read continuation"} }
         if fr["type"] != h2.FRAME_CONTINUATION { return {"ok": 0, "err": "expected CONTINUATION"} }
         if fr["stream"] != stream { return {"ok": 0, "err": "continuation stream mismatch"} }
+        continuations = continuations + 1
         hb = _concat_bytes2(hb, fr["payload"])
         if oren_is_err(hb) { return {"ok": 0, "err": "concat failed"} }
         if (fr["flags"] & h2.FLAG_END_HEADERS) != 0 {
             // END_HEADERS on the last CONTINUATION; return original HEADERS flags too (END_STREAM etc).
-            return {"ok": 1, "b": hb, "flags": flags}
+            return {"ok": 1, "b": hb, "flags": flags, "continuations": continuations}
         }
     }
 }
@@ -309,7 +311,7 @@ fn _client_roundtrip(conn) {
         {"name": ":scheme", "value": "https"},
         {"name": ":path", "value": "/"},
         {"name": ":authority", "value": "oren.test", "index": "inc"}
-    ], nil, {"split_headers_at": 8})
+    ], nil, {"split_headers_at": 1, "max_header_frame_size": 1})
     if oren_is_err(rr) { return 0 - 12 }
     if rr.status != 200 { return 0 - 13 }
     if rr.text() != "ok" { return 0 - 14 }
@@ -405,6 +407,7 @@ fn server_impl(listen_fd, pfx_b64) {
     // Assemble header block (HEADERS + CONTINUATION).
     var hb0 = _read_header_block(conn, fr, 5000)
     if hb0["ok"] != 1 { tls.close(conn); return 26 }
+    if hb0["continuations"] < 2 { tls.close(conn); return 260 }
 
     var tbl = hpack.table_new(4096)
     var dr = hpack.decode_header_block(tbl, hb0["b"])

@@ -2697,8 +2697,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 						  and native HTTP/2 client header-only `END_STREAM` responses return exact
 						  empty `u8_buf` bodies before allocating DATA accumulators, while DATA
 						  responses with `content-length` accumulate into exact-capacity `u8_buf`
-						  bodies with length mismatch checks; fragmented HEADERS writes stream raw
-						  header-block spans and inbound
+							  bodies with length mismatch checks; fragmented HEADERS writes stream raw
+							  header-block spans across all CONTINUATION frames and inbound
 					  single-CONTINUATION header blocks assemble with exact-size copies,
 				  full regex
   pattern/text matching, and public `std:strings`
@@ -2817,7 +2817,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 		  decoded-byte strings also convert through byte slices. HTTP/2 client
 			  continuation/header-block and unknown-length DATA response buffers now
 			  accumulate through amortized `u8_buf` builders, fragmented outbound
-			  HEADERS writes stream raw header-block spans instead of copied split
+				  HEADERS writes stream raw header-block spans across all CONTINUATION frames instead of copied split
 			  buffers, single-CONTINUATION inbound header blocks exact-combine without
 			  an overcapacity finish copy, `content-length` DATA bodies use exact-capacity accumulation
 			  with mismatch checks, including header-only response termination,

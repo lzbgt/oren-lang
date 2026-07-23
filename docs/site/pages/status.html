@@ -2879,8 +2879,8 @@
 <p>						  and native HTTP/2 client header-only <code>END_STREAM</code> responses return exact</p>
 <p>						  empty <code>u8_buf</code> bodies before allocating DATA accumulators, while DATA</p>
 <p>						  responses with <code>content-length</code> accumulate into exact-capacity <code>u8_buf</code></p>
-<p>						  bodies with length mismatch checks; fragmented HEADERS writes stream raw</p>
-<p>						  header-block spans and inbound</p>
+<p>							  bodies with length mismatch checks; fragmented HEADERS writes stream raw</p>
+<p>							  header-block spans across all CONTINUATION frames and inbound</p>
 <p>					  single-CONTINUATION header blocks assemble with exact-size copies,</p>
 <p>				  full regex</p>
 <p>  pattern/text matching, and public <code>std:strings</code></p>
@@ -2999,7 +2999,7 @@
 <p>		  decoded-byte strings also convert through byte slices. HTTP/2 client</p>
 <p>			  continuation/header-block and unknown-length DATA response buffers now</p>
 <p>			  accumulate through amortized <code>u8_buf</code> builders, fragmented outbound</p>
-<p>			  HEADERS writes stream raw header-block spans instead of copied split</p>
+<p>				  HEADERS writes stream raw header-block spans across all CONTINUATION frames instead of copied split</p>
 <p>			  buffers, single-CONTINUATION inbound header blocks exact-combine without</p>
 <p>			  an overcapacity finish copy, <code>content-length</code> DATA bodies use exact-capacity accumulation</p>
 <p>			  with mismatch checks, including header-only response termination,</p>

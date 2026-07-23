@@ -1412,8 +1412,8 @@ This file is the concise task view. Detailed implementation status lives in
      string encode/decode, decoded-string boundaries, and full header-block
      encoding use exact-size `u8_buf` payloads or byte-slice conversion; TLS
      ALPN decoded-byte strings also convert through byte slices. HTTP/2 client
-     continuation/header-block and DATA response buffering now uses amortized
-     `u8_buf` accumulators, and PEM/Base64 body handling avoids
+	     continuation/header-block and DATA response buffering now uses amortized
+	     `u8_buf` accumulators, fragmented outbound HEADERS stream raw spans across all CONTINUATION frames, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and
 		     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`

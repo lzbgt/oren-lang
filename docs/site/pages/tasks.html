@@ -1482,8 +1482,8 @@
 <p>     string encode/decode, decoded-string boundaries, and full header-block</p>
 <p>     encoding use exact-size <code>u8_buf</code> payloads or byte-slice conversion; TLS</p>
 <p>     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client</p>
-<p>     continuation/header-block and DATA response buffering now uses amortized</p>
-<p>     <code>u8_buf</code> accumulators, and PEM/Base64 body handling avoids</p>
+<p>	     continuation/header-block and DATA response buffering now uses amortized</p>
+<p>	     <code>u8_buf</code> accumulators, fragmented outbound HEADERS stream raw spans across all CONTINUATION frames, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
 <p>     exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and</p>
 <p>		     nonzero trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. <code>std:bytes</code></p>

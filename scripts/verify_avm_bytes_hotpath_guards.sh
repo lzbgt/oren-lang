@@ -776,12 +776,15 @@ if ! grep -Fq 'fn _u8_concat2_exact(a, b)' lib/std/net/http2_client.oren ||
 fi
 
 if ! grep -Fq 'fn _send_frame_raw_payload(conn, typ, flags, stream_id, payload_ptr, payload_len, timeout_ms)' lib/std/net/http2_client.oren ||
+  ! grep -Fq 'while off < n {' <<<"$http2_send_headers_impl" ||
   ! grep -Fq '_send_frame_raw_payload(conn, h2.FRAME_HEADERS, headers_flags, stream_id, p, split_at, timeout_ms)' <<<"$http2_send_headers_impl" ||
-  ! grep -Fq '_send_frame_raw_payload(conn, h2.FRAME_CONTINUATION, h2.FLAG_END_HEADERS, stream_id, p + split_at, n - split_at, timeout_ms)' <<<"$http2_send_headers_impl" ||
+  ! grep -Fq '_send_frame_raw_payload(conn, h2.FRAME_CONTINUATION, cflags, stream_id, p + off, take, timeout_ms)' <<<"$http2_send_headers_impl" ||
+  ! grep -Fq '"max_header_frame_size": 1' tests/native/test_http2_headers_loopback.oren ||
+  ! grep -Fq 'if hb0["continuations"] < 2' tests/native/test_http2_headers_loopback.oren ||
   grep -Fq 'fn _write_all_bytes(conn, b, timeout_ms)' lib/std/net/http2_client.oren ||
   grep -Fq 'oren_u8_buf_new_uninit(split_at)' <<<"$http2_send_headers_impl" ||
   grep -Fq 'oren_memcpy(p0, p, split_at)' <<<"$http2_send_headers_impl"; then
-  echo "ERROR: HTTP/2 fragmented HEADERS must write raw header-block spans instead of allocating copied split buffers" >&2
+  echo "ERROR: HTTP/2 fragmented HEADERS must write raw header-block spans across all CONTINUATION frames instead of copied split buffers" >&2
   exit 1
 fi
 
