@@ -769,6 +769,16 @@ if grep -q 'fn _read_u16be\|fn _read_u32be\|fn _read_u64be' lib/std/cbor.oren; t
   exit 1
 fi
 
+cbor_byte_decode_impl="$(sed -n '/if major == 2 {/,/if major == 3 {/p' lib/std/cbor.oren)"
+if ! grep -Fq 'var out = oren_u8_buf_from_bytes_slice(bytem.view_bytes(v), pos, arg)' <<<"$cbor_byte_decode_impl" ||
+  ! grep -Fq 'return _ok(cbytes(out), pos + arg)' <<<"$cbor_byte_decode_impl" ||
+  grep -Fq 'list.push' <<<"$cbor_byte_decode_impl" ||
+  grep -Fq 'var out = []' <<<"$cbor_byte_decode_impl" ||
+  ! grep -Fq 'assert(oren_is_u8_buf(v["bs"]) == true, "decode bytes u8 carrier")' tests/modules/test_cbor_sequence.oren; then
+  echo "ERROR: std:cbor byte-string decode must keep exact u8_buf slices and fixture carrier coverage, not rebuild byte lists" >&2
+  exit 1
+fi
+
 buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
 if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||

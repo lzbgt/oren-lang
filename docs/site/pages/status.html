@@ -2813,6 +2813,7 @@
 <p>	  labels use the same native copy path. PEM relaxed decode passes body slices</p>
 <p>	  to Base64 directly, and strict decode concatenates body lines through raw</p>
 <p>	  exact-size <code>u8_buf</code> writes instead of a byte list. JSON, YAML, CBOR,</p>
+<p>		  including guarded exact-<code>u8_buf</code> byte-string decode carrier coverage,</p>
 <p>		  Base64/Base64URL, regex, PEM/X509, <code>std:time</code> ISO-8601 UTC parsing, native string</p>
 <p>	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,</p>
 <p>		  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public</p>

@@ -3394,6 +3394,11 @@
 </ul>
 <p>  uses them directly instead of maintaining local endian read wrappers.</p>
 <ul>
+<li><code>make verify-avm-bytes-hotpath-guards</code> now pins CBOR byte-string decode to</li>
+</ul>
+<p>  exact <code>u8_buf</code> slices plus fixture carrier assertions, preventing a regression</p>
+<p>  back to list-materialized byte strings.</p>
+<ul>
 <li><code>std:ui/commands</code> validation now caches u8 payload pointers for geometry,</li>
 </ul>
 <p>  indexed-mesh, text-position, and image-rect byte fields while retaining</p>
@@ -4224,7 +4229,9 @@
 <p>  invariants, including the removed bytecode final-write list fallback and the</p>
 <p>  removed runtime-object per-byte checked metadata helper. It also prevents</p>
 <p>  <code>std:ui/commands</code>, <code>std:ui/raster</code>, and <code>std:ui/avm</code> from reintroducing local</p>
-<p>  byte-view/read aliases instead of using shared <code>std:bytes</code> views directly.</p>
+<p>  byte-view/read aliases instead of using shared <code>std:bytes</code> views directly,</p>
+<p>  and locks CBOR byte-string decode to exact <code>u8_buf</code> slices with carrier</p>
+<p>  fixture coverage.</p>
 <ul>
 <li><code>buffer.u8_unpack</code> now reuses the byte-native <code>bytes.unpack</code> path for u8</li>
 </ul>

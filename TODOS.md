@@ -2485,6 +2485,9 @@ design evidence lives under `project-doc/`.
   while retaining list-compatible byte input fallback.
 - `std:bytes` now exposes shared big-endian byte-view readers, and CBOR decode
   uses them directly instead of maintaining local endian read wrappers.
+- `make verify-avm-bytes-hotpath-guards` now pins CBOR byte-string decode to
+  exact `u8_buf` slices plus fixture carrier assertions, preventing a regression
+  back to list-materialized byte strings.
 - `std:ui/commands` validation now caches u8 payload pointers for geometry,
   indexed-mesh, text-position, and image-rect byte fields while retaining
   list-compatible byte input fallback.
@@ -3002,7 +3005,9 @@ design evidence lives under `project-doc/`.
   invariants, including the removed bytecode final-write list fallback and the
   removed runtime-object per-byte checked metadata helper. It also prevents
   `std:ui/commands`, `std:ui/raster`, and `std:ui/avm` from reintroducing local
-  byte-view/read aliases instead of using shared `std:bytes` views directly.
+  byte-view/read aliases instead of using shared `std:bytes` views directly,
+  and locks CBOR byte-string decode to exact `u8_buf` slices with carrier
+  fixture coverage.
 - `buffer.u8_unpack` now reuses the byte-native `bytes.unpack` path for u8
   buffers instead of re-reading each byte in the stdlib loop.
 - `std:math` now includes deterministic C/C++ classification aliases

@@ -2693,6 +2693,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  labels use the same native copy path. PEM relaxed decode passes body slices
 	  to Base64 directly, and strict decode concatenates body lines through raw
 	  exact-size `u8_buf` writes instead of a byte list. JSON, YAML, CBOR,
+		  including guarded exact-`u8_buf` byte-string decode carrier coverage,
 		  Base64/Base64URL, regex, PEM/X509, `std:time` ISO-8601 UTC parsing, native string
 	  concat/intern/slice copies, native byte-order writes, crypto RNG, HPACK,
 		  HTTP/2 parser records, UI color parsing/hex emission, PPM encoding, public
