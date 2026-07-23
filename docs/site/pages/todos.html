@@ -3424,8 +3424,8 @@
 <p>  fourth-character padding plus nonzero trailing pad bits while keeping decoded</p>
 <p>  output as exact-size <code>u8_buf</code>; strict Base64 decode sizes exactly and validates</p>
 <p>  inline instead of pre-scanning then delegating to the whitespace-tolerant path.</p>
-<p>  Base64/Base64URL encode now reads <code>u8_buf</code> inputs directly after one length</p>
-<p>  check, and Base64URL decode uses the same direct byte-buffer output path.</p>
+<p>  Base64/Base64URL encode now hoists shared byte-view backing pointers once per</p>
+<p>  call, and Base64URL decode uses the same direct byte-buffer output path.</p>
 <ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>

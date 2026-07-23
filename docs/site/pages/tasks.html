@@ -1485,7 +1485,7 @@
 <p>     continuation/header-block and DATA response buffering now uses amortized</p>
 <p>     <code>u8_buf</code> accumulators, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
-<p>     exact-size writes; Base64/Base64URL encode reads inputs through shared byte views after one length check, and decode also rejects malformed padding and</p>
+<p>     exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and</p>
 <p>	     nonzero trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. <code>std:bytes</code></p>
 <p>		     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, and public signed 64-bit endian getters read <code>u8_buf</code> carriers directly after span validation.</p>
 <p>		     <code>std:strings</code> prefix/suffix/search/equality</p>

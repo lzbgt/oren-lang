@@ -55,8 +55,9 @@ fn _set_out(out, idx, v) {
     return out
 }
 
-fn _input_byte(input_view, idx) {
-    return bytesm.view_get_u8_unchecked(input_view, idx)
+fn _input_byte_direct(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return ptr_get_byte(input_ptr + idx) & 255 }
+    return oren_bytes_get_u8(input_bytes, idx)
 }
 
 fn _new_decode_table(default_value) {
@@ -115,6 +116,8 @@ fn encode_bytes(input_bytes) {
     var input_view = bytesm.view(input_bytes, "base64.encode_bytes")
     if oren_is_err(input_view) { return oren_err(4, "base64.encode_bytes: input must be list<int> or u8_buf") }
     var n = bytesm.view_len(input_view)
+    var input_data = bytesm.view_bytes(input_view)
+    var input_ptr = bytesm.view_ptr(input_view)
 
     var out_len = ((n + 2) / 3) * 4
     var out = oren_u8_buf_new_uninit(out_len)
@@ -123,19 +126,19 @@ fn encode_bytes(input_bytes) {
     var i = 0
     var oi = 0
     while i < n {
-        var b0 = _input_byte(input_view, i)
+        var b0 = _input_byte_direct(input_data, input_ptr, i)
         if oren_is_err(b0) { return b0 }
         var b1 = 0
         var b2 = 0
         var have1 = 0
         var have2 = 0
         if i + 1 < n {
-            b1 = _input_byte(input_view, i + 1)
+            b1 = _input_byte_direct(input_data, input_ptr, i + 1)
             if oren_is_err(b1) { return b1 }
             have1 = 1
         }
         if i + 2 < n {
-            b2 = _input_byte(input_view, i + 2)
+            b2 = _input_byte_direct(input_data, input_ptr, i + 2)
             if oren_is_err(b2) { return b2 }
             have2 = 1
         }
@@ -176,6 +179,8 @@ fn encode_url_bytes(input_bytes) {
     var input_view = bytesm.view(input_bytes, "base64.encode_url_bytes")
     if oren_is_err(input_view) { return oren_err(4, "base64.encode_url_bytes: input must be list<int> or u8_buf") }
     var n = bytesm.view_len(input_view)
+    var input_data = bytesm.view_bytes(input_view)
+    var input_ptr = bytesm.view_ptr(input_view)
 
     var out_len = (n / 3) * 4
     var rem = n % 3
@@ -187,19 +192,19 @@ fn encode_url_bytes(input_bytes) {
     var i = 0
     var oi = 0
     while i < n {
-        var b0 = _input_byte(input_view, i)
+        var b0 = _input_byte_direct(input_data, input_ptr, i)
         if oren_is_err(b0) { return b0 }
         var b1 = 0
         var b2 = 0
         var have1 = 0
         var have2 = 0
         if i + 1 < n {
-            b1 = _input_byte(input_view, i + 1)
+            b1 = _input_byte_direct(input_data, input_ptr, i + 1)
             if oren_is_err(b1) { return b1 }
             have1 = 1
         }
         if i + 2 < n {
-            b2 = _input_byte(input_view, i + 2)
+            b2 = _input_byte_direct(input_data, input_ptr, i + 2)
             if oren_is_err(b2) { return b2 }
             have2 = 1
         }

@@ -2719,8 +2719,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  native WebSocket header slices plus frame payload reads
   copy with `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
-				  Base64/Base64URL encode reads inputs through shared byte views after one length
-				  check, tolerant Base64 decode derives clean length plus trailing padding from one
+				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call,
+				  tolerant Base64 decode derives clean length plus trailing padding from one
 				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,
 				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,
 				  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
@@ -2840,7 +2840,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 			  `sha256.hex`, `ui_cmds.validate`, `ui_raster.rasterize`,
 			  `ppm.write_rgba_ppm`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
-  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now read inputs through shared byte views and write exact-size `u8_buf` output instead of materializing an
+  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now hoists shared byte-view backing pointers and writes exact-size `u8_buf` output instead of materializing an
 				  intermediate Oren list, tolerant Base64 decode now computes whitespace-stripped length
 				  plus trailing padding in one pass, and their decode paths reject malformed padding,
 			  third-character padding without fourth-character padding, and nonzero

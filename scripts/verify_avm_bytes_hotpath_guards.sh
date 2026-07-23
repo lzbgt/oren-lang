@@ -663,11 +663,15 @@ fi
 
 if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'fn _input_byte_direct(input_bytes, input_ptr, idx)' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'if input_ptr != nil { return ptr_get_byte(input_ptr + idx) & 255 }' lib/std/encoding/base64.oren ||
+  ! grep -Fq 'var input_ptr = bytesm.view_ptr(input_view)' lib/std/encoding/base64.oren ||
   grep -Fq '_b64_char(' lib/std/encoding/base64.oren ||
   grep -Fq '_b64url_char(' lib/std/encoding/base64.oren ||
+  grep -Fq 'fn _input_byte(input_view, idx)' lib/std/encoding/base64.oren ||
   ! grep -Fq 'encode list_int value' tests/modules/test_base64.oren ||
   ! grep -Fq 'base64url list_int alphabet' tests/modules/test_base64.oren; then
-  echo "ERROR: Base64 encode must cache alphabet tables and cover LIST_INT byte carriers" >&2
+  echo "ERROR: Base64 encode must cache alphabet/input pointers and cover LIST_INT byte carriers" >&2
   exit 1
 fi
 
