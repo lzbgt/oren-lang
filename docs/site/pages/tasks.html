@@ -1504,8 +1504,8 @@
 <p>     through <code>oren_memcpy</code> after validation;</p>
 <p>	     Base64/Base64URL</p>
 <p>			     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
-<p>			     directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths, and little-endian</p>
-<p>			     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, Metal batched image rects validate local draw/source</p>
+<p>				     directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths, and little-endian</p>
+<p>				     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, software rasterization reads geometry/text/image payload fields through hoisted shared byte-view backing pointers, Metal batched image rects validate local draw/source</p>
 <p>				     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D</p>
 <p>				     draws skip sort/color work when clipping leaves no visible triangles, fully transparent Metal draw-only opcodes</p>
 <p>				     skip vertex/texture/text-cache work, and Metal/CoreGraphics zero-area</p>

@@ -905,6 +905,19 @@ if grep -q 'fn _read_byte\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/raster.o
     echo "ERROR: std:ui/raster hot loops must use shared std:bytes view readers directly" >&2
   exit 1
 fi
+raster_impl="$(cat lib/std/ui/raster.oren)"
+if ! grep -Fq 'var tris_data = bytes.view_bytes(trisp)' <<<"$raster_impl" ||
+  ! grep -Fq 'var data_ptr = bytes.view_ptr(datap)' <<<"$raster_impl" ||
+  ! grep -Fq 'var rects_ptr = bytes.view_ptr(rectsp)' <<<"$raster_impl" ||
+  ! grep -Fq 'var tx1 = bytes.view_get_i32_le_from(tris_data, tris_ptr, off)' <<<"$raster_impl" ||
+  ! grep -Fq 'var px = bytes.view_get_u32_le_from(positions_data, positions_ptr, poff)' <<<"$raster_impl" ||
+  ! grep -Fq 'var br = bytes.view_get_u8_from(bdata_data, bdata_ptr, bsi)' <<<"$raster_impl" ||
+  grep -Fq 'bytes.view_get_u8_unchecked(' <<<"$raster_impl" ||
+  grep -Fq 'bytes.view_get_u32_le_unchecked(' <<<"$raster_impl" ||
+  grep -Fq 'bytes.view_get_i32_le_unchecked(' <<<"$raster_impl"; then
+    echo "ERROR: std:ui/raster must hoist byte-view backing storage for hot fixed-width and pixel reads" >&2
+    exit 1
+fi
 
 if grep -q 'fn _read_event_u8\|fn _read_u16_le\|fn _read_u32_le\|fn _read_u64_le' lib/std/ui/avm.oren; then
   echo "ERROR: std:ui/avm event decode must use shared std:bytes view readers directly" >&2

@@ -2728,8 +2728,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,
 						  and decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
 		  directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths,
-		  and little-endian payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers while software rasterization reads those payload
-	  fields through shared unchecked byte-view readers, PPM header/body output, Scene3D binary
+		  and little-endian payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers while software rasterization reads geometry/text/image payload
+	  fields through hoisted shared byte-view backing pointers, PPM header/body output, Scene3D binary
 	  package magic/header/table reads and payload slices through the shared
 	  checked byte view, runtime-object cache metadata check fields read through
 	  shared compiler byte-view readers, PPM RGBA input reads hoist the validated
