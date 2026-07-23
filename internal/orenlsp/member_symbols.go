@@ -330,6 +330,7 @@ func collectInferredTypesUntil(stmt ast.Statement, pos position, env memberTypeE
 	case *ast.SetStatement:
 		collectInferredExpressionTypesUntil(stmt.Left, pos, env, stack, text)
 		collectInferredExpressionTypesUntil(stmt.Value, pos, env, stack, text)
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.WhileStatement:
 		collectInferredExpressionTypesUntil(stmt.Condition, pos, env, stack, text)
 		collectInferredBlockTypesUntil(stmt.Body, pos, env, stack, text)
@@ -624,6 +625,7 @@ func collectTypedMemberStatement(stmt ast.Statement, uri string, env memberTypeE
 	case *ast.SetStatement:
 		collectTypedMemberExpression(stmt.Left, uri, env, stack, index)
 		collectTypedMemberExpression(stmt.Value, uri, env, stack, index)
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.WhileStatement:
 		collectTypedMemberExpression(stmt.Condition, uri, env, stack, index)
 		collectTypedMemberBlock(stmt.Body, uri, env, stack, index)
@@ -1357,48 +1359,66 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	if !validMemberIdentifier(ident) || len(stack) == 0 {
 		return
 	}
+	setInferredPathExpression(ident.Value, expr, env, stack)
+}
+
+func setInferredMemberExpression(left ast.Expression, expr ast.Expression, env memberTypeEnv, stack []map[string]string) {
+	if len(stack) == 0 {
+		return
+	}
+	path := memberExpressionPath(left)
+	if path == "" {
+		return
+	}
+	setInferredPathExpression(path, expr, env, stack)
+}
+
+func setInferredPathExpression(path string, expr ast.Expression, env memberTypeEnv, stack []map[string]string) {
+	if path == "" || len(stack) == 0 {
+		return
+	}
 	typeName := inferExpressionType(expr, env, stack)
-	setInferredNameType(ident.Value, typeName, stack)
-	clearInferredFieldTypes(ident.Value, stack[len(stack)-1])
-	clearInferredElementFieldTypes(ident.Value, stack[len(stack)-1])
-	clearInferredMapValueFieldTypes(ident.Value, stack[len(stack)-1])
-	clearInferredElementElementFieldTypes(ident.Value, stack[len(stack)-1])
-	clearInferredMapValueMapValueFieldTypes(ident.Value, stack[len(stack)-1])
-	clearInferredElementMapValueFieldTypes(ident.Value, stack[len(stack)-1])
-	clearInferredMapValueElementFieldTypes(ident.Value, stack[len(stack)-1])
+	setInferredNameType(path, typeName, stack)
+	clearInferredFieldTypes(path, stack[len(stack)-1])
+	clearInferredElementFieldTypes(path, stack[len(stack)-1])
+	clearInferredMapValueFieldTypes(path, stack[len(stack)-1])
+	clearInferredElementElementFieldTypes(path, stack[len(stack)-1])
+	clearInferredMapValueMapValueFieldTypes(path, stack[len(stack)-1])
+	clearInferredElementMapValueFieldTypes(path, stack[len(stack)-1])
+	clearInferredMapValueElementFieldTypes(path, stack[len(stack)-1])
 	if typeName == "" {
 		return
 	}
 	if sourcePath := memberExpressionPath(expr); sourcePath != "" {
-		copyInferredFieldTypes(ident.Value, sourcePath, stack)
-		copyInferredElementFieldTypes(ident.Value, sourcePath, stack)
-		copyInferredMapValueFieldTypes(ident.Value, sourcePath, stack)
-		copyInferredElementElementFieldTypes(ident.Value, sourcePath, stack)
-		copyInferredMapValueMapValueFieldTypes(ident.Value, sourcePath, stack)
-		copyInferredElementMapValueFieldTypes(ident.Value, sourcePath, stack)
-		copyInferredMapValueElementFieldTypes(ident.Value, sourcePath, stack)
+		copyInferredFieldTypes(path, sourcePath, stack)
+		copyInferredElementFieldTypes(path, sourcePath, stack)
+		copyInferredMapValueFieldTypes(path, sourcePath, stack)
+		copyInferredElementElementFieldTypes(path, sourcePath, stack)
+		copyInferredMapValueMapValueFieldTypes(path, sourcePath, stack)
+		copyInferredElementMapValueFieldTypes(path, sourcePath, stack)
+		copyInferredMapValueElementFieldTypes(path, sourcePath, stack)
 		return
 	}
 	if fields := inferExpressionFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredFieldTypes(path, fields, stack[len(stack)-1])
 	}
 	if fields := inferIterableElementFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredElementFieldTypes(path, fields, stack[len(stack)-1])
 	}
 	if fields := inferMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredMapValueFieldTypes(path, fields, stack[len(stack)-1])
 	}
 	if fields := inferIterableElementElementFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredElementElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredElementElementFieldTypes(path, fields, stack[len(stack)-1])
 	}
 	if fields := inferMapValueMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredMapValueMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredMapValueMapValueFieldTypes(path, fields, stack[len(stack)-1])
 	}
 	if fields := inferIterableElementMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredElementMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredElementMapValueFieldTypes(path, fields, stack[len(stack)-1])
 	}
 	if fields := inferMapValueElementFieldTypes(expr, env, stack); len(fields) != 0 {
-		setInferredMapValueElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
+		setInferredMapValueElementFieldTypes(path, fields, stack[len(stack)-1])
 	}
-	setInferredConstructorFieldContainerTypes(ident.Value, expr, env, stack, stack[len(stack)-1])
+	setInferredConstructorFieldContainerTypes(path, expr, env, stack, stack[len(stack)-1])
 }
