@@ -435,6 +435,14 @@ OrenAVMGfxMeshResource* OrenAVMGfxRetainedMeshResource(CFDictionaryRef meshes, u
     return (__bridge OrenAVMGfxMeshResource*)CFDictionaryGetValue(meshes, OrenAVMGfxRetainedMeshKey(meshID));
 }
 
+static BOOL OrenAVMGfxTriangleOrderAppend(OrenAVMGfxTriangleOrder** order,
+                                          OrenAVMGfxTriangleOrder* inlineOrder,
+                                          uint32_t* capacity,
+                                          OrenAVMGfxTriangleOrder** heapStorage,
+                                          uint32_t* count,
+                                          uint32_t triangle,
+                                          int64_t zsum);
+
 static BOOL OrenAVMGfxEnsureRetainedResourceMap(CFMutableDictionaryRef* map) {
     if (!map) return NO;
     if (!*map) *map = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
@@ -608,17 +616,17 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
     }
     if (verts && idx && scaleMilli != 0 && triangleCount == mesh.indexBytes / 12u && mesh.vertexBytes % 12u == 0) {
         OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity];
+        OrenAVMGfxTriangleOrder* order = inlineOrder;
         OrenAVMGfxTriangleOrder* heapOrder = NULL;
-        OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount,
-                                                                       inlineOrder,
-                                                                       OrenAVMGfxInlineTriangleOrderCapacity,
-                                                                       &heapOrder);
-        if (!order) return;
+        uint32_t orderCapacity = OrenAVMGfxInlineTriangleOrderCapacity;
         uint32_t visibleCount = 0;
         for (uint32_t ti = 0; ti < triangleCount; ti++) {
             int64_t z = OrenAVMGfxMesh3DIndexedZSumModel(verts, idx, ti, modelZ, scaleMilli);
             if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-            order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
+            if (!OrenAVMGfxTriangleOrderAppend(&order, inlineOrder, &orderCapacity, &heapOrder, &visibleCount, ti, z)) {
+                free(heapOrder);
+                return;
+            }
         }
         OrenAVMGfxSortTriangleOrder(order, visibleCount);
         OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
@@ -643,17 +651,17 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
         free(heapOrder);
     } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && triangleCount == mesh.triangleBytes / meshStride) {
         OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity];
+        OrenAVMGfxTriangleOrder* order = inlineOrder;
         OrenAVMGfxTriangleOrder* heapOrder = NULL;
-        OrenAVMGfxTriangleOrder* order = OrenAVMGfxTriangleOrderBuffer(triangleCount,
-                                                                       inlineOrder,
-                                                                       OrenAVMGfxInlineTriangleOrderCapacity,
-                                                                       &heapOrder);
-        if (!order) return;
+        uint32_t orderCapacity = OrenAVMGfxInlineTriangleOrderCapacity;
         uint32_t visibleCount = 0;
         for (uint32_t ti = 0; ti < triangleCount; ti++) {
             int64_t z = OrenAVMGfxMesh3DZSumModel(tris + ((size_t)ti * meshStride), modelZ, scaleMilli);
             if (!OrenAVMGfxMesh3DZVisible(z, depthEnabled, nearZ, farZ)) continue;
-            order[visibleCount++] = (OrenAVMGfxTriangleOrder){ti, z};
+            if (!OrenAVMGfxTriangleOrderAppend(&order, inlineOrder, &orderCapacity, &heapOrder, &visibleCount, ti, z)) {
+                free(heapOrder);
+                return;
+            }
         }
         OrenAVMGfxSortTriangleOrder(order, visibleCount);
         if (hasMaterialRGBA || !mesh.hasRGBA) OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
@@ -908,22 +916,47 @@ static int OrenAVMGfxTriangleOrderCompare(const void* left, const void* right) {
     return 0;
 }
 
-OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount,
-                                                       OrenAVMGfxTriangleOrder* inlineOrder,
-                                                       uint32_t inlineCapacity,
-                                                       OrenAVMGfxTriangleOrder** heapStorage) {
-    if (heapStorage) *heapStorage = NULL;
-    if (triangleCount == 0) return NULL;
-    if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder;
-    if (!heapStorage || (NSUInteger)triangleCount > NSUIntegerMax / sizeof(OrenAVMGfxTriangleOrder)) return NULL;
-    OrenAVMGfxTriangleOrder* bytes = (OrenAVMGfxTriangleOrder*)malloc((NSUInteger)triangleCount * sizeof(OrenAVMGfxTriangleOrder));
-    if (!bytes) return NULL;
-    *heapStorage = bytes;
-    return bytes;
-}
-
 void OrenAVMGfxSortTriangleOrder(OrenAVMGfxTriangleOrder* order, uint32_t count) {
     if (count > 1) qsort(order, count, sizeof(OrenAVMGfxTriangleOrder), OrenAVMGfxTriangleOrderCompare);
+}
+
+static BOOL OrenAVMGfxTriangleOrderAppend(OrenAVMGfxTriangleOrder** order,
+                                          OrenAVMGfxTriangleOrder* inlineOrder,
+                                          uint32_t* capacity,
+                                          OrenAVMGfxTriangleOrder** heapStorage,
+                                          uint32_t* count,
+                                          uint32_t triangle,
+                                          int64_t zsum) {
+    if (!order || !*order || !capacity || !heapStorage || !count || *count == UINT32_MAX) return NO;
+    if (*count >= *capacity) {
+        uint32_t oldCapacity = *capacity;
+        uint32_t needed = *count + 1u;
+        uint32_t newCapacity = oldCapacity > 0 ? oldCapacity : 1u;
+        while (newCapacity < needed) {
+            if (newCapacity > UINT32_MAX / 2u) {
+                newCapacity = needed;
+                break;
+            }
+            newCapacity *= 2u;
+        }
+        if ((NSUInteger)newCapacity > NSUIntegerMax / sizeof(OrenAVMGfxTriangleOrder)) return NO;
+        OrenAVMGfxTriangleOrder* grown = NULL;
+        if (*heapStorage) {
+            grown = (OrenAVMGfxTriangleOrder*)realloc(*heapStorage, (NSUInteger)newCapacity * sizeof(OrenAVMGfxTriangleOrder));
+        } else {
+            grown = (OrenAVMGfxTriangleOrder*)malloc((NSUInteger)newCapacity * sizeof(OrenAVMGfxTriangleOrder));
+            if (grown && inlineOrder && *count != 0) {
+                memcpy(grown, inlineOrder, (NSUInteger)*count * sizeof(OrenAVMGfxTriangleOrder));
+            }
+        }
+        if (!grown) return NO;
+        *heapStorage = grown;
+        *order = grown;
+        *capacity = newCapacity;
+    }
+    (*order)[*count] = (OrenAVMGfxTriangleOrder){triangle, zsum};
+    *count += 1u;
+    return YES;
 }
 
 int64_t OrenAVMGfxMesh3DIndexedZSumModel(const uint8_t* vertices,

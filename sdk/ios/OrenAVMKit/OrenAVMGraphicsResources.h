@@ -171,10 +171,6 @@ void OrenAVMGfxRemoveModelResource(CFMutableDictionaryRef models, uint32_t model
 uint8_t* OrenAVMGfxCopyPayloadBytes(const uint8_t* src, NSUInteger len);
 int64_t OrenAVMGfxMesh3DZSumModel(const uint8_t* tri, int32_t offset, uint32_t scaleMilli);
 BOOL OrenAVMGfxMesh3DZVisible(int64_t zsum, BOOL depthEnabled, int32_t nearZ, int32_t farZ);
-OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount,
-                                                       OrenAVMGfxTriangleOrder* inlineOrder,
-                                                       uint32_t inlineCapacity,
-                                                       OrenAVMGfxTriangleOrder** heapStorage);
 void OrenAVMGfxSortTriangleOrder(OrenAVMGfxTriangleOrder* order, uint32_t count);
 int64_t OrenAVMGfxMesh3DIndexedZSumModel(const uint8_t* vertices,
                                          const uint8_t* indices,

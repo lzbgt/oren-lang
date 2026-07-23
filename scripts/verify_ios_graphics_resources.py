@@ -62,7 +62,7 @@ def main() -> int:
         "OrenAVMGfxPutModelResource",
         "OrenAVMGfxRemoveModelResource",
         "OrenAVMGfxCopyPayloadBytes",
-        "OrenAVMGfxTriangleOrderBuffer",
+        "OrenAVMGfxTriangleOrderAppend",
         "OrenAVMGfxSortTriangleOrder",
         "OrenAVMGfxMesh3DIndexedZSumModel",
         "OrenAVMGfxMesh3DModelCoord",

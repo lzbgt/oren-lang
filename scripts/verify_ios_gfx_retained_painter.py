@@ -36,7 +36,7 @@ def main() -> int:
     text = view_text + "\n" + frame_text + "\n" + geometry_text + "\n" + resource_text
     required = [
         "OrenAVMGfxTriangleOrder",
-        "OrenAVMGfxTriangleOrderBuffer",
+        "OrenAVMGfxTriangleOrderAppend",
         "OrenAVMGfxSortTriangleOrder",
     ]
     for token in required:
@@ -48,16 +48,18 @@ def main() -> int:
         fail("expected sorted order path for indexed and packed retained 3D meshes")
     if "OrenAVMGfxInlineTriangleOrderCapacity = 128" not in text:
         fail("CoreGraphics retained 3D triangle ordering must have a small stack buffer")
-    if "OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer(uint32_t triangleCount," not in resource_text:
-        fail("CoreGraphics retained 3D triangle ordering helper must live in OrenAVMGraphicsResources")
-    if "if (inlineOrder && triangleCount <= inlineCapacity) return inlineOrder" not in resource_text:
-        fail("CoreGraphics retained 3D triangle ordering must try inline storage before heap storage")
+    if "static BOOL OrenAVMGfxTriangleOrderAppend" not in resource_text:
+        fail("CoreGraphics retained 3D triangle ordering helper must append visible triangles in OrenAVMGraphicsResources")
+    if "OrenAVMGfxTriangleOrderBuffer(triangleCount" in text:
+        fail("CoreGraphics retained 3D triangle ordering must not allocate order storage for fully clipped triangles")
     if text.count("OrenAVMGfxTriangleOrder inlineOrder[OrenAVMGfxInlineTriangleOrderCapacity]") < 2:
         fail("CoreGraphics retained 3D draw paths must pass stack triangle-order buffers")
     if "NSMutableData* orderData" in text or "dataWithLength:(NSUInteger)triangleCount * sizeof(OrenAVMGfxTriangleOrder)" in text:
         fail("CoreGraphics retained 3D triangle ordering must not use NSMutableData heap fallbacks")
     if "OrenAVMGfxTriangleOrder* heapOrder = NULL" not in text or "free(heapOrder)" not in text:
         fail("CoreGraphics retained 3D triangle ordering must free raw heap fallbacks")
+    if "order[visibleCount++] = (OrenAVMGfxTriangleOrder)" in text:
+        fail("CoreGraphics retained 3D draw paths must grow order storage as visible triangles are appended")
     if "@interface OrenAVMGfxMeshResource" not in text:
         fail("CoreGraphics retained meshes must use typed resource objects")
     if "static UIColor* OrenAVMGfxColor(const uint8_t* rgba)" in text:

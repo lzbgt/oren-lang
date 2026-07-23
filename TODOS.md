@@ -2658,8 +2658,8 @@ design evidence lives under `project-doc/`.
   compact visible-triangle order buffer for indexed and packed 3D meshes,
   removing per-triangle `NSNumber`/`NSMutableSet` allocations and repeated
   full rescans from the CoreGraphics fallback path; it also uses stack order
-  storage for small retained 3D draws and raw heap order buffers for larger
-  draws.
+  storage for small retained 3D draws and grows raw heap order storage only
+  when visible triangles exceed that inline buffer.
 - `make verify-libavm-ios` now guards the CoreGraphics retained-3D fallback
   against regressing to boxed set-based painter tracking or Objective-C data
   wrappers for large order buffers.

@@ -213,10 +213,11 @@
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>
 <p>  triangle, vertex, and index copy results into retained resources.</p>
 <ul>
-<li>Metal retained 3D mesh draws now build painter-depth order arrays only from</li>
+<li>CoreGraphics and Metal retained 3D mesh draws now build painter-depth order</li>
 </ul>
-<p>  visible triangles, staying inline for small visible spans and growing raw heap</p>
-<p>  storage geometrically only when the visible output exceeds the stack buffer.</p>
+<p>  arrays only from visible triangles, staying inline for small visible spans and</p>
+<p>  growing raw heap storage geometrically only when visible output exceeds the</p>
+<p>  stack buffer.</p>
 <ul>
 <li><code>std:bytes.copy_into</code> now routes validated non-overlapping <code>u8_buf</code> spans</li>
 </ul>
