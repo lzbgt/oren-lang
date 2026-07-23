@@ -2658,7 +2658,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   receive-call prefix scratch buffer, unmasked frame sends stream raw payload spans after a
 	  compact header, masked client sends stream fixed-size masked chunks instead
 	  of allocating full payload-sized frames, byte-native WebSocket ping/pong/close helpers
-	  send bounded `u8_buf` control payloads directly, native binary WebSocket sends validate
+	  send bounded `u8_buf` control payloads directly and WSS loopback coverage exercises byte ping/pong over TLS, native binary WebSocket sends validate
 	  positive-length source backing storage, receive-side fragmented text/binary
 	  frames use scratch/accumulator storage until producing bounded exact-size
 	  `u8_buf` output, unfragmented binary receives expose opcode-2 payloads

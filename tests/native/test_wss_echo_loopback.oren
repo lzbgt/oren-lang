@@ -54,6 +54,78 @@ fn u16be_at(p, off) {
     return (hi << 8) | lo
 }
 
+fn _control_payload4(a, b, c, d) {
+    var p = oren_u8_buf_new_uninit(4)
+    if oren_is_err(p) { return p }
+    var raw = native_buf_data_ptr(p)
+    if raw == 0 { return oren_err(4, "wss_loopback: control payload ptr nil") }
+    ptr_set_byte(raw + 0, a & 255)
+    ptr_set_byte(raw + 1, b & 255)
+    ptr_set_byte(raw + 2, c & 255)
+    ptr_set_byte(raw + 3, d & 255)
+    return p
+}
+
+fn _client_exchange(conn) {
+    var prc = ws.send_ping_client(conn, "hi", 5000)
+    if prc < 0 {
+        ws.close(conn)
+        return 20
+    }
+
+    var ping_bytes = _control_payload4(0, 255, 1, 254)
+    if oren_is_err(ping_bytes) {
+        print("wss_loopback: FAIL ping bytes: " + oren_err_msg(ping_bytes))
+        ws.close(conn)
+        return 24
+    }
+    var pbrc = ws.send_ping_bytes_client(conn, ping_bytes, 5000)
+    if pbrc < 0 {
+        print("wss_loopback: FAIL send_ping_bytes_client (rc=" + oren_int_to_string(pbrc) + ")")
+        ws.close(conn)
+        return 25
+    }
+
+    var pong_bytes = _control_payload4(3, 252, 4, 251)
+    if oren_is_err(pong_bytes) {
+        print("wss_loopback: FAIL pong bytes: " + oren_err_msg(pong_bytes))
+        ws.close(conn)
+        return 26
+    }
+    var porrc = ws.send_pong_bytes_client(conn, pong_bytes, 5000)
+    if porrc < 0 {
+        print("wss_loopback: FAIL send_pong_bytes_client (rc=" + oren_int_to_string(porrc) + ")")
+        ws.close(conn)
+        return 27
+    }
+
+    var text = "PING"
+    var wr = ws.send_text_client(conn, text, 5000)
+    if wr < 0 {
+        ws.close(conn)
+        return 21
+    }
+
+    var rr = ws.recv_text(conn, 5000)
+    if oren_map_get_str(rr, "ok") != 1 {
+        var errv2 = oren_map_get_str(rr, "err")
+        if errv2 != 0 { print("wss_loopback: FAIL recv_text: " + oren_intern_cstr(errv2)) }
+        ws.close(conn)
+        return 22
+    }
+    var body = oren_map_get_str(rr, "v")
+    if body == 0 || strcmp(body, "PING") != 0 {
+        if body != 0 { print("wss_loopback: FAIL body mismatch: " + body) }
+        if body != 0 { free(body) }
+        ws.close(conn)
+        return 23
+    }
+    free(body)
+
+    ws.close(conn)
+    return 0
+}
+
 @cfg(not_os="macos,linux,windows")
 fn main() {
     // WSS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/DESIGN.md#tls-provider-availability.
@@ -155,23 +227,8 @@ fn main_client() {
     var conn = c
     if conn == 0 { exit(9) }
 
-    var prc = ws.send_ping_client(conn, "hi", 5000)
-    if prc < 0 { ws.close(conn); exit(20) }
-
-    var text = "PING"
-    var wr = ws.send_text_client(conn, text, 5000)
-    if wr < 0 { ws.close(conn); exit(21) }
-
-    var rr = ws.recv_text(conn, 5000)
-    if oren_map_get_str(rr, "ok") != 1 { ws.close(conn); exit(22) }
-    var body = oren_map_get_str(rr, "v")
-    if body == 0 || strcmp(body, "PING") != 0 {
-        if body != 0 { free(body) }
-        ws.close(conn)
-        exit(23)
-    }
-    free(body)
-    ws.close(conn)
+    var erc = _client_exchange(conn)
+    if erc != 0 { exit(erc) }
 
     var status_ptr = malloc(8)
     if status_ptr == 0 { exit(40) }
@@ -250,23 +307,8 @@ fn main_client() {
     var conn = c
     if conn == 0 { exit(9) }
 
-    var prc = ws.send_ping_client(conn, "hi", 5000)
-    if prc < 0 { ws.close(conn); exit(20) }
-
-    var text = "PING"
-    var wr = ws.send_text_client(conn, text, 5000)
-    if wr < 0 { ws.close(conn); exit(21) }
-
-    var rr = ws.recv_text(conn, 5000)
-    if oren_map_get_str(rr, "ok") != 1 { ws.close(conn); exit(22) }
-    var body = oren_map_get_str(rr, "v")
-    if body == 0 || strcmp(body, "PING") != 0 {
-        if body != 0 { free(body) }
-        ws.close(conn)
-        exit(23)
-    }
-    free(body)
-    ws.close(conn)
+    var erc = _client_exchange(conn)
+    if erc != 0 { exit(erc) }
 
     var status_ptr = malloc(8)
     if status_ptr == 0 { exit(40) }
@@ -293,38 +335,7 @@ fn _wss_client_impl(port, expected_leaf_sha256_hex) {
     var conn = c
     if conn == 0 { return 9 }
 
-    var prc = ws.send_ping_client(conn, "hi", 5000)
-    if prc < 0 {
-        print("wss_loopback: FAIL ping (rc=" + oren_int_to_string(prc) + ")")
-        ws.close(conn)
-        return 20
-    }
-
-    var text = "PING"
-    var wr = ws.send_text_client(conn, text, 5000)
-    if wr < 0 {
-        print("wss_loopback: FAIL send_text (rc=" + oren_int_to_string(wr) + ")")
-        ws.close(conn)
-        return 21
-    }
-
-    var rr = ws.recv_text(conn, 5000)
-    if oren_map_get_str(rr, "ok") != 1 {
-        var errv2 = oren_map_get_str(rr, "err")
-        if errv2 != 0 { print("wss_loopback: FAIL recv_text: " + oren_intern_cstr(errv2)) }
-        ws.close(conn)
-        return 22
-    }
-    var body = oren_map_get_str(rr, "v")
-    if body == 0 || strcmp(body, "PING") != 0 {
-        if body != 0 { print("wss_loopback: FAIL body mismatch: " + body) }
-        if body != 0 { free(body) }
-        ws.close(conn)
-        return 23
-    }
-    free(body)
-    ws.close(conn)
-    return 0
+    return _client_exchange(conn)
 }
 
 @cfg(os="windows")

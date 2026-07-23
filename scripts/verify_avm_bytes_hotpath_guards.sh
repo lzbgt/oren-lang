@@ -573,6 +573,12 @@ if ! grep -Fq 'fn _send_fragmented_text_client(conn, text, n, timeout_ms)' tests
   echo "ERROR: native WebSocket loopback must exercise byte-native binary frames larger than the fixed 4096-byte masked chunk" >&2
   exit 1
 fi
+if ! grep -Fq 'fn _client_exchange(conn)' tests/native/test_wss_echo_loopback.oren ||
+  ! grep -Fq 'var pbrc = ws.send_ping_bytes_client(conn, ping_bytes, 5000)' tests/native/test_wss_echo_loopback.oren ||
+  ! grep -Fq 'var porrc = ws.send_pong_bytes_client(conn, pong_bytes, 5000)' tests/native/test_wss_echo_loopback.oren; then
+  echo "ERROR: native WSS loopback must exercise byte-native ping/pong control payloads over TLS" >&2
+  exit 1
+fi
 ios_ws_impl="$(sed -n '/static int OrenAVMRuntimeWebSocketWriteFrame/,/static int OrenAVMRuntimeWebSocketReadPayload/p' sdk/ios/OrenAVMKit/OrenAVMKit.m)"
 if ! grep -Fq 'avm_embed_set_net_session_write_typed_callback(_handle, OrenAVMRuntimeNetSessionWriteTyped' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
   ! grep -Fq 'uint8_t opcode = payloadKind == AVM_NET_SESSION_PAYLOAD_BYTES ? 2u : 1u' sdk/ios/OrenAVMKit/OrenAVMKit.m ||
