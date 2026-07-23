@@ -39,6 +39,11 @@ if bytes.len(rb) != 4 { fail(13) }
 if bytes.get_u8(rb, 0) != 1 { fail(14) }
 if bytes.get_u8(rb, 3) != 255 { fail(15) }
 
+var rb_alias = fs.read_bytes(bytes_path)
+if oren_is_err(rb_alias) { fail(43) }
+if oren_is_u8_buf(rb_alias) != true { fail(44) }
+if bytes.len(rb_alias) != 4 || bytes.get_u8(rb_alias, 1) != 2 { fail(45) }
+
 var legacy = fs.read_byte_list(bytes_path)
 if oren_is_err(legacy) { fail(16) }
 if oren_list_len(legacy) != 4 { fail(17) }
@@ -63,6 +68,10 @@ if oren_is_err(wb2) { fail(35) }
 var rb2 = fs.read_u8_buf_under(root, ["std_fs_under.bin"])
 if oren_is_err(rb2) { fail(36) }
 if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(37) }
+var rb2_alias = fs.read_bytes_under(root, ["std_fs_under.bin"])
+if oren_is_err(rb2_alias) { fail(46) }
+if oren_is_u8_buf(rb2_alias) != true { fail(47) }
+if bytes.len(rb2_alias) != 4 || bytes.get_u8(rb2_alias, 0) != 1 { fail(48) }
 var legacy2 = fs.read_byte_list_under(root, ["std_fs_under.bin"])
 if oren_is_err(legacy2) { fail(38) }
 if oren_list_len(legacy2) != 4 || legacy2[0] != 1 { fail(39) }

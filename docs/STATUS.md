@@ -2473,7 +2473,8 @@ fixture also validates in-memory VFS binary reads through `oren_read_u8_buf`
 instead of the legacy list bridge. Native capsule FS read/mount fixtures now
 validate binary reads through `oren_read_u8_buf`, preserving FS policy coverage
 without boxing bytes. `std:fs` now exposes explicit `read_u8_buf` and
-`read_u8_buf_under` facades for new byte-buffer callers while keeping
+`read_u8_buf_under` facades for new byte-buffer callers, keeps `read_bytes` and
+`read_bytes_under` as guarded byte-native aliases over those facades, and keeps
 `read_byte_list` as the legacy list ABI. Legacy native `oren_read_bytes` still
 exists for explicit compatibility callers, but it now fills a stat-sized native
 `LIST_INT` directly from 1 MiB read chunks instead of per-byte

@@ -737,10 +737,25 @@ if ! grep -Fq 'args[1].type == AVM_VAL_LIST_INT' <<<"$vfs_write_bytes_domain_imp
   exit 1
 fi
 
-if ! grep -q 'fn read_u8_buf(path)' lib/std/fs.oren || grep -q 'var rb = fs.read_bytes\|var rb2 = fs.read_bytes_under' \
-  tests/modules/test_fs_std.oren \
+if ! grep -q 'fn read_u8_buf(path)' lib/std/fs.oren || ! grep -q 'var rb = fs.read_u8_buf' \
+  tests/modules/test_fs_std.oren || ! grep -q 'var rb = fs.read_u8_buf' \
   tests/avm/test_std_fs_vfs.oren; then
-  echo "ERROR: std:fs byte-buffer fixtures must use the explicit read_u8_buf facade" >&2
+  echo "ERROR: std:fs byte-buffer fixtures must keep explicit read_u8_buf facade coverage" >&2
+  exit 1
+fi
+
+std_fs_read_bytes_impl="$(sed -n '/fn read_bytes(path)/,/fn read_bytes_under/p' lib/std/fs.oren)"
+std_fs_read_bytes_under_impl="$(sed -n '/fn read_bytes_under(root, parts)/,/fn read_byte_list(path)/p' lib/std/fs.oren)"
+if ! grep -Fq 'return read_u8_buf(path)' <<<"$std_fs_read_bytes_impl" ||
+  grep -Fq 'return read_byte_list(path)' <<<"$std_fs_read_bytes_impl" ||
+  grep -Fq 'return oren_read_bytes(path)' <<<"$std_fs_read_bytes_impl" ||
+  ! grep -Fq 'return read_bytes(p)' <<<"$std_fs_read_bytes_under_impl" ||
+  grep -Fq 'return read_byte_list(p)' <<<"$std_fs_read_bytes_under_impl" ||
+  ! grep -Fq 'var rb_alias = fs.read_bytes(bytes_path)' tests/modules/test_fs_std.oren ||
+  ! grep -Fq 'var rb2_alias = fs.read_bytes_under(root, ["std_fs_under.bin"])' tests/modules/test_fs_std.oren ||
+  ! grep -Fq 'var rb_alias = fs.read_bytes("v/dir/data.bin")' tests/avm/test_std_fs_vfs.oren ||
+  ! grep -Fq 'var rb2_alias = fs.read_bytes_under("v/dir", ["under.bin"])' tests/avm/test_std_fs_vfs.oren; then
+  echo "ERROR: std:fs read_bytes aliases must stay byte-native u8_buf wrappers with native and AVM carrier coverage" >&2
   exit 1
 fi
 

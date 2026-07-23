@@ -36,6 +36,10 @@ fn main() {
     if bytes.len(rb) != 4 { fail(13) }
     if bytes.get_u8(rb, 0) != 7 { fail(14) }
     if bytes.get_u8(rb, 3) != 255 { fail(15) }
+    var rb_alias = fs.read_bytes("v/dir/data.bin")
+    if oren_is_err(rb_alias) { fail(25) }
+    if oren_is_u8_buf(rb_alias) != true { fail(26) }
+    if bytes.len(rb_alias) != 4 || bytes.get_u8(rb_alias, 1) != 8 { fail(27) }
     if !oren_is_err(fs.write_bytes("v/dir/data.bin", [1, 999])) { fail(16) }
     var rb_after_bad = fs.read_u8_buf("v/dir/data.bin")
     if oren_is_err(rb_after_bad) { fail(17) }
@@ -68,6 +72,10 @@ fn main() {
     var rb2 = fs.read_u8_buf_under("v/dir", ["under.bin"])
     if oren_is_err(rb2) { fail(46) }
     if bytes.len(rb2) != 4 || bytes.get_u8(rb2, 3) != 255 { fail(47) }
+    var rb2_alias = fs.read_bytes_under("v/dir", ["under.bin"])
+    if oren_is_err(rb2_alias) { fail(50) }
+    if oren_is_u8_buf(rb2_alias) != true { fail(51) }
+    if bytes.len(rb2_alias) != 4 || bytes.get_u8(rb2_alias, 0) != 7 { fail(52) }
     var legacy2 = fs.read_byte_list_under("v/dir", ["under.bin"])
     if oren_is_err(legacy2) { fail(48) }
     if oren_list_len(legacy2) != 4 || legacy2[0] != 7 { fail(49) }
