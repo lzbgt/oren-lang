@@ -657,6 +657,10 @@ fn diagonal(m) {
     return [m[0], m[5], m[10], m[15]]
 }
 
+fn diag(m) {
+    return diagonal(m)
+}
+
 fn from_diagonal(d) {
     var ok = _check_vec4(d, "mat4.from_diagonal")
     if oren_is_err(ok) { return ok }
@@ -672,6 +676,10 @@ fn from_diagonal(d) {
     ]
 }
 
+fn from_diag(d) {
+    return from_diagonal(d)
+}
+
 fn diagonal_matrix(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "mat4.diagonal_matrix")
     if oren_is_err(ok) { return ok }
@@ -681,6 +689,37 @@ fn diagonal_matrix(x: f64, y: f64, z: f64, w: f64) {
         0.0, 0.0, z, 0.0,
         0.0, 0.0, 0.0, w
     ]
+}
+
+fn diag_matrix(x: f64, y: f64, z: f64, w: f64) {
+    return diagonal_matrix(x, y, z, w)
+}
+
+fn _with_diagonal_unchecked(m, d) {
+    return [
+        d[0], m[1], m[2], m[3],
+        m[4], d[1], m[6], m[7],
+        m[8], m[9], d[2], m[11],
+        m[12], m[13], m[14], d[3]
+    ]
+}
+
+fn with_diagonal(m, d) {
+    var ok = _check(m, "mat4.with_diagonal")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(d, "mat4.with_diagonal")
+    if oren_is_err(ok) { return ok }
+    return _with_diagonal_unchecked(m, d)
+}
+
+fn set_diagonal(m, d) {
+    return with_diagonal(m, d)
+}
+
+fn without_diagonal(m) {
+    var ok = _check(m, "mat4.without_diagonal")
+    if oren_is_err(ok) { return ok }
+    return _with_diagonal_unchecked(m, [0.0, 0.0, 0.0, 0.0])
 }
 
 fn trace(m) {
