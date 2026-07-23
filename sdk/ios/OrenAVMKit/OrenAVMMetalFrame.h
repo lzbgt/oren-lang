@@ -106,6 +106,7 @@ NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* fra
                                                                      NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
                                                                      NSUInteger runCapacity,
                                                                      OrenAVMMetalFrameBuildContext* context);
+NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns(NSArray<OrenAVMMetalVertexRun*>* runs);
 
 MTLScissorRect OrenAVMMetalClipRectToScissor(int64_t x,
                                              int64_t y,

@@ -62,6 +62,39 @@ def main() -> int:
         fail("geometry vertex runs must transfer completed buffers instead of copying them at flush")
     if "[NSMutableData dataWithCapacity:vertices.length]" in text:
         fail("geometry flush must not allocate the next mutable vertex buffer eagerly")
+    if "NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns" not in frame_header:
+        fail("Metal geometry runs must expose prepared-frame coalescing")
+    if "@property(nonatomic) NSUInteger vertexCapacity;" not in resource_text:
+        fail("Metal geometry runs must track raw vertex capacity separately from count")
+    if "run.vertexCapacity = vertexBytes;" not in frame_text:
+        fail("Metal geometry flush must seed vertex-run capacity from the transferred buffer")
+    vertex_append_start = frame_source.find("static BOOL OrenAVMMetalVertexRunAppendBytes")
+    vertex_append_end = frame_source.find("NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns", vertex_append_start)
+    if vertex_append_start < 0 or vertex_append_end < 0:
+        fail("missing Metal geometry run append helper body")
+    vertex_append_body = frame_source[vertex_append_start:vertex_append_end]
+    for token in (
+        "pending.vertexCapacity",
+        "newCapacity *= 2u",
+        "pending.vertexCapacity = newCapacity",
+    ):
+        if token not in vertex_append_body:
+            fail(f"Metal geometry append helper missing expected capacity path: {token}")
+    if "realloc(pending.vertices, needed)" in vertex_append_body:
+        fail("Metal geometry coalescing must not realloc to the exact requested size")
+    vertex_coalesce_start = frame_source.find("NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns")
+    vertex_coalesce_end = frame_source.find("BOOL OrenAVMMetalBindVertexPayload", vertex_coalesce_start)
+    if vertex_coalesce_start < 0 or vertex_coalesce_end < 0:
+        fail("missing Metal geometry run coalescing helper body")
+    vertex_coalesce_body = frame_source[vertex_coalesce_start:vertex_coalesce_end]
+    for token in (
+        "OrenAVMMetalVertexRunScissorEqual(pending, run)",
+        "OrenAVMMetalVertexRunAppendBytes(pending, run.vertices, run.vertexBytes)",
+        "pending = run;",
+        "[out addObject:pending]",
+    ):
+        if token not in vertex_coalesce_body:
+            fail(f"Metal geometry coalescing missing expected path: {token}")
     if "OrenAVMMetalVertexBuffer vertices;" not in frame_text or "OrenAVMMetalVertexBufferInit(&vertices" not in frame_text:
         fail("geometry vertex buffers must use the raw lazy vertex buffer builder")
     if "NSMutableData* vertices" in text or "NSMutableData* vertices" in geometry_text:
@@ -641,6 +674,10 @@ def main() -> int:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:
         fail("expected one prepare-frame call to the frame run-capacity helper")
+    if "NSArray<OrenAVMMetalVertexRun*>* coalescedVertexRuns = OrenAVMMetalCoalesceVertexRuns(vertexRuns)" not in text:
+        fail("Metal prepared frames must coalesce geometry runs before metrics and draw submission")
+    if "for (OrenAVMMetalVertexRun* run in coalescedVertexRuns)" not in text or "return coalescedVertexRuns" not in text:
+        fail("Metal geometry-run metrics and draw submission must use coalesced vertex runs")
     if "NSArray<OrenAVMMetalImageRun*>* coalescedImageRuns = imageRuns ? OrenAVMMetalCoalesceImageRuns(imageRuns) : @[]" not in text:
         fail("Metal prepared frames must coalesce image runs before metrics and draw submission")
     if "self.lastFrameImageRunCount = (uint32_t)coalescedImageRuns.count" not in text or "if (imageRunsOut) *imageRunsOut = coalescedImageRuns" not in text:

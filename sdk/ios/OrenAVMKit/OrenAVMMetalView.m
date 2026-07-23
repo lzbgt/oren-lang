@@ -413,10 +413,11 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
                                                                       textRuns:&textRuns
                                                                      imageRuns:&imageRuns
                                                                    runCapacity:runCapacity];
+    NSArray<OrenAVMMetalVertexRun*>* coalescedVertexRuns = OrenAVMMetalCoalesceVertexRuns(vertexRuns);
     NSArray<OrenAVMMetalImageRun*>* coalescedImageRuns = imageRuns ? OrenAVMMetalCoalesceImageRuns(imageRuns) : @[];
     NSArray<OrenAVMMetalTextRun*>* coalescedTextRuns = textRuns ? OrenAVMMetalCoalesceTextRuns(textRuns) : @[];
     uint32_t vertexCount = 0;
-    for (OrenAVMMetalVertexRun* run in vertexRuns) {
+    for (OrenAVMMetalVertexRun* run in coalescedVertexRuns) {
         vertexCount += (uint32_t)(run.vertexBytes / sizeof(OrenAVMMetalVertex));
     }
     self.lastFrameVertexCount = vertexCount;
@@ -425,7 +426,7 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
     if (clearColorOut) *clearColorOut = clearColor;
     if (imageRunsOut) *imageRunsOut = coalescedImageRuns;
     if (textRunsOut) *textRunsOut = coalescedTextRuns;
-    return vertexRuns;
+    return coalescedVertexRuns;
 }
 
 - (BOOL)prepareFrameResourcesWithError:(NSError**)error {

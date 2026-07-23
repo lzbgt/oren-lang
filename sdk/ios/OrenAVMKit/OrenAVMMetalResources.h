@@ -18,6 +18,7 @@ enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
 @interface OrenAVMMetalVertexRun : NSObject
 @property(nonatomic) uint8_t* vertices;
 @property(nonatomic) NSUInteger vertexBytes;
+@property(nonatomic) NSUInteger vertexCapacity;
 @property(nonatomic) BOOL hasScissor;
 @property(nonatomic) MTLScissorRect scissor;
 @end

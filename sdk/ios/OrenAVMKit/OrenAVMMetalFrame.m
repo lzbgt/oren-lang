@@ -424,10 +424,60 @@ void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>** runsRef
     OrenAVMMetalVertexRun* run = [[OrenAVMMetalVertexRun alloc] init];
     run.vertices = vertices;
     run.vertexBytes = vertexBytes;
+    run.vertexCapacity = vertexBytes;
     run.hasScissor = scissor.enabled;
     run.scissor = scissor.rect;
     [runs addObject:run];
     (void)continueBuilding;
+}
+
+static BOOL OrenAVMMetalVertexRunScissorEqual(OrenAVMMetalVertexRun* a, OrenAVMMetalVertexRun* b) {
+    if (!a || !b || a.hasScissor != b.hasScissor) return NO;
+    if (!a.hasScissor) return YES;
+    return a.scissor.x == b.scissor.x &&
+        a.scissor.y == b.scissor.y &&
+        a.scissor.width == b.scissor.width &&
+        a.scissor.height == b.scissor.height;
+}
+
+static BOOL OrenAVMMetalVertexRunAppendBytes(OrenAVMMetalVertexRun* pending, const uint8_t* bytes, NSUInteger length) {
+    if (!pending || !bytes || length == 0) return NO;
+    if (pending.vertexBytes > NSUIntegerMax - length) return NO;
+    NSUInteger needed = pending.vertexBytes + length;
+    if (needed > pending.vertexCapacity) {
+        NSUInteger newCapacity = pending.vertexCapacity > 0 ? pending.vertexCapacity : sizeof(OrenAVMMetalVertex) * 6u;
+        while (newCapacity < needed) {
+            if (newCapacity > NSUIntegerMax / 2u) {
+                newCapacity = needed;
+                break;
+            }
+            newCapacity *= 2u;
+        }
+        uint8_t* merged = (uint8_t*)realloc(pending.vertices, newCapacity);
+        if (!merged) return NO;
+        pending.vertices = merged;
+        pending.vertexCapacity = newCapacity;
+    }
+    memcpy(pending.vertices + pending.vertexBytes, bytes, length);
+    pending.vertexBytes = needed;
+    return YES;
+}
+
+NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns(NSArray<OrenAVMMetalVertexRun*>* runs) {
+    if (runs.count < 2) return runs ?: @[];
+    NSMutableArray<OrenAVMMetalVertexRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    OrenAVMMetalVertexRun* pending = nil;
+    for (OrenAVMMetalVertexRun* run in runs) {
+        if (!run.vertices || run.vertexBytes == 0) continue;
+        if (pending &&
+            OrenAVMMetalVertexRunScissorEqual(pending, run) &&
+            OrenAVMMetalVertexRunAppendBytes(pending, run.vertices, run.vertexBytes)) {
+            continue;
+        }
+        pending = run;
+        [out addObject:pending];
+    }
+    return out;
 }
 
 BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,

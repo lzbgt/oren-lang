@@ -3635,6 +3635,11 @@
 <p>  runs into one raw vertex span with geometric growth, cutting sprite draw calls</p>
 <p>  without losing inline storage for isolated quads.</p>
 <ul>
+<li>Metal geometry-run preparation now coalesces adjacent same-scissor raw vertex</li>
+</ul>
+<p>  spans into the first owned run, cutting geometry draw calls and transient</p>
+<p>  vertex binds with geometric growth while preserving baked vertex order.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> now guards that Metal vertex uploads keep direct</li>
 </ul>
 <p>  <code>setVertexBytes</code> usage inside the bounded helper and retain large transient</p>
