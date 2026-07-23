@@ -2685,7 +2685,10 @@
 <p>list/map core shard. Native, legacy C runtime, and AVM</p>
 <p><code>oren_sha256_range</code> now hash boxed-list/list-int inputs through bounded stack</p>
 <p>chunks filled by shared byte copy-span helpers instead of invoking the SHA update</p>
-<p>routine once per byte or rejecting optimized <code>LIST_INT</code> carriers. The iOS SDK now</p>
+<p>routine once per byte or rejecting optimized <code>LIST_INT</code> carriers, and pure Oren</p>
+<p>SHA-1/SHA-256 string hashing now shares the same internal byte-source compression</p>
+<p>path as list/u8_buf hashing instead of maintaining duplicated string-only block</p>
+<p>loops. The iOS SDK now</p>
 <p>transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte</p>
 <p>buffers directly into <code>NSData</code> ownership instead of copying bytes and freeing</p>
 <p>the original buffer; <code>OrenAVMRunResult</code> preserves immutable no-copy stdout while</p>

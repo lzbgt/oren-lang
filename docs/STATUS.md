@@ -2535,7 +2535,10 @@ entrypoints now live in `lib/runtime/044_byte_access.inc` instead of the
 list/map core shard. Native, legacy C runtime, and AVM
 `oren_sha256_range` now hash boxed-list/list-int inputs through bounded stack
 chunks filled by shared byte copy-span helpers instead of invoking the SHA update
-routine once per byte or rejecting optimized `LIST_INT` carriers. The iOS SDK now
+routine once per byte or rejecting optimized `LIST_INT` carriers, and pure Oren
+SHA-1/SHA-256 string hashing now shares the same internal byte-source compression
+path as list/u8_buf hashing instead of maintaining duplicated string-only block
+loops. The iOS SDK now
 transfers embedder-returned stdout, VFS, GFX frame, and permission-request byte
 buffers directly into `NSData` ownership instead of copying bytes and freeing
 the original buffer; `OrenAVMRunResult` preserves immutable no-copy stdout while

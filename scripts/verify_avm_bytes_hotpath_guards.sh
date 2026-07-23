@@ -433,8 +433,8 @@ fi
 
 sha1_input_view_impl="$(sed -n '/fn _input_view_or_err/,/fn _u32/p' lib/std/crypto/sha1.oren)"
 sha256_input_view_impl="$(sed -n '/fn _input_view_or_err/,/fn _u32/p' lib/std/crypto/sha256.oren)"
-sha1_u32_be_impl="$(sed -n '/fn _u32_be_at(input_view/,/fn _padded_string_byte_at/p' lib/std/crypto/sha1.oren)"
-sha256_u32_be_impl="$(sed -n '/fn _u32_be_at(input_view/,/fn _padded_string_byte_at/p' lib/std/crypto/sha256.oren)"
+sha1_u32_be_impl="$(sed -n '/fn _u32_be_at(input_view/,/fn _store_u32_be/p' lib/std/crypto/sha1.oren)"
+sha256_u32_be_impl="$(sed -n '/fn _u32_be_at(input_view/,/fn _store_u32_be/p' lib/std/crypto/sha256.oren)"
 if grep -Fq 'while i < n' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
   grep -Fq 'view_get_u8_unchecked(v, i)' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
   ! grep -Fq 'if oren_is_err(word) { return oren_err(4, "sha1.digest: expected list<int 0..255> or u8_buf") }' lib/std/crypto/sha1.oren ||
@@ -442,6 +442,18 @@ if grep -Fq 'while i < n' <<<"$sha1_input_view_impl$sha256_input_view_impl" ||
   ! grep -Fq 'if oren_is_err(b0) { return b0 }' <<<"$sha1_u32_be_impl$sha256_u32_be_impl" ||
   ! grep -Fq 'sha1_bytes bad list should return err' tests/avm/test_crypto_sha256_vectors.oren; then
   echo "ERROR: pure Oren SHA byte inputs must validate during schedule loads, not through a separate full pre-scan" >&2
+  exit 1
+fi
+if grep -Fq '_padded_string_byte_at' lib/std/crypto/sha1.oren ||
+  grep -Fq '_padded_string_byte_at' lib/std/crypto/sha256.oren ||
+  grep -Fq '_u32_be_string_at' lib/std/crypto/sha1.oren ||
+  grep -Fq '_u32_be_string_at' lib/std/crypto/sha256.oren ||
+  [[ "$(grep -Fc 'while off < total_len' lib/std/crypto/sha1.oren)" != "1" ]] ||
+  [[ "$(grep -Fc 'while off < total_len' lib/std/crypto/sha256.oren)" != "1" ]] ||
+  ! grep -Fq 'return _sha1_digest_view(input_view)' lib/std/crypto/sha1.oren ||
+  ! grep -Fq 'return _sha256_digest_view(input_view)' lib/std/crypto/sha256.oren ||
+  ! grep -Fq 'sha256 string multiblock' tests/avm/test_crypto_sha256_vectors.oren; then
+  echo "ERROR: pure Oren SHA string inputs must share the byte-source compression path without duplicate string block loops" >&2
   exit 1
 fi
 

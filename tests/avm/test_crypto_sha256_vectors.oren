@@ -77,6 +77,7 @@ fn main() {
     var multiblock = oren_bytes_from_string("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
     var got2 = sha256.sha256_hex(multiblock)
     assert_eq(got2, "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1", "sha256 multiblock")
+    assert_eq(sha256.sha256_hex_string("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"), got2, "sha256 string multiblock")
     var bad = sha256.sha256_hex(123)
     if oren_is_err(bad) != true {
         fail("sha256_hex bad input should return err")
