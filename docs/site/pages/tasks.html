@@ -1486,12 +1486,12 @@
 <p>     <code>u8_buf</code> accumulators, and PEM/Base64 body handling avoids</p>
 <p>     materializing Oren byte lists with strict PEM body concatenation through raw</p>
 <p>     exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and</p>
-<p>	     nonzero trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. <code>std:bytes</code></p>
-<p>		     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, and public signed 64-bit endian getters read <code>u8_buf</code> carriers directly after span validation.</p>
+<p>		     nonzero trailing pad bits before returning exact-size <code>u8_buf</code> decoded bytes. <code>std:bytes</code></p>
+<p>			     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, and public signed 64-bit endian getters read <code>u8_buf</code> carriers directly after span validation.</p>
 <p>		     <code>std:strings</code> prefix/suffix/search/equality</p>
 <p>			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text</p>
 <p>					     encoding through growable <code>u8_buf</code> output plus hoisted shared <code>std:bytes</code> byte-view backing pointers for byte-string encode and</p>
-<p>				     recursive/sequence decode, and full regex</p>
+<p>					     recursive/sequence decode header/additional-info reads, and full regex</p>
 <p>     pattern/text matching now use direct string</p>
 <p>     byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,</p>
 <p>     line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers</p>

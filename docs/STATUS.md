@@ -2685,12 +2685,12 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   shared checked byte views with hoisted backing pointers for non-contiguous view/matrix fallbacks, while contiguous
   slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
-			  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
-				  now exposes shared checked byte views plus explicit unchecked hot-loop
-					  u8/u16/u32/i32/u64 little-endian and u16/u32/u64 big-endian readers,
-				  CBOR canonical key ordering/text
-					  encoding writes growable `u8_buf` output while byte-string
-						  encoding hoists shared `std:bytes` byte-view backing pointers while recursive/sequence decode uses cached byte views,
+				  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
+					  now exposes shared checked byte views plus explicit unchecked hot-loop
+						  u8/u16/u32/i32/u64 little-endian readers and backing-aware u16/u32/u64 big-endian readers,
+					  CBOR canonical key ordering/text
+						  encoding writes growable `u8_buf` output while byte-string
+							  encoding and recursive/sequence decode hoist shared `std:bytes` byte-view backing pointers,
 					  HPACK header block encoding reuses Huffman string-literal lengths
 					  from sizing-pass `list_int` metadata during exact-size byte-buffer writes,
 						  and native HTTP/2 client header-only `END_STREAM` responses return exact

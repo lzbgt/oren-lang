@@ -514,6 +514,9 @@ ui_avm_decode_event_impl="$(sed -n '/fn decode_event_bytes(ev)/,/fn next_event/p
 if ! grep -Fq 'fn view_get_u16_le_unchecked(v, idx)' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'if p != nil { return _u16_le_from_ptr(p, idx) }' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'return get_u16_le(view_bytes(v), idx)' <<<"$std_bytes_view_impl" ||
+  ! grep -Fq 'fn view_get_u16_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_u32_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_u64_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'fn view_get_u32_le_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'fn view_get_u64_le_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'var input_ptr = bytes.view_ptr(bv)' <<<"$ui_avm_append_bytes_impl" ||
@@ -948,12 +951,25 @@ if ! grep -Fq 'var input_ptr = bytem.view_ptr(bv)' <<<"$cbor_byte_encode_impl" |
 fi
 
 cbor_byte_decode_impl="$(sed -n '/if major == 2 {/,/if major == 3 {/p' lib/std/cbor.oren)"
-if ! grep -Fq 'var out = oren_u8_buf_from_bytes_slice(bytem.view_bytes(v), pos, arg)' <<<"$cbor_byte_decode_impl" ||
+if ! grep -Fq 'var out = oren_u8_buf_from_bytes_slice(input_data, pos, arg)' <<<"$cbor_byte_decode_impl" ||
   ! grep -Fq 'return _ok(cbytes(out), pos + arg)' <<<"$cbor_byte_decode_impl" ||
   grep -Fq 'list.push' <<<"$cbor_byte_decode_impl" ||
   grep -Fq 'var out = []' <<<"$cbor_byte_decode_impl" ||
   ! grep -Fq 'assert(oren_is_u8_buf(v["bs"]) == true, "decode bytes u8 carrier")' tests/modules/test_cbor_sequence.oren; then
   echo "ERROR: std:cbor byte-string decode must keep exact u8_buf slices and fixture carrier coverage, not rebuild byte lists" >&2
+  exit 1
+fi
+cbor_decode_impl="$(sed -n '/fn _read_uint_arg/,/fn _decode_err/p' lib/std/cbor.oren)"
+if ! grep -Fq 'var input_ptr = bytem.view_ptr(bv)' lib/std/cbor.oren ||
+  ! grep -Fq 'bytem.view_get_u16_be_from(input_data, input_ptr, pos)' <<<"$cbor_decode_impl" ||
+  ! grep -Fq 'bytem.view_get_u32_be_from(input_data, input_ptr, pos)' <<<"$cbor_decode_impl" ||
+  ! grep -Fq 'bytem.view_get_u64_be_from(input_data, input_ptr, pos)' <<<"$cbor_decode_impl" ||
+  ! grep -Fq 'var b = bytem.view_get_u8_from(input_data, input_ptr, pos)' <<<"$cbor_decode_impl" ||
+  grep -Fq 'bytem.view_get_u8_unchecked(' <<<"$cbor_decode_impl" ||
+  grep -Fq 'bytem.view_get_u16_be_unchecked(' <<<"$cbor_decode_impl" ||
+  grep -Fq 'bytem.view_get_u32_be_unchecked(' <<<"$cbor_decode_impl" ||
+  grep -Fq 'bytem.view_get_u64_be_unchecked(' <<<"$cbor_decode_impl"; then
+  echo "ERROR: std:cbor decode must hoist shared byte-view backing storage for header and argument reads" >&2
   exit 1
 fi
 

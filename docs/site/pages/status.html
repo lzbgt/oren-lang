@@ -2867,12 +2867,12 @@
 <p>  shared checked byte views with hoisted backing pointers for non-contiguous view/matrix fallbacks, while contiguous</p>
 <p>  slice/dense-matrix byte and text exports use direct byte-slice conversion,</p>
 <p>	  JSON full decode, scalar parse, tag equality, and escape paths</p>
-<p>			  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
-<p>				  now exposes shared checked byte views plus explicit unchecked hot-loop</p>
-<p>					  u8/u16/u32/i32/u64 little-endian and u16/u32/u64 big-endian readers,</p>
-<p>				  CBOR canonical key ordering/text</p>
-<p>					  encoding writes growable <code>u8_buf</code> output while byte-string</p>
-<p>						  encoding hoists shared <code>std:bytes</code> byte-view backing pointers while recursive/sequence decode uses cached byte views,</p>
+<p>				  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
+<p>					  now exposes shared checked byte views plus explicit unchecked hot-loop</p>
+<p>						  u8/u16/u32/i32/u64 little-endian readers and backing-aware u16/u32/u64 big-endian readers,</p>
+<p>					  CBOR canonical key ordering/text</p>
+<p>						  encoding writes growable <code>u8_buf</code> output while byte-string</p>
+<p>							  encoding and recursive/sequence decode hoist shared <code>std:bytes</code> byte-view backing pointers,</p>
 <p>					  HPACK header block encoding reuses Huffman string-literal lengths</p>
 <p>					  from sizing-pass <code>list_int</code> metadata during exact-size byte-buffer writes,</p>
 <p>						  and native HTTP/2 client header-only <code>END_STREAM</code> responses return exact</p>

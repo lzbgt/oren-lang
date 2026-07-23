@@ -1416,12 +1416,12 @@ This file is the concise task view. Detailed implementation status lives in
      `u8_buf` accumulators, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and
-	     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
-		     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, and public signed 64-bit endian getters read `u8_buf` carriers directly after span validation.
+		     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
+			     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, and public signed 64-bit endian getters read `u8_buf` carriers directly after span validation.
 		     `std:strings` prefix/suffix/search/equality
 			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
 					     encoding through growable `u8_buf` output plus hoisted shared `std:bytes` byte-view backing pointers for byte-string encode and
-				     recursive/sequence decode, and full regex
+					     recursive/sequence decode header/additional-info reads, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,
      line/trim/key split, key sort, bare-identifier, prefix, and suffix helpers

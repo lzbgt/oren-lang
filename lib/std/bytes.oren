@@ -167,9 +167,19 @@ fn view_get_u8_from(input_bytes, input_ptr, idx) {
     return oren_bytes_get_u8(input_bytes, idx)
 }
 
+fn view_get_u16_be_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return _u16_be_from_ptr(input_ptr, idx) }
+    return get_u16_be(input_bytes, idx)
+}
+
 fn view_get_u16_le_from(input_bytes, input_ptr, idx) {
     if input_ptr != nil { return _u16_le_from_ptr(input_ptr, idx) }
     return get_u16_le(input_bytes, idx)
+}
+
+fn view_get_u32_be_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return _u32_be_from_ptr(input_ptr, idx) }
+    return get_u32_be(input_bytes, idx)
 }
 
 fn view_get_u32_le_from(input_bytes, input_ptr, idx) {
@@ -180,6 +190,11 @@ fn view_get_u32_le_from(input_bytes, input_ptr, idx) {
 fn view_get_i32_le_from(input_bytes, input_ptr, idx) {
     if input_ptr != nil { return _i32_from_u32(_u32_le_from_ptr(input_ptr, idx)) }
     return get_i32_le(input_bytes, idx)
+}
+
+fn view_get_u64_be_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return _u64_be_from_ptr(input_ptr, idx) }
+    return get_u64_be(input_bytes, idx)
 }
 
 fn view_get_u64_le_from(input_bytes, input_ptr, idx) {
