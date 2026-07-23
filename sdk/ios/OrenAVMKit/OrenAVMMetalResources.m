@@ -168,6 +168,15 @@ static BOOL OrenAVMMetalImageRunReserveHeapVertices(OrenAVMMetalImageRun* run, N
     return YES;
 }
 
+static BOOL OrenAVMMetalImageRunAllocateExactHeapVertices(OrenAVMMetalImageRun* run, NSUInteger vertexCount) {
+    if (!run || vertexCount == 0 || run->heapVertices || run->heapVertexCapacity != 0) return NO;
+    if (vertexCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
+    run->heapVertices = (OrenAVMMetalTextVertex*)malloc(vertexCount * sizeof(OrenAVMMetalTextVertex));
+    if (!run->heapVertices) return NO;
+    run->heapVertexCapacity = vertexCount;
+    return YES;
+}
+
 static BOOL OrenAVMMetalImageRunAppendVertices(OrenAVMMetalImageRun* run,
                                                const OrenAVMMetalTextVertex* vertices,
                                                NSUInteger vertexCount) {
@@ -197,7 +206,7 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
     run.texture = texture;
     run.opacity = opacity;
-    if (!OrenAVMMetalImageRunReserveHeapVertices(run, vertexCount)) return nil;
+    if (!OrenAVMMetalImageRunAllocateExactHeapVertices(run, vertexCount)) return nil;
     for (uint32_t ri = 0; ri < rectCount; ri++) {
         const uint8_t* r = rects + ((size_t)ri * 32u);
         uint32_t sx = OrenAVMMetalReadU32LE(r);

@@ -85,7 +85,8 @@ surfaces, but the following blockers remain:
 - iOS Metal batched image-rect commands now emit one raw vertex-backed image run
   per command instead of one run and draw call per rect, while single image
   quads stay inline and batched zero-size destinations are rejected before heap
-  vertices are written.
+  vertices are written; known-size image/text batches allocate exact heap vertex
+  storage once, while later compatible-run coalescing still grows geometrically.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing
   sprite draw calls while preserving single-quad inline storage.
@@ -2417,7 +2418,9 @@ transient uploads stay retained through command completion without a post-encode
 tracking-array copy, and guards geometry vertex-run flushing against copying the
 completed mutable vertex buffer at every clip/transform/opacity/camera boundary.
 Metal batched text-run construction also transfers completed mutable vertex
-buffers into run ownership instead of copying positioned glyph quads.
+buffers into run ownership instead of copying positioned glyph quads, and
+known-size image/text batches allocate exact heap vertex storage once while
+coalescing growth remains geometric.
 Drawable-independent and live Metal frame preparation now derives run capacity
 from a byte-bounded OGF0 operation count and allocates geometry/text/image run
 arrays lazily only when those records appear, instead of trusting malformed
@@ -2464,7 +2467,8 @@ intermediate `NSData` objects. Retained Metal image resources now use typed text
 records instead of parallel texture/pixel dictionaries, with overflow-safe
 upload accounting, sub-rect UV bounds checks, scalar-key retained image lookup,
 and cached texture dimensions for batched image rects plus local zero-size
-sub-rect/destination rejection. CoreGraphics and Metal retained
+sub-rect/destination rejection, with exact heap vertex allocation for known-size
+batched image runs before later coalescing growth. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
 dictionaries and boxed model ID lookups, removing per-draw model field lookups;
 retained material resources use scalar-key/scalar-value maps instead of boxed

@@ -2671,7 +2671,9 @@ design evidence lives under `project-doc/`.
 - Metal batched image-rect commands now build one raw vertex-backed image run
   per command instead of allocating one run and issuing one draw call per rect;
   single image quads still stay inline, and the batched helper rejects zero-size
-  destination rects before writing heap vertices.
+  destination rects before writing heap vertices. Known-size batched image runs
+  allocate exact heap vertex storage once, while compatible-run coalescing still
+  grows geometrically.
 - Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity
   runs into one raw vertex span with geometric growth, cutting sprite draw calls
   without losing inline storage for isolated quads.
@@ -2695,7 +2697,8 @@ design evidence lives under `project-doc/`.
   zero-capacity buffer.
 - Metal batched text-run construction now writes positioned glyph quads directly
   into one raw run-owned vertex buffer instead of wrapping variable vertices in
-  `NSMutableData`.
+  `NSMutableData`, with exact heap vertex allocation for the known final
+  positioned-glyph count.
 - Metal text-run coalescing now reuses prepared run objects for non-merged
   groups, keeps their inline or raw heap vertex data, and only grows raw
   run-owned storage when a same-texture/scissor/opacity run actually merges.

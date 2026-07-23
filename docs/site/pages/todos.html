@@ -3677,7 +3677,9 @@
 </ul>
 <p>  per command instead of allocating one run and issuing one draw call per rect;</p>
 <p>  single image quads still stay inline, and the batched helper rejects zero-size</p>
-<p>  destination rects before writing heap vertices.</p>
+<p>  destination rects before writing heap vertices. Known-size batched image runs</p>
+<p>  allocate exact heap vertex storage once, while compatible-run coalescing still</p>
+<p>  grows geometrically.</p>
 <ul>
 <li>Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity</li>
 </ul>
@@ -3717,7 +3719,8 @@
 <li>Metal batched text-run construction now writes positioned glyph quads directly</li>
 </ul>
 <p>  into one raw run-owned vertex buffer instead of wrapping variable vertices in</p>
-<p>  <code>NSMutableData</code>.</p>
+<p>  <code>NSMutableData</code>, with exact heap vertex allocation for the known final</p>
+<p>  positioned-glyph count.</p>
 <ul>
 <li>Metal text-run coalescing now reuses prepared run objects for non-merged</li>
 </ul>

@@ -146,7 +146,8 @@
 </ul>
 <p>  per command instead of one run and draw call per rect, while single image</p>
 <p>  quads stay inline and batched zero-size destinations are rejected before heap</p>
-<p>  vertices are written.</p>
+<p>  vertices are written; known-size image/text batches allocate exact heap vertex</p>
+<p>  storage once, while later compatible-run coalescing still grows geometrically.</p>
 <ul>
 <li>iOS Metal image-run preparation now coalesces adjacent compatible image runs</li>
 </ul>
@@ -2579,7 +2580,9 @@
 <p>tracking-array copy, and guards geometry vertex-run flushing against copying the</p>
 <p>completed mutable vertex buffer at every clip/transform/opacity/camera boundary.</p>
 <p>Metal batched text-run construction also transfers completed mutable vertex</p>
-<p>buffers into run ownership instead of copying positioned glyph quads.</p>
+<p>buffers into run ownership instead of copying positioned glyph quads, and</p>
+<p>known-size image/text batches allocate exact heap vertex storage once while</p>
+<p>coalescing growth remains geometric.</p>
 <p>Drawable-independent and live Metal frame preparation now derives run capacity</p>
 <p>from a byte-bounded OGF0 operation count and allocates geometry/text/image run</p>
 <p>arrays lazily only when those records appear, instead of trusting malformed</p>
@@ -2626,7 +2629,8 @@
 <p>records instead of parallel texture/pixel dictionaries, with overflow-safe</p>
 <p>upload accounting, sub-rect UV bounds checks, scalar-key retained image lookup,</p>
 <p>and cached texture dimensions for batched image rects plus local zero-size</p>
-<p>sub-rect/destination rejection. CoreGraphics and Metal retained</p>
+<p>sub-rect/destination rejection, with exact heap vertex allocation for known-size</p>
+<p>batched image runs before later coalescing growth. CoreGraphics and Metal retained</p>
 <p>model resources now use typed resource records instead of string-keyed</p>
 <p>dictionaries and boxed model ID lookups, removing per-draw model field lookups;</p>
 <p>retained material resources use scalar-key/scalar-value maps instead of boxed</p>

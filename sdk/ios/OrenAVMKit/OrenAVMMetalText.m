@@ -447,6 +447,15 @@ static BOOL OrenAVMMetalTextRunReserveHeapVertices(OrenAVMMetalTextRun* run, NSU
     return YES;
 }
 
+static BOOL OrenAVMMetalTextRunAllocateExactHeapVertices(OrenAVMMetalTextRun* run, NSUInteger vertexCount) {
+    if (!run || vertexCount == 0 || run->heapVertices || run->heapVertexCapacity != 0) return NO;
+    if (vertexCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
+    run->heapVertices = (OrenAVMMetalTextVertex*)malloc(vertexCount * sizeof(OrenAVMMetalTextVertex));
+    if (!run->heapVertices) return NO;
+    run->heapVertexCapacity = vertexCount;
+    return YES;
+}
+
 static BOOL OrenAVMMetalTextRunAppendVertices(OrenAVMMetalTextRun* run,
                                               const OrenAVMMetalTextVertex* vertices,
                                               NSUInteger vertexCount) {
@@ -503,7 +512,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
     run.texture = entry.texture;
     run.opacity = opacity;
-    if (!OrenAVMMetalTextRunReserveHeapVertices(run, vertexCount)) return nil;
+    if (!OrenAVMMetalTextRunAllocateExactHeapVertices(run, vertexCount)) return nil;
     for (uint32_t i = 0; i < positionCount; i++) {
         const uint8_t* p = positions + ((size_t)i * 8u);
         OrenAVMMetalWriteTextureQuad(run->heapVertices + run->heapVertexCount,

@@ -172,6 +172,11 @@ def main() -> int:
         fail("Metal text heap vertex reserve must clamp geometric growth before byte-size overflow")
     if "realloc(run->heapVertices, neededCount * sizeof(OrenAVMMetalTextVertex))" in text_source:
         fail("Metal text heap vertex reserve must not realloc to the exact requested count")
+    if (
+        "OrenAVMMetalTextRunAllocateExactHeapVertices(run, vertexCount)" not in text_source
+        or "static BOOL OrenAVMMetalTextRunAllocateExactHeapVertices" not in text_source
+    ):
+        fail("known-size batched Metal text runs must allocate exact heap vertex storage once")
     if "OrenAVMMetalEnsureHeapTextVerticesForCoalescing" not in text_source:
         fail("missing raw text coalescing heap-vertex helper")
     if "[vertices isKindOfClass:[NSMutableData class]]" in text_source or "dataWithBytes:pending->inlineVertices" in text_source:
@@ -583,9 +588,14 @@ def main() -> int:
     if "free(heapVertices)" not in resource_text:
         fail("Metal batched image runs must free raw heap vertex spans")
     if "newCapacity *= 2u" not in resource_text or "run->heapVertexCapacity = newCapacity" not in resource_text:
-        fail("Metal image heap vertex growth must be geometric for batching/coalescing")
+        fail("Metal image heap vertex growth must be geometric for append/coalescing")
     if "realloc(run->heapVertices, neededCount * sizeof(OrenAVMMetalTextVertex))" in resource_text:
         fail("Metal image heap vertex reserve must not realloc to the exact requested count")
+    if (
+        "OrenAVMMetalImageRunAllocateExactHeapVertices(run, vertexCount)" not in resource_text
+        or "static BOOL OrenAVMMetalImageRunAllocateExactHeapVertices" not in resource_text
+    ):
+        fail("known-size batched Metal image runs must allocate exact heap vertex storage once")
     if "@property(nonatomic, strong) NSData* vertices;" in image_run_block:
         fail("Metal image runs must not allocate NSData wrappers for single quads")
     if "OrenAVMMetalWriteTextureQuad(run->vertices" not in resource_text:
