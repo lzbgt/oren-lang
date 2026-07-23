@@ -886,6 +886,14 @@ if grep -q 'fn _read_u16be\|fn _read_u32be\|fn _read_u64be' lib/std/cbor.oren; t
   exit 1
 fi
 
+cbor_byte_encode_impl="$(sed -n '/if _streq(t, "bytes") {/,/if _streq(t, "string") {/p' lib/std/cbor.oren)"
+if ! grep -Fq 'var input_ptr = bytem.view_ptr(bv)' <<<"$cbor_byte_encode_impl" ||
+  ! grep -Fq '_push_u8(out, bytem.view_get_u8_from(input_data, input_ptr, bi) & 255)' <<<"$cbor_byte_encode_impl" ||
+  grep -Fq 'bytem.view_get_u8_unchecked(bv, bi)' <<<"$cbor_byte_encode_impl"; then
+  echo "ERROR: std:cbor byte-string encode must hoist shared byte-view inputs before byte emission" >&2
+  exit 1
+fi
+
 cbor_byte_decode_impl="$(sed -n '/if major == 2 {/,/if major == 3 {/p' lib/std/cbor.oren)"
 if ! grep -Fq 'var out = oren_u8_buf_from_bytes_slice(bytem.view_bytes(v), pos, arg)' <<<"$cbor_byte_decode_impl" ||
   ! grep -Fq 'return _ok(cbytes(out), pos + arg)' <<<"$cbor_byte_decode_impl" ||

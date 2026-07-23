@@ -2869,7 +2869,7 @@
 <p>					  u8/u16/u32/i32/u64 little-endian and u16/u32/u64 big-endian readers,</p>
 <p>				  CBOR canonical key ordering/text</p>
 <p>					  encoding writes growable <code>u8_buf</code> output while byte-string</p>
-<p>					  encoding plus recursive/sequence decode use shared <code>std:bytes</code> byte views,</p>
+<p>						  encoding hoists shared <code>std:bytes</code> byte-view backing pointers while recursive/sequence decode uses cached byte views,</p>
 <p>					  HPACK header block encoding reuses Huffman string-literal lengths</p>
 <p>					  from sizing-pass <code>list_int</code> metadata during exact-size byte-buffer writes,</p>
 <p>						  and native HTTP/2 client header-only <code>END_STREAM</code> responses return exact</p>

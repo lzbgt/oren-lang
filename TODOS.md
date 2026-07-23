@@ -2520,9 +2520,9 @@ design evidence lives under `project-doc/`.
   non-u8 byte carriers.
 - `std:ui/avm` event decoding now caches u8 event-buffer pointers for OGE0
   magic/opcode/payload-length reads while retaining list-compatible byte input.
-- `std:cbor` byte-string encoding plus recursive and sequence decoding now carry
-  one cached byte view with length and optional u8 carrier pointer per operation
-  while retaining list-compatible byte input fallback.
+- `std:cbor` byte-string encoding now hoists shared byte-view backing pointers
+  before byte emission; recursive and sequence decoding still carry one cached
+  byte view with length and optional u8 carrier pointer per operation.
 - `std:bytes` now exposes shared big-endian byte-view readers, and CBOR decode
   uses them directly instead of maintaining local endian read wrappers.
 - `make verify-avm-bytes-hotpath-guards` now pins CBOR byte-string decode to

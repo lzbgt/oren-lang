@@ -231,9 +231,11 @@ fn _encode_value(out, v) {
         var bn = 0
         if !oren_is_err(bv) { bn = bytem.view_len(bv) }
         _emit_uint(out, 2, bn) // major 2 byte string
+        var input_data = bytem.view_bytes(bv)
+        var input_ptr = bytem.view_ptr(bv)
         var bi = 0
         while bi < bn {
-            _push_u8(out, bytem.view_get_u8_unchecked(bv, bi) & 255)
+            _push_u8(out, bytem.view_get_u8_from(input_data, input_ptr, bi) & 255)
             bi = bi + 1
         }
         return nil

@@ -1420,7 +1420,7 @@ This file is the concise task view. Detailed implementation status lives in
 		     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, and public signed 64-bit endian getters read `u8_buf` carriers directly after span validation.
 		     `std:strings` prefix/suffix/search/equality
 			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
-				     encoding through growable `u8_buf` output plus shared `std:bytes` byte views for byte-string encode and
+					     encoding through growable `u8_buf` output plus hoisted shared `std:bytes` byte-view backing pointers for byte-string encode and
 				     recursive/sequence decode, and full regex
      pattern/text matching now use direct string
      byte reads/slices. YAML comment stripping, quoted-scalar parse/escape,

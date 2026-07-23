@@ -3447,10 +3447,10 @@
 </ul>
 <p>  magic/opcode/payload-length reads while retaining list-compatible byte input.</p>
 <ul>
-<li><code>std:cbor</code> byte-string encoding plus recursive and sequence decoding now carry</li>
+<li><code>std:cbor</code> byte-string encoding now hoists shared byte-view backing pointers</li>
 </ul>
-<p>  one cached byte view with length and optional u8 carrier pointer per operation</p>
-<p>  while retaining list-compatible byte input fallback.</p>
+<p>  before byte emission; recursive and sequence decoding still carry one cached</p>
+<p>  byte view with length and optional u8 carrier pointer per operation.</p>
 <ul>
 <li><code>std:bytes</code> now exposes shared big-endian byte-view readers, and CBOR decode</li>
 </ul>
