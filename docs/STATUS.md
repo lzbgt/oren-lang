@@ -91,6 +91,10 @@ surfaces, but the following blockers remain:
   `set_translation_vec`, and `without_translation`) that preserve existing
   basis/projection entries while replacing or clearing the row-major
   translation column.
+- `std:math/mat4` now includes checked basis editing helpers (`with_basis`,
+  `set_basis`, `with_axes`, `set_axes`, and `without_basis`) that preserve the
+  row-major translation column and bottom row while replacing or clearing the
+  3x3 linear part.
 - `std:math/mat4` now includes checked affine inverse helpers
   (`inverse_affine`, `affine_inverse`, and `affine_inverse_transform`) for
   row-major affine transforms, rejecting non-affine bottom rows and singular

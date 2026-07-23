@@ -157,6 +157,12 @@
 <p>  basis/projection entries while replacing or clearing the row-major</p>
 <p>  translation column.</p>
 <ul>
+<li><code>std:math/mat4</code> now includes checked basis editing helpers (<code>with_basis</code>,</li>
+</ul>
+<p>  <code>set_basis</code>, <code>with_axes</code>, <code>set_axes</code>, and <code>without_basis</code>) that preserve the</p>
+<p>  row-major translation column and bottom row while replacing or clearing the</p>
+<p>  3x3 linear part.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked affine inverse helpers</li>
 </ul>
 <p>  (<code>inverse_affine</code>, <code>affine_inverse</code>, and <code>affine_inverse_transform</code>) for</p>

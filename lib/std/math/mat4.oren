@@ -477,6 +477,45 @@ fn from_axes(x_axis, y_axis, z_axis) {
     return from_basis(x_axis, y_axis, z_axis)
 }
 
+fn _with_basis_unchecked(m, x_axis, y_axis, z_axis) {
+    return [
+        x_axis[0], y_axis[0], z_axis[0], m[3],
+        x_axis[1], y_axis[1], z_axis[1], m[7],
+        x_axis[2], y_axis[2], z_axis[2], m[11],
+        m[12], m[13], m[14], m[15]
+    ]
+}
+
+fn with_basis(m, x_axis, y_axis, z_axis) {
+    var ok = _check(m, "mat4.with_basis")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(x_axis, "mat4.with_basis")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(y_axis, "mat4.with_basis")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(z_axis, "mat4.with_basis")
+    if oren_is_err(ok) { return ok }
+    return _with_basis_unchecked(m, x_axis, y_axis, z_axis)
+}
+
+fn set_basis(m, x_axis, y_axis, z_axis) {
+    return with_basis(m, x_axis, y_axis, z_axis)
+}
+
+fn with_axes(m, x_axis, y_axis, z_axis) {
+    return with_basis(m, x_axis, y_axis, z_axis)
+}
+
+fn set_axes(m, x_axis, y_axis, z_axis) {
+    return with_basis(m, x_axis, y_axis, z_axis)
+}
+
+fn without_basis(m) {
+    var ok = _check(m, "mat4.without_basis")
+    if oren_is_err(ok) { return ok }
+    return _with_basis_unchecked(m, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
+}
+
 fn diagonal(m) {
     var ok = _check(m, "mat4.diagonal")
     if oren_is_err(ok) { return ok }
