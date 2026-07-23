@@ -454,6 +454,26 @@ fn run_one(listen_fd, url, resolver) {
         }
 
         if rc == 0 {
+            var ping_bytes = _make_binary_payload(5)
+            if oren_is_err(ping_bytes) {
+                print("ws_echo_loopback: FAIL binary ping alloc")
+                rc = 37
+            } else {
+                var pbp = native_buf_data_ptr(ping_bytes)
+                ptr_set_byte(pbp + 0, 0)
+                ptr_set_byte(pbp + 1, 255)
+                ptr_set_byte(pbp + 2, 1)
+                ptr_set_byte(pbp + 3, 254)
+                ptr_set_byte(pbp + 4, 2)
+                var pbprc = ws.send_ping_bytes_client(conn, ping_bytes, 5000)
+                if pbprc < 0 {
+                    print("ws_echo_loopback: FAIL binary ping before bytes (errno=" + oren_int_to_string(0 - pbprc) + ")")
+                    rc = 38
+                }
+            }
+        }
+
+        if rc == 0 {
             var bwr = conn.send_bytes_client(bytes, 5000)
             if oren_is_err(bwr) {
                 print("ws_echo_loopback: FAIL send bytes: " + oren_err_msg(bwr))

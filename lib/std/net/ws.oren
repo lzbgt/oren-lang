@@ -32,6 +32,8 @@ trait WebSocketConn {
     fn send_text_server(self, text, timeout_ms);
     fn send_bytes_client(self, bytes, timeout_ms);
     fn send_bytes_server(self, bytes, timeout_ms);
+    fn send_ping_bytes_client(self, bytes, timeout_ms);
+    fn send_ping_bytes_server(self, bytes, timeout_ms);
     fn recv_text(self, timeout_ms);
     fn recv_bytes(self, timeout_ms);
     fn close(self);
@@ -889,6 +891,25 @@ fn _send_frame_str(conn, opcode, text, timeout_ms, masked) {
     return _send_frame_raw(conn, opcode, text, oren_string_len(text), timeout_ms, masked)
 }
 
+fn _send_frame_control_str(conn, opcode, text, timeout_ms, masked) {
+    if text == nil { text = "" }
+    if oren_string_len(text) > 125 { return 0 - 22 } // EINVAL
+    return _send_frame_str(conn, opcode, text, timeout_ms, masked)
+}
+
+fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, masked) {
+    if bytes == nil { return 0 - 22 } // EINVAL
+    if oren_is_u8_buf(bytes) != true { return 0 - 22 } // EINVAL
+    var n = oren_bytes_len(bytes)
+    if n > 125 { return 0 - 22 } // EINVAL: RFC6455 control payload limit.
+    var p = 0
+    if n > 0 {
+        p = native_buf_data_ptr(bytes)
+        if p == 0 { return 0 - 22 } // EINVAL
+    }
+    return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)
+}
+
 fn _send_frame_text(conn, text, timeout_ms, masked) {
     return _send_frame_str(conn, 1, text, timeout_ms, masked)
 }
@@ -947,12 +968,34 @@ fn _send_bytes_server_value(conn, bytes, timeout_ms) {
 
 fn send_ping_client(conn, payload, timeout_ms) {
     // Client-to-server ping must be masked.
-    return _send_frame_str(conn, 9, payload, timeout_ms, 1)
+    return _send_frame_control_str(conn, 9, payload, timeout_ms, 1)
 }
 
 fn send_ping_server(conn, payload, timeout_ms) {
     // Server-to-client ping must be unmasked.
-    return _send_frame_str(conn, 9, payload, timeout_ms, 0)
+    return _send_frame_control_str(conn, 9, payload, timeout_ms, 0)
+}
+
+fn send_ping_bytes_client(conn, payload, timeout_ms) {
+    // Client-to-server ping must be masked.
+    return _send_frame_control_bytes(conn, 9, payload, timeout_ms, 1)
+}
+
+fn _send_ping_bytes_client_value(conn, payload, timeout_ms) {
+    var rc = send_ping_bytes_client(conn, payload, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_ping_bytes_client failed")
+}
+
+fn send_ping_bytes_server(conn, payload, timeout_ms) {
+    // Server-to-client ping must be unmasked.
+    return _send_frame_control_bytes(conn, 9, payload, timeout_ms, 0)
+}
+
+fn _send_ping_bytes_server_value(conn, payload, timeout_ms) {
+    var rc = send_ping_bytes_server(conn, payload, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_ping_bytes_server failed")
 }
 
 fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
@@ -1185,6 +1228,8 @@ impl WebSocketConn for Conn {
     fn send_text_server(self, text, timeout_ms) { return _send_text_server_value(self, text, timeout_ms) }
     fn send_bytes_client(self, bytes, timeout_ms) { return _send_bytes_client_value(self, bytes, timeout_ms) }
     fn send_bytes_server(self, bytes, timeout_ms) { return _send_bytes_server_value(self, bytes, timeout_ms) }
+    fn send_ping_bytes_client(self, bytes, timeout_ms) { return _send_ping_bytes_client_value(self, bytes, timeout_ms) }
+    fn send_ping_bytes_server(self, bytes, timeout_ms) { return _send_ping_bytes_server_value(self, bytes, timeout_ms) }
     fn recv_text(self, timeout_ms) { return _recv_text_value(self, timeout_ms) }
     fn recv_bytes(self, timeout_ms) { return _recv_bytes_value(self, timeout_ms) }
     fn close(self) { return close(self) }

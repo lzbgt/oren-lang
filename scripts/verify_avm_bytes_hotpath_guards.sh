@@ -523,6 +523,17 @@ if ! grep -Fq 'if masked != 1 {' <<<"$ws_send_impl" ||
   echo "ERROR: native WebSocket sends must stream raw unmasked payload spans and fixed-chunk masked payloads instead of copying into full-frame buffers" >&2
   exit 1
 fi
+ws_ping_impl="$(sed -n '/fn _send_frame_control_str/,/fn _send_frame_text/p' lib/std/net/ws.oren)"
+if ! grep -Fq 'fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, masked)' lib/std/net/ws.oren ||
+  ! grep -Fq 'if n > 125 { return 0 - 22 }' <<<"$ws_ping_impl" ||
+  ! grep -Fq 'return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)' <<<"$ws_ping_impl" ||
+  ! grep -Fq 'fn send_ping_bytes_client(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'fn send_ping_bytes_server(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
+  grep -Fq 'oren_string_from_bytes' <<<"$ws_ping_impl" ||
+  grep -Fq 'oren_bytes_unpack' <<<"$ws_ping_impl"; then
+  echo "ERROR: native WebSocket binary ping must send u8_buf control payloads directly without byte-list or string conversion" >&2
+  exit 1
+fi
 if ! grep -Fq 'text = _make_text_payload(5003)' tests/native/test_ws_echo_loopback.oren; then
   echo "ERROR: native WebSocket loopback must exercise masked sends larger than the fixed 4096-byte chunk" >&2
   exit 1
@@ -531,6 +542,7 @@ if ! grep -Fq 'fn _send_fragmented_text_client(conn, text, n, timeout_ms)' tests
   ! grep -Fq 'fn _send_fragmented_bytes_client(conn, bytes, timeout_ms)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'bytes = _make_binary_payload(4101)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'var bprc = ws.send_ping_client(conn, "bytes", 5000)' tests/native/test_ws_echo_loopback.oren ||
+  ! grep -Fq 'var pbprc = ws.send_ping_bytes_client(conn, ping_bytes, 5000)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'conn.send_bytes_client(bytes, 5000)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'conn.recv_bytes(10000)' tests/native/test_ws_echo_loopback.oren; then
   echo "ERROR: native WebSocket loopback must exercise byte-native binary frames larger than the fixed 4096-byte masked chunk" >&2
