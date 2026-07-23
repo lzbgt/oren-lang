@@ -2683,7 +2683,8 @@ design evidence lives under `project-doc/`.
   per command instead of allocating one run and issuing one draw call per rect;
   single image quads still stay inline, and the batched helper rejects zero-size
   destination/source rects in one preflight pass before exact heap allocation.
-  Known-size batched image runs allocate exact heap vertex storage once, while
+  Known-size batched image runs allocate exact heap vertex storage once, retained
+  3D draws skip sort/color work when clipping leaves no visible triangles, and
   compatible-run coalescing still grows geometrically.
 - Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity
   runs into one raw vertex span with geometric growth, cutting sprite draw calls

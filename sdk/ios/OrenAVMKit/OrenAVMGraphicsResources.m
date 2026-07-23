@@ -639,6 +639,10 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
                 return;
             }
         }
+        if (visibleCount == 0) {
+            free(heapOrder);
+            return;
+        }
         OrenAVMGfxSortTriangleOrder(order, visibleCount);
         OrenAVMGfxSetFillColorValue(ctx, rgbaValue);
         for (uint32_t oi = 0; oi < visibleCount; oi++) {
@@ -674,6 +678,10 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
                 free(heapOrder);
                 return;
             }
+        }
+        if (visibleCount == 0) {
+            free(heapOrder);
+            return;
         }
         OrenAVMGfxSortTriangleOrder(order, visibleCount);
         if (hasMaterialRGBA || !mesh.hasRGBA) OrenAVMGfxSetFillColorValue(ctx, rgbaValue);

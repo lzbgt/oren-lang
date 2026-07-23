@@ -1438,7 +1438,8 @@ This file is the concise task view. Detailed implementation status lives in
 		     payload fields read from cached u8-buffer pointers, UI command validation
 		     reads geometry/text-position/image-rect payload fields through shared
 			     byte views, Metal batched image rects validate local draw/source
-			     spans in one preflight pass before heap vertex allocation, and Metal/CoreGraphics zero-area
+			     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D
+			     draws skip sort/color work when clipping leaves no visible triangles, and Metal/CoreGraphics zero-area
 		     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
 		     while software rasterization reads those payload
 		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary

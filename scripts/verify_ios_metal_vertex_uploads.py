@@ -554,12 +554,24 @@ def main() -> int:
     indexed_rgba = "OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);"
     if indexed_draw.count(indexed_rgba) != 1:
         fail("indexed retained Metal 3D draws must convert constant RGBA exactly once")
+    if "if (visibleTotal == 0) {\n            free(heapOrder);\n            return;\n        }" not in indexed_draw:
+        fail("indexed retained Metal 3D draws must skip sort/color work when all triangles are clipped")
+    require_before(indexed_draw,
+                   "if (visibleTotal == 0) {\n            free(heapOrder);\n            return;\n        }",
+                   indexed_rgba,
+                   "indexed retained Metal 3D RGBA conversion must happen after the zero-visible fast return")
     if indexed_draw.find(indexed_rgba) > indexed_draw.find("for (uint32_t di = 0; di < visibleTotal; di++)"):
         fail("indexed retained Metal 3D RGBA conversion must happen before the triangle draw loop")
     if "BOOL hasConstantRGBA = hasMaterialRGBA || (meshStride == 36u && mesh.hasRGBA);" not in packed_draw:
         fail("packed retained Metal 3D draws must identify constant material/mesh RGBA once")
     if "OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue," not in packed_draw:
         fail("packed retained Metal 3D draws must convert constant material/mesh RGBA before drawing")
+    if "if (visibleTotal == 0) {\n            free(heapOrder);\n            return;\n        }" not in packed_draw:
+        fail("packed retained Metal 3D draws must skip sort/color work when all triangles are clipped")
+    require_before(packed_draw,
+                   "if (visibleTotal == 0) {\n            free(heapOrder);\n            return;\n        }",
+                   "OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue,",
+                   "packed retained Metal 3D constant RGBA conversion must happen after the zero-visible fast return")
     if packed_draw.find("OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue,") > packed_draw.find("for (uint32_t di = 0; di < visibleTotal; di++)"):
         fail("packed retained Metal 3D constant RGBA conversion must happen before the triangle draw loop")
     if "OrenAVMMetalAppendMesh3DResource(_orenMeshes3DByID" in text or "OrenAVMMetalTriangleOrder" in text:

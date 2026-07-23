@@ -46,6 +46,8 @@ def main() -> int:
         fail("retained 3D painter path still uses boxed set tracking")
     if text.count("OrenAVMGfxSortTriangleOrder(order, visibleCount)") < 2:
         fail("expected sorted order path for indexed and packed retained 3D meshes")
+    if text.count("if (visibleCount == 0) {\n            free(heapOrder);\n            return;\n        }") < 2:
+        fail("CoreGraphics retained 3D draw paths must skip sort/color work when all triangles are clipped")
     if "OrenAVMGfxInlineTriangleOrderCapacity = 128" not in text:
         fail("CoreGraphics retained 3D triangle ordering must have a small stack buffer")
     if "static BOOL OrenAVMGfxTriangleOrderAppend" not in resource_text:

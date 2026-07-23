@@ -86,8 +86,9 @@ surfaces, but the following blockers remain:
   per command instead of one run and draw call per rect, while single image
   quads stay inline and batched zero-size destinations/source subrects are
   validated once before heap vertex allocation; known-size image/text batches
-  allocate exact heap vertex storage once, while later compatible-run coalescing
-  still grows geometrically.
+  allocate exact heap vertex storage once, retained 3D draws skip sort/color
+  work when clipping leaves no visible triangles, and later compatible-run
+  coalescing still grows geometrically.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing
   sprite draw calls while preserving single-quad inline storage.
@@ -2490,7 +2491,7 @@ records instead of parallel texture/pixel dictionaries, with overflow-safe
 upload accounting, sub-rect UV bounds checks, scalar-key retained image lookup,
 and cached texture dimensions for batched image rects plus local zero-size
 sub-rect/destination rejection in one preflight pass before exact heap vertex
-allocation for known-size batched image runs and later coalescing growth. CoreGraphics and Metal retained
+allocation for known-size batched image runs, zero-visible retained 3D sort/color skips, and later coalescing growth. CoreGraphics and Metal retained
 model resources now use typed resource records instead of string-keyed
 dictionaries and boxed model ID lookups, removing per-draw model field lookups;
 retained material resources use scalar-key/scalar-value maps instead of boxed

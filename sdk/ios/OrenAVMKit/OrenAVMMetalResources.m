@@ -767,7 +767,6 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
     }
     uint8_t rgba[4];
     if (verts && idx && mesh.hasRGBA && scaleMilli != 0 && mesh.indexCount == mesh.indexBytes / 4u) {
-        OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
         uint32_t triangleTotal = mesh.indexCount / 3u;
         OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
         OrenAVMMetalTriangleOrder* order = inlineOrder;
@@ -782,6 +781,11 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
                 return;
             }
         }
+        if (visibleTotal == 0) {
+            free(heapOrder);
+            return;
+        }
+        OrenAVMMetalRGBAValueWithOpacity(materialRGBA, opacity, rgba);
         OrenAVMMetalSortTriangleOrder(order, visibleTotal);
         for (uint32_t di = 0; di < visibleTotal; di++) {
             uint32_t best = order[di].triangle;
@@ -804,11 +808,6 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
     } else if (tris && scaleMilli != 0 && (meshStride == 36u || meshStride == 40u) && mesh.triangleCount == mesh.triangleBytes / meshStride) {
         uint8_t constantRGBA[4];
         BOOL hasConstantRGBA = hasMaterialRGBA || (meshStride == 36u && mesh.hasRGBA);
-        if (hasConstantRGBA) {
-            OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue,
-                                             opacity,
-                                             constantRGBA);
-        }
         uint32_t triangleTotal = mesh.triangleCount;
         OrenAVMMetalTriangleOrder inlineOrder[OrenAVMMetalInlineTriangleOrderCapacity];
         OrenAVMMetalTriangleOrder* order = inlineOrder;
@@ -822,6 +821,15 @@ void OrenAVMMetalAppendMesh3DResource(CFDictionaryRef meshes,
                 free(heapOrder);
                 return;
             }
+        }
+        if (visibleTotal == 0) {
+            free(heapOrder);
+            return;
+        }
+        if (hasConstantRGBA) {
+            OrenAVMMetalRGBAValueWithOpacity(hasMaterialRGBA ? materialRGBA : mesh.rgbaValue,
+                                             opacity,
+                                             constantRGBA);
         }
         OrenAVMMetalSortTriangleOrder(order, visibleTotal);
         for (uint32_t di = 0; di < visibleTotal; di++) {
