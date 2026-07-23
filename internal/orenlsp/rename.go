@@ -40,25 +40,13 @@ func (s *Server) exactRenameLocations(uri string, pos position) ([]location, dia
 	}
 	importedDocs := s.importedDocumentSnapshots(uri, text)
 	aliasByURI := s.importedAliasByURI(uri, text)
-	if refs, ok := typedMemberReferencesAt(text, uri, pos, true, importedDocs, aliasByURI); ok && sameDocumentLocations(refs, uri) {
+	if refs, ok := typedMemberReferencesAt(text, uri, pos, true, importedDocs, aliasByURI); ok {
 		return refs, rng, true
 	}
 	if refs, ok := scopedParameterReferencesAt(text, uri, pos, true); ok {
 		return refs, rng, true
 	}
 	return nil, diagnosticRange{}, false
-}
-
-func sameDocumentLocations(locs []location, uri string) bool {
-	if len(locs) == 0 {
-		return false
-	}
-	for _, loc := range locs {
-		if loc.URI != uri {
-			return false
-		}
-	}
-	return true
 }
 
 func validRenameIdentifier(name string) bool {

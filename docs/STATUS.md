@@ -41,8 +41,10 @@ surfaces, but the following blockers remain:
 - The Oren LSP now follows anonymous imports for unopened-workspace dependency
   traversal, unqualified imported symbol completion/definition, hover,
   references, and typed-member completion/definition through anonymously
-  imported constructors. Regression proof lives in
-  `internal/orenlsp/server_import_test.go`.
+  imported constructors. Exact typed-member rename now emits multi-file
+  workspace edits for import-resolved and anonymous-imported fields. Regression
+  proof lives in `internal/orenlsp/server_import_test.go` and
+  `internal/orenlsp/server_rename_test.go`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`. LSP

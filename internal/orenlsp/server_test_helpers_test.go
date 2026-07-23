@@ -198,6 +198,14 @@ func assertWorkspaceEdit(t *testing.T, got map[string]any, uri, newText string, 
 	}
 }
 
+func assertWorkspaceEditFileCount(t *testing.T, got map[string]any, want int) {
+	t.Helper()
+	changes := got["changes"].(map[string]any)
+	if len(changes) != want {
+		t.Fatalf("workspace edit changes=%#v want %d file(s)", changes, want)
+	}
+}
+
 func diagnosticsWithSource(diags []diagnostic, source string) []diagnostic {
 	out := []diagnostic{}
 	for _, diag := range diags {
