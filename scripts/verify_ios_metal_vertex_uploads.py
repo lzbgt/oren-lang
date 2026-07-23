@@ -159,6 +159,13 @@ def main() -> int:
         fail("Metal filled rectangles must skip zero-area vertex emission")
     if "if (w <= 0.0f || h <= 0.0f) return;" not in stroke_rect_body:
         fail("Metal stroked rectangles must skip zero-area vertex emission before edge expansion")
+    triangle_start = geometry_source_text.find("void OrenAVMMetalAppendTriangle")
+    triangle_end = geometry_source_text.find("void OrenAVMMetalAppendCircle", triangle_start)
+    if triangle_start < 0 or triangle_end < 0:
+        fail("missing Metal triangle append helper body")
+    triangle_body = geometry_source_text[triangle_start:triangle_end]
+    if "OrenAVMMetalTriangleIsDegenerate" not in geometry_source_text or "if (OrenAVMMetalTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) return;" not in triangle_body:
+        fail("Metal triangle append helper must skip degenerate triangle vertex emission")
     primitive_view_tokens = (
         "pointCount = OrenAVMMetalReadU32LE(payload + 4)",
         "triangleCount = OrenAVMMetalReadU32LE(payload)",

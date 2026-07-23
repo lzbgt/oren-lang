@@ -2813,6 +2813,9 @@ design evidence lives under `project-doc/`.
 - Metal rectangle geometry helpers now skip zero-area fill/stroke spans before
   vertex emission, matching no-op drawing semantics while avoiding degenerate
   helper-generated vertices in malformed raw frames.
+- Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills
+  now skip exact degenerate triangles, avoiding no-op triangle draw work for
+  collapsed 2D/3D mesh payloads while preserving valid tiny triangles.
 - Metal retained-image upload/remove/draw/sub-rect/batched image opcode handling
   now lives in `OrenAVMMetalResources`, reducing `OrenAVMMetalView.m` to
   915 lines while keeping retained image budget configuration in the view.

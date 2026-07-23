@@ -315,6 +315,15 @@ def main() -> int:
     ):
         if forbidden in frame_command_text:
             fail("CoreGraphics frame traversal must not expand retained 3D mesh payloads directly")
+    if "static BOOL OrenAVMGfxTriangleIsDegenerate" not in resource_text:
+        fail("CoreGraphics retained mesh painter must have a local degenerate-triangle predicate")
+    if resource_text.count("if (OrenAVMGfxTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) continue;") < 3:
+        fail("CoreGraphics retained 2D and 3D mesh painters must skip degenerate triangle fills")
+    geometry_text = GEOMETRY_SOURCE.read_text()
+    if "static BOOL OrenAVMGfxGeometryTriangleIsDegenerate" not in geometry_text:
+        fail("CoreGraphics immediate painter must have a local degenerate-triangle predicate")
+    if geometry_text.count("OrenAVMGfxGeometryTriangleIsDegenerate") < 3:
+        fail("CoreGraphics immediate triangle paths must skip degenerate triangle fills")
     print("OK: CoreGraphics retained resources use compact typed records")
     return 0
 

@@ -95,6 +95,16 @@ static uint32_t OrenAVMMetalGeometryReadU32LE(const uint8_t* p) {
     return ((uint32_t)p[0]) | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
+static BOOL OrenAVMMetalTriangleIsDegenerate(float x1,
+                                             float y1,
+                                             float x2,
+                                             float y2,
+                                             float x3,
+                                             float y3) {
+    float area2 = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+    return area2 == 0.0f;
+}
+
 void OrenAVMMetalRGBAWithOpacity(const uint8_t* rgba, float opacity, uint8_t out[4]) {
     out[0] = rgba[0];
     out[1] = rgba[1];
@@ -198,6 +208,7 @@ void OrenAVMMetalAppendTriangle(OrenAVMMetalVertexBuffer* vertices,
                                 float logicalWidth,
                                 float logicalHeight,
                                 const uint8_t* rgba) {
+    if (OrenAVMMetalTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) return;
     OrenAVMMetalVertex out[3];
     out[0] = OrenAVMMetalMakeVertex(x1, y1, logicalWidth, logicalHeight, rgba);
     out[1] = OrenAVMMetalMakeVertex(x2, y2, logicalWidth, logicalHeight, rgba);

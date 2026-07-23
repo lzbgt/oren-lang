@@ -1437,9 +1437,10 @@ This file is the concise task view. Detailed implementation status lives in
 	     directly from shared byte views, OGE0 event headers and little-endian
 	     payload fields read from cached u8-buffer pointers, UI command validation
 	     reads geometry/text-position/image-rect payload fields through shared
-	     byte views, Metal batched image rects validate local draw/source
-	     spans before heap vertex allocation, and Metal zero-area rectangle
-	     helpers skip before vertex emission, while software rasterization reads those payload
+		     byte views, Metal batched image rects validate local draw/source
+		     spans before heap vertex allocation, and Metal/CoreGraphics zero-area
+		     rectangles plus exact degenerate triangles skip before vertex/path work,
+		     while software rasterization reads those payload
 		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary
 		     package magic/header/table reads and payload slices through the shared
 		     checked byte view, and PPM/software-raster RGBA sampling

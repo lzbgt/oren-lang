@@ -1507,9 +1507,10 @@
 <p>	     directly from shared byte views, OGE0 event headers and little-endian</p>
 <p>	     payload fields read from cached u8-buffer pointers, UI command validation</p>
 <p>	     reads geometry/text-position/image-rect payload fields through shared</p>
-<p>	     byte views, Metal batched image rects validate local draw/source</p>
-<p>	     spans before heap vertex allocation, and Metal zero-area rectangle</p>
-<p>	     helpers skip before vertex emission, while software rasterization reads those payload</p>
+<p>		     byte views, Metal batched image rects validate local draw/source</p>
+<p>		     spans before heap vertex allocation, and Metal/CoreGraphics zero-area</p>
+<p>		     rectangles plus exact degenerate triangles skip before vertex/path work,</p>
+<p>		     while software rasterization reads those payload</p>
 <p>		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
 <p>		     package magic/header/table reads and payload slices through the shared</p>
 <p>		     checked byte view, and PPM/software-raster RGBA sampling</p>

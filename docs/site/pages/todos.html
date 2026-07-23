@@ -3912,6 +3912,11 @@
 <p>  vertex emission, matching no-op drawing semantics while avoiding degenerate</p>
 <p>  helper-generated vertices in malformed raw frames.</p>
 <ul>
+<li>Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills</li>
+</ul>
+<p>  now skip exact degenerate triangles, avoiding no-op triangle draw work for</p>
+<p>  collapsed 2D/3D mesh payloads while preserving valid tiny triangles.</p>
+<ul>
 <li>Metal retained-image upload/remove/draw/sub-rect/batched image opcode handling</li>
 </ul>
 <p>  now lives in <code>OrenAVMMetalResources</code>, reducing <code>OrenAVMMetalView.m</code> to</p>

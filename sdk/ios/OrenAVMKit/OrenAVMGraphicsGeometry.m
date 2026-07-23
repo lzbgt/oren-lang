@@ -25,6 +25,16 @@ static void OrenAVMGfxGeometrySetStrokeColor(CGContextRef ctx, const uint8_t* rg
                                (CGFloat)rgba[3] / 255.0);
 }
 
+static BOOL OrenAVMGfxGeometryTriangleIsDegenerate(CGFloat x1,
+                                                   CGFloat y1,
+                                                   CGFloat x2,
+                                                   CGFloat y2,
+                                                   CGFloat x3,
+                                                   CGFloat y3) {
+    CGFloat area2 = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+    return area2 == 0.0;
+}
+
 BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                                       uint8_t opcode,
                                       const uint8_t* payload,
@@ -87,13 +97,20 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                 uint32_t y2 = OrenAVMGfxGeometryReadU32LE(payload + 12);
                 uint32_t x3 = OrenAVMGfxGeometryReadU32LE(payload + 16);
                 uint32_t y3 = OrenAVMGfxGeometryReadU32LE(payload + 20);
-                OrenAVMGfxGeometrySetFillColor(ctx, payload + 24);
-                CGContextBeginPath(ctx);
-                CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
-                CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
-                CGContextAddLineToPoint(ctx, (CGFloat)x3, (CGFloat)y3);
-                CGContextClosePath(ctx);
-                CGContextFillPath(ctx);
+                if (!OrenAVMGfxGeometryTriangleIsDegenerate((CGFloat)x1,
+                                                            (CGFloat)y1,
+                                                            (CGFloat)x2,
+                                                            (CGFloat)y2,
+                                                            (CGFloat)x3,
+                                                            (CGFloat)y3)) {
+                    OrenAVMGfxGeometrySetFillColor(ctx, payload + 24);
+                    CGContextBeginPath(ctx);
+                    CGContextMoveToPoint(ctx, (CGFloat)x1, (CGFloat)y1);
+                    CGContextAddLineToPoint(ctx, (CGFloat)x2, (CGFloat)y2);
+                    CGContextAddLineToPoint(ctx, (CGFloat)x3, (CGFloat)y3);
+                    CGContextClosePath(ctx);
+                    CGContextFillPath(ctx);
+                }
             }
             return YES;
         }
@@ -184,16 +201,17 @@ BOOL OrenAVMGfxDrawImmediatePrimitive(CGContextRef ctx,
                     OrenAVMGfxGeometrySetFillColor(ctx, payload + 4);
                     for (uint32_t ti = 0; ti < triangleCount; ti++) {
                         const uint8_t* tri = tris + ((size_t)ti * 24u);
+                        CGFloat x1 = (CGFloat)OrenAVMGfxGeometryReadU32LE(tri);
+                        CGFloat y1 = (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 4);
+                        CGFloat x2 = (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 8);
+                        CGFloat y2 = (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 12);
+                        CGFloat x3 = (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 16);
+                        CGFloat y3 = (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 20);
+                        if (OrenAVMGfxGeometryTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) continue;
                         CGContextBeginPath(ctx);
-                        CGContextMoveToPoint(ctx,
-                                             (CGFloat)OrenAVMGfxGeometryReadU32LE(tri),
-                                             (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 4));
-                        CGContextAddLineToPoint(ctx,
-                                                (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 8),
-                                                (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 12));
-                        CGContextAddLineToPoint(ctx,
-                                                (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 16),
-                                                (CGFloat)OrenAVMGfxGeometryReadU32LE(tri + 20));
+                        CGContextMoveToPoint(ctx, x1, y1);
+                        CGContextAddLineToPoint(ctx, x2, y2);
+                        CGContextAddLineToPoint(ctx, x3, y3);
                         CGContextClosePath(ctx);
                         CGContextFillPath(ctx);
                     }

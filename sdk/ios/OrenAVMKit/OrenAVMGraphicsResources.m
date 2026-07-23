@@ -541,6 +541,16 @@ static void OrenAVMGfxSetFillColorBytes(CGContextRef ctx, const uint8_t* rgba) {
                              (CGFloat)rgba[3] / 255.0);
 }
 
+static BOOL OrenAVMGfxTriangleIsDegenerate(CGFloat x1,
+                                           CGFloat y1,
+                                           CGFloat x2,
+                                           CGFloat y2,
+                                           CGFloat x3,
+                                           CGFloat y3) {
+    CGFloat area2 = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+    return area2 == 0.0;
+}
+
 void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint32_t meshID) {
     OrenAVMGfxMeshResource* mesh = OrenAVMGfxRetainedMeshResource(meshes, meshID);
     const uint8_t* tris = mesh.triangles;
@@ -548,16 +558,17 @@ void OrenAVMGfxDrawMesh2DResource(CGContextRef ctx, CFDictionaryRef meshes, uint
     OrenAVMGfxSetFillColorValue(ctx, mesh.rgbaValue);
     for (uint32_t ti = 0; ti < mesh.triangleCount; ti++) {
         const uint8_t* tri = tris + ((size_t)ti * 24u);
+        CGFloat x1 = (CGFloat)OrenAVMGfxResourceReadU32LE(tri);
+        CGFloat y1 = (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 4);
+        CGFloat x2 = (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 8);
+        CGFloat y2 = (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 12);
+        CGFloat x3 = (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 16);
+        CGFloat y3 = (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 20);
+        if (OrenAVMGfxTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) continue;
         CGContextBeginPath(ctx);
-        CGContextMoveToPoint(ctx,
-                             (CGFloat)OrenAVMGfxResourceReadU32LE(tri),
-                             (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 4));
-        CGContextAddLineToPoint(ctx,
-                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 8),
-                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 12));
-        CGContextAddLineToPoint(ctx,
-                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 16),
-                                (CGFloat)OrenAVMGfxResourceReadU32LE(tri + 20));
+        CGContextMoveToPoint(ctx, x1, y1);
+        CGContextAddLineToPoint(ctx, x2, y2);
+        CGContextAddLineToPoint(ctx, x3, y3);
         CGContextClosePath(ctx);
         CGContextFillPath(ctx);
     }
@@ -635,16 +646,17 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
             const uint8_t* v1 = verts + ((size_t)OrenAVMGfxResourceReadU32LE(tri) * 12u);
             const uint8_t* v2 = verts + ((size_t)OrenAVMGfxResourceReadU32LE(tri + 4) * 12u);
             const uint8_t* v3 = verts + ((size_t)OrenAVMGfxResourceReadU32LE(tri + 8) * 12u);
+            CGFloat x1 = OrenAVMGfxMesh3DModelCoord(v1, modelX, scaleMilli);
+            CGFloat y1 = OrenAVMGfxMesh3DModelCoord(v1 + 4, modelY, scaleMilli);
+            CGFloat x2 = OrenAVMGfxMesh3DModelCoord(v2, modelX, scaleMilli);
+            CGFloat y2 = OrenAVMGfxMesh3DModelCoord(v2 + 4, modelY, scaleMilli);
+            CGFloat x3 = OrenAVMGfxMesh3DModelCoord(v3, modelX, scaleMilli);
+            CGFloat y3 = OrenAVMGfxMesh3DModelCoord(v3 + 4, modelY, scaleMilli);
+            if (OrenAVMGfxTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) continue;
             CGContextBeginPath(ctx);
-            CGContextMoveToPoint(ctx,
-                                 OrenAVMGfxMesh3DModelCoord(v1, modelX, scaleMilli),
-                                 OrenAVMGfxMesh3DModelCoord(v1 + 4, modelY, scaleMilli));
-            CGContextAddLineToPoint(ctx,
-                                    OrenAVMGfxMesh3DModelCoord(v2, modelX, scaleMilli),
-                                    OrenAVMGfxMesh3DModelCoord(v2 + 4, modelY, scaleMilli));
-            CGContextAddLineToPoint(ctx,
-                                    OrenAVMGfxMesh3DModelCoord(v3, modelX, scaleMilli),
-                                    OrenAVMGfxMesh3DModelCoord(v3 + 4, modelY, scaleMilli));
+            CGContextMoveToPoint(ctx, x1, y1);
+            CGContextAddLineToPoint(ctx, x2, y2);
+            CGContextAddLineToPoint(ctx, x3, y3);
             CGContextClosePath(ctx);
             CGContextFillPath(ctx);
         }
@@ -668,16 +680,17 @@ void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx,
         for (uint32_t oi = 0; oi < visibleCount; oi++) {
             const uint8_t* tri = tris + ((size_t)order[oi].triangle * meshStride);
             if (!hasMaterialRGBA && mesh.hasRGBA) OrenAVMGfxSetFillColorBytes(ctx, tri + 36);
+            CGFloat x1 = OrenAVMGfxMesh3DModelCoord(tri, modelX, scaleMilli);
+            CGFloat y1 = OrenAVMGfxMesh3DModelCoord(tri + 4, modelY, scaleMilli);
+            CGFloat x2 = OrenAVMGfxMesh3DModelCoord(tri + 12, modelX, scaleMilli);
+            CGFloat y2 = OrenAVMGfxMesh3DModelCoord(tri + 16, modelY, scaleMilli);
+            CGFloat x3 = OrenAVMGfxMesh3DModelCoord(tri + 24, modelX, scaleMilli);
+            CGFloat y3 = OrenAVMGfxMesh3DModelCoord(tri + 28, modelY, scaleMilli);
+            if (OrenAVMGfxTriangleIsDegenerate(x1, y1, x2, y2, x3, y3)) continue;
             CGContextBeginPath(ctx);
-            CGContextMoveToPoint(ctx,
-                                 OrenAVMGfxMesh3DModelCoord(tri, modelX, scaleMilli),
-                                 OrenAVMGfxMesh3DModelCoord(tri + 4, modelY, scaleMilli));
-            CGContextAddLineToPoint(ctx,
-                                    OrenAVMGfxMesh3DModelCoord(tri + 12, modelX, scaleMilli),
-                                    OrenAVMGfxMesh3DModelCoord(tri + 16, modelY, scaleMilli));
-            CGContextAddLineToPoint(ctx,
-                                    OrenAVMGfxMesh3DModelCoord(tri + 24, modelX, scaleMilli),
-                                    OrenAVMGfxMesh3DModelCoord(tri + 28, modelY, scaleMilli));
+            CGContextMoveToPoint(ctx, x1, y1);
+            CGContextAddLineToPoint(ctx, x2, y2);
+            CGContextAddLineToPoint(ctx, x3, y3);
             CGContextClosePath(ctx);
             CGContextFillPath(ctx);
         }
