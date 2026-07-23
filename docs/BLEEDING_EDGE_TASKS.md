@@ -1419,7 +1419,7 @@ This file is the concise task view. Detailed implementation status lives in
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and
 			     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
-				     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, public signed 64-bit endian getters read `u8_buf` carriers directly after span validation, and public 64-bit endian stores use unrolled direct `u8_buf` byte writes.
+				     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, signed checked byte-view helpers and public signed 64-bit endian getters that read `u8_buf` carriers directly after span validation, and public 64-bit endian stores use unrolled direct `u8_buf` byte writes.
 		     `std:strings` prefix/suffix/search/equality
 			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
 					     encoding through growable `u8_buf` output plus hoisted shared `std:bytes` byte-view backing pointers for byte-string encode and

@@ -527,10 +527,19 @@ if ! grep -Fq 'fn view_get_u16_le_unchecked(v, idx)' <<<"$std_bytes_view_impl" |
   ! grep -Fq 'if p != nil { return _u16_le_from_ptr(p, idx) }' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'return get_u16_le(view_bytes(v), idx)' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'fn view_get_u16_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i16_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i16_le_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'fn view_get_u32_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i32_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'fn view_get_u64_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'fn view_get_u32_le_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'fn view_get_u64_le_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i64_be_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i64_le_from(input_bytes, input_ptr, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i16_be_unchecked(v, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i32_be_unchecked(v, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i64_le_unchecked(v, idx)' lib/std/bytes.oren ||
+  ! grep -Fq 'fn view_get_i64_be_unchecked(v, idx)' lib/std/bytes.oren ||
   ! grep -Fq 'var input_ptr = bytes.view_ptr(bv)' <<<"$ui_avm_append_bytes_impl" ||
   ! grep -Fq 'raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], input_ptr, n)' <<<"$ui_avm_append_bytes_impl" ||
   ! grep -Fq 'var b = bytes.view_get_u8_from(input_data, input_ptr, i)' <<<"$ui_avm_append_bytes_impl" ||

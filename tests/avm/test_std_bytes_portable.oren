@@ -183,6 +183,34 @@ fn test_bytes_endian_writes() {
     assert_eq(bytesm.get_u32_le(listb, 0), 16909060)
 }
 
+fn test_bytes_signed_view_reads() {
+    var ub = bytesm.from_hex("FEFFFFFFFFFFFFFF")
+    assert_true(!oren_is_err(ub))
+    var uv = bytesm.view(ub, "avm.signed_view")
+    assert_true(!oren_is_err(uv))
+    var udata = bytesm.view_bytes(uv)
+    var uptr = bytesm.view_ptr(uv)
+    assert_eq(bytesm.view_get_i16_be(uv, 0), -257)
+    assert_eq(bytesm.view_get_i16_le(uv, 0), -2)
+    assert_eq(bytesm.view_get_i32_be(uv, 0), -16777217)
+    assert_eq(bytesm.view_get_i32_le(uv, 0), -2)
+    assert_eq(bytesm.view_get_i64_le(uv, 0), -2)
+    assert_eq(bytesm.view_get_i16_be_from(udata, uptr, 0), -257)
+    assert_eq(bytesm.view_get_i16_le_from(udata, uptr, 0), -2)
+    assert_eq(bytesm.view_get_i32_be_from(udata, uptr, 0), -16777217)
+    assert_eq(bytesm.view_get_i32_le_from(udata, uptr, 0), -2)
+    assert_eq(bytesm.view_get_i64_le_from(udata, uptr, 0), -2)
+
+    var lb = [255, 255, 255, 255, 255, 255, 255, 254]
+    var lv = bytesm.view(lb, "avm.signed_list_view")
+    assert_true(!oren_is_err(lv))
+    assert_eq(bytesm.view_get_i16_be(lv, 0), -1)
+    assert_eq(bytesm.view_get_i32_be(lv, 0), -1)
+    assert_eq(bytesm.view_get_i64_be(lv, 0), -2)
+    assert_eq(bytesm.view_get_i64_be_from(bytesm.view_bytes(lv), bytesm.view_ptr(lv), 0), -2)
+    assert_true(oren_is_err(bytesm.view_get_i64_be(lv, 1)))
+}
+
 fn test_assert_streq_portable() {
     assertm.assert_streq("ok", "ok", "avm std assert_streq portable")
 }
@@ -202,6 +230,7 @@ fn main() {
     test_bytes_from_hex()
     test_bytes_u8_buf_to_string()
     test_bytes_endian_writes()
+    test_bytes_signed_view_reads()
     test_assert_streq_portable()
     test_list_and_strings_validation()
     return 0
