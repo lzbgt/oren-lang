@@ -414,6 +414,102 @@ fn col(m, index: int) {
     return column(m, index)
 }
 
+fn with_row(m, index: int, row_values) {
+    var ok = _check(m, "mat4.with_row")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(row_values, "mat4.with_row")
+    if oren_is_err(ok) { return ok }
+    if index == 0 {
+        return [
+            row_values[0], row_values[1], row_values[2], row_values[3],
+            m[4], m[5], m[6], m[7],
+            m[8], m[9], m[10], m[11],
+            m[12], m[13], m[14], m[15]
+        ]
+    }
+    if index == 1 {
+        return [
+            m[0], m[1], m[2], m[3],
+            row_values[0], row_values[1], row_values[2], row_values[3],
+            m[8], m[9], m[10], m[11],
+            m[12], m[13], m[14], m[15]
+        ]
+    }
+    if index == 2 {
+        return [
+            m[0], m[1], m[2], m[3],
+            m[4], m[5], m[6], m[7],
+            row_values[0], row_values[1], row_values[2], row_values[3],
+            m[12], m[13], m[14], m[15]
+        ]
+    }
+    if index == 3 {
+        return [
+            m[0], m[1], m[2], m[3],
+            m[4], m[5], m[6], m[7],
+            m[8], m[9], m[10], m[11],
+            row_values[0], row_values[1], row_values[2], row_values[3]
+        ]
+    }
+    return oren_err(4, "mat4.with_row: index out of range")
+}
+
+fn set_row(m, index: int, row_values) {
+    return with_row(m, index, row_values)
+}
+
+fn with_column(m, index: int, column_values) {
+    var ok = _check(m, "mat4.with_column")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec4(column_values, "mat4.with_column")
+    if oren_is_err(ok) { return ok }
+    if index == 0 {
+        return [
+            column_values[0], m[1], m[2], m[3],
+            column_values[1], m[5], m[6], m[7],
+            column_values[2], m[9], m[10], m[11],
+            column_values[3], m[13], m[14], m[15]
+        ]
+    }
+    if index == 1 {
+        return [
+            m[0], column_values[0], m[2], m[3],
+            m[4], column_values[1], m[6], m[7],
+            m[8], column_values[2], m[10], m[11],
+            m[12], column_values[3], m[14], m[15]
+        ]
+    }
+    if index == 2 {
+        return [
+            m[0], m[1], column_values[0], m[3],
+            m[4], m[5], column_values[1], m[7],
+            m[8], m[9], column_values[2], m[11],
+            m[12], m[13], column_values[3], m[15]
+        ]
+    }
+    if index == 3 {
+        return [
+            m[0], m[1], m[2], column_values[0],
+            m[4], m[5], m[6], column_values[1],
+            m[8], m[9], m[10], column_values[2],
+            m[12], m[13], m[14], column_values[3]
+        ]
+    }
+    return oren_err(4, "mat4.with_column: index out of range")
+}
+
+fn set_column(m, index: int, column_values) {
+    return with_column(m, index, column_values)
+}
+
+fn with_col(m, index: int, column_values) {
+    return with_column(m, index, column_values)
+}
+
+fn set_col(m, index: int, column_values) {
+    return with_column(m, index, column_values)
+}
+
 fn from_rows(r0, r1, r2, r3) {
     var ok = _check_vec4(r0, "mat4.from_rows")
     if oren_is_err(ok) { return ok }
