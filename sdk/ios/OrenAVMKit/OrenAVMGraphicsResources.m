@@ -35,7 +35,7 @@ static const void* OrenAVMGfxRetainedKey(uint32_t idValue) {
 }
 
 uint8_t* OrenAVMGfxCopyPayloadBytes(const uint8_t* src, NSUInteger len) {
-    if (len == 0) return NULL;
+    if (!src || len == 0) return NULL;
     uint8_t* out = (uint8_t*)malloc(len);
     if (!out) return NULL;
     memcpy(out, src, len);
@@ -443,11 +443,16 @@ BOOL OrenAVMGfxPutTriangleMeshResource(CFMutableDictionaryRef* meshes,
                                        uint32_t stride,
                                        BOOL hasRGBA) {
     if (meshID == 0 || !triangles || stride == 0 || triangleCount == 0 || triangleBytes != (NSUInteger)triangleCount * (NSUInteger)stride) return NO;
+    uint8_t* triangleCopy = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);
+    if (!triangleCopy) return NO;
     OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+    if (!mesh) {
+        free(triangleCopy);
+        return NO;
+    }
     mesh.rgbaValue = rgbaValue;
     mesh.triangleBytes = triangleBytes;
-    mesh.triangles = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);
-    if (!mesh.triangles) return NO;
+    mesh.triangles = triangleCopy;
     mesh.triangleCount = triangleCount;
     mesh.stride = stride;
     mesh.hasRGBA = hasRGBA;
@@ -470,13 +475,24 @@ BOOL OrenAVMGfxPutIndexedMeshResource(CFMutableDictionaryRef* meshes,
     for (uint32_t ii = 0; ii < indexCount; ii++) {
         if (OrenAVMGfxResourceReadU32LE(indices + ((size_t)ii * 4u)) >= vertexCount) return NO;
     }
+    uint8_t* vertexCopy = OrenAVMGfxCopyPayloadBytes(vertices, vertexBytes);
+    if (!vertexCopy) return NO;
+    uint8_t* indexCopy = OrenAVMGfxCopyPayloadBytes(indices, indexBytes);
+    if (!indexCopy) {
+        free(vertexCopy);
+        return NO;
+    }
     OrenAVMGfxMeshResource* mesh = [[OrenAVMGfxMeshResource alloc] init];
+    if (!mesh) {
+        free(vertexCopy);
+        free(indexCopy);
+        return NO;
+    }
     mesh.rgbaValue = rgbaValue;
     mesh.vertexBytes = vertexBytes;
     mesh.indexBytes = indexBytes;
-    mesh.vertices = OrenAVMGfxCopyPayloadBytes(vertices, mesh.vertexBytes);
-    mesh.indices = OrenAVMGfxCopyPayloadBytes(indices, mesh.indexBytes);
-    if (!mesh.vertices || !mesh.indices) return NO;
+    mesh.vertices = vertexCopy;
+    mesh.indices = indexCopy;
     mesh.triangleCount = indexCount / 3u;
     mesh.indexCount = indexCount;
     if (!OrenAVMGfxEnsureRetainedResourceMap(meshes)) return NO;

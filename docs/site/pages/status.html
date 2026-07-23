@@ -149,6 +149,11 @@
 <p>  install, reject null copy sources before <code>memcpy</code>, and free earlier staged</p>
 <p>  buffers if a later indexed-mesh copy fails.</p>
 <ul>
+<li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
+</ul>
+<p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>
+<p>  triangle, vertex, and index copy results into retained resources.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked viewport/NDC conversion helpers</li>
 </ul>
 <p>  (<code>viewport_matrix</code>, <code>inverse_viewport_matrix</code>, <code>ndc_to_window</code>, and</p>

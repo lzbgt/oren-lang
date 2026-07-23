@@ -105,10 +105,27 @@ def main() -> int:
             fail("CoreGraphics retained mesh payload path regressed to NSData-backed access")
     if "OrenAVMGfxCopyPayloadBytes" not in text:
         fail("missing CoreGraphics retained mesh raw payload copy helper")
-    if "mesh.triangles = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes)" not in resource_text:
-        fail("CoreGraphics retained triangle mesh raw copy must live in OrenAVMGraphicsResources")
-    if "mesh.vertices = OrenAVMGfxCopyPayloadBytes(vertices, mesh.vertexBytes)" not in resource_text:
-        fail("CoreGraphics retained indexed mesh raw copy must live in OrenAVMGraphicsResources")
+    if "if (!src || len == 0) return NULL;" not in resource_text:
+        fail("CoreGraphics retained mesh payload copy helper must reject null sources before memcpy")
+    for token in (
+        "uint8_t* triangleCopy = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);",
+        "mesh.triangles = triangleCopy;",
+        "uint8_t* vertexCopy = OrenAVMGfxCopyPayloadBytes(vertices, vertexBytes);",
+        "if (!vertexCopy) return NO;",
+        "uint8_t* indexCopy = OrenAVMGfxCopyPayloadBytes(indices, indexBytes);",
+        "if (!indexCopy) {\n        free(vertexCopy);\n        return NO;\n    }",
+        "mesh.vertices = vertexCopy;",
+        "mesh.indices = indexCopy;",
+    ):
+        if token not in resource_text:
+            fail(f"CoreGraphics retained mesh payload copies must be staged and checked before resource install: {token}")
+    for pattern in (
+        "mesh.triangles = OrenAVMGfxCopyPayloadBytes(triangles, triangleBytes);",
+        "mesh.vertices = OrenAVMGfxCopyPayloadBytes(vertices, mesh.vertexBytes);",
+        "mesh.indices = OrenAVMGfxCopyPayloadBytes(indices, mesh.indexBytes);",
+    ):
+        if pattern in resource_text:
+            fail("CoreGraphics retained mesh payload path must not assign unchecked direct copy results")
     if "NSMutableDictionary<NSNumber*, UIColor*>* orenMaterials3D" in text:
         fail("CoreGraphics retained materials must store scalar RGBA values")
     if "NSMutableDictionary<NSNumber*, NSNumber*>* orenMaterials3D" in text:
