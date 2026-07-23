@@ -429,6 +429,22 @@ BOOL OrenAVMMetalAppendPrimitiveCommand(uint8_t opcode,
                                         float logicalHeight,
                                         float opacity) {
     if (!payload || !vertices) return NO;
+    if (opacity <= 0.0f) {
+        switch (opcode) {
+            case 1:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+            case 9:
+            case 10:
+                return YES;
+            default:
+                break;
+        }
+    }
     uint8_t rgba[4];
     switch (opcode) {
         case 1: {

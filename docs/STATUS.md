@@ -87,7 +87,9 @@ surfaces, but the following blockers remain:
   quads stay inline and batched zero-size destinations/source subrects are
   validated once before heap vertex allocation; known-size image/text batches
   allocate exact heap vertex storage once, retained 3D draws skip sort/color
-  work when clipping leaves no visible triangles, and later compatible-run
+  work when clipping leaves no visible triangles, fully transparent Metal
+  primitive/image/text draw opcodes skip vertex/texture/text-cache work while
+  resource create/destroy opcodes still execute, and later compatible-run
   coalescing still grows geometrically.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing

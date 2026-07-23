@@ -2722,7 +2722,8 @@ design evidence lives under `project-doc/`.
 - Metal text cache misses now render glyphs into raw temporary pixel buffers
   instead of allocating `NSMutableData` wrappers before texture upload.
 - Metal text atlas creation now avoids a full zeroed atlas upload buffer and
-  clears only the transparent padding texels around packed glyph regions.
+  clears only the transparent padding texels around packed glyph regions using
+  one shared zero stripe instead of rebuilding a per-glyph stack buffer.
 - Metal text atlas rotation now clears stale texture-cache entries before
   allocating a fresh atlas, so old atlas textures cannot remain retained only
   because glyph-pixel accounting has not crossed the cache limit.
@@ -2819,6 +2820,9 @@ design evidence lives under `project-doc/`.
 - Metal rectangle geometry helpers now skip zero-area fill/stroke spans before
   vertex emission, matching no-op drawing semantics while avoiding degenerate
   helper-generated vertices in malformed raw frames.
+- Fully transparent Metal primitive/image/text draw opcodes now return handled
+  before vertex, texture-run, or text-cache work while retained create/destroy
+  resource opcodes still execute.
 - Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills
   now skip exact degenerate triangles, avoiding no-op triangle draw work for
   collapsed 2D/3D mesh payloads while preserving valid tiny triangles.

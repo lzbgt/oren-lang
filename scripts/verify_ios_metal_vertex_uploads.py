@@ -145,6 +145,13 @@ def main() -> int:
         fail("Metal primitive geometry helpers must live in OrenAVMMetalGeometry")
     if "OrenAVMMetalAppendPrimitiveCommand(opcode," not in frame_text:
         fail("Metal frame traversal must delegate primitive payload expansion to OrenAVMMetalGeometry")
+    primitive_handler_start = geometry_source_text.find("BOOL OrenAVMMetalAppendPrimitiveCommand")
+    primitive_handler_end = geometry_source_text.find("#endif", primitive_handler_start)
+    if primitive_handler_start < 0 or primitive_handler_end < 0:
+        fail("missing Metal primitive command handler")
+    primitive_handler = geometry_source_text[primitive_handler_start:primitive_handler_end]
+    if "if (opacity <= 0.0f)" not in primitive_handler or "case 10:" not in primitive_handler:
+        fail("Metal primitive command handler must skip fully transparent draw-only opcodes before vertex emission")
     if "static void OrenAVMMetalAppendRoundRect" in text or "static void OrenAVMMetalAppendCircle" in text:
         fail("Metal view must not inline primitive geometry append helpers")
     rect_start = geometry_source_text.find("void OrenAVMMetalAppendRect")
@@ -261,6 +268,10 @@ def main() -> int:
         fail("Metal text atlases must clear only sampled glyph padding")
     if "dataWithLength:OrenAVMMetalTextAtlasSize * OrenAVMMetalTextAtlasSize * 4u" in text_source:
         fail("Metal text atlas creation must not allocate a full zero buffer")
+    if "static const uint8_t zeroAtlasPadding[OrenAVMMetalTextAtlasSize * 4u] = {0}" not in text_source:
+        fail("Metal text atlas padding clears must reuse a shared zero stripe")
+    if "uint8_t zero[OrenAVMMetalTextAtlasSize * 4u] = {0}" in text_source:
+        fail("Metal text atlas padding clears must not rebuild a zero stripe per glyph")
     if "OrenAVMMetalClearTextAtlasPadding((*atlas).texture, atlasX, atlasY, pixelWidth, pixelHeight)" not in text_source:
         fail("packed Metal text uploads must clear transparent atlas padding")
     if "NSMutableData* pixels = [NSMutableData dataWithLength:pixelWidth * pixelHeight * 4u]" in text_source:
@@ -398,6 +409,13 @@ def main() -> int:
             fail("retained Metal text opcode expansion must not live in OrenAVMMetalView")
         if token not in text_command:
             fail(f"retained Metal text command helper missing expected path: {token}")
+    for token in (
+        "case 2: {\n            if (opacity <= 0.0f) return YES;",
+        "case 69: {\n            if (opacity <= 0.0f) return YES;",
+        "case 72: {\n            if (opacity <= 0.0f) return YES;",
+    ):
+        if token not in text_command:
+            fail(f"retained Metal text draw opcode must skip fully transparent texture work: {token}")
     if "CFDictionarySetValue(_orenTextResourcesByID" in text or "CFDictionaryRemoveValue(_orenTextResourcesByID" in text:
         fail("retained Metal text map mutation must live in OrenAVMMetalResources")
     if "@(textID)" in text:
@@ -677,6 +695,13 @@ def main() -> int:
             fail("retained Metal image opcode expansion must not live in OrenAVMMetalView")
         if token not in image_command:
             fail(f"retained Metal image command helper missing expected path: {token}")
+    for token in (
+        "case 65: {\n            if (opacity <= 0.0f) return YES;",
+        "case 67: {\n            if (opacity <= 0.0f) return YES;",
+        "case 71: {\n            if (opacity <= 0.0f) return YES;",
+    ):
+        if token not in image_command:
+            fail(f"retained Metal image draw opcode must skip fully transparent texture work: {token}")
     batched_images = image_command.find("case 71:")
     if batched_images < 0:
         fail("missing batched Metal image-rect path")

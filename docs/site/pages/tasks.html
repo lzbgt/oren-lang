@@ -1508,8 +1508,9 @@
 <p>		     payload fields read from cached u8-buffer pointers, UI command validation</p>
 <p>		     reads geometry/text-position/image-rect payload fields through shared</p>
 <p>			     byte views, Metal batched image rects validate local draw/source</p>
-<p>			     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D</p>
-<p>			     draws skip sort/color work when clipping leaves no visible triangles, and Metal/CoreGraphics zero-area</p>
+<p>				     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D</p>
+<p>				     draws skip sort/color work when clipping leaves no visible triangles, fully transparent Metal draw-only opcodes</p>
+<p>				     skip vertex/texture/text-cache work, and Metal/CoreGraphics zero-area</p>
 <p>		     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
 <p>		     while software rasterization reads those payload</p>
 <p>		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>

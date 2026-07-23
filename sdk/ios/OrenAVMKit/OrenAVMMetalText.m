@@ -170,11 +170,11 @@ static void OrenAVMMetalClearTextAtlasPadding(id<MTLTexture> texture,
                                               NSUInteger pixelWidth,
                                               NSUInteger pixelHeight) {
     if (!texture || pixelWidth == 0 || pixelHeight == 0) return;
-    uint8_t zero[OrenAVMMetalTextAtlasSize * 4u] = {0};
+    static const uint8_t zeroAtlasPadding[OrenAVMMetalTextAtlasSize * 4u] = {0};
     if (x + pixelWidth < texture.width) {
         [texture replaceRegion:MTLRegionMake2D(x + pixelWidth, y, OrenAVMMetalTextAtlasPadding, pixelHeight)
                    mipmapLevel:0
-                     withBytes:zero
+                     withBytes:zeroAtlasPadding
                    bytesPerRow:OrenAVMMetalTextAtlasPadding * 4u];
     }
     if (y + pixelHeight < texture.height) {
@@ -182,7 +182,7 @@ static void OrenAVMMetalClearTextAtlasPadding(id<MTLTexture> texture,
         if (x + bottomWidth < texture.width) bottomWidth += OrenAVMMetalTextAtlasPadding;
         [texture replaceRegion:MTLRegionMake2D(x, y + pixelHeight, bottomWidth, OrenAVMMetalTextAtlasPadding)
                    mipmapLevel:0
-                     withBytes:zero
+                     withBytes:zeroAtlasPadding
                    bytesPerRow:bottomWidth * 4u];
     }
 }

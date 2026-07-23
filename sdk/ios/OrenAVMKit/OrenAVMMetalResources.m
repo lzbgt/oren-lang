@@ -359,6 +359,7 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
             return YES;
         }
         case 65: {
+            if (opacity <= 0.0f) return YES;
             if (payloadLen == 20) {
                 OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
                                                                                      OrenAVMMetalReadU32LE(payload));
@@ -397,6 +398,7 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
             return YES;
         }
         case 67: {
+            if (opacity <= 0.0f) return YES;
             if (payloadLen == 36) {
                 OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
                                                                                      OrenAVMMetalReadU32LE(payload));
@@ -427,6 +429,7 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
             return YES;
         }
         case 71: {
+            if (opacity <= 0.0f) return YES;
             if (payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
                 uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
                 if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
@@ -547,6 +550,7 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
     if (!payload) return NO;
     switch (opcode) {
         case 2: {
+            if (opacity <= 0.0f) return YES;
             if (payloadLen >= 16) {
                 uint32_t textLen = OrenAVMMetalReadU32LE(payload + 12);
                 if (textLen == (uint32_t)payloadLen - 16u) {
@@ -589,6 +593,7 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
             return YES;
         }
         case 69: {
+            if (opacity <= 0.0f) return YES;
             if (payloadLen == 12) {
                 OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(texts ? *texts : NULL,
                                                                                       OrenAVMMetalReadU32LE(payload));
@@ -624,6 +629,7 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
             return YES;
         }
         case 72: {
+            if (opacity <= 0.0f) return YES;
             if (payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
                 uint32_t textID = OrenAVMMetalReadU32LE(payload);
                 uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
