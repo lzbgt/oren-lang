@@ -212,6 +212,49 @@ fn is_rigid_transform_abs(m, abs_tol: f64) {
     return is_orthonormal_abs(m, abs_tol)
 }
 
+fn inverse_rigid_transform_abs(m, abs_tol: f64) {
+    var rigid = is_rigid_transform_abs(m, abs_tol)
+    if oren_is_err(rigid) { return rigid }
+    if !rigid { return oren_err(4, "mat4.inverse_rigid_transform_abs: non-rigid transform") }
+
+    var m0: f64 = m[0]
+    var m1: f64 = m[1]
+    var m2: f64 = m[2]
+    var m4: f64 = m[4]
+    var m5: f64 = m[5]
+    var m6: f64 = m[6]
+    var m8: f64 = m[8]
+    var m9: f64 = m[9]
+    var m10: f64 = m[10]
+    var tx: f64 = m[3]
+    var ty: f64 = m[7]
+    var tz: f64 = m[11]
+    var itx: f64 = 0.0 - (m0 * tx + m4 * ty + m8 * tz)
+    var ity: f64 = 0.0 - (m1 * tx + m5 * ty + m9 * tz)
+    var itz: f64 = 0.0 - (m2 * tx + m6 * ty + m10 * tz)
+    var out = [
+        m0, m4, m8, itx,
+        m1, m5, m9, ity,
+        m2, m6, m10, itz,
+        0.0, 0.0, 0.0, 1.0
+    ]
+    var ok = _check(out, "mat4.inverse_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    return out
+}
+
+fn rigid_inverse_abs(m, abs_tol: f64) {
+    return inverse_rigid_transform_abs(m, abs_tol)
+}
+
+fn inverse_rigid_transform(m) {
+    return inverse_rigid_transform_abs(m, 0.000000000001)
+}
+
+fn rigid_inverse(m) {
+    return inverse_rigid_transform(m)
+}
+
 fn basis_x(m) {
     var ok = _check(m, "mat4.basis_x")
     if oren_is_err(ok) { return ok }
