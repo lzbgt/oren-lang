@@ -59,6 +59,17 @@ fn _check_vec4(v, ctx) {
     return 0
 }
 
+fn _check_vec3(v, ctx) {
+    if oren_list_len(v) != 3 { return oren_err(4, ctx + ": expected 3 values") }
+    var i = 0
+    while i < 3 {
+        var ok = _finite_scalar(v[i], ctx)
+        if oren_is_err(ok) { return ok }
+        i = i + 1
+    }
+    return 0
+}
+
 fn is_finite(m) {
     return !oren_is_err(_check(m, "mat4.is_finite"))
 }
@@ -405,6 +416,35 @@ fn from_columns(c0, c1, c2, c3) {
         c0[2], c1[2], c2[2], c3[2],
         c0[3], c1[3], c2[3], c3[3]
     ]
+}
+
+fn from_basis_translation(x_axis, y_axis, z_axis, translation_vec) {
+    var ok = _check_vec3(x_axis, "mat4.from_basis_translation")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(y_axis, "mat4.from_basis_translation")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(z_axis, "mat4.from_basis_translation")
+    if oren_is_err(ok) { return ok }
+    ok = _check_vec3(translation_vec, "mat4.from_basis_translation")
+    if oren_is_err(ok) { return ok }
+    return [
+        x_axis[0], y_axis[0], z_axis[0], translation_vec[0],
+        x_axis[1], y_axis[1], z_axis[1], translation_vec[1],
+        x_axis[2], y_axis[2], z_axis[2], translation_vec[2],
+        0.0, 0.0, 0.0, 1.0
+    ]
+}
+
+fn from_basis(x_axis, y_axis, z_axis) {
+    return from_basis_translation(x_axis, y_axis, z_axis, [0.0, 0.0, 0.0])
+}
+
+fn from_axes_translation(x_axis, y_axis, z_axis, translation_vec) {
+    return from_basis_translation(x_axis, y_axis, z_axis, translation_vec)
+}
+
+fn from_axes(x_axis, y_axis, z_axis) {
+    return from_basis(x_axis, y_axis, z_axis)
 }
 
 fn diagonal(m) {
