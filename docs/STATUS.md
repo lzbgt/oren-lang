@@ -127,6 +127,10 @@ surfaces, but the following blockers remain:
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.
+- `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
+  through bounded `oren_memcpy` in native and bytecode, while direct-copy
+  fixtures cover both backward and forward overlapping self-copy directions to
+  preserve portable directional-loop semantics.
 - `std:math/mat4` now includes checked viewport/NDC conversion helpers
   (`viewport_matrix`, `inverse_viewport_matrix`, `ndc_to_window`, and
   `window_to_ndc`) and routes project/unproject through the same depth clamp

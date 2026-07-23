@@ -663,6 +663,7 @@ OrenValue oren_buf_payload_is_mmap(OrenValue buf);
 	extern OrenValue ptr_set;
 	extern OrenValue ptr_get_byte;
 	extern OrenValue ptr_set_byte;
+	OrenValue oren_memcpy(OrenValue dst, OrenValue src, OrenValue len);
 
 		OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
 		// Unsafe/fast-path (tooling/internal): load a byte from a u8_buf without bounds/type checks.

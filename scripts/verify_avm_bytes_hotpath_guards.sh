@@ -218,6 +218,9 @@ fi
 
 std_bytes_impl="$(sed -n '/fn _u16_be_from_ptr/,/fn set_u16_be/p' lib/std/bytes.oren)"
 if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'fn _copy_u8_ptr_nonoverlap(dstp, srcp, n)' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'return oren_memcpy(dstp, srcp, n)' <<<"$std_bytes_impl" ||
+  ! grep -Fq '_copy_u8_ptr_nonoverlap(dstp + dst_off, srcp + src_off, n)' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _u64_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _u64_be_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _i16_from_u16' <<<"$std_bytes_impl" ||
@@ -238,6 +241,20 @@ if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   exit 1
 fi
 
+bytecode_codegen_impl="$(sed -n '/if name == "ptr_get"/,/Reflection-ish helpers/p' lib/compiler/codegen_bytecode/010_codegen_a.oren)"
+avm_ptr_helper_impl="$(sed -n '/static AvmValue avm_ptr_memcpy_value/,/^}/p' lib/avm/avm_native_ptr_helpers.inc)"
+c_runtime_ptr_impl="$(sed -n '/OrenValue oren_memcpy/,/^}/p' lib/runtime/060_ptr_unsafe.inc)"
+if ! grep -Fq 'if name == "oren_memcpy" { native_id = 230 }' <<<"$bytecode_codegen_impl" ||
+  ! grep -Fq 'static AvmValue avm_ptr_memcpy_value' <<<"$avm_ptr_helper_impl" ||
+  ! grep -Fq 'memcpy(dst->data + dst_off, src->data + src_off, (size_t)len)' <<<"$avm_ptr_helper_impl" ||
+  ! grep -Fq 'if (dst->readonly)' <<<"$avm_ptr_helper_impl" ||
+  ! grep -Fq 'case 230: { // oren_memcpy(dst_ptr, src_ptr, len) -> int' lib/avm/avm_native_compiler_cases.inc ||
+  ! grep -Fq 'OrenValue oren_memcpy(OrenValue dst, OrenValue src, OrenValue len);' lib/runtime.h ||
+  ! grep -Fq 'memcpy((void*)dst_addr, (const void*)src_addr, (size_t)len.as.int_val)' <<<"$c_runtime_ptr_impl"; then
+  echo "ERROR: oren_memcpy must be mapped across bytecode/AVM and C runtime for std:bytes hot paths" >&2
+  exit 1
+fi
+
 native_byte_order_impl="$(sed -n '/fn oren_bytes_set_u8/,/fn oren_bytes_get_u16_be/p' lib/runtime_native/190_byte_order.oren)"
 if ! grep -Fq 'if native_bytes_is_list_int(bytes) == true' <<<"$native_byte_order_impl" ||
   ! grep -Fq 'ptr_set(bufi + idx * 8, v)' <<<"$native_byte_order_impl" ||
@@ -246,7 +263,9 @@ if ! grep -Fq 'if native_bytes_is_list_int(bytes) == true' <<<"$native_byte_orde
   exit 1
 fi
 if ! grep -Fq 'var list_int_overlap = listm.int_new(0)' tests/avm/test_std_bytes_portable.oren ||
+  ! grep -Fq 'var overlap_forward = bufferm.u8_from_string("abcdef")' tests/avm/test_std_bytes_portable.oren ||
   ! grep -Fq 'var list_overlap = [97, 98, 99, 100, 101, 102]' tests/avm/test_std_bytes_portable.oren ||
+  ! grep -Fq 'assert_streq(bytesm.to_string(overlap_forward), "cdefef", 8797)' tests/native/qi/110_tests_basic_smoke_a.oren ||
   ! grep -Fq 'assert_eq(oren_bytes_set_u16_le(list_int_overlap, 0, 4660), 4660, 8794)' tests/native/qi/110_tests_basic_smoke_a.oren; then
   echo "ERROR: std:bytes copy_into fixtures must cover boxed-list/LIST_INT self-overlap and native LIST_INT setter parity" >&2
   exit 1

@@ -1451,7 +1451,9 @@ This file is the concise task view. Detailed implementation status lives in
      Windows Schannel passphrase cache keys, and callers that already hold text;
      SHA-1/SHA-256 digest inputs read through shared byte views and digest buffers finalize through direct unchecked u8 stores
      after exact-size allocation, and native SHA-256 contiguous input remainders
-     copy with `oren_memcpy`.
+     copy with `oren_memcpy`; `std:bytes.copy_into` direct u8-buffer copies use
+     bounded `oren_memcpy` for validated non-overlapping spans while fixtures
+     cover both overlapping self-copy directions.
      Compiler source-policy
 	     scans, scan-cache line/number parsing plus bounded load/save and delimiter writes, C-runtime include scanning,
 		     compiler manifest JSON escaping, byte-native bytecode metadata payloads,

@@ -177,6 +177,9 @@ fn test_std_bytes_smoke() {
     var overlap = bytesm.from_string("abcdef")
     assert_true(oren_is_err(bytesm.copy_into(overlap, 2, overlap, 0, 4)) == false, 7940)
     assert_streq(bytesm.to_string(overlap), "ababcd", 7939)
+    var overlap_forward = bytesm.from_string("abcdef")
+    assert_true(oren_is_err(bytesm.copy_into(overlap_forward, 0, overlap_forward, 2, 4)) == false, 8796)
+    assert_streq(bytesm.to_string(overlap_forward), "cdefef", 8797)
     var list_overlap = [97, 98, 99, 100, 101, 102]
     assert_true(oren_is_err(bytesm.copy_into(list_overlap, 2, list_overlap, 0, 4)) == false, 8790)
     assert_streq(bytesm.to_string(list_overlap), "ababcd", 8791)

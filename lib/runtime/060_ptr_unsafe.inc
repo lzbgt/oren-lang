@@ -60,6 +60,22 @@ static OrenValue oren_ptr_set_byte_raw(OrenValue ptr, OrenValue val) {
     return oren_int((long long)v);
 }
 
+OrenValue oren_memcpy(OrenValue dst, OrenValue src, OrenValue len) {
+    if (len.type != OREN_TYPE_INT) {
+        oren_panic("oren_memcpy expects int len");
+        return OREN_NIL;
+    }
+    if (len.as.int_val < 0) {
+        oren_panic("oren_memcpy: negative len");
+        return OREN_NIL;
+    }
+    if (len.as.int_val == 0) return oren_int(0);
+    uintptr_t dst_addr = oren_ptr_unsafe_addr(dst, "oren_memcpy expects int destination pointer");
+    uintptr_t src_addr = oren_ptr_unsafe_addr(src, "oren_memcpy expects int source pointer");
+    memcpy((void*)dst_addr, (const void*)src_addr, (size_t)len.as.int_val);
+    return oren_int(0);
+}
+
 // Expose as function values so generated C code can call them via `oren_call_obj_*`.
 // (Stage0 C transpiler does not special-case these to direct calls.)
 OrenValue ptr_get;

@@ -91,6 +91,9 @@ fn test_bytes_conversions() {
     var overlap = bufferm.u8_from_string("abcdef")
     assert_true(!oren_is_err(bytesm.copy_into(overlap, 2, overlap, 0, 4)))
     assert_eq(bufferm.u8_to_string(overlap), "ababcd")
+    var overlap_forward = bufferm.u8_from_string("abcdef")
+    assert_true(!oren_is_err(bytesm.copy_into(overlap_forward, 0, overlap_forward, 2, 4)))
+    assert_eq(bufferm.u8_to_string(overlap_forward), "cdefef")
     var list_overlap = [97, 98, 99, 100, 101, 102]
     assert_true(!oren_is_err(bytesm.copy_into(list_overlap, 2, list_overlap, 0, 4)))
     assert_eq(bytesm.to_string(list_overlap), "ababcd")

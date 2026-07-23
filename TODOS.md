@@ -44,6 +44,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics and Metal retained text, mesh, and model uploads now preflight
   scalar-map storage before retained string/object allocation or raw payload
   copies.
+- `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
+  through bounded `oren_memcpy` in native and bytecode, while fixtures cover both
+  overlapping self-copy directions across AVM and native quick integration.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.

@@ -1119,6 +1119,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_gc_safepoint" { native_id = 226 }
         if name == "oren_unlink" { native_id = 227 }
         if name == "oren_resolve_symbol" { native_id = 228 }
+        if name == "oren_memcpy" { native_id = 230 }
         // Reflection-ish helpers (rolling):
         // - `oren_type_tag(x)` is used pervasively in stdlib to detect nil without relying on scalar-nil comparisons.
         if name == "oren_type_tag" { native_id = 146 }

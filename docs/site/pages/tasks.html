@@ -1521,7 +1521,9 @@
 <p>     Windows Schannel passphrase cache keys, and callers that already hold text;</p>
 <p>     SHA-1/SHA-256 digest inputs read through shared byte views and digest buffers finalize through direct unchecked u8 stores</p>
 <p>     after exact-size allocation, and native SHA-256 contiguous input remainders</p>
-<p>     copy with <code>oren_memcpy</code>.</p>
+<p>     copy with <code>oren_memcpy</code>; <code>std:bytes.copy_into</code> direct u8-buffer copies use</p>
+<p>     bounded <code>oren_memcpy</code> for validated non-overlapping spans while fixtures</p>
+<p>     cover both overlapping self-copy directions.</p>
 <p>     Compiler source-policy</p>
 <p>	     scans, scan-cache line/number parsing plus bounded load/save and delimiter writes, C-runtime include scanning,</p>
 <p>		     compiler manifest JSON escaping, byte-native bytecode metadata payloads,</p>

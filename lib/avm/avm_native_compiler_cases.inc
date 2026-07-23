@@ -329,3 +329,8 @@
         case 225: { res = avm_call_native(vm, 168, args, nargs); break; } // oren_is_done
         case 226: { res = avm_nil(); break; } // oren_gc_safepoint
         case 228: { res = avm_string("???"); break; } // oren_resolve_symbol
+        case 230: { // oren_memcpy(dst_ptr, src_ptr, len) -> int
+            if (nargs > 2) res = avm_ptr_memcpy_value(vm, args[0], args[1], args[2]);
+            else res = avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy expects (dst_ptr, src_ptr, len)");
+            break;
+        }

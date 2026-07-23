@@ -104,3 +104,20 @@ static AvmValue avm_ptr_set_u64_value(AvmVM* vm, AvmValue pval, AvmValue vval) {
     for (int i = 0; i < 8; i++) h->data[off + i] = (uint8_t)((u >> (8 * i)) & 255u);
     return avm_nil();
 }
+
+static AvmValue avm_ptr_memcpy_value(AvmVM* vm, AvmValue dst_val, AvmValue src_val, AvmValue len_val) {
+    AvmPtrHandle* dst = NULL;
+    AvmPtrHandle* src = NULL;
+    int64_t dst_off = 0;
+    int64_t src_off = 0;
+    if (len_val.type != AVM_VAL_INT) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy expects int len");
+    int64_t len = len_val.as.i;
+    if (len < 0) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy: negative len");
+    if (!avm_ptr_decode(vm, dst_val, &dst, &dst_off)) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy expects destination VM pointer handle");
+    if (!avm_ptr_decode(vm, src_val, &src, &src_off)) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy expects source VM pointer handle");
+    if (dst->readonly) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy: read-only destination pointer");
+    if (dst_off < 0 || len > dst->len - dst_off) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy: destination out of bounds");
+    if (src_off < 0 || len > src->len - src_off) return avm_err(AVM_ERR_INVALID_ARG, "oren_memcpy: source out of bounds");
+    if (len > 0) memcpy(dst->data + dst_off, src->data + src_off, (size_t)len);
+    return avm_int(0);
+}

@@ -320,6 +320,11 @@ fn _copy_u8_ptr_forward(dstp, srcp, n) {
     return n
 }
 
+fn _copy_u8_ptr_nonoverlap(dstp, srcp, n) {
+    if n <= 0 { return 0 }
+    return oren_memcpy(dstp, srcp, n)
+}
+
 fn _hex_digit_value(b) {
     if b >= 48 && b <= 57 { return b - 48 }
     if b >= 65 && b <= 70 { return b - 55 }
@@ -512,7 +517,10 @@ fn copy_into(dst, dst_off, src, src_off, n) {
         var srcp = nil
         if src_is_u8 { srcp = oren_buf_data_ptr_unchecked(src) }
         if src_is_u8 && n > 0 {
-            if dst == src && dst_off > src_off && dst_off < src_off + n {
+            var overlap = (dst == src && dst_off < src_off + n && src_off < dst_off + n)
+            if overlap == false {
+                _copy_u8_ptr_nonoverlap(dstp + dst_off, srcp + src_off, n)
+            } else if dst_off > src_off {
                 var k = n - 1
                 while k >= 0 {
                     ptr_set_byte(dstp + dst_off + k, ptr_get_byte(srcp + src_off + k) & 255)
