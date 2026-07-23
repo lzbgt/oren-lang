@@ -44,7 +44,9 @@ surfaces, but the following blockers remain:
   proof lives in `internal/orenlsp/server_import_test.go`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
-  extension verifier has regex smoke coverage for `import . "path"`.
+  extension verifier has regex smoke coverage for `import . "path"`. LSP
+  semantic tokens now classify anonymous import dots and member-access dots as
+  operators, matching the grammar surface.
 - iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed
   fixed-capacity LIFO stack. Overflow pushes remain balanced no-op frames, and
   malformed out-of-order pops cannot restore a non-matching saved Metal state.

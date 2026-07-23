@@ -356,7 +356,8 @@ func isOperatorToken(typ token.TokenType) bool {
 	case token.ASSIGN, token.PLUS, token.MINUS, token.BANG, token.TILDE,
 		token.ASTERISK, token.SLASH, token.LT, token.GT, token.LTE, token.GTE,
 		token.SHL, token.SHR, token.EQ, token.NOT_EQ, token.DECLARE,
-		token.AND, token.OR, token.BITAND, token.BITOR, token.BITXOR:
+		token.AND, token.OR, token.BITAND, token.BITOR, token.BITXOR,
+		token.DOT:
 		return true
 	default:
 		return false
