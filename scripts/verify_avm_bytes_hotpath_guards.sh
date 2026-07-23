@@ -887,12 +887,22 @@ if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/c
 fi
 
 if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands.oren; then
-  echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
-  exit 1
+    echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
+    exit 1
+fi
+ui_commands_impl="$(sed -n '/fn validate(cmds, w, h, opts)/,/^}/p' lib/std/ui/commands.oren)"
+if ! grep -Fq 'var rects_data = bytes.view_bytes(rects_view)' <<<"$ui_commands_impl" ||
+  ! grep -Fq 'var rects_ptr = bytes.view_ptr(rects_view)' <<<"$ui_commands_impl" ||
+  ! grep -Fq 'var bsx = bytes.view_get_u32_le_from(rects_data, rects_ptr, roff)' <<<"$ui_commands_impl" ||
+  ! grep -Fq 'var m3ix = bytes.view_get_i32_le_from(m3iverts_data, m3iverts_ptr, m3ivoff)' <<<"$ui_commands_impl" ||
+  grep -Fq 'bytes.view_get_u32_le_unchecked(' <<<"$ui_commands_impl" ||
+  grep -Fq 'bytes.view_get_i32_le_unchecked(' <<<"$ui_commands_impl"; then
+    echo "ERROR: std:ui/commands validation must hoist byte-view backing storage for fixed-width payload reads" >&2
+    exit 1
 fi
 
 if grep -q 'fn _read_byte\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/raster.oren; then
-  echo "ERROR: std:ui/raster hot loops must use shared std:bytes view readers directly" >&2
+    echo "ERROR: std:ui/raster hot loops must use shared std:bytes view readers directly" >&2
   exit 1
 fi
 
