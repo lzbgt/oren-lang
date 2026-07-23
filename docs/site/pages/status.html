@@ -68,6 +68,12 @@
 <p>  only changes retained 3D depth-window state; <code>scripts/verify_ios_graphics_frame.py</code></p>
 <p>  guards that split.</p>
 <ul>
+<li>iOS CoreGraphics OGF0 transform pops now require a matching transform push via</li>
+</ul>
+<p>  <code>transformDepth</code>, preventing malformed <code>pop_transform</code> commands from consuming</p>
+<p>  unrelated clip/opacity CGContext saves; <code>scripts/verify_ios_graphics_frame.py</code></p>
+<p>  guards the push/pop pair.</p>
+<ul>
 <li>Anonymous imports now support <code>import . &quot;path&quot;</code> in both bootstrap and</li>
 </ul>
 <p>  self-hosted parser/linker paths. Dot imports are dependency edges without</p>

@@ -11,6 +11,7 @@
 typedef struct {
     uint32_t clipDepth;
     uint32_t stateDepth;
+    uint32_t transformDepth;
     CGFloat opacity;
     CGFloat opacityStack[64];
     uint32_t opacityDepth;

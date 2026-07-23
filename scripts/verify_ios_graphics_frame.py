@@ -50,10 +50,13 @@ def main() -> int:
         "typedef struct {",
         "CFMutableDictionaryRef* textResources",
         "void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawContext* context)",
+        "uint32_t transformDepth",
         "CGFloat opacityStack[64]",
         "BOOL depthEnabledStack[64]",
         "uint32_t opacityOverflowDepth",
         "uint32_t cameraOverflowDepth",
+        "state->transformDepth++",
+        "state->transformDepth--",
         "state->opacityOverflowDepth++",
         "state->opacityOverflowDepth--",
         "state->cameraOverflowDepth++",
@@ -61,6 +64,15 @@ def main() -> int:
     ):
         if token not in frame_text:
             fail(f"CoreGraphics frame helper is missing expected state logic: {token}")
+
+    push_transform_block = between(frame_source_text, "case 18:", "case 19:")
+    pop_transform_block = between(frame_source_text, "case 19:", "case 20:")
+    if "state->transformDepth++" not in push_transform_block:
+        fail("CoreGraphics transform push must track transformDepth")
+    if "state->transformDepth > 0" not in pop_transform_block:
+        fail("CoreGraphics transform pop must require a matching transform push")
+    if "state->transformDepth--" not in pop_transform_block:
+        fail("CoreGraphics transform pop must consume transformDepth")
 
     push_camera_block = between(frame_source_text, "case 22:", "case 23:")
     pop_camera_block = between(frame_source_text, "case 23:", "default:")

@@ -124,12 +124,14 @@ BOOL OrenAVMGfxHandleFrameStateCommand(CGContextRef ctx,
                 CGContextSaveGState(ctx);
                 CGContextTranslateCTM(ctx, (CGFloat)dx, (CGFloat)dy);
                 state->stateDepth++;
+                state->transformDepth++;
             }
             return YES;
         }
         case 19: {
-            if (payloadLen == 0 && state->stateDepth > 0) {
+            if (payloadLen == 0 && state->transformDepth > 0 && state->stateDepth > 0) {
                 CGContextRestoreGState(ctx);
+                state->transformDepth--;
                 state->stateDepth--;
             }
             return YES;

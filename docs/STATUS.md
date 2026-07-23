@@ -30,6 +30,10 @@ surfaces, but the following blockers remain:
   way, and camera push/pop no longer mutates CGContext `stateDepth` because it
   only changes retained 3D depth-window state; `scripts/verify_ios_graphics_frame.py`
   guards that split.
+- iOS CoreGraphics OGF0 transform pops now require a matching transform push via
+  `transformDepth`, preventing malformed `pop_transform` commands from consuming
+  unrelated clip/opacity CGContext saves; `scripts/verify_ios_graphics_frame.py`
+  guards the push/pop pair.
 - Anonymous imports now support `import . "path"` in both bootstrap and
   self-hosted parser/linker paths. Dot imports are dependency edges without
   alias-table entries, import top-level names unqualified using the same

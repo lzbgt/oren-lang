@@ -45,6 +45,9 @@ design evidence lives under `project-doc/`.
   outer state, and camera state no longer mutates CGContext `stateDepth` because
   it only changes retained 3D depth windows. The guard lives in
   `scripts/verify_ios_graphics_frame.py`.
+- CoreGraphics OGF0 transform pops now require a matching transform push via
+  `transformDepth`, preventing malformed `pop_transform` commands from consuming
+  unrelated clip/opacity CGContext saves; the verifier guards the push/pop pair.
 - Oren LSP now recognizes anonymous `import . "path"` imports for workspace
   dependency traversal, unqualified imported symbol completion/definition, and
   typed-member completion/definition through anonymously imported constructors.
