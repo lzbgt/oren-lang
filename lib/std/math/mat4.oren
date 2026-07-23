@@ -306,6 +306,60 @@ fn is_symmetric(m) {
     return is_symmetric_abs(m, 0.0)
 }
 
+fn is_upper_triangular_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    ok = _close_abs_scalar(m[4], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[8], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[9], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[12], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[13], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[14], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    return ok
+}
+
+fn is_upper_triangular(m) {
+    return is_upper_triangular_abs(m, 0.0)
+}
+
+fn is_lower_triangular_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    ok = _close_abs_scalar(m[1], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[2], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[3], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[6], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[7], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[11], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    return ok
+}
+
+fn is_lower_triangular(m) {
+    return is_lower_triangular_abs(m, 0.0)
+}
+
 fn _basis_dot(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, ctx) {
     var out: f64 = x0 * x1 + y0 * y1 + z0 * z1
     var ok = _finite_scalar(out, ctx)
