@@ -263,6 +263,77 @@ func TestTypedMemberAnalysisUsesConditionalMemberAssignmentFieldTypes(t *testing
 	}
 }
 
+func TestTypedMemberAnalysisUsesReturnedMemberAssignmentFieldTypes(t *testing.T) {
+	lines := []string{
+		"struct Inner { x, y }",
+		"struct Other { z }",
+		"struct Holder { inner, items }",
+		"fn unknown() { return 0 }",
+		"fn make_holder() {",
+		"  var holder = Holder(unknown(), [Other(0)])",
+		"  holder.inner = Inner(1, 2)",
+		"  holder.items = [Inner(3, 4)]",
+		"  return holder",
+		"}",
+		"fn make_mixed(flag) {",
+		"  var holder = Holder(unknown(), [])",
+		"  if flag {",
+		"    holder.inner = Inner(5, 6)",
+		"  } else {",
+		"    holder.inner = Other(7)",
+		"  }",
+		"  return holder",
+		"}",
+		"var returned = make_holder()",
+		"fn main() {",
+		"  var c0 = make_holder().inner.",
+		"  var d0 = returned.inner.x",
+		"  var c1 = returned.items[0].",
+		"  var d1 = make_holder().items[0].y",
+		"  return make_mixed(true).inner.x",
+		"}",
+		"",
+	}
+	text := strings.Join(lines, "\n")
+	uri := "file:///typed-member-returned-member-assignment.oren"
+
+	items, found := typedMemberCompletionItemsAt(text, uri, position{
+		Line:      21,
+		Character: len([]rune(lines[21])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("returned member assignment completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(text, uri, position{
+		Line:      22,
+		Character: strings.LastIndex(lines[22], ".x") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "x" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("returned member assignment definition mismatch match=%#v ok=%v", match, ok)
+	}
+	items, found = typedMemberCompletionItemsAt(text, uri, position{
+		Line:      23,
+		Character: len([]rune(lines[23])),
+	}, nil, nil)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("returned member list assignment completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      24,
+		Character: strings.LastIndex(lines[24], ".y") + 1,
+	}, nil, nil)
+	if !ok || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("returned member list assignment definition mismatch match=%#v ok=%v", match, ok)
+	}
+	match, ok = typedMemberSymbolAt(text, uri, position{
+		Line:      25,
+		Character: strings.LastIndex(lines[25], ".x") + 1,
+	}, nil, nil)
+	if ok {
+		t.Fatalf("mixed returned member assignment definition=%#v want none", match)
+	}
+}
+
 func TestServerNavigationUsesExpressionReceiverFields(t *testing.T) {
 	var in bytes.Buffer
 	text := strings.Join([]string{

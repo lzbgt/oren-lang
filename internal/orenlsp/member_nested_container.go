@@ -202,6 +202,8 @@ func inferStatementReturnElementElementFieldTypes(stmt ast.Statement, env member
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+	case *ast.SetStatement:
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		return inferIterableElementElementFieldTypes(stmt.ReturnValue, env, *stack)
 	case *ast.ExpressionStatement:
@@ -288,6 +290,8 @@ func inferStatementReturnMapValueMapValueFieldTypes(stmt ast.Statement, env memb
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+	case *ast.SetStatement:
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		return inferMapValueMapValueFieldTypes(stmt.ReturnValue, env, *stack)
 	case *ast.ExpressionStatement:
@@ -374,6 +378,8 @@ func inferStatementReturnElementMapValueFieldTypes(stmt ast.Statement, env membe
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+	case *ast.SetStatement:
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		return inferIterableElementMapValueFieldTypes(stmt.ReturnValue, env, *stack)
 	case *ast.ExpressionStatement:
@@ -460,6 +466,8 @@ func inferStatementReturnMapValueElementFieldTypes(stmt ast.Statement, env membe
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
 	case *ast.AssignStatement:
 		setInferredVarExpression(stmt.Name, stmt.Value, env, *stack)
+	case *ast.SetStatement:
+		setInferredMemberExpression(stmt.Left, stmt.Value, env, *stack)
 	case *ast.ReturnStatement:
 		return inferMapValueElementFieldTypes(stmt.ReturnValue, env, *stack)
 	case *ast.ExpressionStatement:
