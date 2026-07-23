@@ -95,6 +95,12 @@
 <p>  aliases, and <code>std:</code> import literals before generic string matching; the</p>
 <p>  extension verifier has regex smoke coverage for <code>import . &quot;path&quot;</code>.</p>
 <ul>
+<li>iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed</li>
+</ul>
+<p>  fixed-capacity LIFO stack, so overflow pushes stay balanced as no-op frames</p>
+<p>  and malformed out-of-order pops cannot restore non-matching saved Metal</p>
+<p>  state.</p>
+<ul>
 <li>Scene3D flat generated-shape AVM coverage now lives in</li>
 </ul>
 <p>  <code>tests/avm/test_ui_scene3d_flat_shapes_v0.oren</code>, keeping the core</p>

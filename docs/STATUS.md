@@ -45,6 +45,9 @@ surfaces, but the following blockers remain:
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`.
+- iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed
+  fixed-capacity LIFO stack. Overflow pushes remain balanced no-op frames, and
+  malformed out-of-order pops cannot restore a non-matching saved Metal state.
 - `std:math/mat4` now includes checked rigid-transform inverse helpers
   (`inverse_rigid_transform_abs`, `inverse_rigid_transform`,
   `rigid_inverse_abs`, and `rigid_inverse`) that validate affine orthonormal

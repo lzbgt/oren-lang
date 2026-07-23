@@ -43,10 +43,49 @@ uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli) {
     return 1000000000000ull / effectiveHzMilli;
 }
 
+typedef uint8_t OrenAVMMetalStateKind;
+enum {
+    OrenAVMMetalStateKindClip = 1,
+    OrenAVMMetalStateKindTransform = 2,
+    OrenAVMMetalStateKindOpacity = 3,
+    OrenAVMMetalStateKindCamera = 4,
+};
+
+typedef uint8_t OrenAVMMetalPopResult;
+enum {
+    OrenAVMMetalPopResultNone = 0,
+    OrenAVMMetalPopResultNoOp = 1,
+    OrenAVMMetalPopResultRestored = 2,
+};
+
 void OrenAVMMetalFrameStateInit(OrenAVMMetalFrameState* state) {
     if (!state) return;
     memset(state, 0, sizeof(*state));
     state->opacity = 1.0f;
+}
+
+static BOOL OrenAVMMetalPushState(OrenAVMMetalFrameState* state, OrenAVMMetalStateKind kind) {
+    if (!state || kind == 0) return NO;
+    if (state->stateDepth >= OrenAVMMetalFrameStateStackCapacity) {
+        state->stateOverflowDepth++;
+        return NO;
+    }
+    state->stateStack[state->stateDepth++] = kind;
+    return YES;
+}
+
+static OrenAVMMetalPopResult OrenAVMMetalPopState(OrenAVMMetalFrameState* state, OrenAVMMetalStateKind kind) {
+    if (!state || kind == 0) return OrenAVMMetalPopResultNone;
+    if (state->stateOverflowDepth > 0) {
+        state->stateOverflowDepth--;
+        return OrenAVMMetalPopResultNoOp;
+    }
+    if (state->stateDepth == 0 || state->stateStack[state->stateDepth - 1] != kind) {
+        return OrenAVMMetalPopResultNone;
+    }
+    state->stateDepth--;
+    state->stateStack[state->stateDepth] = 0;
+    return OrenAVMMetalPopResultRestored;
 }
 
 BOOL OrenAVMMetalApplyClearColorCommand(uint8_t opcode,
@@ -87,7 +126,7 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
         case 16: {
             if (payloadLen != 16) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->clipDepth < 64) {
+            if (OrenAVMMetalPushState(state, OrenAVMMetalStateKindClip)) {
                 state->clipStack[state->clipDepth++] = state->clip;
                 int32_t cx = (int32_t)OrenAVMMetalReadU32LE(payload);
                 int32_t cy = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
@@ -101,17 +140,14 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
                                                                     drawableH);
                 state->clip.rect = state->clip.enabled ? OrenAVMMetalIntersectScissor(state->clip.rect, next) : next;
                 state->clip.enabled = YES;
-            } else {
-                state->clipOverflowDepth++;
             }
             return YES;
         }
         case 17: {
             if (payloadLen != 0) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->clipOverflowDepth > 0) {
-                state->clipOverflowDepth--;
-            } else if (state->clipDepth > 0) {
+            if (OrenAVMMetalPopState(state, OrenAVMMetalStateKindClip) == OrenAVMMetalPopResultRestored &&
+                state->clipDepth > 0) {
                 state->clip = state->clipStack[--state->clipDepth];
             }
             return YES;
@@ -119,23 +155,20 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
         case 18: {
             if (payloadLen != 8) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->transformDepth < 64) {
+            if (OrenAVMMetalPushState(state, OrenAVMMetalStateKindTransform)) {
                 state->txStack[state->transformDepth] = state->tx;
                 state->tyStack[state->transformDepth] = state->ty;
                 state->transformDepth++;
                 state->tx += (float)(int32_t)OrenAVMMetalReadU32LE(payload);
                 state->ty += (float)(int32_t)OrenAVMMetalReadU32LE(payload + 4);
-            } else {
-                state->transformOverflowDepth++;
             }
             return YES;
         }
         case 19: {
             if (payloadLen != 0) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->transformOverflowDepth > 0) {
-                state->transformOverflowDepth--;
-            } else if (state->transformDepth > 0) {
+            if (OrenAVMMetalPopState(state, OrenAVMMetalStateKindTransform) == OrenAVMMetalPopResultRestored &&
+                state->transformDepth > 0) {
                 state->transformDepth--;
                 state->tx = state->txStack[state->transformDepth];
                 state->ty = state->tyStack[state->transformDepth];
@@ -145,20 +178,17 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
         case 20: {
             if (payloadLen != 4) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->opacityDepth < 64) {
+            if (OrenAVMMetalPushState(state, OrenAVMMetalStateKindOpacity)) {
                 state->opacityStack[state->opacityDepth++] = state->opacity;
                 state->opacity *= (float)OrenAVMMetalReadU32LE(payload) / 1000.0f;
-            } else {
-                state->opacityOverflowDepth++;
             }
             return YES;
         }
         case 21: {
             if (payloadLen != 0) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->opacityOverflowDepth > 0) {
-                state->opacityOverflowDepth--;
-            } else if (state->opacityDepth > 0) {
+            if (OrenAVMMetalPopState(state, OrenAVMMetalStateKindOpacity) == OrenAVMMetalPopResultRestored &&
+                state->opacityDepth > 0) {
                 state->opacity = state->opacityStack[--state->opacityDepth];
             }
             return YES;
@@ -166,7 +196,7 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
         case 22: {
             if (payloadLen != 8) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->cameraDepth < 64) {
+            if (OrenAVMMetalPushState(state, OrenAVMMetalStateKindCamera)) {
                 state->depthEnabledStack[state->cameraDepth] = state->depthEnabled;
                 state->nearZStack[state->cameraDepth] = state->nearZ;
                 state->farZStack[state->cameraDepth] = state->farZ;
@@ -174,17 +204,14 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
                 state->depthEnabled = YES;
                 state->nearZ = (int32_t)OrenAVMMetalReadU32LE(payload);
                 state->farZ = (int32_t)OrenAVMMetalReadU32LE(payload + 4);
-            } else {
-                state->cameraOverflowDepth++;
             }
             return YES;
         }
         case 23: {
             if (payloadLen != 0) return NO;
             OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES);
-            if (state->cameraOverflowDepth > 0) {
-                state->cameraOverflowDepth--;
-            } else if (state->cameraDepth > 0) {
+            if (OrenAVMMetalPopState(state, OrenAVMMetalStateKindCamera) == OrenAVMMetalPopResultRestored &&
+                state->cameraDepth > 0) {
                 state->cameraDepth--;
                 state->depthEnabled = state->depthEnabledStack[state->cameraDepth];
                 state->nearZ = state->nearZStack[state->cameraDepth];

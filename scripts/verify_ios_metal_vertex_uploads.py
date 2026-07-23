@@ -540,21 +540,29 @@ def main() -> int:
         if token in text:
             fail("Metal view must not own frame state stacks directly")
     for token in (
-        "uint32_t clipOverflowDepth",
-        "uint32_t transformOverflowDepth",
-        "uint32_t opacityOverflowDepth",
-        "uint32_t cameraOverflowDepth",
-        "state->clipOverflowDepth++",
-        "state->clipOverflowDepth--",
-        "state->transformOverflowDepth++",
-        "state->transformOverflowDepth--",
-        "state->opacityOverflowDepth++",
-        "state->opacityOverflowDepth--",
-        "state->cameraOverflowDepth++",
-        "state->cameraOverflowDepth--",
+        "uint8_t stateStack[OrenAVMMetalFrameStateStackCapacity]",
+        "uint32_t stateDepth",
+        "uint32_t stateOverflowDepth",
+        "OrenAVMMetalPushState",
+        "OrenAVMMetalPopState",
+        "OrenAVMMetalStateKindClip",
+        "OrenAVMMetalStateKindTransform",
+        "OrenAVMMetalStateKindOpacity",
+        "OrenAVMMetalStateKindCamera",
+        "state->stateOverflowDepth++",
+        "state->stateOverflowDepth--",
+        "state->stateStack[state->stateDepth - 1] != kind",
     ):
         if token not in frame_text:
-            fail(f"Metal frame-state overflow handling missing expected path: {token}")
+            fail(f"Metal typed frame-state stack handling missing expected path: {token}")
+    for token in (
+        "clipOverflowDepth",
+        "transformOverflowDepth",
+        "opacityOverflowDepth",
+        "cameraOverflowDepth",
+    ):
+        if token in frame_text:
+            fail("Metal frame-state overflow must use the shared typed stack, not per-kind counters")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in frame_text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
     if "OrenAVMMetalEncodePreparedRuns(encoder," not in text:

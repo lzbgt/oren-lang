@@ -52,6 +52,10 @@ design evidence lives under `project-doc/`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`.
+- iOS Metal OGF0 clip/transform/opacity/camera frame state now uses one typed
+  fixed-capacity LIFO stack, so overflow pushes stay balanced as no-op frames
+  and malformed out-of-order pops cannot restore non-matching saved Metal
+  state.
 - Scene3D flat generated-shape AVM coverage now lives in
   `tests/avm/test_ui_scene3d_flat_shapes_v0.oren`, keeping the core
   `test_ui_scene3d_v0.oren` focused on retained-scene asset/model/material,

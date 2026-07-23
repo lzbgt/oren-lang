@@ -13,29 +13,30 @@ typedef struct {
     MTLScissorRect rect;
 } OrenAVMMetalScissorState;
 
+enum { OrenAVMMetalFrameStateStackCapacity = 64 };
+
 typedef struct {
     OrenAVMMetalScissorState clip;
-    OrenAVMMetalScissorState clipStack[64];
+    uint8_t stateStack[OrenAVMMetalFrameStateStackCapacity];
+    uint32_t stateDepth;
+    uint32_t stateOverflowDepth;
+    OrenAVMMetalScissorState clipStack[OrenAVMMetalFrameStateStackCapacity];
     uint32_t clipDepth;
-    uint32_t clipOverflowDepth;
     float tx;
     float ty;
-    float txStack[64];
-    float tyStack[64];
+    float txStack[OrenAVMMetalFrameStateStackCapacity];
+    float tyStack[OrenAVMMetalFrameStateStackCapacity];
     uint32_t transformDepth;
-    uint32_t transformOverflowDepth;
     float opacity;
-    float opacityStack[64];
+    float opacityStack[OrenAVMMetalFrameStateStackCapacity];
     uint32_t opacityDepth;
-    uint32_t opacityOverflowDepth;
     BOOL depthEnabled;
     int32_t nearZ;
     int32_t farZ;
-    BOOL depthEnabledStack[64];
-    int32_t nearZStack[64];
-    int32_t farZStack[64];
+    BOOL depthEnabledStack[OrenAVMMetalFrameStateStackCapacity];
+    int32_t nearZStack[OrenAVMMetalFrameStateStackCapacity];
+    int32_t farZStack[OrenAVMMetalFrameStateStackCapacity];
     uint32_t cameraDepth;
-    uint32_t cameraOverflowDepth;
 } OrenAVMMetalFrameState;
 
 typedef struct {
