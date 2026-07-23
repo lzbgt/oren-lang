@@ -54,7 +54,43 @@ func (s *Server) exactRenameLocations(uri string, pos position) ([]location, dia
 	if refs, ok := scopedParameterReferencesAt(text, uri, pos, true); ok {
 		return refs, rng, true
 	}
+	if refs, ok := topLevelSymbolRenameLocationsAt(text, uri, name, rng); ok {
+		return refs, rng, true
+	}
 	return nil, diagnosticRange{}, false
+}
+
+func topLevelSymbolRenameLocationsAt(text, uri, name string, rng diagnosticRange) ([]location, bool) {
+	match, ok := symbolDefinition(text, uri, name)
+	if !ok || match.URI != uri {
+		return nil, false
+	}
+	switch match.Symbol.Kind {
+	case "function", "struct", "class":
+	default:
+		return nil, false
+	}
+	locs := identifierLocations(text, uri, name)
+	out := make([]location, 0, len(locs))
+	selected := rangeEqual(match.Symbol.Range, rng)
+	for _, loc := range locs {
+		if rangeEqual(loc.Range, rng) {
+			selected = true
+		}
+		if isScopedParameterLocation(text, uri, loc.Range.Start) {
+			continue
+		}
+		out = append(out, loc)
+	}
+	if !selected || len(out) == 0 {
+		return nil, false
+	}
+	return uniqueLocations(out), true
+}
+
+func isScopedParameterLocation(text, uri string, pos position) bool {
+	_, ok := scopedParameterSymbolAt(text, uri, pos)
+	return ok
 }
 
 func validRenameIdentifier(name string) bool {

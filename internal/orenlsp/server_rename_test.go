@@ -323,3 +323,75 @@ func TestServerRenameImportAlias(t *testing.T) {
 	})
 	assertWorkspaceEdit(t, messageByID(t, msgs, 71)["result"].(map[string]any), uri, "bad-name", nil)
 }
+
+func TestServerRenameTopLevelFunctionAndTypes(t *testing.T) {
+	var in bytes.Buffer
+	text := strings.Join([]string{
+		"struct Box { v }",
+		"fn make_box(): Box {",
+		"  return Box(1)",
+		"}",
+		"fn use(make_box) {",
+		"  return make_box",
+		"}",
+		"var b = make_box()",
+		"",
+	}, "\n")
+	uri := "file:///rename-top-level.oren"
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "textDocument/didOpen",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "text": text},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      72,
+		"method":  "textDocument/prepareRename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": 10},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      73,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 7, "character": 10},
+			"newName":      "build_box",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      74,
+		"method":  "textDocument/rename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": uri},
+			"position":     map[string]any{"line": 2, "character": 11},
+			"newName":      "Crate",
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{"jsonrpc": "2.0", "method": "exit"})
+
+	var out bytes.Buffer
+	if err := NewServer(&in, &out).Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	msgs := readTestMessages(t, out.Bytes())
+	assertRangeMap(t, messageByID(t, msgs, 72)["result"].(map[string]any), diagnosticRange{
+		Start: position{Line: 7, Character: 8},
+		End:   position{Line: 7, Character: 16},
+	})
+	assertWorkspaceEdit(t, messageByID(t, msgs, 73)["result"].(map[string]any), uri, "build_box", []diagnosticRange{
+		{Start: position{Line: 1, Character: 3}, End: position{Line: 1, Character: 11}},
+		{Start: position{Line: 7, Character: 8}, End: position{Line: 7, Character: 16}},
+	})
+	assertWorkspaceEdit(t, messageByID(t, msgs, 74)["result"].(map[string]any), uri, "Crate", []diagnosticRange{
+		{Start: position{Line: 0, Character: 7}, End: position{Line: 0, Character: 10}},
+		{Start: position{Line: 1, Character: 15}, End: position{Line: 1, Character: 18}},
+		{Start: position{Line: 2, Character: 9}, End: position{Line: 2, Character: 12}},
+	})
+}

@@ -82,10 +82,10 @@
 </ul>
 <p>  traversal, unqualified imported symbol completion/definition, hover,</p>
 <p>  references, and typed-member completion/definition through anonymously</p>
-<p>  imported constructors. Exact typed-member rename now emits multi-file</p>
-<p>  workspace edits for import-resolved and anonymous-imported fields, and</p>
-<p>  import-alias rename now rewrites the alias declaration plus exact <code>alias.</code></p>
-<p>  qualifiers in the current document. Regression</p>
+<p>  imported constructors. Conservative rename now covers import aliases, exact</p>
+<p>  scoped parameters, same-document top-level functions/types, and exact</p>
+<p>  typed-member workspace edits for import-resolved and anonymous-imported</p>
+<p>  fields. Regression</p>
 <p>  proof lives in <code>internal/orenlsp/server_import_test.go</code> and</p>
 <p>  <code>internal/orenlsp/server_rename_test.go</code>.</p>
 <ul>
