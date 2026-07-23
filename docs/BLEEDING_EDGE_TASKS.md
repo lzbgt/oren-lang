@@ -52,11 +52,11 @@ This file is the concise task view. Detailed implementation status lives in
      `LibAVM.xcframework` slices, checks public embedder symbols in both archives,
      and runs local host C, Swift, and `avm_runner` embedders against OBC bytes.
    - Linux x64 SDK gate: `make verify-libavm-linux-x64` cross-builds the C embedder
-     static library with Zig, exports headers/module-map/pkg-config metadata, checks
+     static library, exports headers/module-map/pkg-config metadata, checks
      x86_64 ELF output and embedder/runner symbols, and compiles a Linux x64 host
      `avm_runner` smoke. Runtime execution is QEMU-gated when an emulator is present.
    - Windows x64 SDK gate: `make verify-libavm-windows-x64` cross-builds the C
-     embedder static library with Zig, exports headers/module-map metadata, checks
+     embedder static library, exports headers/module-map metadata, checks
      amd64 COFF output and embedder/runner symbols, and compiles a Windows x64 host
      `avm_runner` smoke. Runtime execution is Wine-gated when available.
    - Native x64 compile gate: `make verify-native-x64-compile` now prewarms

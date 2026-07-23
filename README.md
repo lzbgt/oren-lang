@@ -3,10 +3,10 @@
 Oren is a rolling, self-hosted language and toolchain for programs that need to
 run under explicit effect boundaries.
 
-It is not a Zig clone, a scripting toy, or only a compiler experiment. Oren's
-center is a single language surface that can target native code, portable C, and
-deterministic AVM bytecode while preserving capability-governed execution,
-resource budgets, and machine-readable verification evidence.
+It is not a scripting toy or only a compiler experiment. Oren's center is a
+single language surface that can target native code, portable C, and deterministic
+AVM bytecode while preserving capability-governed execution, resource budgets,
+and machine-readable verification evidence.
 
 ```oren
 import http "std:net/avm/http"
@@ -139,7 +139,7 @@ Oren currently has three execution paths:
 | C backend | Portable bootstrap and cross-checking through a host C toolchain. | Useful baseline. |
 | Native backend | Mach-O / ELF / PE output for local/server/desktop execution. | Most mature on macOS arm64; x64 is active bring-up. |
 | OBC + AVM | Deterministic bytecode for capability-governed host apps. | Strong smoke/conformance gates; still rolling for production embedding. |
-| Desktop SDK | macOS `LibAVM.xcframework` plus Linux/Windows x64 static `LibAVM` for C/C++/Swift hosts. | macOS runs C and Swift embedder smokes; Linux/Windows x64 are Zig-built, symbol-checked, and link-smoked. |
+| Desktop SDK | macOS `LibAVM.xcframework` plus Linux/Windows x64 static `LibAVM` for C/C++/Swift hosts. | macOS runs C and Swift embedder smokes; Linux/Windows x64 are cross-built, symbol-checked, and link-smoked. |
 
 Build native:
 

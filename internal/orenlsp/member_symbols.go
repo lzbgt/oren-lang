@@ -26,6 +26,8 @@ type memberTypeEnv struct {
 	FunctionFields                map[string]map[string]string
 	FunctionElementFields         map[string]map[string]string
 	FunctionMapValueFields        map[string]map[string]string
+	FunctionElementElementFields  map[string]map[string]string
+	FunctionMapValueMapFields     map[string]map[string]string
 	FunctionElementMapValueFields map[string]map[string]string
 	FunctionMapValueElementFields map[string]map[string]string
 	Params                        map[string]map[string]string
@@ -1066,6 +1068,9 @@ func inferIterableElementFieldTypes(expr ast.Expression, env memberTypeEnv, stac
 		return inferIfExpressionElementFieldTypes(expr, env, stack)
 	case *ast.IndexExpression:
 		if strings.HasPrefix(inferExpressionType(expr, env, stack), inferredListPrefix) {
+			if fields := inferIterableElementElementFieldTypes(expr.Left, env, stack); len(fields) != 0 {
+				return fields
+			}
 			return inferMapValueElementFieldTypes(expr.Left, env, stack)
 		}
 	}
@@ -1108,6 +1113,9 @@ func inferMapValueFieldTypes(expr ast.Expression, env memberTypeEnv, stack []map
 		return inferIfExpressionMapValueFieldTypes(expr, env, stack)
 	case *ast.IndexExpression:
 		if strings.HasPrefix(inferExpressionType(expr, env, stack), inferredMapPrefix) {
+			if fields := inferMapValueMapValueFieldTypes(expr.Left, env, stack); len(fields) != 0 {
+				return fields
+			}
 			return inferIterableElementMapValueFieldTypes(expr.Left, env, stack)
 		}
 	}
@@ -1354,6 +1362,8 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	clearInferredFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredElementFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredMapValueFieldTypes(ident.Value, stack[len(stack)-1])
+	clearInferredElementElementFieldTypes(ident.Value, stack[len(stack)-1])
+	clearInferredMapValueMapValueFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredElementMapValueFieldTypes(ident.Value, stack[len(stack)-1])
 	clearInferredMapValueElementFieldTypes(ident.Value, stack[len(stack)-1])
 	if typeName == "" {
@@ -1363,6 +1373,8 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 		copyInferredFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredElementFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredMapValueFieldTypes(ident.Value, sourcePath, stack)
+		copyInferredElementElementFieldTypes(ident.Value, sourcePath, stack)
+		copyInferredMapValueMapValueFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredElementMapValueFieldTypes(ident.Value, sourcePath, stack)
 		copyInferredMapValueElementFieldTypes(ident.Value, sourcePath, stack)
 		return
@@ -1375,6 +1387,12 @@ func setInferredVarExpression(ident *ast.Identifier, expr ast.Expression, env me
 	}
 	if fields := inferMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
 		setInferredMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
+	}
+	if fields := inferIterableElementElementFieldTypes(expr, env, stack); len(fields) != 0 {
+		setInferredElementElementFieldTypes(ident.Value, fields, stack[len(stack)-1])
+	}
+	if fields := inferMapValueMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
+		setInferredMapValueMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])
 	}
 	if fields := inferIterableElementMapValueFieldTypes(expr, env, stack); len(fields) != 0 {
 		setInferredElementMapValueFieldTypes(ident.Value, fields, stack[len(stack)-1])

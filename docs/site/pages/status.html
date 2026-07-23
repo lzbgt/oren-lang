@@ -41,8 +41,8 @@
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
-<p>Oren is not yet production-stable at the level of industrial compilers such as</p>
-<p>LLVM/rustc/GCC/zig/go. It is a rolling self-hosted compiler with meaningful working</p>
+<p>Oren is not yet production-stable at the level of industrial compiler toolchains.</p>
+<p>It is a rolling self-hosted compiler with meaningful working</p>
 <p>surfaces, but the following blockers remain:</p>
 <ul>
 <li>native tagged-value convergence is incomplete;</li>
@@ -86,6 +86,12 @@
 <p>  workspace edits for import-resolved and anonymous-imported fields. Regression</p>
 <p>  proof lives in <code>internal/orenlsp/server_import_test.go</code> and</p>
 <p>  <code>internal/orenlsp/server_rename_test.go</code>.</p>
+<ul>
+<li>Oren LSP nested container facts now cover same-kind list-of-list and map-of-map</li>
+</ul>
+<p>  field-chain completion/definition, alias preservation, returned-container</p>
+<p>  propagation, and mixed-shape invalidation in</p>
+<p>  <code>internal/orenlsp/member_nested_container_test.go</code>.</p>
 <ul>
 <li>The VS Code Oren TextMate grammar now scopes anonymous dot imports, import</li>
 </ul>
@@ -146,7 +152,7 @@
 <p>  <code>avm_embed_*</code>; the macOS verifier links and runs it against OBC bytes so hosts</p>
 <p>  have a stable minimal run/capture API without rewriting handle boilerplate.</p>
 <ul>
-<li><code>make verify-libavm-linux-x64</code> uses Zig to build</li>
+<li><code>make verify-libavm-linux-x64</code> cross-builds</li>
 </ul>
 <p>  <code>build/libavm/linux-x64/lib/x86_64-linux-gnu/libavm.a</code>, exports headers,</p>
 <p>  a module map, and <code>libavm.pc</code>, checks the x86_64 ELF objects and embedder</p>
@@ -154,7 +160,7 @@
 <p>  <code>avm_runner_run_obc_bytes(...)</code>. It executes that smoke only when</p>
 <p>  <code>qemu-x86_64</code> is available or <code>VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1</code> is set.</p>
 <ul>
-<li><code>make verify-libavm-windows-x64</code> uses Zig to build</li>
+<li><code>make verify-libavm-windows-x64</code> cross-builds</li>
 </ul>
 <p>  <code>build/libavm/windows-x64/lib/x86_64-windows-gnu/libavm.a</code>, exports headers</p>
 <p>  and a module map, checks amd64 COFF objects and embedder plus runner symbols,</p>
@@ -3305,7 +3311,8 @@
 <p>	  imported returned-container and imported parameter-returned-container</p>
 <p>	  field-chain evidence, returned and imported parameter-returned nested</p>
 <p>	  list-of-map and map-of-list container field-chain inference,</p>
-<p>	  nested list-of-map and map-of-list indexed container field-chain inference,</p>
+<p>	  nested list-of-map, map-of-list, list-of-list, and map-of-map indexed</p>
+<p>	  container field-chain inference,</p>
 <p>	  aliased nested indexed container field-chain coverage, constructor-field</p>
 <p>	  and imported constructor-field nested container field-chain inference, returned/imported nested container</p>
 <p>	  selection field-chain coverage, call-site constructor-held nested container selection coverage,</p>

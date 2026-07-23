@@ -34,6 +34,8 @@ func newMemberTypeEnv(program *ast.Program, uri string, imports []memberImported
 		FunctionFields:                map[string]map[string]string{},
 		FunctionElementFields:         map[string]map[string]string{},
 		FunctionMapValueFields:        map[string]map[string]string{},
+		FunctionElementElementFields:  map[string]map[string]string{},
+		FunctionMapValueMapFields:     map[string]map[string]string{},
 		FunctionElementMapValueFields: map[string]map[string]string{},
 		FunctionMapValueElementFields: map[string]map[string]string{},
 	}
@@ -84,6 +86,12 @@ func addMemberReturnFieldFacts(env *memberTypeEnv, program *ast.Program, prefix 
 	}
 	for key, fields := range collectFunctionReturnMapValueFieldTypes(program, prefix, factEnv) {
 		env.FunctionMapValueFields[key] = fields
+	}
+	for key, fields := range collectFunctionReturnElementElementFieldTypes(program, prefix, factEnv) {
+		env.FunctionElementElementFields[key] = fields
+	}
+	for key, fields := range collectFunctionReturnMapValueMapValueFieldTypes(program, prefix, factEnv) {
+		env.FunctionMapValueMapFields[key] = fields
 	}
 	for key, fields := range collectFunctionReturnElementMapValueFieldTypes(program, prefix, factEnv) {
 		env.FunctionElementMapValueFields[key] = fields

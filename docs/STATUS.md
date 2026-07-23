@@ -7,8 +7,8 @@ small source-of-truth snapshot. Use code, fixtures, and build logs for raw evide
 
 ## Overall Verdict
 
-Oren is not yet production-stable at the level of industrial compilers such as
-LLVM/rustc/GCC/zig/go. It is a rolling self-hosted compiler with meaningful working
+Oren is not yet production-stable at the level of industrial compiler toolchains.
+It is a rolling self-hosted compiler with meaningful working
 surfaces, but the following blockers remain:
 
 - native tagged-value convergence is incomplete;
@@ -45,6 +45,10 @@ surfaces, but the following blockers remain:
   workspace edits for import-resolved and anonymous-imported fields. Regression
   proof lives in `internal/orenlsp/server_import_test.go` and
   `internal/orenlsp/server_rename_test.go`.
+- Oren LSP nested container facts now cover same-kind list-of-list and map-of-map
+  field-chain completion/definition, alias preservation, returned-container
+  propagation, and mixed-shape invalidation in
+  `internal/orenlsp/member_nested_container_test.go`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import
   aliases, and `std:` import literals before generic string matching; the
   extension verifier has regex smoke coverage for `import . "path"`. LSP
@@ -93,13 +97,13 @@ Facts from the 2026-05-28 implementation pass:
   C SDK also exports `avm_runner.h`, a one-shot lifecycle wrapper over
   `avm_embed_*`; the macOS verifier links and runs it against OBC bytes so hosts
   have a stable minimal run/capture API without rewriting handle boilerplate.
-- `make verify-libavm-linux-x64` uses Zig to build
+- `make verify-libavm-linux-x64` cross-builds
   `build/libavm/linux-x64/lib/x86_64-linux-gnu/libavm.a`, exports headers,
   a module map, and `libavm.pc`, checks the x86_64 ELF objects and embedder
   plus runner symbols, then compiles a Linux x64 C host smoke through
   `avm_runner_run_obc_bytes(...)`. It executes that smoke only when
   `qemu-x86_64` is available or `VERIFY_LIBAVM_LINUX_X64_REQUIRE_RUN=1` is set.
-- `make verify-libavm-windows-x64` uses Zig to build
+- `make verify-libavm-windows-x64` cross-builds
   `build/libavm/windows-x64/lib/x86_64-windows-gnu/libavm.a`, exports headers
   and a module map, checks amd64 COFF objects and embedder plus runner symbols,
   then compiles a Windows x64 PE host smoke through
@@ -3131,7 +3135,8 @@ Working evidence:
 	  imported returned-container and imported parameter-returned-container
 	  field-chain evidence, returned and imported parameter-returned nested
 	  list-of-map and map-of-list container field-chain inference,
-	  nested list-of-map and map-of-list indexed container field-chain inference,
+	  nested list-of-map, map-of-list, list-of-list, and map-of-map indexed
+	  container field-chain inference,
 	  aliased nested indexed container field-chain coverage, constructor-field
 	  and imported constructor-field nested container field-chain inference, returned/imported nested container
 	  selection field-chain coverage, call-site constructor-held nested container selection coverage,

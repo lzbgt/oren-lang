@@ -564,6 +564,8 @@ type branchAssignmentEffect struct {
 	FieldTypes         map[string]string
 	ElementFieldTypes  map[string]string
 	MapValueFieldTypes map[string]string
+	ElementElements    map[string]string
+	MapValueMapValues  map[string]string
 	ElementMapValues   map[string]string
 	MapValueElements   map[string]string
 }
@@ -658,6 +660,8 @@ func inferBranchAssignmentEffect(expr ast.Expression, env memberTypeEnv, stack [
 		FieldTypes:         cloneFieldTypes(inferExpressionFieldTypes(expr, env, stack)),
 		ElementFieldTypes:  cloneFieldTypes(inferIterableElementFieldTypes(expr, env, stack)),
 		MapValueFieldTypes: cloneFieldTypes(inferMapValueFieldTypes(expr, env, stack)),
+		ElementElements:    cloneFieldTypes(inferIterableElementElementFieldTypes(expr, env, stack)),
+		MapValueMapValues:  cloneFieldTypes(inferMapValueMapValueFieldTypes(expr, env, stack)),
 		ElementMapValues:   cloneFieldTypes(inferIterableElementMapValueFieldTypes(expr, env, stack)),
 		MapValueElements:   cloneFieldTypes(inferMapValueElementFieldTypes(expr, env, stack)),
 	}
@@ -677,6 +681,12 @@ func applyBranchAssignmentEffect(name string, effect branchAssignmentEffect, sta
 	}
 	if len(effect.MapValueFieldTypes) != 0 {
 		setInferredMapValueFieldTypes(name, effect.MapValueFieldTypes, scope)
+	}
+	if len(effect.ElementElements) != 0 {
+		setInferredElementElementFieldTypes(name, effect.ElementElements, scope)
+	}
+	if len(effect.MapValueMapValues) != 0 {
+		setInferredMapValueMapValueFieldTypes(name, effect.MapValueMapValues, scope)
 	}
 	if len(effect.ElementMapValues) != 0 {
 		setInferredElementMapValueFieldTypes(name, effect.ElementMapValues, scope)
@@ -712,6 +722,8 @@ func mergeBranchAssignmentEffect(consequence, alternative branchAssignmentEffect
 	merged.FieldTypes = mergeFieldTypeFacts(consequence.FieldTypes, alternative.FieldTypes)
 	merged.ElementFieldTypes = mergeFieldTypeFacts(consequence.ElementFieldTypes, alternative.ElementFieldTypes)
 	merged.MapValueFieldTypes = mergeFieldTypeFacts(consequence.MapValueFieldTypes, alternative.MapValueFieldTypes)
+	merged.ElementElements = mergeFieldTypeFacts(consequence.ElementElements, alternative.ElementElements)
+	merged.MapValueMapValues = mergeFieldTypeFacts(consequence.MapValueMapValues, alternative.MapValueMapValues)
 	merged.ElementMapValues = mergeFieldTypeFacts(consequence.ElementMapValues, alternative.ElementMapValues)
 	merged.MapValueElements = mergeFieldTypeFacts(consequence.MapValueElements, alternative.MapValueElements)
 	return merged
@@ -834,6 +846,8 @@ func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, function
 			mergeCallParamFieldTypes(fnName, param.Value, typeName, inferExpressionFieldTypes(arg, env, stack), env, out, conflicts)
 			mergeCallParamElementFieldTypes(fnName, param.Value, typeName, inferIterableElementFieldTypes(arg, env, stack), out, conflicts)
 			mergeCallParamMapValueFieldTypes(fnName, param.Value, typeName, inferMapValueFieldTypes(arg, env, stack), out, conflicts)
+			mergeCallParamElementElementFieldTypes(fnName, param.Value, typeName, inferIterableElementElementFieldTypes(arg, env, stack), out, conflicts)
+			mergeCallParamMapValueMapValueFieldTypes(fnName, param.Value, typeName, inferMapValueMapValueFieldTypes(arg, env, stack), out, conflicts)
 			mergeCallParamElementMapValueFieldTypes(fnName, param.Value, typeName, inferIterableElementMapValueFieldTypes(arg, env, stack), out, conflicts)
 			mergeCallParamMapValueElementFieldTypes(fnName, param.Value, typeName, inferMapValueElementFieldTypes(arg, env, stack), out, conflicts)
 			continue
@@ -842,6 +856,8 @@ func collectCallParamTypes(call *ast.CallExpression, env memberTypeEnv, function
 		deleteCallParamFieldTypes(param.Value, out[fnName])
 		deleteCallParamElementFieldTypes(param.Value, out[fnName])
 		deleteCallParamMapValueFieldTypes(param.Value, out[fnName])
+		deleteCallParamElementElementFieldTypes(param.Value, out[fnName])
+		deleteCallParamMapValueMapValueFieldTypes(param.Value, out[fnName])
 		deleteCallParamElementMapValueFieldTypes(param.Value, out[fnName])
 		deleteCallParamMapValueElementFieldTypes(param.Value, out[fnName])
 		conflicts[paramKey] = true

@@ -73,6 +73,12 @@ func setInferredConstructorFieldContainerTypes(name string, expr ast.Expression,
 		if facts := inferMapValueFieldTypes(arg, env, stack); len(facts) != 0 {
 			setInferredMapValueFieldTypes(fieldPath, facts, scope)
 		}
+		if facts := inferIterableElementElementFieldTypes(arg, env, stack); len(facts) != 0 {
+			setInferredElementElementFieldTypes(fieldPath, facts, scope)
+		}
+		if facts := inferMapValueMapValueFieldTypes(arg, env, stack); len(facts) != 0 {
+			setInferredMapValueMapValueFieldTypes(fieldPath, facts, scope)
+		}
 		if facts := inferIterableElementMapValueFieldTypes(arg, env, stack); len(facts) != 0 {
 			setInferredElementMapValueFieldTypes(fieldPath, facts, scope)
 		}
@@ -195,6 +201,8 @@ func setInferredNameType(name, typeName string, stack []map[string]string) {
 	clearInferredFieldTypes(name, scope)
 	clearInferredElementFieldTypes(name, scope)
 	clearInferredMapValueFieldTypes(name, scope)
+	clearInferredElementElementFieldTypes(name, scope)
+	clearInferredMapValueMapValueFieldTypes(name, scope)
 	clearInferredElementMapValueFieldTypes(name, scope)
 	clearInferredMapValueElementFieldTypes(name, scope)
 	if typeName == "" {
