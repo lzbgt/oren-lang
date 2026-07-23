@@ -47,6 +47,8 @@ design evidence lives under `project-doc/`.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.
+- LSP now advertises and serves import document links, workspace symbol search
+  across open/imported documents, and brace-based folding ranges.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers and
   checked Frobenius matrix norm helpers
   (`frobenius_norm`, `frobenius_norm_sq`, `norm_frobenius`, and `norm`) with

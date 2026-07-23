@@ -36,6 +36,12 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	if caps["documentSymbolProvider"] != true {
 		t.Fatalf("missing documentSymbolProvider capability: %#v", caps)
 	}
+	if _, ok := caps["documentLinkProvider"].(map[string]any); !ok {
+		t.Fatalf("missing documentLinkProvider capability: %#v", caps)
+	}
+	if caps["foldingRangeProvider"] != true {
+		t.Fatalf("missing foldingRangeProvider capability: %#v", caps)
+	}
 	if caps["definitionProvider"] != true {
 		t.Fatalf("missing definitionProvider capability: %#v", caps)
 	}
@@ -47,6 +53,9 @@ func TestServerInitializeAndShutdown(t *testing.T) {
 	}
 	if caps["documentHighlightProvider"] != true {
 		t.Fatalf("missing documentHighlightProvider capability: %#v", caps)
+	}
+	if caps["workspaceSymbolProvider"] != true {
+		t.Fatalf("missing workspaceSymbolProvider capability: %#v", caps)
 	}
 	renameProvider, ok := caps["renameProvider"].(map[string]any)
 	if !ok || renameProvider["prepareProvider"] != true {

@@ -103,6 +103,18 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: documentSymbols(s.docs[p.TextDocument.URI])})
+	case "textDocument/documentLink":
+		var p textDocumentOnlyParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.documentLinks(p.TextDocument.URI)})
+	case "textDocument/foldingRange":
+		var p textDocumentOnlyParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: foldingRanges(s.docs[p.TextDocument.URI])})
 	case "textDocument/definition":
 		var p textDocumentParams
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -146,6 +158,12 @@ func (s *Server) handle(body []byte) error {
 			return err
 		}
 		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: semanticTokens(s.docs[p.TextDocument.URI])})
+	case "workspace/symbol":
+		var p workspaceSymbolParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return err
+		}
+		return s.write(response{JSONRPC: "2.0", ID: req.ID, Result: s.workspaceSymbols(p.Query)})
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -217,10 +235,13 @@ func initializeResult() map[string]any {
 				"triggerCharacters": []string{".", ":"},
 			},
 			"documentSymbolProvider":    true,
+			"documentLinkProvider":      map[string]any{"resolveProvider": false},
+			"foldingRangeProvider":      true,
 			"definitionProvider":        true,
 			"hoverProvider":             true,
 			"referencesProvider":        true,
 			"documentHighlightProvider": true,
+			"workspaceSymbolProvider":   true,
 			"renameProvider": map[string]any{
 				"prepareProvider": true,
 			},
@@ -291,6 +312,10 @@ type renameParams struct {
 	} `json:"textDocument"`
 	Position position `json:"position"`
 	NewName  string   `json:"newName"`
+}
+
+type workspaceSymbolParams struct {
+	Query string `json:"query"`
 }
 
 func (s *Server) publishDiagnostics(uri, text string) error {
