@@ -3630,6 +3630,11 @@
 <p>  per command instead of allocating one run and issuing one draw call per rect;</p>
 <p>  single image quads still stay inline.</p>
 <ul>
+<li>Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity</li>
+</ul>
+<p>  runs into one raw vertex span with geometric growth, cutting sprite draw calls</p>
+<p>  without losing inline storage for isolated quads.</p>
+<ul>
 <li><code>make verify-libavm-ios</code> now guards that Metal vertex uploads keep direct</li>
 </ul>
 <p>  <code>setVertexBytes</code> usage inside the bounded helper and retain large transient</p>

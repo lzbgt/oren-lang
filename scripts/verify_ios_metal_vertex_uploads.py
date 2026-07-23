@@ -456,10 +456,18 @@ def main() -> int:
     image_run_block = resource_text[image_run_start:image_run_end]
     if "@interface OrenAVMMetalImageRun : NSObject {\n@public\n    OrenAVMMetalTextVertex vertices[6];" not in image_run_block:
         fail("Metal image runs must store fixed quad vertices inline")
-    if "OrenAVMMetalTextVertex* heapVertices" not in image_run_block or "NSUInteger heapVertexCount" not in image_run_block:
+    if (
+        "OrenAVMMetalTextVertex* heapVertices" not in image_run_block
+        or "NSUInteger heapVertexCount" not in image_run_block
+        or "NSUInteger heapVertexCapacity" not in image_run_block
+    ):
         fail("Metal batched image runs must own raw heap vertex spans")
     if "free(heapVertices)" not in resource_text:
         fail("Metal batched image runs must free raw heap vertex spans")
+    if "newCapacity *= 2u" not in resource_text or "run->heapVertexCapacity = newCapacity" not in resource_text:
+        fail("Metal image heap vertex growth must be geometric for batching/coalescing")
+    if "realloc(run->heapVertices, neededCount * sizeof(OrenAVMMetalTextVertex))" in resource_text:
+        fail("Metal image heap vertex reserve must not realloc to the exact requested count")
     if "@property(nonatomic, strong) NSData* vertices;" in image_run_block:
         fail("Metal image runs must not allocate NSData wrappers for single quads")
     if "OrenAVMMetalWriteTextureQuad(run->vertices" not in resource_text:
@@ -498,6 +506,25 @@ def main() -> int:
         fail("batched Metal image-rect commands must create one raw vertex batch run")
     if "OrenAVMMetalImageRunVertexBytes(run)" not in frame_text or "OrenAVMMetalImageRunVertexCount(run)" not in frame_text:
         fail("Metal image encoding must draw inline or batched image runs from their actual vertex span")
+    if "NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns" not in resource_text:
+        fail("Metal image runs must expose prepared-frame coalescing")
+    image_coalesce_start = resource_text.find("NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns")
+    image_coalesce_end = resource_text.find("static void OrenAVMMetalAppendImageRun", image_coalesce_start)
+    if image_coalesce_start < 0 or image_coalesce_end < 0:
+        fail("missing Metal image run coalescing helper body")
+    image_coalesce_body = resource_text[image_coalesce_start:image_coalesce_end]
+    if "pending = [[OrenAVMMetalImageRun alloc] init]" in image_coalesce_body:
+        fail("image coalescing must reuse prepared run objects instead of cloning every run")
+    for token in (
+        "pending = run;",
+        "pending.texture == run.texture",
+        "pending.opacity == run.opacity",
+        "OrenAVMMetalImageScissorEqual(pending, run)",
+        "OrenAVMMetalEnsureHeapImageVerticesForCoalescing(pending)",
+        "OrenAVMMetalImageRunAppendVertices(pending,",
+    ):
+        if token not in image_coalesce_body:
+            fail(f"Metal image coalescing missing expected path: {token}")
     if "@interface OrenAVMMetalModelResource" not in metal_text:
         fail("retained Metal models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
@@ -614,6 +641,10 @@ def main() -> int:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:
         fail("expected one prepare-frame call to the frame run-capacity helper")
+    if "NSArray<OrenAVMMetalImageRun*>* coalescedImageRuns = imageRuns ? OrenAVMMetalCoalesceImageRuns(imageRuns) : @[]" not in text:
+        fail("Metal prepared frames must coalesce image runs before metrics and draw submission")
+    if "self.lastFrameImageRunCount = (uint32_t)coalescedImageRuns.count" not in text or "if (imageRunsOut) *imageRunsOut = coalescedImageRuns" not in text:
+        fail("Metal image-run metrics and outputs must use coalesced image runs")
     if "NSMutableArray* OrenAVMMetalEnsureRunArray" not in frame_text:
         fail("missing lazy Metal text/image run-array helper")
     eager_run_arrays = [

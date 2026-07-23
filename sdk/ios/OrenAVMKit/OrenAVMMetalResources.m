@@ -136,12 +136,35 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
     return run;
 }
 
-static BOOL OrenAVMMetalImageRunReserveHeapVertices(OrenAVMMetalImageRun* run, NSUInteger vertexCount) {
-    if (!run || vertexCount == 0 || vertexCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
-    OrenAVMMetalTextVertex* vertices = (OrenAVMMetalTextVertex*)malloc(vertexCount * sizeof(OrenAVMMetalTextVertex));
+static BOOL OrenAVMMetalImageRunReserveHeapVertices(OrenAVMMetalImageRun* run, NSUInteger neededCount) {
+    if (!run || neededCount == 0 || neededCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
+    if (neededCount <= run->heapVertexCapacity) return YES;
+    NSUInteger newCapacity = run->heapVertexCapacity > 0 ? run->heapVertexCapacity : 8u;
+    while (newCapacity < neededCount) {
+        if (newCapacity > NSUIntegerMax / 2u) {
+            newCapacity = neededCount;
+            break;
+        }
+        newCapacity *= 2u;
+    }
+    if (newCapacity > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) newCapacity = neededCount;
+    OrenAVMMetalTextVertex* vertices = (OrenAVMMetalTextVertex*)realloc(run->heapVertices, newCapacity * sizeof(OrenAVMMetalTextVertex));
     if (!vertices) return NO;
     run->heapVertices = vertices;
-    run->heapVertexCount = vertexCount;
+    run->heapVertexCapacity = newCapacity;
+    return YES;
+}
+
+static BOOL OrenAVMMetalImageRunAppendVertices(OrenAVMMetalImageRun* run,
+                                               const OrenAVMMetalTextVertex* vertices,
+                                               NSUInteger vertexCount) {
+    if (!run) return NO;
+    if (!vertices || vertexCount == 0) return YES;
+    if (run->heapVertexCount > NSUIntegerMax - vertexCount) return NO;
+    NSUInteger neededCount = run->heapVertexCount + vertexCount;
+    if (!OrenAVMMetalImageRunReserveHeapVertices(run, neededCount)) return NO;
+    memcpy(run->heapVertices + run->heapVertexCount, vertices, vertexCount * sizeof(OrenAVMMetalTextVertex));
+    run->heapVertexCount = neededCount;
     return YES;
 }
 
@@ -173,7 +196,7 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
         float v0 = (float)sy / (float)textureHeight;
         float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
         float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
-        OrenAVMMetalWriteTextureQuad(run->heapVertices + ((NSUInteger)ri * 6u),
+        OrenAVMMetalWriteTextureQuad(run->heapVertices + run->heapVertexCount,
                                      (float)OrenAVMMetalReadU32LE(r + 16) + tx,
                                      (float)OrenAVMMetalReadU32LE(r + 20) + ty,
                                      (float)OrenAVMMetalReadU32LE(r + 24),
@@ -184,6 +207,7 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
                                      v0,
                                      u1,
                                      v1);
+        run->heapVertexCount += 6u;
     }
     return run;
 }
@@ -201,6 +225,49 @@ NSUInteger OrenAVMMetalImageRunVertexBytesLength(OrenAVMMetalImageRun* run) {
 
 NSUInteger OrenAVMMetalImageRunVertexCount(OrenAVMMetalImageRun* run) {
     return OrenAVMMetalImageRunVertexBytesLength(run) / sizeof(OrenAVMMetalTextVertex);
+}
+
+static BOOL OrenAVMMetalImageScissorEqual(OrenAVMMetalImageRun* a, OrenAVMMetalImageRun* b) {
+    if (a.hasScissor != b.hasScissor) return NO;
+    if (!a.hasScissor) return YES;
+    return a.scissor.x == b.scissor.x &&
+           a.scissor.y == b.scissor.y &&
+           a.scissor.width == b.scissor.width &&
+           a.scissor.height == b.scissor.height;
+}
+
+static BOOL OrenAVMMetalEnsureHeapImageVerticesForCoalescing(OrenAVMMetalImageRun* pending) {
+    if (!pending) return NO;
+    if (pending->heapVertexCount != 0) return YES;
+    return OrenAVMMetalImageRunAppendVertices(pending, pending->vertices, 6u);
+}
+
+NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns(NSArray<OrenAVMMetalImageRun*>* runs) {
+    if (runs.count < 2) return runs ?: @[];
+    NSMutableArray<OrenAVMMetalImageRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    OrenAVMMetalImageRun* pending = nil;
+    for (OrenAVMMetalImageRun* run in runs) {
+        NSUInteger vertexBytes = OrenAVMMetalImageRunVertexBytesLength(run);
+        const void* vertexData = OrenAVMMetalImageRunVertexBytes(run);
+        if (!run.texture || vertexBytes == 0 || !vertexData) continue;
+        BOOL same = pending &&
+            pending.texture == run.texture &&
+            pending.opacity == run.opacity &&
+            OrenAVMMetalImageScissorEqual(pending, run);
+        if (!same) {
+            pending = run;
+            [out addObject:pending];
+            continue;
+        }
+        if (!OrenAVMMetalEnsureHeapImageVerticesForCoalescing(pending) ||
+            !OrenAVMMetalImageRunAppendVertices(pending,
+                                                (const OrenAVMMetalTextVertex*)vertexData,
+                                                vertexBytes / sizeof(OrenAVMMetalTextVertex))) {
+            pending = run;
+            [out addObject:pending];
+        }
+    }
+    return out;
 }
 
 static void OrenAVMMetalAppendImageRun(NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
