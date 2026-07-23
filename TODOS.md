@@ -2662,6 +2662,9 @@ design evidence lives under `project-doc/`.
   instead of allocating `NSMutableData` wrappers before texture upload.
 - Metal text atlas creation now avoids a full zeroed atlas upload buffer and
   clears only the transparent padding texels around packed glyph regions.
+- Metal text atlas rotation now clears stale texture-cache entries before
+  allocating a fresh atlas, so old atlas textures cannot remain retained only
+  because glyph-pixel accounting has not crossed the cache limit.
 - Metal frame preparation now keeps run capacity byte-bounded while allocating
   geometry/text/image run arrays lazily only when the frame actually contains
   those records.

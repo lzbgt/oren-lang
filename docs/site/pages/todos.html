@@ -3671,6 +3671,11 @@
 </ul>
 <p>  clears only the transparent padding texels around packed glyph regions.</p>
 <ul>
+<li>Metal text atlas rotation now clears stale texture-cache entries before</li>
+</ul>
+<p>  allocating a fresh atlas, so old atlas textures cannot remain retained only</p>
+<p>  because glyph-pixel accounting has not crossed the cache limit.</p>
+<ul>
 <li>Metal frame preparation now keeps run capacity byte-bounded while allocating</li>
 </ul>
 <p>  geometry/text/image run arrays lazily only when the frame actually contains</p>

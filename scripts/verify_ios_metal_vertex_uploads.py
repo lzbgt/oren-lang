@@ -168,6 +168,10 @@ def main() -> int:
         fail("Metal text cache must expose a typed immutable cache-key object")
     if "+ (instancetype)keyWithText:(NSString*)text rgba:(const uint8_t*)rgba scaleMilli:(uint32_t)scaleMilli" not in text_source:
         fail("Metal text cache must build compact typed cache keys")
+    atlas_rotate = text_source.find("OrenAVMMetalClearTextTextureCache(cache, order, cachePixels)")
+    atlas_recreate = text_source.find("*atlas = OrenAVMMetalCreateTextAtlas(device)", atlas_rotate)
+    if atlas_rotate < 0 or atlas_recreate < 0:
+        fail("Metal text atlas rotation must clear stale texture-cache entries before creating a fresh atlas")
     if "OrenAVMMetalClearTextAtlasPadding" not in text_source:
         fail("Metal text atlases must clear only sampled glyph padding")
     if "dataWithLength:OrenAVMMetalTextAtlasSize * OrenAVMMetalTextAtlasSize * 4u" in text_source:

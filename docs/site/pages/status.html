@@ -115,6 +115,11 @@
 <p>  clear-on-full admission policy, so new hot colors remain cacheable after the</p>
 <p>  256-entry cache fills.</p>
 <ul>
+<li>iOS Metal text atlas rotation clears stale texture-cache entries before</li>
+</ul>
+<p>  allocating a fresh atlas, keeping retained atlas generations bounded by the</p>
+<p>  active cache instead of glyph-pixel accounting alone.</p>
+<ul>
 <li><code>std:math/mat4</code> now includes checked viewport/NDC conversion helpers</li>
 </ul>
 <p>  (<code>viewport_matrix</code>, <code>inverse_viewport_matrix</code>, <code>ndc_to_window</code>, and</p>
@@ -2377,7 +2382,8 @@
 <p>		  SDK-side LRU texture cache for repeated labels, renders cache-miss glyphs into</p>
 <p>		  raw temporary pixel buffers before texture upload, clears only transparent</p>
 <p>		  glyph padding when creating packed atlas regions instead of uploading a full</p>
-<p>		  zeroed atlas buffer, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated <code>frame_tick</code></p>
+<p>		  zeroed atlas buffer, drops stale texture-cache entries when rotating to a</p>
+<p>		  fresh atlas, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated <code>frame_tick</code></p>
 <p>	  records so OBC game loops can receive host display timing through the same virtual</p>
 <p>	  event path instead of polling raw platform clocks. Frame ticks are coalesced so</p>
 <p>	  stale timing records cannot fill the input FIFO and starve real input, and SDK</p>

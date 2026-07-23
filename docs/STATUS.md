@@ -63,6 +63,9 @@ surfaces, but the following blockers remain:
 - iOS Metal text attribute caching uses scalar RGBA keys with a bounded
   clear-on-full admission policy, so new hot colors remain cacheable after the
   256-entry cache fills.
+- iOS Metal text atlas rotation clears stale texture-cache entries before
+  allocating a fresh atlas, keeping retained atlas generations bounded by the
+  active cache instead of glyph-pixel accounting alone.
 - `std:math/mat4` now includes checked viewport/NDC conversion helpers
   (`viewport_matrix`, `inverse_viewport_matrix`, `ndc_to_window`, and
   `window_to_ndc`) and routes project/unproject through the same depth clamp
@@ -2259,7 +2262,8 @@ Facts from the 2026-05-28 implementation pass:
 		  SDK-side LRU texture cache for repeated labels, renders cache-miss glyphs into
 		  raw temporary pixel buffers before texture upload, clears only transparent
 		  glyph padding when creating packed atlas regions instead of uploading a full
-		  zeroed atlas buffer, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated `frame_tick`
+		  zeroed atlas buffer, drops stale texture-cache entries when rotating to a
+		  fresh atlas, and host apps can clear that cache on memory pressure. The UI input stream now also carries validated `frame_tick`
 	  records so OBC game loops can receive host display timing through the same virtual
 	  event path instead of polling raw platform clocks. Frame ticks are coalesced so
 	  stale timing records cannot fill the input FIFO and starve real input, and SDK

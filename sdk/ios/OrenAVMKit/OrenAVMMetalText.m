@@ -303,11 +303,16 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     BOOL packed = NO;
     if (atlas && pixelWidth + OrenAVMMetalTextAtlasPadding <= OrenAVMMetalTextAtlasSize &&
         pixelHeight + OrenAVMMetalTextAtlasPadding <= OrenAVMMetalTextAtlasSize) {
-        if (!*atlas || !OrenAVMMetalAtlasReserve(*atlas, pixelWidth, pixelHeight, &atlasX, &atlasY)) {
+        if (!*atlas) {
             *atlas = OrenAVMMetalCreateTextAtlas(device);
             packed = OrenAVMMetalAtlasReserve(*atlas, pixelWidth, pixelHeight, &atlasX, &atlasY);
         } else {
-            packed = YES;
+            packed = OrenAVMMetalAtlasReserve(*atlas, pixelWidth, pixelHeight, &atlasX, &atlasY);
+            if (!packed) {
+                OrenAVMMetalClearTextTextureCache(cache, order, cachePixels);
+                *atlas = OrenAVMMetalCreateTextAtlas(device);
+                packed = OrenAVMMetalAtlasReserve(*atlas, pixelWidth, pixelHeight, &atlasX, &atlasY);
+            }
         }
     }
     if (packed && atlas && *atlas && (*atlas).texture) {
