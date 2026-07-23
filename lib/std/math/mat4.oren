@@ -1145,9 +1145,7 @@ fn project_point3(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, v
     var px: f64 = p[0]
     var py: f64 = p[1]
     var pz: f64 = p[2]
-    var ok = _finite3(px, py, pz, "mat4.project_point3")
-    if oren_is_err(ok) { return ok }
-    return ndc_to_window(px, py, pz, viewport_x, viewport_y, viewport_w, viewport_h)
+    return _ndc_to_window_checked(px, py, pz, viewport_x, viewport_y, viewport_w, viewport_h, "mat4.project_point3")
 }
 
 fn project_point(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
@@ -1157,11 +1155,7 @@ fn project_point(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, vi
 fn unproject_point3(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
     var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.unproject_point3")
     if oren_is_err(vp) { return vp }
-    var ok = _finite3(win_x, win_y, 0.0, "mat4.unproject_point3")
-    if oren_is_err(ok) { return ok }
-    ok = _finite_scalar(win_z, "mat4.unproject_point3")
-    if oren_is_err(ok) { return ok }
-    var ndc = window_to_ndc(win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
+    var ndc = _window_to_ndc_checked(win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h, "mat4.unproject_point3")
     if oren_is_err(ndc) { return ndc }
     var inv = inverse(m)
     if oren_is_err(inv) { return inv }
@@ -1194,12 +1188,10 @@ fn inverse_viewport_matrix(viewport_x: f64, viewport_y: f64, viewport_w: f64, vi
     ]
 }
 
-fn ndc_to_window(ndc_x: f64, ndc_y: f64, ndc_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
-    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.ndc_to_window")
-    if oren_is_err(vp) { return vp }
-    var ok = _finite3(ndc_x, ndc_y, ndc_z, "mat4.ndc_to_window")
+fn _ndc_to_window_checked(ndc_x: f64, ndc_y: f64, ndc_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64, ctx) {
+    var ok = _finite3(ndc_x, ndc_y, ndc_z, ctx)
     if oren_is_err(ok) { return ok }
-    var depth = _depth_from_ndc_z(ndc_z, "mat4.ndc_to_window")
+    var depth = _depth_from_ndc_z(ndc_z, ctx)
     if oren_is_err(depth) { return depth }
     return [
         viewport_x + (ndc_x + 1.0) * viewport_w * 0.5,
@@ -1208,16 +1200,26 @@ fn ndc_to_window(ndc_x: f64, ndc_y: f64, ndc_z: f64, viewport_x: f64, viewport_y
     ]
 }
 
-fn window_to_ndc(win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
-    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.window_to_ndc")
+fn ndc_to_window(ndc_x: f64, ndc_y: f64, ndc_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.ndc_to_window")
     if oren_is_err(vp) { return vp }
-    var ok = _finite3(win_x, win_y, win_z, "mat4.window_to_ndc")
+    return _ndc_to_window_checked(ndc_x, ndc_y, ndc_z, viewport_x, viewport_y, viewport_w, viewport_h, "mat4.ndc_to_window")
+}
+
+fn _window_to_ndc_checked(win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64, ctx) {
+    var ok = _finite3(win_x, win_y, win_z, ctx)
     if oren_is_err(ok) { return ok }
-    var ndc_z = _depth_to_ndc_z(win_z, "mat4.window_to_ndc")
+    var ndc_z = _depth_to_ndc_z(win_z, ctx)
     if oren_is_err(ndc_z) { return ndc_z }
     return [
         (win_x - viewport_x) * 2.0 / viewport_w - 1.0,
         (win_y - viewport_y) * 2.0 / viewport_h - 1.0,
         ndc_z
     ]
+}
+
+fn window_to_ndc(win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
+    var vp = _viewport(viewport_x, viewport_y, viewport_w, viewport_h, "mat4.window_to_ndc")
+    if oren_is_err(vp) { return vp }
+    return _window_to_ndc_checked(win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h, "mat4.window_to_ndc")
 }
