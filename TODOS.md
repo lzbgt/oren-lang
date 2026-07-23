@@ -2654,6 +2654,9 @@ design evidence lives under `project-doc/`.
 - Metal image-run preparation now coalesces adjacent same-texture/scissor/opacity
   runs into one raw vertex span with geometric growth, cutting sprite draw calls
   without losing inline storage for isolated quads.
+- Metal image runs now record initialized inline-quad vertex count explicitly,
+  so preparation and encoding skip uninitialized inline storage and bind only
+  actual inline or heap-backed vertex spans.
 - Metal geometry-run preparation now coalesces adjacent same-scissor raw vertex
   spans into the first owned run, cutting geometry draw calls and transient
   vertex binds with geometric growth while preserving baked vertex order.

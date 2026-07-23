@@ -140,6 +140,11 @@
 <p>  sharing texture, scissor, and opacity into one raw vertex span, reducing</p>
 <p>  sprite draw calls while preserving single-quad inline storage.</p>
 <ul>
+<li>iOS Metal image runs now track initialized inline-quad vertex count</li>
+</ul>
+<p>  explicitly, so encoding and coalescing bind only actual inline or heap-backed</p>
+<p>  vertex spans.</p>
+<ul>
 <li>iOS Metal geometry-run preparation now coalesces adjacent same-scissor raw</li>
 </ul>
 <p>  vertex runs into one owned span, reducing geometry draw calls and transient</p>
@@ -2581,7 +2586,8 @@
 <p>dictionaries and boxed model ID lookups, removing per-draw model field lookups;</p>
 <p>retained material resources use scalar-key/scalar-value maps instead of boxed</p>
 <p><code>NSNumber</code> IDs/RGBA values. Single Metal image texture</p>
-<p>quads now stay inline in fixed image-run storage, while text texture quads append</p>
+<p>quads now stay inline in fixed image-run storage with explicit initialized</p>
+<p>vertex counts, while text texture quads append</p>
 <p>into caller-owned run buffers instead of allocating tiny <code>NSData</code></p>
 <p>wrappers from stack vertices. Metal text texture cache lookups now use typed</p>
 <p>immutable cache keys instead of formatted strings that copy the full label into</p>

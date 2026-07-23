@@ -26,6 +26,7 @@ enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
 @interface OrenAVMMetalImageRun : NSObject {
 @public
     OrenAVMMetalTextVertex vertices[6];
+    NSUInteger inlineVertexCount;
     OrenAVMMetalTextVertex* heapVertices;
     NSUInteger heapVertexCount;
     NSUInteger heapVertexCapacity;

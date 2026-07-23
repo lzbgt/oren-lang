@@ -80,6 +80,9 @@ surfaces, but the following blockers remain:
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing
   sprite draw calls while preserving single-quad inline storage.
+- iOS Metal image runs now track initialized inline-quad vertex count
+  explicitly, so encoding and coalescing bind only actual inline or heap-backed
+  vertex spans.
 - iOS Metal geometry-run preparation now coalesces adjacent same-scissor raw
   vertex runs into one owned span, reducing geometry draw calls and transient
   vertex binds with geometric growth and without changing baked vertex
@@ -2437,7 +2440,8 @@ model resources now use typed resource records instead of string-keyed
 dictionaries and boxed model ID lookups, removing per-draw model field lookups;
 retained material resources use scalar-key/scalar-value maps instead of boxed
 `NSNumber` IDs/RGBA values. Single Metal image texture
-quads now stay inline in fixed image-run storage, while text texture quads append
+quads now stay inline in fixed image-run storage with explicit initialized
+vertex counts, while text texture quads append
 into caller-owned run buffers instead of allocating tiny `NSData`
 wrappers from stack vertices. Metal text texture cache lookups now use typed
 immutable cache keys instead of formatted strings that copy the full label into

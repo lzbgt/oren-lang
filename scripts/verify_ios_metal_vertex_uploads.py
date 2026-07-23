@@ -520,11 +520,12 @@ def main() -> int:
     if "@interface OrenAVMMetalImageRun : NSObject {\n@public\n    OrenAVMMetalTextVertex vertices[6];" not in image_run_block:
         fail("Metal image runs must store fixed quad vertices inline")
     if (
-        "OrenAVMMetalTextVertex* heapVertices" not in image_run_block
+        "NSUInteger inlineVertexCount" not in image_run_block
+        or "OrenAVMMetalTextVertex* heapVertices" not in image_run_block
         or "NSUInteger heapVertexCount" not in image_run_block
         or "NSUInteger heapVertexCapacity" not in image_run_block
     ):
-        fail("Metal batched image runs must own raw heap vertex spans")
+        fail("Metal image runs must track initialized inline vertices and own raw heap vertex spans")
     if "free(heapVertices)" not in resource_text:
         fail("Metal batched image runs must free raw heap vertex spans")
     if "newCapacity *= 2u" not in resource_text or "run->heapVertexCapacity = newCapacity" not in resource_text:
@@ -535,6 +536,12 @@ def main() -> int:
         fail("Metal image runs must not allocate NSData wrappers for single quads")
     if "OrenAVMMetalWriteTextureQuad(run->vertices" not in resource_text:
         fail("Metal image runs must write single-quad vertices directly into inline storage")
+    if "run->inlineVertexCount = 6u;" not in resource_text:
+        fail("Metal image single-quad runs must record initialized inline vertex count")
+    if "return run->inlineVertexCount == 0 ? NULL : run->vertices;" not in resource_text:
+        fail("Metal image run binding must not expose uninitialized inline vertex storage")
+    if "run->heapVertexCount == 0 ? 6u : run->heapVertexCount" in resource_text:
+        fail("Metal image run length must come from actual initialized inline or heap vertex count")
     if "NSMutableData* vertices = [NSMutableData dataWithCapacity:sizeof(OrenAVMMetalTextVertex) * 6u]" in text:
         fail("Metal image runs must not allocate mutable vertex data for one quad")
     if "OrenAVMMetalSubrectInTexture" not in frame_text or "OrenAVMMetalSubrectInTexture" not in resource_text:
@@ -585,6 +592,8 @@ def main() -> int:
         "OrenAVMMetalImageScissorEqual(pending, run)",
         "OrenAVMMetalEnsureHeapImageVerticesForCoalescing(pending)",
         "OrenAVMMetalImageRunAppendVertices(pending,",
+        "pending->inlineVertexCount == 0",
+        "pending->inlineVertexCount = 0",
     ):
         if token not in image_coalesce_body:
             fail(f"Metal image coalescing missing expected path: {token}")
