@@ -185,6 +185,79 @@ fn is_identity_abs(m, abs_tol: f64) {
     return allclose_abs(m, identity(), abs_tol)
 }
 
+fn _shape_cell_ok(v: f64, idx: i64, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_translation: bool, abs_tol: f64, ctx) {
+    var expect: f64 = 0.0
+    var fixed = true
+    if idx == 0 { expect = diag0 }
+    else if idx == 5 { expect = diag5 }
+    else if idx == 10 { expect = diag10 }
+    else if idx == 15 { expect = diag15 }
+    else if allow_translation && (idx == 3 || idx == 7 || idx == 11) { fixed = false }
+    if !fixed { return true }
+    return _close_abs_scalar(v, expect, abs_tol, ctx)
+}
+
+fn _shape_abs(m, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_translation: bool, abs_tol: f64, ctx) {
+    var ok = _check(m, ctx)
+    if oren_is_err(ok) { return ok }
+    var i = 0
+    while i < 16 {
+        ok = _shape_cell_ok(m[i], i, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+        if oren_is_err(ok) { return ok }
+        if !ok { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn is_diagonal(m) {
+    var ok = _check(m, "mat4.is_diagonal")
+    if oren_is_err(ok) { return ok }
+    return _shape_abs(m, m[0], m[5], m[10], m[15], false, 0.0, "mat4.is_diagonal")
+}
+
+fn is_diagonal_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_diagonal_abs")
+    if oren_is_err(ok) { return ok }
+    return _shape_abs(m, m[0], m[5], m[10], m[15], false, abs_tol, "mat4.is_diagonal_abs")
+}
+
+fn is_translation(m) {
+    return _shape_abs(m, 1.0, 1.0, 1.0, 1.0, true, 0.0, "mat4.is_translation")
+}
+
+fn is_translation_abs(m, abs_tol: f64) {
+    return _shape_abs(m, 1.0, 1.0, 1.0, 1.0, true, abs_tol, "mat4.is_translation_abs")
+}
+
+fn is_scale(m) {
+    var ok = _check(m, "mat4.is_scale")
+    if oren_is_err(ok) { return ok }
+    return _shape_abs(m, m[0], m[5], m[10], 1.0, false, 0.0, "mat4.is_scale")
+}
+
+fn is_scale_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_scale_abs")
+    if oren_is_err(ok) { return ok }
+    return _shape_abs(m, m[0], m[5], m[10], 1.0, false, abs_tol, "mat4.is_scale_abs")
+}
+
+fn is_uniform_scale(m) {
+    return is_uniform_scale_abs(m, 0.0)
+}
+
+fn is_uniform_scale_abs(m, abs_tol: f64) {
+    var ok = is_scale_abs(m, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[0], m[5], abs_tol, "mat4.is_uniform_scale_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _close_abs_scalar(m[0], m[10], abs_tol, "mat4.is_uniform_scale_abs")
+    if oren_is_err(ok) { return ok }
+    return ok
+}
+
 fn _basis_dot(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, ctx) {
     var out: f64 = x0 * x1 + y0 * y1 + z0 * z1
     var ok = _finite_scalar(out, ctx)
