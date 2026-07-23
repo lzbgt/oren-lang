@@ -162,6 +162,11 @@ fn view_get_u8_unchecked(v, idx) {
     return oren_bytes_get_u8(view_bytes(v), idx)
 }
 
+fn view_get_u8_from(input_bytes, input_ptr, idx) {
+    if input_ptr != nil { return ptr_get_byte(input_ptr + idx) & 255 }
+    return oren_bytes_get_u8(input_bytes, idx)
+}
+
 fn view_get_u8(v, idx) {
     var ok = _view_check(v, idx, 1, "u8 read")
     if oren_is_err(ok) { return ok }

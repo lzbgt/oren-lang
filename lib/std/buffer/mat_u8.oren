@@ -291,13 +291,15 @@ fn u8_mat_copy_from_bytes(m, bytes) {
         if oren_is_err(rc0) { return rc0 }
         return m[0]
     }
+    var input_data = bytesm.view_bytes(bv)
+    var input_ptr = bytesm.view_ptr(bv)
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = bytesm.view_get_u8_unchecked(bv, r * m[3] + c)
+            var v = bytesm.view_get_u8_from(input_data, input_ptr, r * m[3] + c)
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }
             c = c + 1
@@ -323,13 +325,15 @@ fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
         if oren_is_err(rc0) { return rc0 }
         return m[0]
     }
+    var input_data = bytesm.view_bytes(bv)
+    var input_ptr = bytesm.view_ptr(bv)
     var r = 0
     while r < m[2] {
         var row = proj.mat_row_slice(m, r)
         if oren_is_err(row) { return row }
         var c = 0
         while c < m[3] {
-            var v = bytesm.view_get_u8_unchecked(bv, off + r * m[3] + c)
+            var v = bytesm.view_get_u8_from(input_data, input_ptr, off + r * m[3] + c)
             var rc = view.slice_store_u8(row, c, v)
             if oren_is_err(rc) { return rc }
             c = c + 1

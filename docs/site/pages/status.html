@@ -2861,7 +2861,7 @@
 <p>  and list/<code>LIST_INT</code> <code>copy_into</code> copies backward when needed, <code>std:buffer</code> view/matrix</p>
 <p>  <code>copy_from_bytes</code> helpers read byte carriers directly, route contiguous</p>
 <p>  slice/dense-matrix u8 destinations through <code>bytes.copy_into</code>, and reuse</p>
-<p>  shared checked byte views for non-contiguous view/matrix fallbacks, while contiguous</p>
+<p>  shared checked byte views with hoisted backing pointers for non-contiguous view/matrix fallbacks, while contiguous</p>
 <p>  slice/dense-matrix byte and text exports use direct byte-slice conversion,</p>
 <p>	  JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>			  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
@@ -2964,7 +2964,8 @@
 <p>  output before string conversion.</p>
 <p>  Contiguous u8 slice and dense u8 matrix copies from <code>u8_buf</code>, string,</p>
 <p>  flat-list, or row-list sources now use shared byte-span copy/direct byte-write</p>
-<p>  paths before falling back to checked per-element view stores.</p>
+<p>  paths before falling back to checked per-element view stores; non-contiguous</p>
+<p>  byte-copy fallbacks now hoist shared byte-view backing pointers once per call.</p>
 <p>  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
 <p>  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>
 <p>  <code>cbor.cint(7).bytes().cbor()</code>, <code>&quot;hi&quot;.bytes().text()</code>,</p>

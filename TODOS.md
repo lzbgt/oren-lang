@@ -2546,9 +2546,9 @@ design evidence lives under `project-doc/`.
 - `std:bytes` now exposes little-endian u16 checked/unchecked byte-view readers,
   and `std:ui/avm` uses the unchecked view reader for OGE0 payload lengths
   instead of rebuilding them from two byte reads.
-- `std:buffer` slice/strided/matrix byte-copy fallbacks now cache u8 source
-  pointers for non-contiguous destinations while retaining list-compatible byte
-  fallback.
+- `std:buffer` slice/strided/matrix byte-copy fallbacks now hoist shared
+  byte-view backing pointers for non-contiguous destinations while retaining
+  list-compatible byte fallback.
 - Bytecode metadata constants are now formed as byte-native UTF-8 payloads, and
   direct/link bytecode emission gates use carrier-aware byte lengths for metadata
   and OBX payloads.

@@ -899,7 +899,8 @@ fi
 buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
 if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||
-  ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_unchecked(bv, off + i) & 255)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'var input_ptr = bytesm.view_ptr(bv)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_from(input_data, input_ptr, off + i) & 255)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], raw._load_u8_direct(src, i) & 255)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(dst + i, ptr_get_byte(src + s[1] + i * s[3]) & 255)' <<<"$buffer_view_impl" ||
@@ -909,7 +910,7 @@ if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" 
   ! grep -Fq 'return _u8_view_copy_from_string_range(strided_store_u8, s, s[2], text, off, n, ctx)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct' lib/std/buffer/view.oren ||
   ! grep -Fq 'fn strided_to_u8_buf(s) { return _strided_to_u8_buf_direct' lib/std/buffer/view.oren; then
-  echo "ERROR: std:buffer contiguous/strided u8 copies and strided exports must use direct byte writes before falling back to checked per-element view stores" >&2
+  echo "ERROR: std:buffer contiguous/strided u8 copies and strided exports must hoist byte-view inputs and use direct byte writes before fallback stores" >&2
   exit 1
 fi
 
@@ -945,8 +946,11 @@ fi
 
 buffer_u8_mat_impl="$(sed -n '/fn _u8_mat_copy_from_u8_buf/,/fn _u8_mat_copy_from_string_range/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'bytesm.copy_into(m[0], m[1], src, 0, total)' <<<"$buffer_u8_mat_impl" ||
-  ! grep -Fq 'var v = raw._load_u8_direct(src, r * m[3] + c)' <<<"$buffer_u8_mat_impl"; then
-  echo "ERROR: std:buffer dense u8 matrix copies from u8_buf must use direct byte-span copy before falling back to checked row stores" >&2
+  ! grep -Fq 'var v = raw._load_u8_direct(src, r * m[3] + c)' <<<"$buffer_u8_mat_impl" ||
+  ! grep -Fq 'var input_ptr = bytesm.view_ptr(bv)' lib/std/buffer/mat_u8.oren ||
+  ! grep -Fq 'var v = bytesm.view_get_u8_from(input_data, input_ptr, r * m[3] + c)' lib/std/buffer/mat_u8.oren ||
+  ! grep -Fq 'var v = bytesm.view_get_u8_from(input_data, input_ptr, off + r * m[3] + c)' lib/std/buffer/mat_u8.oren; then
+  echo "ERROR: std:buffer dense/non-dense u8 matrix copies must use direct byte-span copy or hoisted byte-view source reads" >&2
   exit 1
 fi
 

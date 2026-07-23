@@ -129,9 +129,11 @@ fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
     if oren_is_err(bv) { return bv }
     var nb = bytesm.view_len(bv)
     if nb != n { return _err_invalid(ctx + ": length mismatch") }
+    var input_data = bytesm.view_bytes(bv)
+    var input_ptr = bytesm.view_ptr(bv)
     var i = 0
     while i < n {
-        var v = bytesm.view_get_u8_unchecked(bv, i)
+        var v = bytesm.view_get_u8_from(input_data, input_ptr, i)
         var rc = store_fn(view, i, v)
         if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
         i = i + 1
@@ -145,9 +147,11 @@ fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
     var nb = bytesm.view_len(bv)
     if off < 0 || count < 0 || off + count > nb { return oren_err(4, ctx + ": slice out of bounds") }
     if count != n { return _err_invalid(ctx + ": length mismatch") }
+    var input_data = bytesm.view_bytes(bv)
+    var input_ptr = bytesm.view_ptr(bv)
     var i = 0
     while i < n {
-        var v = bytesm.view_get_u8_unchecked(bv, off + i)
+        var v = bytesm.view_get_u8_from(input_data, input_ptr, off + i)
         var rc = store_fn(view, i, v)
         if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
         i = i + 1
@@ -453,11 +457,13 @@ fn _strided_copy_from_bytes_direct(s, bytes, off, n, ctx) {
     var nb = bytesm.view_len(bv)
     if off < 0 || n < 0 || off + n > nb { return oren_err(4, ctx + ": slice out of bounds") }
     if n != s[2] { return _err_invalid(ctx + ": length mismatch") }
+    var input_data = bytesm.view_bytes(bv)
+    var input_ptr = bytesm.view_ptr(bv)
     if oren_is_u8_buf(s[0]) == true {
         var data = oren_buf_data_ptr_unchecked(s[0])
         var i = 0
         while i < n {
-            ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_unchecked(bv, off + i) & 255)
+            ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_from(input_data, input_ptr, off + i) & 255)
             i = i + 1
         }
         return s[0]

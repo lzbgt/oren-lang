@@ -2679,7 +2679,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   and list/`LIST_INT` `copy_into` copies backward when needed, `std:buffer` view/matrix
   `copy_from_bytes` helpers read byte carriers directly, route contiguous
   slice/dense-matrix u8 destinations through `bytes.copy_into`, and reuse
-  shared checked byte views for non-contiguous view/matrix fallbacks, while contiguous
+  shared checked byte views with hoisted backing pointers for non-contiguous view/matrix fallbacks, while contiguous
   slice/dense-matrix byte and text exports use direct byte-slice conversion,
 	  JSON full decode, scalar parse, tag equality, and escape paths
 			  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
@@ -2782,7 +2782,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   output before string conversion.
   Contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string,
   flat-list, or row-list sources now use shared byte-span copy/direct byte-write
-  paths before falling back to checked per-element view stores.
+  paths before falling back to checked per-element view stores; non-contiguous
+  byte-copy fallbacks now hoist shared byte-view backing pointers once per call.
   Codec and byte APIs now expose trait-backed method surfaces for the rolling
   stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
   `cbor.cint(7).bytes().cbor()`, `"hi".bytes().text()`,
