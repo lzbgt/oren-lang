@@ -414,6 +414,45 @@ fn col(m, index: int) {
     return column(m, index)
 }
 
+fn _cell_index(row_index: int, column_index: int, ctx) {
+    if row_index < 0 || row_index > 3 { return oren_err(4, ctx + ": row index out of range") }
+    if column_index < 0 || column_index > 3 { return oren_err(4, ctx + ": column index out of range") }
+    return row_index * 4 + column_index
+}
+
+fn at(m, row_index: int, column_index: int) {
+    var ok = _check(m, "mat4.at")
+    if oren_is_err(ok) { return ok }
+    var idx = _cell_index(row_index, column_index, "mat4.at")
+    if oren_is_err(idx) { return idx }
+    return m[idx]
+}
+
+fn element(m, row_index: int, column_index: int) {
+    return at(m, row_index, column_index)
+}
+
+fn with_cell(m, row_index: int, column_index: int, value: f64) {
+    var ok = _check(m, "mat4.with_cell")
+    if oren_is_err(ok) { return ok }
+    var idx = _cell_index(row_index, column_index, "mat4.with_cell")
+    if oren_is_err(idx) { return idx }
+    ok = _finite_scalar(value, "mat4.with_cell")
+    if oren_is_err(ok) { return ok }
+    var out = [
+        m[0], m[1], m[2], m[3],
+        m[4], m[5], m[6], m[7],
+        m[8], m[9], m[10], m[11],
+        m[12], m[13], m[14], m[15]
+    ]
+    out[idx] = value
+    return out
+}
+
+fn set_cell(m, row_index: int, column_index: int, value: f64) {
+    return with_cell(m, row_index, column_index, value)
+}
+
 fn with_row(m, index: int, row_values) {
     var ok = _check(m, "mat4.with_row")
     if oren_is_err(ok) { return ok }
