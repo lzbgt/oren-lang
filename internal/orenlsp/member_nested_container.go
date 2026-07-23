@@ -471,171 +471,87 @@ func inferStatementReturnMapValueElementFieldTypes(stmt ast.Statement, env membe
 }
 
 func setInferredElementMapValueFieldTypes(name string, fields map[string]string, scope map[string]string) {
-	if name == "" || len(fields) == 0 || len(scope) == 0 {
-		return
-	}
-	for field, typeName := range fields {
-		if field != "" && typeName != "" {
-			scope[inferredElementMapValueFieldKey(name, field)] = typeName
-		}
-	}
+	setInferredNestedContainerFieldTypes(name, "[]{}", fields, scope)
 }
 
 func setInferredMapValueElementFieldTypes(name string, fields map[string]string, scope map[string]string) {
-	if name == "" || len(fields) == 0 || len(scope) == 0 {
-		return
-	}
-	for field, typeName := range fields {
-		if field != "" && typeName != "" {
-			scope[inferredMapValueElementFieldKey(name, field)] = typeName
-		}
-	}
+	setInferredNestedContainerFieldTypes(name, "{}[]", fields, scope)
 }
 
 func setInferredElementElementFieldTypes(name string, fields map[string]string, scope map[string]string) {
-	if name == "" || len(fields) == 0 || len(scope) == 0 {
-		return
-	}
-	for field, typeName := range fields {
-		if field != "" && typeName != "" {
-			scope[inferredElementElementFieldKey(name, field)] = typeName
-		}
-	}
+	setInferredNestedContainerFieldTypes(name, "[][]", fields, scope)
 }
 
 func setInferredMapValueMapValueFieldTypes(name string, fields map[string]string, scope map[string]string) {
+	setInferredNestedContainerFieldTypes(name, "{}{}", fields, scope)
+}
+
+func setInferredNestedContainerFieldTypes(name, shape string, fields map[string]string, scope map[string]string) {
 	if name == "" || len(fields) == 0 || len(scope) == 0 {
 		return
 	}
 	for field, typeName := range fields {
 		if field != "" && typeName != "" {
-			scope[inferredMapValueMapValueFieldKey(name, field)] = typeName
+			scope[inferredNestedContainerFieldKey(name, shape, field)] = typeName
 		}
 	}
 }
 
 func functionElementElementFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
-	if call == nil || len(env.FunctionElementElementFields) == 0 {
-		return nil
-	}
-	typeKey := constructorTypeKey(call.Function)
-	if typeKey == "" {
-		return nil
-	}
-	if fields := env.FunctionElementElementFields[typeKey]; len(fields) != 0 {
-		return fields
-	}
-	if env.Prefix != "" {
-		return env.FunctionElementElementFields[env.Prefix+typeKey]
-	}
-	return nil
+	return functionNestedContainerFieldTypesForCall(call, env, env.FunctionElementElementFields)
 }
 
 func functionMapValueMapValueFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
-	if call == nil || len(env.FunctionMapValueMapFields) == 0 {
-		return nil
-	}
-	typeKey := constructorTypeKey(call.Function)
-	if typeKey == "" {
-		return nil
-	}
-	if fields := env.FunctionMapValueMapFields[typeKey]; len(fields) != 0 {
-		return fields
-	}
-	if env.Prefix != "" {
-		return env.FunctionMapValueMapFields[env.Prefix+typeKey]
-	}
-	return nil
+	return functionNestedContainerFieldTypesForCall(call, env, env.FunctionMapValueMapFields)
 }
 
 func functionElementMapValueFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
-	if call == nil || len(env.FunctionElementMapValueFields) == 0 {
-		return nil
-	}
-	typeKey := constructorTypeKey(call.Function)
-	if typeKey == "" {
-		return nil
-	}
-	if fields := env.FunctionElementMapValueFields[typeKey]; len(fields) != 0 {
-		return fields
-	}
-	if env.Prefix != "" {
-		return env.FunctionElementMapValueFields[env.Prefix+typeKey]
-	}
-	return nil
+	return functionNestedContainerFieldTypesForCall(call, env, env.FunctionElementMapValueFields)
 }
 
 func functionMapValueElementFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv) map[string]string {
-	if call == nil || len(env.FunctionMapValueElementFields) == 0 {
+	return functionNestedContainerFieldTypesForCall(call, env, env.FunctionMapValueElementFields)
+}
+
+func functionNestedContainerFieldTypesForCall(call *ast.CallExpression, env memberTypeEnv, facts map[string]map[string]string) map[string]string {
+	if call == nil || len(facts) == 0 {
 		return nil
 	}
 	typeKey := constructorTypeKey(call.Function)
 	if typeKey == "" {
 		return nil
 	}
-	if fields := env.FunctionMapValueElementFields[typeKey]; len(fields) != 0 {
+	if fields := facts[typeKey]; len(fields) != 0 {
 		return fields
 	}
 	if env.Prefix != "" {
-		return env.FunctionMapValueElementFields[env.Prefix+typeKey]
+		return facts[env.Prefix+typeKey]
 	}
 	return nil
 }
 
 func copyInferredElementElementFieldTypes(dst, src string, stack []map[string]string) {
-	if dst == "" || src == "" || len(stack) == 0 {
-		return
-	}
-	srcPrefix := src + "[][]."
-	dstPrefix := dst + "[][]."
-	scope := stack[len(stack)-1]
-	for _, frame := range stack {
-		for key, typeName := range frame {
-			if strings.HasPrefix(key, srcPrefix) && typeName != "" {
-				scope[dstPrefix+strings.TrimPrefix(key, srcPrefix)] = typeName
-			}
-		}
-	}
+	copyInferredNestedContainerFieldTypes(dst, src, "[][]", stack)
 }
 
 func copyInferredMapValueMapValueFieldTypes(dst, src string, stack []map[string]string) {
-	if dst == "" || src == "" || len(stack) == 0 {
-		return
-	}
-	srcPrefix := src + "{}{}."
-	dstPrefix := dst + "{}{}."
-	scope := stack[len(stack)-1]
-	for _, frame := range stack {
-		for key, typeName := range frame {
-			if strings.HasPrefix(key, srcPrefix) && typeName != "" {
-				scope[dstPrefix+strings.TrimPrefix(key, srcPrefix)] = typeName
-			}
-		}
-	}
+	copyInferredNestedContainerFieldTypes(dst, src, "{}{}", stack)
 }
 
 func copyInferredElementMapValueFieldTypes(dst, src string, stack []map[string]string) {
-	if dst == "" || src == "" || len(stack) == 0 {
-		return
-	}
-	srcPrefix := src + "[]{}."
-	dstPrefix := dst + "[]{}."
-	scope := stack[len(stack)-1]
-	for _, frame := range stack {
-		for key, typeName := range frame {
-			if strings.HasPrefix(key, srcPrefix) && typeName != "" {
-				scope[dstPrefix+strings.TrimPrefix(key, srcPrefix)] = typeName
-			}
-		}
-	}
+	copyInferredNestedContainerFieldTypes(dst, src, "[]{}", stack)
 }
 
 func copyInferredMapValueElementFieldTypes(dst, src string, stack []map[string]string) {
+	copyInferredNestedContainerFieldTypes(dst, src, "{}[]", stack)
+}
+
+func copyInferredNestedContainerFieldTypes(dst, src, shape string, stack []map[string]string) {
 	if dst == "" || src == "" || len(stack) == 0 {
 		return
 	}
-	srcPrefix := src + "{}[]."
-	dstPrefix := dst + "{}[]."
+	srcPrefix := inferredNestedContainerPrefix(src, shape)
+	dstPrefix := inferredNestedContainerPrefix(dst, shape)
 	scope := stack[len(stack)-1]
 	for _, frame := range stack {
 		for key, typeName := range frame {
@@ -647,67 +563,26 @@ func copyInferredMapValueElementFieldTypes(dst, src string, stack []map[string]s
 }
 
 func inferredElementElementFieldTypes(name string, stack []map[string]string) map[string]string {
-	if name == "" || len(stack) == 0 {
-		return nil
-	}
-	prefix := name + "[][]."
-	out := map[string]string{}
-	for _, frame := range stack {
-		for key, typeName := range frame {
-			if strings.HasPrefix(key, prefix) && typeName != "" {
-				out[strings.TrimPrefix(key, prefix)] = typeName
-			}
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return inferredNestedContainerFieldTypes(name, "[][]", stack)
 }
 
 func inferredMapValueMapValueFieldTypes(name string, stack []map[string]string) map[string]string {
-	if name == "" || len(stack) == 0 {
-		return nil
-	}
-	prefix := name + "{}{}."
-	out := map[string]string{}
-	for _, frame := range stack {
-		for key, typeName := range frame {
-			if strings.HasPrefix(key, prefix) && typeName != "" {
-				out[strings.TrimPrefix(key, prefix)] = typeName
-			}
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return inferredNestedContainerFieldTypes(name, "{}{}", stack)
 }
 
 func inferredElementMapValueFieldTypes(name string, stack []map[string]string) map[string]string {
-	if name == "" || len(stack) == 0 {
-		return nil
-	}
-	prefix := name + "[]{}."
-	out := map[string]string{}
-	for _, frame := range stack {
-		for key, typeName := range frame {
-			if strings.HasPrefix(key, prefix) && typeName != "" {
-				out[strings.TrimPrefix(key, prefix)] = typeName
-			}
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return inferredNestedContainerFieldTypes(name, "[]{}", stack)
 }
 
 func inferredMapValueElementFieldTypes(name string, stack []map[string]string) map[string]string {
+	return inferredNestedContainerFieldTypes(name, "{}[]", stack)
+}
+
+func inferredNestedContainerFieldTypes(name, shape string, stack []map[string]string) map[string]string {
 	if name == "" || len(stack) == 0 {
 		return nil
 	}
-	prefix := name + "{}[]."
+	prefix := inferredNestedContainerPrefix(name, shape)
 	out := map[string]string{}
 	for _, frame := range stack {
 		for key, typeName := range frame {
@@ -723,46 +598,26 @@ func inferredMapValueElementFieldTypes(name string, stack []map[string]string) m
 }
 
 func clearInferredElementElementFieldTypes(name string, scope map[string]string) {
-	if name == "" || len(scope) == 0 {
-		return
-	}
-	prefix := name + "[][]."
-	for key := range scope {
-		if strings.HasPrefix(key, prefix) {
-			delete(scope, key)
-		}
-	}
+	clearInferredNestedContainerFieldTypes(name, "[][]", scope)
 }
 
 func clearInferredMapValueMapValueFieldTypes(name string, scope map[string]string) {
-	if name == "" || len(scope) == 0 {
-		return
-	}
-	prefix := name + "{}{}."
-	for key := range scope {
-		if strings.HasPrefix(key, prefix) {
-			delete(scope, key)
-		}
-	}
+	clearInferredNestedContainerFieldTypes(name, "{}{}", scope)
 }
 
 func clearInferredElementMapValueFieldTypes(name string, scope map[string]string) {
-	if name == "" || len(scope) == 0 {
-		return
-	}
-	prefix := name + "[]{}."
-	for key := range scope {
-		if strings.HasPrefix(key, prefix) {
-			delete(scope, key)
-		}
-	}
+	clearInferredNestedContainerFieldTypes(name, "[]{}", scope)
 }
 
 func clearInferredMapValueElementFieldTypes(name string, scope map[string]string) {
+	clearInferredNestedContainerFieldTypes(name, "{}[]", scope)
+}
+
+func clearInferredNestedContainerFieldTypes(name, shape string, scope map[string]string) {
 	if name == "" || len(scope) == 0 {
 		return
 	}
-	prefix := name + "{}[]."
+	prefix := inferredNestedContainerPrefix(name, shape)
 	for key := range scope {
 		if strings.HasPrefix(key, prefix) {
 			delete(scope, key)
@@ -771,127 +626,64 @@ func clearInferredMapValueElementFieldTypes(name string, scope map[string]string
 }
 
 func inferredElementMapValueFieldKey(name, field string) string {
-	if name == "" || field == "" {
-		return ""
-	}
-	return name + "[]{}." + field
+	return inferredNestedContainerFieldKey(name, "[]{}", field)
 }
 
 func inferredMapValueElementFieldKey(name, field string) string {
-	if name == "" || field == "" {
-		return ""
-	}
-	return name + "{}[]." + field
+	return inferredNestedContainerFieldKey(name, "{}[]", field)
 }
 
 func inferredElementElementFieldKey(name, field string) string {
-	if name == "" || field == "" {
-		return ""
-	}
-	return name + "[][]." + field
+	return inferredNestedContainerFieldKey(name, "[][]", field)
 }
 
 func inferredMapValueMapValueFieldKey(name, field string) string {
+	return inferredNestedContainerFieldKey(name, "{}{}", field)
+}
+
+func inferredNestedContainerFieldKey(name, shape, field string) string {
 	if name == "" || field == "" {
 		return ""
 	}
-	return name + "{}{}." + field
+	return inferredNestedContainerPrefix(name, shape) + field
+}
+
+func inferredNestedContainerPrefix(name, shape string) string {
+	if name == "" || shape == "" {
+		return ""
+	}
+	return name + shape + "."
 }
 
 func mergeCallParamElementElementFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredListPrefix) {
-		return
-	}
-	if out[fnName] == nil {
-		out[fnName] = map[string]string{}
-	}
-	dropMissingCallParamElementElementFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
-	for field, typeName := range fields {
-		if field == "" || typeName == "" {
-			continue
-		}
-		paramField := inferredElementElementFieldKey(paramName, field)
-		conflictKey := fnName + "\x00" + paramField
-		if conflicts[conflictKey] {
-			continue
-		}
-		existing := out[fnName][paramField]
-		if existing == "" || existing == typeName {
-			out[fnName][paramField] = typeName
-			continue
-		}
-		delete(out[fnName], paramField)
-		conflicts[conflictKey] = true
-	}
+	mergeCallParamNestedContainerFieldTypes(fnName, paramName, typeName, fields, inferredListPrefix, "[][]", out, conflicts)
 }
 
 func mergeCallParamMapValueMapValueFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredMapPrefix) {
-		return
-	}
-	if out[fnName] == nil {
-		out[fnName] = map[string]string{}
-	}
-	dropMissingCallParamMapValueMapValueFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
-	for field, typeName := range fields {
-		if field == "" || typeName == "" {
-			continue
-		}
-		paramField := inferredMapValueMapValueFieldKey(paramName, field)
-		conflictKey := fnName + "\x00" + paramField
-		if conflicts[conflictKey] {
-			continue
-		}
-		existing := out[fnName][paramField]
-		if existing == "" || existing == typeName {
-			out[fnName][paramField] = typeName
-			continue
-		}
-		delete(out[fnName], paramField)
-		conflicts[conflictKey] = true
-	}
+	mergeCallParamNestedContainerFieldTypes(fnName, paramName, typeName, fields, inferredMapPrefix, "{}{}", out, conflicts)
 }
 
 func mergeCallParamElementMapValueFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredListPrefix) {
-		return
-	}
-	if out[fnName] == nil {
-		out[fnName] = map[string]string{}
-	}
-	dropMissingCallParamElementMapValueFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
-	for field, typeName := range fields {
-		if field == "" || typeName == "" {
-			continue
-		}
-		paramField := inferredElementMapValueFieldKey(paramName, field)
-		conflictKey := fnName + "\x00" + paramField
-		if conflicts[conflictKey] {
-			continue
-		}
-		existing := out[fnName][paramField]
-		if existing == "" || existing == typeName {
-			out[fnName][paramField] = typeName
-			continue
-		}
-		delete(out[fnName], paramField)
-		conflicts[conflictKey] = true
-	}
+	mergeCallParamNestedContainerFieldTypes(fnName, paramName, typeName, fields, inferredListPrefix, "[]{}", out, conflicts)
 }
 
 func mergeCallParamMapValueElementFieldTypes(fnName, paramName, typeName string, fields map[string]string, out map[string]map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, inferredMapPrefix) {
+	mergeCallParamNestedContainerFieldTypes(fnName, paramName, typeName, fields, inferredMapPrefix, "{}[]", out, conflicts)
+}
+
+func mergeCallParamNestedContainerFieldTypes(fnName, paramName, typeName string, fields map[string]string, containerPrefix string, shape string, out map[string]map[string]string, conflicts map[string]bool) {
+	if fnName == "" || paramName == "" || !strings.HasPrefix(typeName, containerPrefix) {
 		return
 	}
 	if out[fnName] == nil {
 		out[fnName] = map[string]string{}
 	}
-	dropMissingCallParamMapValueElementFieldTypes(fnName, paramName, fields, out[fnName], conflicts)
+	dropMissingCallParamNestedContainerFieldTypes(fnName, paramName, shape, fields, out[fnName], conflicts)
 	for field, typeName := range fields {
 		if field == "" || typeName == "" {
 			continue
 		}
-		paramField := inferredMapValueElementFieldKey(paramName, field)
+		paramField := inferredNestedContainerFieldKey(paramName, shape, field)
 		conflictKey := fnName + "\x00" + paramField
 		if conflicts[conflictKey] {
 			continue
@@ -907,64 +699,26 @@ func mergeCallParamMapValueElementFieldTypes(fnName, paramName, typeName string,
 }
 
 func dropMissingCallParamElementElementFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || len(params) == 0 {
-		return
-	}
-	prefix := paramName + "[][]."
-	for key := range params {
-		if !strings.HasPrefix(key, prefix) {
-			continue
-		}
-		field := strings.TrimPrefix(key, prefix)
-		if field == "" || fields[field] != "" {
-			continue
-		}
-		delete(params, key)
-		conflicts[fnName+"\x00"+key] = true
-	}
+	dropMissingCallParamNestedContainerFieldTypes(fnName, paramName, "[][]", fields, params, conflicts)
 }
 
 func dropMissingCallParamMapValueMapValueFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || len(params) == 0 {
-		return
-	}
-	prefix := paramName + "{}{}."
-	for key := range params {
-		if !strings.HasPrefix(key, prefix) {
-			continue
-		}
-		field := strings.TrimPrefix(key, prefix)
-		if field == "" || fields[field] != "" {
-			continue
-		}
-		delete(params, key)
-		conflicts[fnName+"\x00"+key] = true
-	}
+	dropMissingCallParamNestedContainerFieldTypes(fnName, paramName, "{}{}", fields, params, conflicts)
 }
 
 func dropMissingCallParamElementMapValueFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
-	if fnName == "" || paramName == "" || len(params) == 0 {
-		return
-	}
-	prefix := paramName + "[]{}."
-	for key := range params {
-		if !strings.HasPrefix(key, prefix) {
-			continue
-		}
-		field := strings.TrimPrefix(key, prefix)
-		if field == "" || fields[field] != "" {
-			continue
-		}
-		delete(params, key)
-		conflicts[fnName+"\x00"+key] = true
-	}
+	dropMissingCallParamNestedContainerFieldTypes(fnName, paramName, "[]{}", fields, params, conflicts)
 }
 
 func dropMissingCallParamMapValueElementFieldTypes(fnName, paramName string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
+	dropMissingCallParamNestedContainerFieldTypes(fnName, paramName, "{}[]", fields, params, conflicts)
+}
+
+func dropMissingCallParamNestedContainerFieldTypes(fnName, paramName, shape string, fields map[string]string, params map[string]string, conflicts map[string]bool) {
 	if fnName == "" || paramName == "" || len(params) == 0 {
 		return
 	}
-	prefix := paramName + "{}[]."
+	prefix := inferredNestedContainerPrefix(paramName, shape)
 	for key := range params {
 		if !strings.HasPrefix(key, prefix) {
 			continue
@@ -979,46 +733,26 @@ func dropMissingCallParamMapValueElementFieldTypes(fnName, paramName string, fie
 }
 
 func deleteCallParamElementElementFieldTypes(paramName string, params map[string]string) {
-	if paramName == "" || len(params) == 0 {
-		return
-	}
-	prefix := paramName + "[][]."
-	for key := range params {
-		if strings.HasPrefix(key, prefix) {
-			delete(params, key)
-		}
-	}
+	deleteCallParamNestedContainerFieldTypes(paramName, "[][]", params)
 }
 
 func deleteCallParamMapValueMapValueFieldTypes(paramName string, params map[string]string) {
-	if paramName == "" || len(params) == 0 {
-		return
-	}
-	prefix := paramName + "{}{}."
-	for key := range params {
-		if strings.HasPrefix(key, prefix) {
-			delete(params, key)
-		}
-	}
+	deleteCallParamNestedContainerFieldTypes(paramName, "{}{}", params)
 }
 
 func deleteCallParamElementMapValueFieldTypes(paramName string, params map[string]string) {
-	if paramName == "" || len(params) == 0 {
-		return
-	}
-	prefix := paramName + "[]{}."
-	for key := range params {
-		if strings.HasPrefix(key, prefix) {
-			delete(params, key)
-		}
-	}
+	deleteCallParamNestedContainerFieldTypes(paramName, "[]{}", params)
 }
 
 func deleteCallParamMapValueElementFieldTypes(paramName string, params map[string]string) {
+	deleteCallParamNestedContainerFieldTypes(paramName, "{}[]", params)
+}
+
+func deleteCallParamNestedContainerFieldTypes(paramName, shape string, params map[string]string) {
 	if paramName == "" || len(params) == 0 {
 		return
 	}
-	prefix := paramName + "{}[]."
+	prefix := inferredNestedContainerPrefix(paramName, shape)
 	for key := range params {
 		if strings.HasPrefix(key, prefix) {
 			delete(params, key)
