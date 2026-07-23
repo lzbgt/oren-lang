@@ -41,10 +41,10 @@ surfaces, but the following blockers remain:
 - The Oren LSP now follows anonymous imports for unopened-workspace dependency
   traversal, unqualified imported symbol completion/definition, hover,
   references, and typed-member completion/definition through anonymously
-  imported constructors. Conservative rename now covers import aliases, exact
-  scoped parameters, same-document and import-resolved top-level functions/types, and exact
-  typed-member workspace edits for import-resolved and anonymous-imported
-  fields. Regression
+  imported constructors. Conservative prepare/rename now covers import aliases,
+  exact scoped parameters, same-document and import-resolved top-level
+  functions/types, and exact typed-member workspace edits for import-resolved
+  and anonymous-imported fields. Regression
   proof lives in `internal/orenlsp/server_import_test.go` and
   `internal/orenlsp/server_rename_test.go`.
 - Oren LSP nested container facts now cover same-kind list-of-list and map-of-map

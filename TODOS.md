@@ -55,10 +55,10 @@ design evidence lives under `project-doc/`.
 - Oren LSP now recognizes anonymous `import . "path"` imports for workspace
   dependency traversal, unqualified imported symbol completion/definition,
   hover, references, and typed-member completion/definition through
-	  anonymously imported constructors. Conservative rename now covers import
-	  aliases, exact scoped parameters, same-document and import-resolved top-level functions/types,
-	  and exact typed-member workspace edits for import-resolved and
-	  anonymous-imported fields.
+  anonymously imported constructors. Conservative prepare/rename now covers
+  import aliases, exact scoped parameters, same-document and import-resolved
+  top-level functions/types, and exact typed-member workspace edits for
+  import-resolved and anonymous-imported fields.
   Focused coverage lives in `internal/orenlsp/server_import_test.go` and
   `internal/orenlsp/server_rename_test.go`.
 - The VS Code Oren TextMate grammar now scopes anonymous dot imports, import

@@ -448,6 +448,15 @@ func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      75,
+		"method":  "textDocument/prepareRename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 2, "character": 20},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      76,
 		"method":  "textDocument/rename",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -457,7 +466,16 @@ func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
 	})
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      76,
+		"id":      77,
+		"method":  "textDocument/prepareRename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 3, "character": 18},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      78,
 		"method":  "textDocument/rename",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -467,7 +485,16 @@ func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
 	})
 	writeTestMessage(t, &in, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      77,
+		"id":      79,
+		"method":  "textDocument/prepareRename",
+		"params": map[string]any{
+			"textDocument": map[string]any{"uri": mainURI},
+			"position":     map[string]any{"line": 4, "character": 10},
+		},
+	})
+	writeTestMessage(t, &in, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      80,
 		"method":  "textDocument/rename",
 		"params": map[string]any{
 			"textDocument": map[string]any{"uri": mainURI},
@@ -483,7 +510,11 @@ func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
 	}
 	msgs := readTestMessages(t, out.Bytes())
 
-	edit := messageByID(t, msgs, 75)["result"].(map[string]any)
+	assertRangeMap(t, messageByID(t, msgs, 75)["result"].(map[string]any), diagnosticRange{
+		Start: position{Line: 2, Character: 15},
+		End:   position{Line: 2, Character: 26},
+	})
+	edit := messageByID(t, msgs, 76)["result"].(map[string]any)
 	assertWorkspaceEditFileCount(t, edit, 2)
 	assertWorkspaceEdit(t, edit, fileURIFromPath(shapesPath), "build_widget", []diagnosticRange{
 		{Start: position{Line: 1, Character: 3}, End: position{Line: 1, Character: 14}},
@@ -492,7 +523,11 @@ func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
 		{Start: position{Line: 2, Character: 15}, End: position{Line: 2, Character: 26}},
 	})
 
-	edit = messageByID(t, msgs, 76)["result"].(map[string]any)
+	assertRangeMap(t, messageByID(t, msgs, 77)["result"].(map[string]any), diagnosticRange{
+		Start: position{Line: 3, Character: 15},
+		End:   position{Line: 3, Character: 21},
+	})
+	edit = messageByID(t, msgs, 78)["result"].(map[string]any)
 	assertWorkspaceEditFileCount(t, edit, 2)
 	assertWorkspaceEdit(t, edit, fileURIFromPath(shapesPath), "Gizmo", []diagnosticRange{
 		{Start: position{Line: 0, Character: 7}, End: position{Line: 0, Character: 13}},
@@ -503,7 +538,11 @@ func TestServerRenameImportedTopLevelFunctionAndTypes(t *testing.T) {
 		{Start: position{Line: 3, Character: 15}, End: position{Line: 3, Character: 21}},
 	})
 
-	edit = messageByID(t, msgs, 77)["result"].(map[string]any)
+	assertRangeMap(t, messageByID(t, msgs, 79)["result"].(map[string]any), diagnosticRange{
+		Start: position{Line: 4, Character: 8},
+		End:   position{Line: 4, Character: 13},
+	})
+	edit = messageByID(t, msgs, 80)["result"].(map[string]any)
 	assertWorkspaceEditFileCount(t, edit, 2)
 	assertWorkspaceEdit(t, edit, fileURIFromPath(extraPath), "Thing", []diagnosticRange{
 		{Start: position{Line: 0, Character: 7}, End: position{Line: 0, Character: 12}},
