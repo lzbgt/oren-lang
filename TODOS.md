@@ -2823,7 +2823,9 @@ design evidence lives under `project-doc/`.
   helper-generated vertices in malformed raw frames.
 - Fully transparent Metal primitive/image/text and retained mesh/model draw opcodes
   now return handled before vertex, texture-run, text-cache, retained lookup, or
-  depth-order work while retained create/destroy resource opcodes still execute.
+  depth-order work, and active empty-scissor clips now skip Metal draw-only opcodes
+  before frame-prep vertex/resource/text work while retained create/destroy
+  resource opcodes still execute.
 - Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills
   now skip exact degenerate triangles, avoiding no-op triangle draw work for
   collapsed 2D/3D mesh payloads while preserving valid tiny triangles.

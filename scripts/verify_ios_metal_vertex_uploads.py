@@ -876,6 +876,25 @@ def main() -> int:
             fail("Metal frame-state overflow must use the shared typed stack, not per-kind counters")
     if "OrenAVMMetalFlushVertexRun(&vertexRuns, &vertices, runCapacity, frameState.clip, NO)" not in frame_text:
         fail("final geometry vertex-run flush must avoid allocating a replacement builder")
+    for token in (
+        "static BOOL OrenAVMMetalScissorIsEmpty(OrenAVMMetalScissorState clip)",
+        "static BOOL OrenAVMMetalOpcodeIsClipScopedDraw(uint8_t opcode)",
+        "case 1:",
+        "case 2:",
+        "case 65:",
+        "case 72:",
+        "case 81:",
+        "case 94:",
+    ):
+        if token not in frame_text:
+            fail(f"Metal empty-scissor draw skip missing expected draw opcode coverage: {token}")
+    build_runs = frame_text[frame_text.find("NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame") :]
+    require_before(
+        build_runs,
+        "OrenAVMMetalScissorIsEmpty(frameState.clip) && OrenAVMMetalOpcodeIsClipScopedDraw(opcode)",
+        "BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,",
+        "Metal frame traversal must skip clip-elided draw work before vertex/resource/text preparation",
+    )
     if "OrenAVMMetalEncodePreparedRuns(encoder," not in text:
         fail("Metal view must delegate prepared-run draw submission to the frame helper")
     if "void OrenAVMMetalEncodePreparedRuns" not in frame_text:

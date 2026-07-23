@@ -3927,7 +3927,9 @@
 <li>Fully transparent Metal primitive/image/text and retained mesh/model draw opcodes</li>
 </ul>
 <p>  now return handled before vertex, texture-run, text-cache, retained lookup, or</p>
-<p>  depth-order work while retained create/destroy resource opcodes still execute.</p>
+<p>  depth-order work, and active empty-scissor clips now skip Metal draw-only opcodes</p>
+<p>  before frame-prep vertex/resource/text work while retained create/destroy</p>
+<p>  resource opcodes still execute.</p>
 <ul>
 <li>Metal triangle vertex emission and CoreGraphics immediate/retained mesh fills</li>
 </ul>

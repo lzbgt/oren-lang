@@ -224,6 +224,39 @@ BOOL OrenAVMMetalHandleFrameStateCommand(uint8_t opcode,
     }
 }
 
+static BOOL OrenAVMMetalScissorIsEmpty(OrenAVMMetalScissorState clip) {
+    return clip.enabled && (clip.rect.width == 0 || clip.rect.height == 0);
+}
+
+static BOOL OrenAVMMetalOpcodeIsClipScopedDraw(uint8_t opcode) {
+    switch (opcode) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 65:
+        case 67:
+        case 69:
+        case 71:
+        case 72:
+        case 81:
+        case 84:
+        case 87:
+        case 90:
+        case 91:
+        case 94:
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* frame,
                                                                      MTLClearColor* clearColor,
                                                                      NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
@@ -257,6 +290,10 @@ NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* fra
         if (off + (size_t)payloadLen > frame.length) break;
         const uint8_t* payload = data + off;
         OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
+        if (OrenAVMMetalScissorIsEmpty(frameState.clip) && OrenAVMMetalOpcodeIsClipScopedDraw(opcode)) {
+            off += payloadLen;
+            continue;
+        }
         BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,
                                                                    payload,
                                                                    payloadLen,
