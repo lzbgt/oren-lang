@@ -541,9 +541,13 @@ if ! grep -Fq 'fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, mas
   ! grep -Fq 'return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)' <<<"$ws_ping_impl" ||
   ! grep -Fq 'fn send_ping_bytes_client(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'fn send_ping_bytes_server(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'fn send_pong_bytes_client(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'fn send_pong_bytes_server(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
+  ! grep -Fq 'return _send_frame_control_bytes(conn, 10, payload, timeout_ms, 1)' lib/std/net/ws.oren ||
+  ! grep -Fq 'return _send_frame_control_bytes(conn, 10, payload, timeout_ms, 0)' lib/std/net/ws.oren ||
   grep -Fq 'oren_string_from_bytes' <<<"$ws_ping_impl" ||
   grep -Fq 'oren_bytes_unpack' <<<"$ws_ping_impl"; then
-  echo "ERROR: native WebSocket binary ping must send u8_buf control payloads directly without byte-list or string conversion" >&2
+  echo "ERROR: native WebSocket binary ping/pong must send u8_buf control payloads directly without byte-list or string conversion" >&2
   exit 1
 fi
 if ! grep -Fq 'text = _make_text_payload(5003)' tests/native/test_ws_echo_loopback.oren; then
@@ -555,6 +559,7 @@ if ! grep -Fq 'fn _send_fragmented_text_client(conn, text, n, timeout_ms)' tests
   ! grep -Fq 'bytes = _make_binary_payload(4101)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'var bprc = ws.send_ping_client(conn, "bytes", 5000)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'var pbprc = ws.send_ping_bytes_client(conn, ping_bytes, 5000)' tests/native/test_ws_echo_loopback.oren ||
+  ! grep -Fq 'var poprc = conn.send_pong_bytes_client(pong_bytes, 5000)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'conn.send_bytes_client(bytes, 5000)' tests/native/test_ws_echo_loopback.oren ||
   ! grep -Fq 'conn.recv_bytes(10000)' tests/native/test_ws_echo_loopback.oren; then
   echo "ERROR: native WebSocket loopback must exercise byte-native binary frames larger than the fixed 4096-byte masked chunk" >&2

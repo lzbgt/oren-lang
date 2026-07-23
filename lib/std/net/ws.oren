@@ -34,6 +34,8 @@ trait WebSocketConn {
     fn send_bytes_server(self, bytes, timeout_ms);
     fn send_ping_bytes_client(self, bytes, timeout_ms);
     fn send_ping_bytes_server(self, bytes, timeout_ms);
+    fn send_pong_bytes_client(self, bytes, timeout_ms);
+    fn send_pong_bytes_server(self, bytes, timeout_ms);
     fn recv_text(self, timeout_ms);
     fn recv_bytes(self, timeout_ms);
     fn close(self);
@@ -998,6 +1000,28 @@ fn _send_ping_bytes_server_value(conn, payload, timeout_ms) {
     return _err_from_errno(rc, "ws.send_ping_bytes_server failed")
 }
 
+fn send_pong_bytes_client(conn, payload, timeout_ms) {
+    // Client-to-server pong must be masked.
+    return _send_frame_control_bytes(conn, 10, payload, timeout_ms, 1)
+}
+
+fn _send_pong_bytes_client_value(conn, payload, timeout_ms) {
+    var rc = send_pong_bytes_client(conn, payload, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_pong_bytes_client failed")
+}
+
+fn send_pong_bytes_server(conn, payload, timeout_ms) {
+    // Server-to-client pong must be unmasked.
+    return _send_frame_control_bytes(conn, 10, payload, timeout_ms, 0)
+}
+
+fn _send_pong_bytes_server_value(conn, payload, timeout_ms) {
+    var rc = send_pong_bytes_server(conn, payload, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _err_from_errno(rc, "ws.send_pong_bytes_server failed")
+}
+
 fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
     // Returns {"ok":1,"v":string/u8_buf} or {"ok":0,"err":string}.
     if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
@@ -1230,6 +1254,8 @@ impl WebSocketConn for Conn {
     fn send_bytes_server(self, bytes, timeout_ms) { return _send_bytes_server_value(self, bytes, timeout_ms) }
     fn send_ping_bytes_client(self, bytes, timeout_ms) { return _send_ping_bytes_client_value(self, bytes, timeout_ms) }
     fn send_ping_bytes_server(self, bytes, timeout_ms) { return _send_ping_bytes_server_value(self, bytes, timeout_ms) }
+    fn send_pong_bytes_client(self, bytes, timeout_ms) { return _send_pong_bytes_client_value(self, bytes, timeout_ms) }
+    fn send_pong_bytes_server(self, bytes, timeout_ms) { return _send_pong_bytes_server_value(self, bytes, timeout_ms) }
     fn recv_text(self, timeout_ms) { return _recv_text_value(self, timeout_ms) }
     fn recv_bytes(self, timeout_ms) { return _recv_bytes_value(self, timeout_ms) }
     fn close(self) { return close(self) }

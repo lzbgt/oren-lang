@@ -474,6 +474,25 @@ fn run_one(listen_fd, url, resolver) {
         }
 
         if rc == 0 {
+            var pong_bytes = _make_binary_payload(4)
+            if oren_is_err(pong_bytes) {
+                print("ws_echo_loopback: FAIL binary pong alloc")
+                rc = 39
+            } else {
+                var pop = native_buf_data_ptr(pong_bytes)
+                ptr_set_byte(pop + 0, 3)
+                ptr_set_byte(pop + 1, 252)
+                ptr_set_byte(pop + 2, 4)
+                ptr_set_byte(pop + 3, 251)
+                var poprc = conn.send_pong_bytes_client(pong_bytes, 5000)
+                if oren_is_err(poprc) {
+                    print("ws_echo_loopback: FAIL binary pong before bytes: " + oren_err_msg(poprc))
+                    rc = 40
+                }
+            }
+        }
+
+        if rc == 0 {
             var bwr = conn.send_bytes_client(bytes, 5000)
             if oren_is_err(bwr) {
                 print("ws_echo_loopback: FAIL send bytes: " + oren_err_msg(bwr))
