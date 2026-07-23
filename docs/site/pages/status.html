@@ -148,12 +148,12 @@
 <p>  quads stay inline and batched zero-size destinations/source subrects are</p>
 <p>  validated once before heap vertex allocation; known-size image/text batches</p>
 <p>	  allocate exact heap vertex storage once, retained 3D draws skip sort/color</p>
-<p>	  work when clipping leaves no visible triangles, fully transparent Metal</p>
-<p>	  primitive/image/text plus retained mesh/model draw opcodes skip</p>
-<p>	  vertex/texture/text-cache/lookup/depth-order work, active empty-scissor or</p>
-<p>	  empty-clip spans skip Metal and CoreGraphics draw-only opcodes before</p>
-<p>	  frame-prep or CGContext/resource/text draw work while resource</p>
-<p>	  create/destroy opcodes still execute, and later compatible-run coalescing</p>
+<p>		  work when clipping leaves no visible triangles, fully transparent Metal</p>
+<p>		  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only</p>
+<p>		  opcodes skip vertex/texture/text-cache/lookup/depth-order work, active</p>
+<p>		  empty-scissor or empty-clip spans skip Metal and CoreGraphics draw-only</p>
+<p>		  opcodes before frame-prep or CGContext/resource/text draw work while resource</p>
+<p>		  create/destroy opcodes still execute, and later compatible-run coalescing</p>
 <p>	  still grows geometrically.</p>
 <ul>
 <li>iOS Metal image-run preparation now coalesces adjacent compatible image runs</li>

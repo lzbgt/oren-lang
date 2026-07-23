@@ -94,7 +94,7 @@ static BOOL OrenAVMGfxClipIsEmpty(CGContextRef ctx, BOOL alreadyEmpty) {
     return CGRectIsEmpty(clip) || clip.size.width <= 0.0 || clip.size.height <= 0.0;
 }
 
-static BOOL OrenAVMGfxOpcodeIsClipScopedDraw(uint8_t opcode) {
+static BOOL OrenAVMGfxOpcodeIsDrawOnly(uint8_t opcode) {
     switch (opcode) {
         case 1:
         case 2:
@@ -149,7 +149,7 @@ void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawCon
             off += payloadLen;
             continue;
         }
-        if (frameState.clipEmpty && OrenAVMGfxOpcodeIsClipScopedDraw(opcode)) {
+        if ((frameState.clipEmpty || frameState.opacity <= 0.0) && OrenAVMGfxOpcodeIsDrawOnly(opcode)) {
             off += payloadLen;
             continue;
         }

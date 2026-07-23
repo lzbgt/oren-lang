@@ -84,7 +84,7 @@ def main() -> int:
         fail("CoreGraphics frame traversal must delegate retained mesh opcodes to OrenAVMGraphicsResources")
     for token in (
         "static BOOL OrenAVMGfxClipIsEmpty(CGContextRef ctx, BOOL alreadyEmpty)",
-        "static BOOL OrenAVMGfxOpcodeIsClipScopedDraw(uint8_t opcode)",
+        "static BOOL OrenAVMGfxOpcodeIsDrawOnly(uint8_t opcode)",
         "BOOL clipEmpty;",
         "BOOL clipEmptyStack[OrenAVMGfxFrameStateStackCapacity];",
         "case 1:",
@@ -95,18 +95,18 @@ def main() -> int:
         "case 94:",
     ):
         if token not in text:
-            fail(f"CoreGraphics empty-clip draw skip missing expected coverage: {token}")
+            fail(f"CoreGraphics elided draw skip missing expected coverage: {token}")
     draw_frame_start = frame_text.find("void OrenAVMGfxDrawFrame")
     state_handler_start = frame_text.find("BOOL OrenAVMGfxHandleFrameStateCommand", draw_frame_start)
     draw_frame_body = frame_text[draw_frame_start:state_handler_start]
     require_before(draw_frame_body,
                    "OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)",
-                   "frameState.clipEmpty && OrenAVMGfxOpcodeIsClipScopedDraw(opcode)",
-                   "CoreGraphics frame traversal must handle state before empty-clip draw skips")
+                   "(frameState.clipEmpty || frameState.opacity <= 0.0) && OrenAVMGfxOpcodeIsDrawOnly(opcode)",
+                   "CoreGraphics frame traversal must handle state before empty-clip/transparent draw skips")
     require_before(draw_frame_body,
-                   "frameState.clipEmpty && OrenAVMGfxOpcodeIsClipScopedDraw(opcode)",
+                   "(frameState.clipEmpty || frameState.opacity <= 0.0) && OrenAVMGfxOpcodeIsDrawOnly(opcode)",
                    "OrenAVMGfxDrawImmediatePrimitive(ctx, opcode, payload, payloadLen)",
-                   "CoreGraphics frame traversal must skip empty-clip draws before immediate primitive work")
+                   "CoreGraphics frame traversal must skip elided draws before immediate primitive work")
     if "OrenAVMGfxDrawMesh3DResource(ctx," not in resource_text:
         fail("CoreGraphics retained 3D mesh draws must live in OrenAVMGraphicsResources")
     if "void OrenAVMGfxDrawMesh3DResource(CGContextRef ctx," not in resource_text:
