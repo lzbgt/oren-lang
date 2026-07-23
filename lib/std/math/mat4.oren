@@ -1468,6 +1468,29 @@ fn det(m) {
     return determinant(m)
 }
 
+fn is_invertible_abs(m, abs_tol: f64) {
+    var det0 = determinant(m)
+    if oren_is_err(det0) { return det0 }
+    var det: f64 = det0
+    var near_zero = _close_abs_scalar(det, 0.0, abs_tol, "mat4.is_invertible_abs")
+    if oren_is_err(near_zero) { return near_zero }
+    return !near_zero
+}
+
+fn is_invertible(m) {
+    return is_invertible_abs(m, 0.0)
+}
+
+fn is_singular_abs(m, abs_tol: f64) {
+    var inv = is_invertible_abs(m, abs_tol)
+    if oren_is_err(inv) { return inv }
+    return !inv
+}
+
+fn is_singular(m) {
+    return is_singular_abs(m, 0.0)
+}
+
 fn _adjugate_checked(m, ctx) {
     var cm = _check(m, ctx)
     if oren_is_err(cm) { return cm }
