@@ -115,9 +115,9 @@ surfaces, but the following blockers remain:
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers
   (`cofactor`, `adjugate`, `adjoint`, `minor3`, and `minor`) that share the
   inverse cofactor formula while keeping singular finite matrices inspectable.
-- `std:math/mat4` now includes exact and tolerance-aware diagonal,
-  translation, scale, and uniform-scale shape predicates backed by shared
-  row-major matrix shape validation.
+- `std:math/mat4` now includes tolerance-aware affine/perspective predicates
+  plus exact and tolerance-aware diagonal, translation, scale, and uniform-scale
+  shape predicates backed by shared row-major matrix shape validation.
 - `std:math/mat4` now includes checked Frobenius matrix norm helpers
   (`frobenius_norm`, `frobenius_norm_sq`, `norm_frobenius`, and `norm`) with a
   scaled public norm path and native/C/bytecode, AVM, and stdlib OBC bundle

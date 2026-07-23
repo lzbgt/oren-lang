@@ -122,10 +122,31 @@ fn is_affine(m) {
     return true
 }
 
+fn is_affine_abs(m, abs_tol: f64) {
+    var ok = _check(m, "mat4.is_affine_abs")
+    if oren_is_err(ok) { return ok }
+    ok = math.isclose_abs(m[12], 0.0, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose_abs(m[13], 0.0, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose_abs(m[14], 0.0, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return math.isclose_abs(m[15], 1.0, abs_tol)
+}
+
 fn has_perspective(m) {
     var ok = _check(m, "mat4.has_perspective")
     if oren_is_err(ok) { return false }
     return !is_affine(m)
+}
+
+fn has_perspective_abs(m, abs_tol: f64) {
+    var ok = is_affine_abs(m, abs_tol)
+    if oren_is_err(ok) { return ok }
+    return !ok
 }
 
 fn equals(a, b) {
