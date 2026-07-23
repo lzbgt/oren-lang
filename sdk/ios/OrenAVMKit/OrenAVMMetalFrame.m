@@ -479,17 +479,18 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
     if (textPipeline) {
         [encoder setRenderPipelineState:textPipeline];
         for (OrenAVMMetalImageRun* run in imageRuns) {
-            if (!run.texture) continue;
+            NSUInteger vertexBytes = OrenAVMMetalImageRunVertexBytesLength(run);
+            if (!run.texture || vertexBytes == 0) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             [encoder setScissorRect:scissor];
-            if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, run->vertices, sizeof(run->vertices))) continue;
+            if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalImageRunVertexBytes(run), vertexBytes)) continue;
             [encoder setFragmentTexture:run.texture atIndex:0];
             float opacity = run.opacity;
             [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
-                         vertexCount:6];
+                         vertexCount:OrenAVMMetalImageRunVertexCount(run)];
         }
         for (OrenAVMMetalTextRun* run in textRuns) {
             NSUInteger vertexBytes = OrenAVMMetalTextRunVertexBytesLength(run);

@@ -13,6 +13,9 @@
 @end
 
 @implementation OrenAVMMetalImageRun
+- (void)dealloc {
+    free(heapVertices);
+}
 @end
 
 @implementation OrenAVMMetalImageResource
@@ -131,6 +134,73 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
     OrenAVMMetalWriteTextureQuad(run->vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
     run.opacity = opacity;
     return run;
+}
+
+static BOOL OrenAVMMetalImageRunReserveHeapVertices(OrenAVMMetalImageRun* run, NSUInteger vertexCount) {
+    if (!run || vertexCount == 0 || vertexCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
+    OrenAVMMetalTextVertex* vertices = (OrenAVMMetalTextVertex*)malloc(vertexCount * sizeof(OrenAVMMetalTextVertex));
+    if (!vertices) return NO;
+    run->heapVertices = vertices;
+    run->heapVertexCount = vertexCount;
+    return YES;
+}
+
+static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> texture,
+                                                             NSUInteger textureWidth,
+                                                             NSUInteger textureHeight,
+                                                             const uint8_t* rects,
+                                                             uint32_t rectCount,
+                                                             float tx,
+                                                             float ty,
+                                                             float opacity,
+                                                             float logicalWidth,
+                                                             float logicalHeight) {
+    if (!texture || !rects || rectCount == 0) return nil;
+    NSUInteger vertexCount = (NSUInteger)rectCount * 6u;
+    if (vertexCount / 6u != (NSUInteger)rectCount) return nil;
+    OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
+    run.texture = texture;
+    run.opacity = opacity;
+    if (!OrenAVMMetalImageRunReserveHeapVertices(run, vertexCount)) return nil;
+    for (uint32_t ri = 0; ri < rectCount; ri++) {
+        const uint8_t* r = rects + ((size_t)ri * 32u);
+        uint32_t sx = OrenAVMMetalReadU32LE(r);
+        uint32_t sy = OrenAVMMetalReadU32LE(r + 4);
+        uint32_t sw = OrenAVMMetalReadU32LE(r + 8);
+        uint32_t sh = OrenAVMMetalReadU32LE(r + 12);
+        if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
+        float u0 = (float)sx / (float)textureWidth;
+        float v0 = (float)sy / (float)textureHeight;
+        float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
+        float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
+        OrenAVMMetalWriteTextureQuad(run->heapVertices + ((NSUInteger)ri * 6u),
+                                     (float)OrenAVMMetalReadU32LE(r + 16) + tx,
+                                     (float)OrenAVMMetalReadU32LE(r + 20) + ty,
+                                     (float)OrenAVMMetalReadU32LE(r + 24),
+                                     (float)OrenAVMMetalReadU32LE(r + 28),
+                                     logicalWidth,
+                                     logicalHeight,
+                                     u0,
+                                     v0,
+                                     u1,
+                                     v1);
+    }
+    return run;
+}
+
+const void* OrenAVMMetalImageRunVertexBytes(OrenAVMMetalImageRun* run) {
+    if (!run) return NULL;
+    return run->heapVertexCount == 0 ? run->vertices : run->heapVertices;
+}
+
+NSUInteger OrenAVMMetalImageRunVertexBytesLength(OrenAVMMetalImageRun* run) {
+    if (!run) return 0;
+    NSUInteger vertexCount = run->heapVertexCount == 0 ? 6u : run->heapVertexCount;
+    return vertexCount * sizeof(OrenAVMMetalTextVertex);
+}
+
+NSUInteger OrenAVMMetalImageRunVertexCount(OrenAVMMetalImageRun* run) {
+    return OrenAVMMetalImageRunVertexBytesLength(run) / sizeof(OrenAVMMetalTextVertex);
 }
 
 static void OrenAVMMetalAppendImageRun(NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
@@ -259,8 +329,8 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                     if (texture) {
                         NSUInteger textureWidth = texture.width;
                         NSUInteger textureHeight = texture.height;
-                        for (uint32_t ri = 0; ri < rectCount; ri++) {
-                            const uint8_t* r = payload + 8 + ((size_t)ri * 32u);
+                        if (rectCount == 1) {
+                            const uint8_t* r = payload + 8;
                             OrenAVMMetalAppendImageRun(imageRuns,
                                                        runCapacity,
                                                        OrenAVMMetalImageRunCreate(texture,
@@ -277,6 +347,21 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                                                                                   opacity,
                                                                                   logicalWidth,
                                                                                   logicalHeight),
+                                                       hasScissor,
+                                                       scissor);
+                        } else {
+                            OrenAVMMetalAppendImageRun(imageRuns,
+                                                       runCapacity,
+                                                       OrenAVMMetalImageBatchRunCreate(texture,
+                                                                                       textureWidth,
+                                                                                       textureHeight,
+                                                                                       payload + 8,
+                                                                                       rectCount,
+                                                                                       tx,
+                                                                                       ty,
+                                                                                       opacity,
+                                                                                       logicalWidth,
+                                                                                       logicalHeight),
                                                        hasScissor,
                                                        scissor);
                         }

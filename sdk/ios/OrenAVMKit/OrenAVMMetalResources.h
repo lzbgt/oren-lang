@@ -25,6 +25,8 @@ enum { OrenAVMMetalInlineTriangleOrderCapacity = 128 };
 @interface OrenAVMMetalImageRun : NSObject {
 @public
     OrenAVMMetalTextVertex vertices[6];
+    OrenAVMMetalTextVertex* heapVertices;
+    NSUInteger heapVertexCount;
 }
 @property(nonatomic, strong) id<MTLTexture> texture;
 @property(nonatomic) BOOL hasScissor;
@@ -96,6 +98,9 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
                                                  float opacity,
                                                  float logicalWidth,
                                                  float logicalHeight);
+const void* OrenAVMMetalImageRunVertexBytes(OrenAVMMetalImageRun* run);
+NSUInteger OrenAVMMetalImageRunVertexBytesLength(OrenAVMMetalImageRun* run);
+NSUInteger OrenAVMMetalImageRunVertexCount(OrenAVMMetalImageRun* run);
 BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                                     id<MTLDevice> device,
                                     uint8_t opcode,

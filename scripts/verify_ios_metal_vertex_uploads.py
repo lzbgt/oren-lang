@@ -456,6 +456,10 @@ def main() -> int:
     image_run_block = resource_text[image_run_start:image_run_end]
     if "@interface OrenAVMMetalImageRun : NSObject {\n@public\n    OrenAVMMetalTextVertex vertices[6];" not in image_run_block:
         fail("Metal image runs must store fixed quad vertices inline")
+    if "OrenAVMMetalTextVertex* heapVertices" not in image_run_block or "NSUInteger heapVertexCount" not in image_run_block:
+        fail("Metal batched image runs must own raw heap vertex spans")
+    if "free(heapVertices)" not in resource_text:
+        fail("Metal batched image runs must free raw heap vertex spans")
     if "@property(nonatomic, strong) NSData* vertices;" in image_run_block:
         fail("Metal image runs must not allocate NSData wrappers for single quads")
     if "OrenAVMMetalWriteTextureQuad(run->vertices" not in resource_text:
@@ -488,8 +492,12 @@ def main() -> int:
     batched_block = image_command[batched_images:image_command.find("default:", batched_images)]
     if "NSUInteger textureWidth = texture.width;" not in batched_block or "NSUInteger textureHeight = texture.height;" not in batched_block:
         fail("batched Metal image-rect draws must cache texture dimensions once")
-    if batched_block.find("NSUInteger textureWidth = texture.width;") > batched_block.find("for (uint32_t ri"):
-        fail("batched Metal image-rect dimension cache must happen before the rect loop")
+    if "for (uint32_t ri" in batched_block:
+        fail("batched Metal image-rect commands must not append one image run per rect")
+    if "OrenAVMMetalImageBatchRunCreate(texture," not in batched_block:
+        fail("batched Metal image-rect commands must create one raw vertex batch run")
+    if "OrenAVMMetalImageRunVertexBytes(run)" not in frame_text or "OrenAVMMetalImageRunVertexCount(run)" not in frame_text:
+        fail("Metal image encoding must draw inline or batched image runs from their actual vertex span")
     if "@interface OrenAVMMetalModelResource" not in metal_text:
         fail("retained Metal models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:

@@ -2636,6 +2636,9 @@ design evidence lives under `project-doc/`.
   large geometry/image/text vertex payloads to transient `MTLBuffer` objects
   retained through command completion, avoiding unbounded `setVertexBytes`
   usage for retained meshes and batches.
+- Metal batched image-rect commands now build one raw vertex-backed image run
+  per command instead of allocating one run and issuing one draw call per rect;
+  single image quads still stay inline.
 - `make verify-libavm-ios` now guards that Metal vertex uploads keep direct
   `setVertexBytes` usage inside the bounded helper and retain large transient
   `MTLBuffer` uploads through command completion.
