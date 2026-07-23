@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- LSP typed dotted member-path assignment propagation is covered for
+  parameter-returned and imported parameter-returned receivers, including direct
+  member paths, list element member paths, and mixed reassignment invalidation.
 - Metal OGF0 frame-state push overflow is now balanced for fixed 64-entry clip,
   translation, opacity, and camera stacks: overflow pushes are counted as no-op
   frames and consume matching pops without corrupting the nearest real outer

@@ -3160,9 +3160,10 @@ Working evidence:
 	  aliased nested indexed container field-chain coverage, constructor-field
 	  and imported constructor-field nested container field-chain inference, returned/imported nested container
 		  selection field-chain coverage, call-site constructor-held nested container selection coverage,
-				  indexed map value field-chain inference, and straight-line,
-				  branch-merged, returned, and imported-returned typed dotted member-path
-				  assignment propagation with conflicting, unknown, and branch-local
+					  indexed map value field-chain inference, and straight-line,
+					  branch-merged, returned, imported-returned, parameter-returned,
+					  and imported parameter-returned typed dotted member-path
+					  assignment propagation with conflicting, unknown, and branch-local
 				  member reassignment invalidation,
   recursive nested constructor-bound call-site parameter and parameter-return field-chain inference including imported identity-return call sites,
   source-brace scoped local/list-for-in receiver completions inside function blocks with member-completion regressions, indexed/returned/for-in container member regressions, and imported workspace/field-navigation server regressions split below the source-line guard,
@@ -3179,7 +3180,7 @@ Working evidence:
   parameter/property classes. The VS Code package now contributes `.oren`
   syntax highlighting, language configuration, `vscode-languageclient`
   activation, and a smoke verifier; richer member inference beyond direct
-				  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/imported-returned-container-field/imported-parameter-returned-container-field/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/member-assignment/conditional-member-assignment/returned-member-assignment/imported-returned-member-assignment/returned-nested-container-field/imported-parameter-returned-nested-container-field/nested-indexed-container-field/aliased-nested-indexed-container-field/constructor-field-nested-container-field/imported-constructor-field-nested-container-field/returned-nested-container-selection-field/call-site-constructor-nested-selection-field/indexed-map-value-field/scoped-completion evidence remains.
+					  constructor/alias/factory-expression/factory-return-field-chain/constructed-field/constructor-bound-alias-field-chain/call-site/parameter-return/recursive-nested-call-site/imported-call-site-return/imported-returned-container-field/imported-parameter-returned-container-field/conditional-branch/return-if/indexed-container/list-for-in/for-in-return/for-in-nested-field/returned-list-field/returned-map-value-field/conditional-returned-container-field/conditional-assigned-container-field/member-assignment/conditional-member-assignment/returned-member-assignment/imported-returned-member-assignment/parameter-returned-member-assignment/imported-parameter-returned-member-assignment/returned-nested-container-field/imported-parameter-returned-nested-container-field/nested-indexed-container-field/aliased-nested-indexed-container-field/constructor-field-nested-container-field/imported-constructor-field-nested-container-field/returned-nested-container-selection-field/call-site-constructor-nested-selection-field/indexed-map-value-field/scoped-completion evidence remains.
 - Documentation and source-file guardrails. Go transpiler expression codegen now
   lives in `pkg/transpiler/transpiler_expr.go`, reducing
   `pkg/transpiler/transpiler.go` to 1391 lines while preserving expression

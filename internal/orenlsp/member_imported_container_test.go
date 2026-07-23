@@ -141,6 +141,82 @@ func TestTypedMemberAnalysisUsesImportedReturnedMemberAssignmentFieldTypes(t *te
 	}
 }
 
+func TestTypedMemberAnalysisUsesImportedParameterReturnedMemberAssignmentFieldTypes(t *testing.T) {
+	shapesLines := []string{
+		"struct Inner { x, y }",
+		"struct Other { z }",
+		"struct Holder { inner, items }",
+		"fn update_holder(holder) {",
+		"  holder.inner = Inner(1, 2)",
+		"  holder.items = [Inner(3, 4)]",
+		"  return holder",
+		"}",
+		"fn update_mixed(holder, flag) {",
+		"  if flag {",
+		"    holder.inner = Inner(5, 6)",
+		"  } else {",
+		"    holder.inner = Other(7)",
+		"  }",
+		"  return holder",
+		"}",
+		"",
+	}
+	shapesText := strings.Join(shapesLines, "\n")
+	mainLines := []string{
+		"import shapes \"shapes.oren\"",
+		"var returned = shapes.update_holder(shapes.Holder(shapes.Other(0), [shapes.Other(1)]))",
+		"fn main() {",
+		"  var c0 = shapes.update_holder(shapes.Holder(shapes.Other(0), [])).inner.",
+		"  var d0 = returned.inner.x",
+		"  var c1 = returned.items[0].",
+		"  var d1 = shapes.update_holder(shapes.Holder(shapes.Other(0), [])).items[0].y",
+		"  return shapes.update_mixed(shapes.Holder(shapes.Other(0), []), true).inner.x",
+		"}",
+		"",
+	}
+	mainText := strings.Join(mainLines, "\n")
+	mainURI := "file:///imported-parameter-returned-member-assignment-main.oren"
+	shapesURI := "file:///shapes.oren"
+	importedDocs := []documentSnapshot{{URI: shapesURI, Text: shapesText}}
+	aliasByURI := map[string]string{shapesURI: "shapes"}
+
+	items, found := typedMemberCompletionItemsAt(mainText, mainURI, position{
+		Line:      3,
+		Character: len([]rune(mainLines[3])),
+	}, importedDocs, aliasByURI)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("imported parameter-returned member assignment completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok := typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      4,
+		Character: strings.LastIndex(mainLines[4], ".x") + 1,
+	}, importedDocs, aliasByURI)
+	if !ok || match.URI != shapesURI || match.Symbol.Name != "x" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("imported parameter-returned member assignment definition mismatch match=%#v ok=%v", match, ok)
+	}
+	items, found = typedMemberCompletionItemsAt(mainText, mainURI, position{
+		Line:      5,
+		Character: len([]rune(mainLines[5])),
+	}, importedDocs, aliasByURI)
+	if !found || !hasTypedCompletion(items, "x", lspCompletionField) || !hasTypedCompletion(items, "y", lspCompletionField) || hasTypedCompletion(items, "z", lspCompletionField) {
+		t.Fatalf("imported parameter-returned member list assignment completion mismatch found=%v items=%#v", found, items)
+	}
+	match, ok = typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      6,
+		Character: strings.LastIndex(mainLines[6], ".y") + 1,
+	}, importedDocs, aliasByURI)
+	if !ok || match.URI != shapesURI || match.Symbol.Name != "y" || match.Symbol.Range.Start.Line != 0 {
+		t.Fatalf("imported parameter-returned member list assignment definition mismatch match=%#v ok=%v", match, ok)
+	}
+	match, ok = typedMemberSymbolAt(mainText, mainURI, position{
+		Line:      7,
+		Character: strings.LastIndex(mainLines[7], ".x") + 1,
+	}, importedDocs, aliasByURI)
+	if ok {
+		t.Fatalf("mixed imported parameter-returned member assignment definition=%#v want none", match)
+	}
+}
+
 func TestTypedMemberAnalysisUsesImportedParameterReturnedContainerFieldChains(t *testing.T) {
 	shapesLines := []string{
 		"struct Leaf { x, y }",
