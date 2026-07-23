@@ -1277,8 +1277,8 @@ fn det(m) {
     return determinant(m)
 }
 
-fn inverse(m) {
-    var cm = _check(m, "mat4.inverse")
+fn _adjugate_checked(m, ctx) {
+    var cm = _check(m, ctx)
     if oren_is_err(cm) { return cm }
     var m0: f64 = m[0]
     var m1: f64 = m[1]
@@ -1300,9 +1300,6 @@ fn inverse(m) {
     var inv4: f64 = 0.0 - m4 * m10 * m15 + m4 * m11 * m14 + m8 * m6 * m15 - m8 * m7 * m14 - m12 * m6 * m11 + m12 * m7 * m10
     var inv8: f64 = m4 * m9 * m15 - m4 * m11 * m13 - m8 * m5 * m15 + m8 * m7 * m13 + m12 * m5 * m11 - m12 * m7 * m9
     var inv12: f64 = 0.0 - m4 * m9 * m14 + m4 * m10 * m13 + m8 * m5 * m14 - m8 * m6 * m13 - m12 * m5 * m10 + m12 * m6 * m9
-    var det: f64 = m0 * inv0 + m1 * inv4 + m2 * inv8 + m3 * inv12
-    if !math.is_finite(det) { return oren_err(4, "mat4.inverse: non-finite determinant") }
-    if det == 0.0 { return oren_err(4, "mat4.inverse: singular") }
     var inv1: f64 = 0.0 - m1 * m10 * m15 + m1 * m11 * m14 + m9 * m2 * m15 - m9 * m3 * m14 - m13 * m2 * m11 + m13 * m3 * m10
     var inv5: f64 = m0 * m10 * m15 - m0 * m11 * m14 - m8 * m2 * m15 + m8 * m3 * m14 + m12 * m2 * m11 - m12 * m3 * m10
     var inv9: f64 = 0.0 - m0 * m9 * m15 + m0 * m11 * m13 + m8 * m1 * m15 - m8 * m3 * m13 - m12 * m1 * m11 + m12 * m3 * m9
@@ -1315,13 +1312,60 @@ fn inverse(m) {
     var inv7: f64 = m0 * m6 * m11 - m0 * m7 * m10 - m4 * m2 * m11 + m4 * m3 * m10 + m8 * m2 * m7 - m8 * m3 * m6
     var inv11: f64 = 0.0 - m0 * m5 * m11 + m0 * m7 * m9 + m4 * m1 * m11 - m4 * m3 * m9 - m8 * m1 * m7 + m8 * m3 * m5
     var inv15: f64 = m0 * m5 * m10 - m0 * m6 * m9 - m4 * m1 * m10 + m4 * m2 * m9 + m8 * m1 * m6 - m8 * m2 * m5
-    var inv_det: f64 = 1.0 / det
     var out = [
-        inv0 * inv_det, inv1 * inv_det, inv2 * inv_det, inv3 * inv_det,
-        inv4 * inv_det, inv5 * inv_det, inv6 * inv_det, inv7 * inv_det,
-        inv8 * inv_det, inv9 * inv_det, inv10 * inv_det, inv11 * inv_det,
-        inv12 * inv_det, inv13 * inv_det, inv14 * inv_det, inv15 * inv_det
+        inv0, inv1, inv2, inv3,
+        inv4, inv5, inv6, inv7,
+        inv8, inv9, inv10, inv11,
+        inv12, inv13, inv14, inv15
     ]
+    var ok = _check(out, ctx)
+    if oren_is_err(ok) { return ok }
+    return out
+}
+
+fn adjugate(m) {
+    return _adjugate_checked(m, "mat4.adjugate")
+}
+
+fn adjoint(m) {
+    return adjugate(m)
+}
+
+fn cofactor(m, row_index: int, column_index: int) {
+    var idx = _cell_index(row_index, column_index, "mat4.cofactor")
+    if oren_is_err(idx) { return idx }
+    var adj = _adjugate_checked(m, "mat4.cofactor")
+    if oren_is_err(adj) { return adj }
+    return adj[column_index * 4 + row_index]
+}
+
+fn minor3(m, row_index: int, column_index: int) {
+    var c = cofactor(m, row_index, column_index)
+    if oren_is_err(c) { return c }
+    if (row_index + column_index) % 2 != 0 { return 0.0 - c }
+    return c
+}
+
+fn minor(m, row_index: int, column_index: int) {
+    return minor3(m, row_index, column_index)
+}
+
+fn inverse(m) {
+    var adj = _adjugate_checked(m, "mat4.inverse")
+    if oren_is_err(adj) { return adj }
+    var det0 = determinant(m)
+    if oren_is_err(det0) { return det0 }
+    var det: f64 = det0
+    if !math.is_finite(det) { return oren_err(4, "mat4.inverse: non-finite determinant") }
+    if det == 0.0 { return oren_err(4, "mat4.inverse: singular") }
+    var inv_det: f64 = 1.0 / det
+    var out = []
+    var i = 0
+    while i < 16 {
+        var v: f64 = adj[i]
+        oren_list_push(out, v * inv_det)
+        i = i + 1
+    }
     var ok = _check(out, "mat4.inverse")
     if oren_is_err(ok) { return ok }
     return out
