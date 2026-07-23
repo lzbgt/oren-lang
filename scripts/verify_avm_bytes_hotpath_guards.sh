@@ -220,13 +220,19 @@ std_bytes_impl="$(sed -n '/fn _u16_be_from_ptr/,/fn set_u16_be/p' lib/std/bytes.
 if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _u64_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _u64_be_from_ptr' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'fn _i16_from_u16' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'fn _i32_from_u32' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u16_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u16_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _i16_from_u16(_u16_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx)) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _i16_from_u16(_u16_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx)) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u32_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u32_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _i32_from_u32(_u32_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx)) }' <<<"$std_bytes_impl" ||
+  ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _i32_from_u32(_u32_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx)) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$std_bytes_impl"; then
-  echo "ERROR: std:bytes public unsigned endian getters must read u8_buf carriers directly after public span validation" >&2
+  echo "ERROR: std:bytes public endian getters must read u8_buf carriers directly after public span validation" >&2
   exit 1
 fi
 

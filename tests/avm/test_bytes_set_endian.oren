@@ -84,6 +84,14 @@ fn main() {
     assert_eq(bytes.get_u64_be(b8, 0), 72623859790382856)
     assert_eq(bytes.get_u64_le(b8, 0), 578437695752307201)
     if oren_is_err(bytes.get_u32_be(b8, 5)) == false { fail() }
+    var neg = oren_bytes_from_hex("fffeffffffff0000")
+    if oren_is_err(neg) { fail() }
+    assert_eq(bytes.get_i16_be(neg, 0), -2)
+    assert_eq(bytes.get_i16_le(neg, 2), -1)
+    assert_eq(bytes.get_i32_be(neg, 0), -65537)
+    var neg_le = oren_bytes_from_hex("fffeffff")
+    if oren_is_err(neg_le) { fail() }
+    assert_eq(bytes.get_i32_le(neg_le, 0), -257)
 
     print("avm bytes_set_endian OK")
 }

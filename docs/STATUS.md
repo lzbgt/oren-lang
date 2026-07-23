@@ -2639,8 +2639,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   direct lowercase `to_hex` emission, and `std:strings`
   byte roundtrips now use byte-native u8 buffers,
   `std:bytes` get/unpack/concat/copy sources read u8-buffer carriers directly,
-  public unsigned endian getters read `u8_buf` carriers through raw pointer
-  loads after one stdlib span validation,
+  public unsigned plus signed 16/32-bit endian getters read `u8_buf` carriers
+  through raw pointer loads after one stdlib span validation,
   public `bytes.unpack` routes u8 buffers through kernel byte intrinsics with
   AVM optimized integer-list output, `buffer.u8_unpack` reuses that byte-native
   path for u8 buffers, `pack` returns exact-size u8 buffers for valid int lists,
