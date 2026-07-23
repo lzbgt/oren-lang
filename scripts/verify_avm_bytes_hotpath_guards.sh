@@ -48,6 +48,16 @@ if grep -q 'var data = oren_read_bytes(path)' lib/std/ui/scene3d.oren; then
   echo "ERROR: std:ui/scene3d binary file loading must use byte-native oren_read_u8_buf" >&2
   exit 1
 fi
+scene3d_binary_impl="$(cat lib/std/ui/scene3d_binary.oren)"
+if ! grep -Fq 'var bin_data = _bin_data(bv)' <<<"$scene3d_binary_impl" ||
+  ! grep -Fq 'var bin_ptr = _bin_ptr(bv)' <<<"$scene3d_binary_impl" ||
+  ! grep -Fq 'bytes.view_get_u32_le_from(bin_data, bin_ptr, off)' <<<"$scene3d_binary_impl" ||
+  ! grep -Fq 'bytes.view_get_i32_le_from(bin_data, bin_ptr, off)' <<<"$scene3d_binary_impl" ||
+  ! grep -Fq 'bytes.view_get_u8_from(bin_data, bin_ptr, off)' <<<"$scene3d_binary_impl" ||
+  grep -Fq 'bytes.view_get_u8_unchecked(' <<<"$scene3d_binary_impl"; then
+  echo "ERROR: std:ui/scene3d_binary must hoist byte-view backing storage for .os3d reads" >&2
+  exit 1
+fi
 
 if grep -q 'oren_read_bytes("build/ex_multiverse_child_net.obc")\|oren_bytes_pack(child_' examples/avm_multiverse_net_demo.oren; then
   echo "ERROR: AVM multiverse demo must load child OBC through byte-native oren_read_u8_buf" >&2

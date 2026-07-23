@@ -1505,15 +1505,12 @@
 <p>	     Base64/Base64URL</p>
 <p>			     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy</p>
 <p>				     directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths, and little-endian</p>
-<p>				     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, software rasterization reads geometry/text/image payload fields through hoisted shared byte-view backing pointers, Metal batched image rects validate local draw/source</p>
+<p>					     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, software rasterization reads geometry/text/image payload fields through hoisted shared byte-view backing pointers, Scene3D binary package magic/header/table reads and payload slices use hoisted shared byte-view backing pointers with explicit span guards, Metal batched image rects validate local draw/source</p>
 <p>				     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D</p>
 <p>				     draws skip sort/color work when clipping leaves no visible triangles, fully transparent Metal draw-only opcodes</p>
 <p>				     skip vertex/texture/text-cache work, and Metal/CoreGraphics zero-area</p>
-<p>		     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
-<p>		     while software rasterization reads those payload</p>
-<p>		     fields from cached u8-buffer pointers, PPM header/body output, Scene3D binary</p>
-<p>		     package magic/header/table reads and payload slices through the shared</p>
-<p>			     checked byte view, PPM RGBA encoding hoists validated byte-view</p>
+<p>			     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
+<p>				     PPM header/body output, PPM RGBA encoding hoists validated byte-view</p>
 <p>			     carrier/pointers once per call, and software-raster RGBA sampling</p>
 <p>		     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
 <p>     caches typed response body bytes for <code>.bytes()</code> on content-length and</p>
