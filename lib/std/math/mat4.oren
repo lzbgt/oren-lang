@@ -1643,6 +1643,42 @@ fn inverted(m) {
     return inverse(m)
 }
 
+fn condition_number_one(m) {
+    var n0 = norm_one(m)
+    if oren_is_err(n0) { return n0 }
+    var n: f64 = n0
+    var inv = inverse(m)
+    if oren_is_err(inv) { return inv }
+    var inv_n0 = norm_one(inv)
+    if oren_is_err(inv_n0) { return inv_n0 }
+    var inv_n: f64 = inv_n0
+    var out: f64 = n * inv_n
+    if !math.is_finite(out) { return oren_err(4, "mat4.condition_number_one: non-finite") }
+    return out
+}
+
+fn cond_one(m) {
+    return condition_number_one(m)
+}
+
+fn condition_number_inf(m) {
+    var n0 = norm_inf(m)
+    if oren_is_err(n0) { return n0 }
+    var n: f64 = n0
+    var inv = inverse(m)
+    if oren_is_err(inv) { return inv }
+    var inv_n0 = norm_inf(inv)
+    if oren_is_err(inv_n0) { return inv_n0 }
+    var inv_n: f64 = inv_n0
+    var out: f64 = n * inv_n
+    if !math.is_finite(out) { return oren_err(4, "mat4.condition_number_inf: non-finite") }
+    return out
+}
+
+fn cond_inf(m) {
+    return condition_number_inf(m)
+}
+
 fn inverse_affine(m) {
     var cm = _check(m, "mat4.inverse_affine")
     if oren_is_err(cm) { return cm }
