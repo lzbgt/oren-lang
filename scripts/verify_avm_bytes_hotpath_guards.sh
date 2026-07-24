@@ -385,6 +385,7 @@ fi
 
 native_byte_helpers="lib/runtime_native/180_bytes_helpers.oren"
 std_strings_to_bytes_impl="$(sed -n '/fn to_bytes(s)/,/fn from_bytes(bs)/p' lib/std/strings.oren)"
+buffer_raw_u8_from_string_impl="$(sed -n '/fn u8_from_string(s)/,/fn u8_to_string/p' lib/std/buffer/raw.oren)"
 native_string_impl="$(sed -n '/fn oren_string_from_bytes(bytes)/,/fn string_concat/p' lib/runtime_native/160_iteration.oren)"
 native_copy_helper="$(sed -n '/fn native_bytes_copy_span(bytes/,/^}/p' "$native_byte_helpers")"
 native_copy_list_helper="$(sed -n '/fn native_bytes_copy_span_to_int_list(bytes/,/^}/p' "$native_byte_helpers")"
@@ -421,6 +422,11 @@ if ! grep -Fq 'return oren_bytes_from_string(s)' <<<"$std_strings_to_bytes_impl"
   grep -Fq 'while i < n' <<<"$std_strings_to_bytes_impl" ||
   grep -Fq '_byte_at_raw(s, i)' <<<"$std_strings_to_bytes_impl"; then
   echo "ERROR: std:strings.to_bytes must route validated strings through byte-native runtime conversion, not a per-byte stdlib loop" >&2
+  exit 1
+fi
+if ! grep -Fq 'return oren_bytes_from_string(s)' <<<"$buffer_raw_u8_from_string_impl" ||
+  grep -Fq 'ptr_set_byte(data + i, oren_string_byte_at_unchecked(s, i) & 255)' <<<"$buffer_raw_u8_from_string_impl"; then
+  echo "ERROR: std:buffer whole-string u8 creation must route through byte-native runtime conversion, not a per-byte stdlib loop" >&2
   exit 1
 fi
 

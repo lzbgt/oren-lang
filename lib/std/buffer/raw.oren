@@ -360,17 +360,7 @@ fn u8_unpack(buf: []u8) {
 
 fn u8_from_string(s) {
     if oren_type_tag(s) != 4 { return oren_err(4, "buffer.u8_from_string: s must be string") }
-    var n = oren_string_len(s)
-    if oren_is_err(n) { return n }
-    var out: []u8 = u8_new_uninit(n)
-    if oren_is_err(out) { return out }
-    var data = oren_buf_data_ptr_unchecked(out)
-    var i = 0
-    while i < n {
-        ptr_set_byte(data + i, oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
-    return out
+    return oren_bytes_from_string(s)
 }
 
 fn u8_to_string(buf: []u8) {
