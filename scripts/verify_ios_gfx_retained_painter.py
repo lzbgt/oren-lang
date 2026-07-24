@@ -156,6 +156,8 @@ def main() -> int:
     if put_text_start < 0 or put_text_end < 0:
         fail("missing CoreGraphics retained text upload helper")
     put_text_body = resource_source_text[put_text_start:put_text_end]
+    if "if (!texts || textID == 0 || !textBytes || textLen == 0 || !attrs) return NO;" not in put_text_body:
+        fail("CoreGraphics retained text uploads must reject empty text before map/string/resource work")
     require_before(put_text_body,
                    "OrenAVMGfxEnsureRetainedResourceMap(texts)",
                    "[[NSString alloc] initWithBytes:textBytes",
@@ -244,6 +246,8 @@ def main() -> int:
         fail("CoreGraphics immediate text draws must skip empty text before NSString creation")
     if "if (textLen == (uint32_t)payloadLen - 16u && textLen > 0)" not in handle_text_body:
         fail("CoreGraphics immediate text opcodes must reject trailing payload bytes and empty text before attribute lookup")
+    if "if (textLen == (uint32_t)payloadLen - 12u && textLen > 0)" not in handle_text_body:
+        fail("CoreGraphics retained text upload opcodes must reject empty text before attribute lookup")
     if "if (textLen <= (uint32_t)payloadLen - 16u)" in handle_text_body:
         fail("CoreGraphics immediate text opcodes must not accept trailing payload bytes")
     if "@(textID)" in text:

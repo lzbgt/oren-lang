@@ -157,7 +157,8 @@
 <p>				  create/destroy opcodes still execute, malformed zero-size/count-mismatched</p>
 <p>				  retained image/text draws reject before retained resource lookup when the</p>
 <p>				  command is otherwise a no-op, immediate text opcodes reject empty or</p>
-<p>				  trailing-byte payloads before attribute/texture preparation, and later compatible-run coalescing</p>
+<p>				  trailing-byte payloads before attribute/texture preparation, retained</p>
+<p>				  text uploads reject empty payloads before map/string/resource work, and later compatible-run coalescing</p>
 <p>			  still grows geometrically.</p>
 <ul>
 <li>iOS Metal image-run preparation now coalesces adjacent compatible image runs</li>

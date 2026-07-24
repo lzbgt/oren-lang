@@ -346,9 +346,9 @@ void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
 BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
                                uint32_t textID,
                                const uint8_t* textBytes,
-                               uint32_t textLen,
-                               NSDictionary<NSAttributedStringKey, id>* attrs) {
-    if (!texts || textID == 0 || !textBytes || !attrs) return NO;
+	                               uint32_t textLen,
+	                               NSDictionary<NSAttributedStringKey, id>* attrs) {
+    if (!texts || textID == 0 || !textBytes || textLen == 0 || !attrs) return NO;
     if (!OrenAVMGfxEnsureRetainedResourceMap(texts)) return NO;
     NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
     if (!text) return NO;
@@ -407,11 +407,11 @@ BOOL OrenAVMGfxHandleTextCommand(CGContextRef ctx,
         }
         case 68: {
             if (payloadLen >= 12) {
-                uint32_t textID = OrenAVMGfxResourceReadU32LE(payload);
-                uint32_t textLen = OrenAVMGfxResourceReadU32LE(payload + 8);
-                if (textLen == (uint32_t)payloadLen - 12u) {
-                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(attrsByRGBA,
-                                                                                                      lastRGBA,
+	                uint32_t textID = OrenAVMGfxResourceReadU32LE(payload);
+	                uint32_t textLen = OrenAVMGfxResourceReadU32LE(payload + 8);
+	                if (textLen == (uint32_t)payloadLen - 12u && textLen > 0) {
+	                    NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(attrsByRGBA,
+	                                                                                                      lastRGBA,
                                                                                                       lastAttributes,
                                                                                                       OrenAVMGfxResourceReadU32LE(payload + 4));
                     (void)OrenAVMGfxPutTextResource(texts, textID, payload + 12, textLen, attrs);

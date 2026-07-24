@@ -1517,7 +1517,7 @@
 <p>								     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only</p>
 <p>								     opcodes before frame-prep or CGContext/resource/text draw work, malformed</p>
 <p>								     zero-size/count-mismatched retained image/text draws reject before retained</p>
-<p>								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, and Metal/CoreGraphics zero-area</p>
+<p>								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area</p>
 <p>					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
 <p>				     PPM header/body output, PPM RGBA encoding hoists validated byte-view</p>
 <p>			     carrier/pointers once per call, and software-raster RGBA sampling</p>

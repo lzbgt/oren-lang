@@ -96,7 +96,8 @@ surfaces, but the following blockers remain:
 				  create/destroy opcodes still execute, malformed zero-size/count-mismatched
 				  retained image/text draws reject before retained resource lookup when the
 				  command is otherwise a no-op, immediate text opcodes reject empty or
-				  trailing-byte payloads before attribute/texture preparation, and later compatible-run coalescing
+				  trailing-byte payloads before attribute/texture preparation, retained
+				  text uploads reject empty payloads before map/string/resource work, and later compatible-run coalescing
 			  still grows geometrically.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing

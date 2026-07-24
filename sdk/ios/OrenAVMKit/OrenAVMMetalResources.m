@@ -520,9 +520,9 @@ OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts
 BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
                                  uint32_t textID,
                                  uint32_t rgbaValue,
-                                 const uint8_t* textBytes,
-                                 uint32_t textLen) {
-    if (!texts || textID == 0 || !textBytes) return NO;
+	                                 const uint8_t* textBytes,
+	                                 uint32_t textLen) {
+    if (!texts || textID == 0 || !textBytes || textLen == 0) return NO;
     if (!OrenAVMMetalEnsureRetainedResourceMap(texts)) return NO;
     NSString* text = [[NSString alloc] initWithBytes:textBytes
                                              length:(NSUInteger)textLen
@@ -605,7 +605,7 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
         case 68: {
             if (payloadLen >= 12) {
                 uint32_t textLen = OrenAVMMetalReadU32LE(payload + 8);
-                if (textLen == (uint32_t)payloadLen - 12u) {
+                if (textLen == (uint32_t)payloadLen - 12u && textLen > 0) {
                     (void)OrenAVMMetalPutTextResource(texts,
                                                       OrenAVMMetalReadU32LE(payload),
                                                       OrenAVMMetalReadU32LE(payload + 4),

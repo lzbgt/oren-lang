@@ -385,6 +385,8 @@ def main() -> int:
     if put_text_start < 0 or put_text_end < 0:
         fail("missing retained Metal text upload helper")
     put_text_body = resource_source_text[put_text_start:put_text_end]
+    if "if (!texts || textID == 0 || !textBytes || textLen == 0) return NO;" not in put_text_body:
+        fail("retained Metal text uploads must reject empty text before map/string/resource work")
     require_before(put_text_body,
                    "OrenAVMMetalEnsureRetainedResourceMap(texts)",
                    "[[NSString alloc] initWithBytes:textBytes",
@@ -418,6 +420,8 @@ def main() -> int:
             fail(f"retained Metal text draw opcode must skip fully transparent texture work: {token}")
     if "if (textLen == (uint32_t)payloadLen - 16u && textLen > 0)" not in text_command:
         fail("Metal immediate text opcodes must reject trailing payload bytes and empty text before texture creation")
+    if "if (textLen == (uint32_t)payloadLen - 12u && textLen > 0)" not in text_command:
+        fail("Metal retained text upload opcodes must reject empty text before resource creation")
     text_batch_start = text_command.find("case 72:")
     text_batch_end = text_command.find("default:", text_batch_start)
     if text_batch_start < 0 or text_batch_end < 0:
