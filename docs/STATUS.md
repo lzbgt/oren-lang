@@ -2816,7 +2816,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  write fixed-size digest `u8_buf` outputs directly instead of packing
 	  result byte lists. Native crypto RNG now fills its result `u8_buf`
 	  directly. HPACK plain literal decode now slices the header block directly,
-	  while Huffman string encode/decode, decoded-string boundaries, and full
+	  while Huffman decode trie storage uses unboxed `list_int` tables and Huffman string encode/decode, decoded-string boundaries, and full
 	  header-block encoding use exact-size `u8_buf` payloads, `list_int`
 	  literal-length metadata, or byte-slice conversion instead of building
 	  intermediate Oren byte lists; TLS ALPN

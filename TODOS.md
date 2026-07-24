@@ -2518,6 +2518,9 @@ design evidence lives under `project-doc/`.
   from the exact-size sizing pass into the write pass through `list_int`
   metadata, avoiding a second length-only scan and boxed per-literal length
   metadata while preserving exact-size `u8_buf` output and dynamic-table simulation.
+- HPACK Huffman decode trie storage now uses unboxed `list_int` child/symbol
+  tables and an unboxed EOS-prefix table instead of long-lived boxed integer
+  lists, preserving the exact two-pass decode while reducing shared table churn.
 - `std:ui/avm` frame payload appends now copy `u8_buf` command payloads directly
   into exact-size OGF0 frame buffers and hoist shared byte-view backing pointers
   for list-compatible payload fallback.

@@ -3441,6 +3441,11 @@
 <p>  metadata, avoiding a second length-only scan and boxed per-literal length</p>
 <p>  metadata while preserving exact-size <code>u8_buf</code> output and dynamic-table simulation.</p>
 <ul>
+<li>HPACK Huffman decode trie storage now uses unboxed <code>list_int</code> child/symbol</li>
+</ul>
+<p>  tables and an unboxed EOS-prefix table instead of long-lived boxed integer</p>
+<p>  lists, preserving the exact two-pass decode while reducing shared table churn.</p>
+<ul>
 <li><code>std:ui/avm</code> frame payload appends now copy <code>u8_buf</code> command payloads directly</li>
 </ul>
 <p>  into exact-size OGF0 frame buffers and hoist shared byte-view backing pointers</p>

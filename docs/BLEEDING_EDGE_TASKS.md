@@ -1409,6 +1409,7 @@ This file is the concise task view. Detailed implementation status lives in
      through shared byte views during virtual padding expansion, while digest outputs and native
      RNG bytes now write directly into fixed-size/result `u8_buf` buffers. HPACK
      plain literal decode now slices the header block directly, while Huffman
+     decode trie storage uses unboxed `list_int` tables and Huffman
      string encode/decode, decoded-string boundaries, and full header-block
      encoding use exact-size `u8_buf` payloads or byte-slice conversion; TLS
      ALPN decoded-byte strings also convert through byte slices. HTTP/2 client

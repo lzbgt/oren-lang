@@ -1479,6 +1479,7 @@
 <p>     through shared byte views during virtual padding expansion, while digest outputs and native</p>
 <p>     RNG bytes now write directly into fixed-size/result <code>u8_buf</code> buffers. HPACK</p>
 <p>     plain literal decode now slices the header block directly, while Huffman</p>
+<p>     decode trie storage uses unboxed <code>list_int</code> tables and Huffman</p>
 <p>     string encode/decode, decoded-string boundaries, and full header-block</p>
 <p>     encoding use exact-size <code>u8_buf</code> payloads or byte-slice conversion; TLS</p>
 <p>     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client</p>

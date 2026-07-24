@@ -751,6 +751,7 @@ fi
 
 hpack_len_impl="$(sed -n '/fn _encoded_header_block_len/,/fn _encode_header_block_write/p' lib/std/net/hpack.oren)"
 hpack_write_impl="$(sed -n '/fn _encode_header_block_write/,/fn encode_header_block/p' lib/std/net/hpack.oren)"
+hpack_huffman_impl="$(sed -n '/var _HUFF_INITED/,/fn _static_get/p' lib/std/net/hpack.oren)"
 if ! grep -Fq 'var literal_lens = list.int_new(list.len(headers) * 2)' <<<"$hpack_len_impl" ||
   ! grep -Fq 'list.int_push(literal_lens, n)' lib/std/net/hpack.oren ||
   ! grep -Fq 'return list.int_get(lens, i)' lib/std/net/hpack.oren ||
@@ -761,6 +762,20 @@ if ! grep -Fq 'var literal_lens = list.int_new(list.len(headers) * 2)' <<<"$hpac
   ! grep -Fq 'lr["literal_lens"]' lib/std/net/hpack.oren ||
   grep -Fq 'list.push(literal_lens, n)' lib/std/net/hpack.oren; then
   echo "ERROR: HPACK header encode must reuse sizing-pass string literal lengths through list_int metadata during write, not rescan or box Huffman literals" >&2
+  exit 1
+fi
+if ! grep -Fq '_HUFF_L = list.int_new(1024)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq '_HUFF_R = list.int_new(1024)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq '_HUFF_SYM = list.int_new(1024)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq '_HUFF_EOS_PREFIX_NODE = list.int_new(8)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq 'list.int_push(_HUFF_L, -1)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq 'list.int_set(_HUFF_SYM, node, s)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq 'node = list.int_get(_HUFF_L, node)' <<<"$hpack_huffman_impl" ||
+  ! grep -Fq 'var sym = list.int_get(_HUFF_SYM, node)' <<<"$hpack_huffman_impl" ||
+  grep -Fq 'oren_list_push(_HUFF_' <<<"$hpack_huffman_impl" ||
+  grep -Fq '_HUFF_L[node]' <<<"$hpack_huffman_impl" ||
+  grep -Fq '_HUFF_SYM[node]' <<<"$hpack_huffman_impl"; then
+  echo "ERROR: HPACK Huffman decode trie storage must use unboxed list_int tables, not boxed Oren lists" >&2
   exit 1
 fi
 

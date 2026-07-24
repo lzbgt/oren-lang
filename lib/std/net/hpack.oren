@@ -304,17 +304,17 @@ fn _huff_new_node() {
     // - left child index (bit=0) or -1
     // - right child index (bit=1) or -1
     // - sym (0..256) or -1 (non-leaf)
-    oren_list_push(_HUFF_L, -1)
-    oren_list_push(_HUFF_R, -1)
-    oren_list_push(_HUFF_SYM, -1)
-    return oren_list_len(_HUFF_L) - 1
+    list.int_push(_HUFF_L, -1)
+    list.int_push(_HUFF_R, -1)
+    list.int_push(_HUFF_SYM, -1)
+    return list.int_len(_HUFF_L) - 1
 }
 
 fn _huff_init() {
     if _HUFF_INITED == 1 { return nil }
-    _HUFF_L = []
-    _HUFF_R = []
-    _HUFF_SYM = []
+    _HUFF_L = list.int_new(1024)
+    _HUFF_R = list.int_new(1024)
+    _HUFF_SYM = list.int_new(1024)
 
     // root
     _huff_new_node()
@@ -328,38 +328,38 @@ fn _huff_init() {
         while i >= 0 {
             var bit = (code >> i) & 1
             if bit == 0 {
-                var nxt = _HUFF_L[node]
+                var nxt = list.int_get(_HUFF_L, node)
                 if nxt < 0 {
                     nxt = _huff_new_node()
-                    _HUFF_L[node] = nxt
+                    list.int_set(_HUFF_L, node, nxt)
                 }
                 node = nxt
             } else {
-                var nxt2 = _HUFF_R[node]
+                var nxt2 = list.int_get(_HUFF_R, node)
                 if nxt2 < 0 {
                     nxt2 = _huff_new_node()
-                    _HUFF_R[node] = nxt2
+                    list.int_set(_HUFF_R, node, nxt2)
                 }
                 node = nxt2
             }
             i = i - 1
         }
-        _HUFF_SYM[node] = s
+        list.int_set(_HUFF_SYM, node, s)
         s = s + 1
     }
 
     // Precompute EOS-prefix nodes for padding validation.
     // In HPACK, padding bits are the MSBs of EOS, and EOS is all-ones (len=30),
     // so valid padding is a suffix of 1 bits up to 7 bits (to align to byte).
-    _HUFF_EOS_PREFIX_NODE = []
-    oren_list_push(_HUFF_EOS_PREFIX_NODE, 0)
+    _HUFF_EOS_PREFIX_NODE = list.int_new(8)
+    list.int_push(_HUFF_EOS_PREFIX_NODE, 0)
     var n = 0
     var cur = 0
     while n < 7 {
-        var nxt3 = _HUFF_R[cur]
+        var nxt3 = list.int_get(_HUFF_R, cur)
         if nxt3 < 0 { break }
         cur = nxt3
-        oren_list_push(_HUFF_EOS_PREFIX_NODE, cur)
+        list.int_push(_HUFF_EOS_PREFIX_NODE, cur)
         n = n + 1
     }
 
@@ -402,16 +402,16 @@ fn _huff_decode_count(ptr0, off, slen) {
         while bit >= 0 {
             var b = (byte >> bit) & 1
             if b == 0 {
-                node = _HUFF_L[node]
+                node = list.int_get(_HUFF_L, node)
             } else {
-                node = _HUFF_R[node]
+                node = list.int_get(_HUFF_R, node)
             }
             if node < 0 {
                 return {"ok": 0, "err": "hpack.huffman: invalid code"}
             }
 
             bits_since_leaf = bits_since_leaf + 1
-            var sym = _HUFF_SYM[node]
+            var sym = list.int_get(_HUFF_SYM, node)
             if sym >= 0 {
                 // Leaf.
                 if sym == 256 {
@@ -431,8 +431,8 @@ fn _huff_decode_count(ptr0, off, slen) {
     if node != 0 {
         if bits_since_leaf > 7 { return {"ok": 0, "err": "hpack.huffman: invalid padding length"} }
         // _HUFF_EOS_PREFIX_NODE[bits_since_leaf] must exist and match the node.
-        if bits_since_leaf >= oren_list_len(_HUFF_EOS_PREFIX_NODE) { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
-        if _HUFF_EOS_PREFIX_NODE[bits_since_leaf] != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
+        if bits_since_leaf >= list.int_len(_HUFF_EOS_PREFIX_NODE) { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
+        if list.int_get(_HUFF_EOS_PREFIX_NODE, bits_since_leaf) != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
     }
 
     return {"ok": 1, "n": out_len}
@@ -450,16 +450,16 @@ fn _huff_decode_write(ptr0, off, slen, dst) {
         while bit >= 0 {
             var b = (byte >> bit) & 1
             if b == 0 {
-                node = _HUFF_L[node]
+                node = list.int_get(_HUFF_L, node)
             } else {
-                node = _HUFF_R[node]
+                node = list.int_get(_HUFF_R, node)
             }
             if node < 0 {
                 return {"ok": 0, "err": "hpack.huffman: invalid code"}
             }
 
             bits_since_leaf = bits_since_leaf + 1
-            var sym = _HUFF_SYM[node]
+            var sym = list.int_get(_HUFF_SYM, node)
             if sym >= 0 {
                 if sym == 256 {
                     return {"ok": 0, "err": "hpack.huffman: EOS encountered"}
@@ -476,8 +476,8 @@ fn _huff_decode_write(ptr0, off, slen, dst) {
 
     if node != 0 {
         if bits_since_leaf > 7 { return {"ok": 0, "err": "hpack.huffman: invalid padding length"} }
-        if bits_since_leaf >= oren_list_len(_HUFF_EOS_PREFIX_NODE) { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
-        if _HUFF_EOS_PREFIX_NODE[bits_since_leaf] != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
+        if bits_since_leaf >= list.int_len(_HUFF_EOS_PREFIX_NODE) { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
+        if list.int_get(_HUFF_EOS_PREFIX_NODE, bits_since_leaf) != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
     }
 
     return {"ok": 1, "n": out_i}
