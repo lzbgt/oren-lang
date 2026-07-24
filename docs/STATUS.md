@@ -2683,7 +2683,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   responses, and exact-sizes decoded chunked response bytes,
 	  `std:bytes.to_string` now uses direct
 	  byte-slice conversion instead of list materialization, `std:bytes.from_string`
-	  and `from_hex` plus kernel `oren_bytes_from_string` byte-native output,
+	  routes validated strings directly through kernel `oren_bytes_from_string`
+	  byte-native output, `from_hex` keeps direct exact-size output writes,
 	  direct lowercase `to_hex` emission, and `std:strings`
 	  byte roundtrips now use byte-native u8 buffers with `to_bytes` routed
 	  through validated runtime conversion, while `std:buffer` whole-string u8

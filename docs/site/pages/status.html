@@ -2865,7 +2865,8 @@
 <p>  responses, and exact-sizes decoded chunked response bytes,</p>
 <p>	  <code>std:bytes.to_string</code> now uses direct</p>
 <p>	  byte-slice conversion instead of list materialization, <code>std:bytes.from_string</code></p>
-<p>	  and <code>from_hex</code> plus kernel <code>oren_bytes_from_string</code> byte-native output,</p>
+<p>	  routes validated strings directly through kernel <code>oren_bytes_from_string</code></p>
+<p>	  byte-native output, <code>from_hex</code> keeps direct exact-size output writes,</p>
 <p>	  direct lowercase <code>to_hex</code> emission, and <code>std:strings</code></p>
 <p>	  byte roundtrips now use byte-native u8 buffers with <code>to_bytes</code> routed</p>
 <p>	  through validated runtime conversion, while <code>std:buffer</code> whole-string u8</p>
