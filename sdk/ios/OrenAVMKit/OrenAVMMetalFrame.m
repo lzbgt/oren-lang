@@ -569,7 +569,7 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
                                     NSMutableArray<id<MTLBuffer>>** transientBuffers) {
     if (!encoder || !device || !drawableTexture) return;
     MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawableTexture.width, (NSUInteger)drawableTexture.height};
-    if (geometryPipeline) {
+    if (geometryPipeline && vertexRuns.count > 0) {
         [encoder setRenderPipelineState:geometryPipeline];
         for (OrenAVMMetalVertexRun* run in vertexRuns) {
             if (!run.vertices || run.vertexBytes == 0) continue;
@@ -582,7 +582,8 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
                          vertexCount:run.vertexBytes / sizeof(OrenAVMMetalVertex)];
         }
     }
-    if (textPipeline) {
+    BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;
+    if (textPipeline && hasTextureRuns) {
         [encoder setRenderPipelineState:textPipeline];
         for (OrenAVMMetalImageRun* run in imageRuns) {
             NSUInteger vertexBytes = OrenAVMMetalImageRunVertexBytesLength(run);

@@ -975,7 +975,9 @@ def main() -> int:
     encode_runs = frame_text[frame_text.find("void OrenAVMMetalEncodePreparedRuns") :]
     for token in (
         "MTLScissorRect fullScissor",
-        "for (OrenAVMMetalVertexRun* run in vertexRuns)",
+        "if (geometryPipeline && vertexRuns.count > 0)",
+        "BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;",
+        "if (textPipeline && hasTextureRuns)",
         "for (OrenAVMMetalImageRun* run in imageRuns)",
         "for (OrenAVMMetalTextRun* run in textRuns)",
         "OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers",

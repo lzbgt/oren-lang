@@ -3075,7 +3075,8 @@ Working evidence:
   prepared geometry/image/text draw submission now lives in
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the
-  view. Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
+  view; pure-clear frames skip unused geometry/texture pipeline binding when no
+  prepared runs exist. Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
   context struct that carries view-owned caches and retained resource maps,
   reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,
   prepared-run orchestration, and input forwarding in the view. CoreGraphics
