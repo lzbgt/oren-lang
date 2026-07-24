@@ -87,14 +87,16 @@ surfaces, but the following blockers remain:
   quads stay inline and batched zero-size destinations/source subrects are
   validated once before heap vertex allocation; known-size image/text batches
 	  allocate exact heap vertex storage once, retained 3D draws skip sort/color
-		  work when clipping leaves no visible triangles, fully transparent Metal
-		  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only
-			  opcodes skip vertex/texture/text-cache/lookup/depth-order work at
-			  frame traversal, active empty-scissor or empty-clip spans skip Metal
-			  and CoreGraphics draw-only opcodes before frame-prep or
-			  CGContext/resource/text draw work while resource
-		  create/destroy opcodes still execute, and later compatible-run coalescing
-	  still grows geometrically.
+			  work when clipping leaves no visible triangles, fully transparent Metal
+			  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only
+				  opcodes skip vertex/texture/text-cache/lookup/depth-order work at
+				  frame traversal, active empty-scissor or empty-clip spans skip Metal
+				  and CoreGraphics draw-only opcodes before frame-prep or
+				  CGContext/resource/text draw work while resource
+			  create/destroy opcodes still execute, malformed zero-size/count-mismatched
+			  retained image/text draws reject before retained resource lookup when the
+			  command is otherwise a no-op, and later compatible-run coalescing
+		  still grows geometrically.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing
   sprite draw calls while preserving single-quad inline storage.

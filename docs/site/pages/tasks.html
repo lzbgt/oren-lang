@@ -1511,11 +1511,13 @@
 <p>					     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, software rasterization reads geometry/text/image payload fields through hoisted shared byte-view backing pointers, Scene3D binary package magic/header/table reads and payload slices use hoisted shared byte-view backing pointers with explicit span guards, Metal batched image rects validate local draw/source</p>
 <p>						     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D</p>
 <p>							     draws skip sort/color work when clipping leaves no visible triangles,</p>
-<p>						     fully transparent Metal draw-only plus retained mesh/model opcodes and</p>
-<p>						     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,</p>
-<p>						     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only</p>
-<p>						     opcodes before frame-prep or CGContext/resource/text draw work, and Metal/CoreGraphics zero-area</p>
-<p>			     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
+<p>							     fully transparent Metal draw-only plus retained mesh/model opcodes and</p>
+<p>							     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,</p>
+<p>							     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only</p>
+<p>							     opcodes before frame-prep or CGContext/resource/text draw work, malformed</p>
+<p>							     zero-size/count-mismatched retained image/text draws reject before retained</p>
+<p>							     resource lookup when the command is otherwise a no-op, and Metal/CoreGraphics zero-area</p>
+<p>				     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
 <p>				     PPM header/body output, PPM RGBA encoding hoists validated byte-view</p>
 <p>			     carrier/pointers once per call, and software-raster RGBA sampling</p>
 <p>		     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>

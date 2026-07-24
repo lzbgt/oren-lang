@@ -44,6 +44,9 @@ design evidence lives under `project-doc/`.
 - CoreGraphics and Metal retained text, mesh, and model uploads now preflight
   scalar-map storage before retained string/object allocation or raw payload
   copies.
+- Metal and CoreGraphics retained image/text draw handlers now reject malformed
+  zero-size/count-mismatched draw payloads before retained resource lookup when
+  the command is otherwise a no-op, preserving resource create/destroy paths.
 - `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
   through bounded `oren_memcpy` in native and bytecode, while fixtures cover both
   overlapping self-copy directions across AVM and native quick integration.

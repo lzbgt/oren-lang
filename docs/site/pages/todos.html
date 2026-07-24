@@ -85,6 +85,11 @@
 <p>  scalar-map storage before retained string/object allocation or raw payload</p>
 <p>  copies.</p>
 <ul>
+<li>Metal and CoreGraphics retained image/text draw handlers now reject malformed</li>
+</ul>
+<p>  zero-size/count-mismatched draw payloads before retained resource lookup when</p>
+<p>  the command is otherwise a no-op, preserving resource create/destroy paths.</p>
+<ul>
 <li><code>std:bytes.copy_into</code> now routes validated non-overlapping <code>u8_buf</code> spans</li>
 </ul>
 <p>  through bounded <code>oren_memcpy</code> in native and bytecode, while fixtures cover both</p>

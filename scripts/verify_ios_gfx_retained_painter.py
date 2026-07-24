@@ -308,6 +308,37 @@ def main() -> int:
         fail("CoreGraphics batched image sub-rect draws must cache CGImage dimensions")
     if "size_t imageWidth = CGImageGetWidth(cgImage)" not in text or "size_t imageHeight = CGImageGetHeight(cgImage)" not in text:
         fail("CoreGraphics batched image sub-rect draws must cache image dimensions")
+    image_command_start = resource_source_text.find("BOOL OrenAVMGfxHandleImageCommand")
+    image_command_end = resource_source_text.find("const void* OrenAVMGfxRetainedTextKey", image_command_start)
+    if image_command_start < 0 or image_command_end < 0:
+        fail("missing CoreGraphics retained image command helper body")
+    image_command = resource_source_text[image_command_start:image_command_end]
+    single_image_start = image_command.find("case 65:")
+    single_image_end = image_command.find("case 66:", single_image_start)
+    subrect_image_start = image_command.find("case 67:")
+    subrect_image_end = image_command.find("case 71:", subrect_image_start)
+    batched_image_start = image_command.find("case 71:")
+    batched_image_end = image_command.find("default:", batched_image_start)
+    if single_image_start < 0 or single_image_end < 0 or subrect_image_start < 0 or subrect_image_end < 0 or batched_image_start < 0 or batched_image_end < 0:
+        fail("missing CoreGraphics retained image preflight paths")
+    require_before(
+        image_command[single_image_start:single_image_end],
+        "if (w == 0 || h == 0) return YES;",
+        "OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID)",
+        "CoreGraphics retained image draws must reject zero destinations before retained image lookup",
+    )
+    require_before(
+        image_command[subrect_image_start:subrect_image_end],
+        "if (sw == 0 || sh == 0 || w == 0 || h == 0) return YES;",
+        "OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID)",
+        "CoreGraphics retained image subrect draws must reject zero dimensions before retained image lookup",
+    )
+    require_before(
+        image_command[batched_image_start:batched_image_end],
+        "rectCount == ((uint32_t)payloadLen - 8u) / 32u",
+        "OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID)",
+        "CoreGraphics batched retained image draws must validate rect counts before retained image lookup",
+    )
     if "@interface OrenAVMGfxModelResource" not in text:
         fail("CoreGraphics retained models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:

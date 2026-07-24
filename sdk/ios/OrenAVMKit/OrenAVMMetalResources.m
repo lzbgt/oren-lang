@@ -149,6 +149,20 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
     return run;
 }
 
+static BOOL OrenAVMMetalImageRectsHaveZeroSize(const uint8_t* rects, uint32_t rectCount) {
+    if (!rects) return YES;
+    for (uint32_t ri = 0; ri < rectCount; ri++) {
+        const uint8_t* r = rects + ((size_t)ri * 32u);
+        if (OrenAVMMetalReadU32LE(r + 8) == 0 ||
+            OrenAVMMetalReadU32LE(r + 12) == 0 ||
+            OrenAVMMetalReadU32LE(r + 24) == 0 ||
+            OrenAVMMetalReadU32LE(r + 28) == 0) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 static BOOL OrenAVMMetalImageRunReserveHeapVertices(OrenAVMMetalImageRun* run, NSUInteger neededCount) {
     if (!run || neededCount == 0 || neededCount > NSUIntegerMax / sizeof(OrenAVMMetalTextVertex)) return NO;
     if (neededCount <= run->heapVertexCapacity) return YES;
@@ -361,6 +375,9 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
         case 65: {
             if (opacity <= 0.0f) return YES;
             if (payloadLen == 20) {
+                uint32_t dw = OrenAVMMetalReadU32LE(payload + 12);
+                uint32_t dh = OrenAVMMetalReadU32LE(payload + 16);
+                if (dw == 0 || dh == 0) return YES;
                 OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
                                                                                      OrenAVMMetalReadU32LE(payload));
                 id<MTLTexture> texture = image.texture;
@@ -378,8 +395,8 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                                                                           (uint32_t)textureHeight,
                                                                           (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
                                                                           (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 12),
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 16),
+                                                                          (float)dw,
+                                                                          (float)dh,
                                                                           opacity,
                                                                           logicalWidth,
                                                                           logicalHeight),
@@ -400,6 +417,11 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
         case 67: {
             if (opacity <= 0.0f) return YES;
             if (payloadLen == 36) {
+                uint32_t sw = OrenAVMMetalReadU32LE(payload + 12);
+                uint32_t sh = OrenAVMMetalReadU32LE(payload + 16);
+                uint32_t dw = OrenAVMMetalReadU32LE(payload + 28);
+                uint32_t dh = OrenAVMMetalReadU32LE(payload + 32);
+                if (sw == 0 || sh == 0 || dw == 0 || dh == 0) return YES;
                 OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
                                                                                      OrenAVMMetalReadU32LE(payload));
                 id<MTLTexture> texture = image.texture;
@@ -413,12 +435,12 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                                                                           textureHeight,
                                                                           OrenAVMMetalReadU32LE(payload + 4),
                                                                           OrenAVMMetalReadU32LE(payload + 8),
-                                                                          OrenAVMMetalReadU32LE(payload + 12),
-                                                                          OrenAVMMetalReadU32LE(payload + 16),
+                                                                          sw,
+                                                                          sh,
                                                                           (float)OrenAVMMetalReadU32LE(payload + 20) + tx,
                                                                           (float)OrenAVMMetalReadU32LE(payload + 24) + ty,
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 28),
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 32),
+                                                                          (float)dw,
+                                                                          (float)dh,
                                                                           opacity,
                                                                           logicalWidth,
                                                                           logicalHeight),
@@ -433,6 +455,7 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
             if (payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
                 uint32_t rectCount = OrenAVMMetalReadU32LE(payload + 4);
                 if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                    if (OrenAVMMetalImageRectsHaveZeroSize(payload + 8, rectCount)) return YES;
                     OrenAVMMetalImageResource* image = OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL,
                                                                                          OrenAVMMetalReadU32LE(payload));
                     id<MTLTexture> texture = image.texture;
@@ -633,8 +656,9 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
             if (payloadLen >= 16 && ((payloadLen - 8) % 8) == 0) {
                 uint32_t textID = OrenAVMMetalReadU32LE(payload);
                 uint32_t posCount = OrenAVMMetalReadU32LE(payload + 4);
-                OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(texts ? *texts : NULL, textID);
-                if (resource.text && posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                if (posCount == ((uint32_t)payloadLen - 8u) / 8u) {
+                    OrenAVMMetalTextResource* resource = OrenAVMMetalRetainedTextResource(texts ? *texts : NULL, textID);
+                    if (!resource.text) return YES;
                     uint8_t textRGBA[4];
                     OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
                     OrenAVMMetalAppendTextRun(textRuns,

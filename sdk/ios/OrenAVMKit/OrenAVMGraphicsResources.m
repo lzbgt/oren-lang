@@ -202,6 +202,7 @@ BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
                 uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 8);
                 uint32_t w = OrenAVMGfxResourceReadU32LE(payload + 12);
                 uint32_t h = OrenAVMGfxResourceReadU32LE(payload + 16);
+                if (w == 0 || h == 0) return YES;
                 UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
                 if (image) [image drawInRect:CGRectMake((CGFloat)x, (CGFloat)y, (CGFloat)w, (CGFloat)h)];
             }
@@ -221,6 +222,7 @@ BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
                 uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 24);
                 uint32_t w = OrenAVMGfxResourceReadU32LE(payload + 28);
                 uint32_t h = OrenAVMGfxResourceReadU32LE(payload + 32);
+                if (sw == 0 || sh == 0 || w == 0 || h == 0) return YES;
                 UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
                 CGImageRef cgImage = image.CGImage;
                 if (cgImage) {
@@ -234,9 +236,10 @@ BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
             if (payloadLen >= 40 && ((payloadLen - 8) % 32) == 0) {
                 uint32_t imageID = OrenAVMGfxResourceReadU32LE(payload);
                 uint32_t rectCount = OrenAVMGfxResourceReadU32LE(payload + 4);
-                UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
-                CGImageRef cgImage = image.CGImage;
-                if (cgImage && rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                    UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
+                    CGImageRef cgImage = image.CGImage;
+                    if (!cgImage) return YES;
                     size_t imageWidth = CGImageGetWidth(cgImage);
                     size_t imageHeight = CGImageGetHeight(cgImage);
                     for (uint32_t ri = 0; ri < rectCount; ri++) {

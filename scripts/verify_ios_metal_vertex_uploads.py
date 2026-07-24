@@ -416,6 +416,17 @@ def main() -> int:
     ):
         if token not in text_command:
             fail(f"retained Metal text draw opcode must skip fully transparent texture work: {token}")
+    text_batch_start = text_command.find("case 72:")
+    text_batch_end = text_command.find("default:", text_batch_start)
+    if text_batch_start < 0 or text_batch_end < 0:
+        fail("missing retained Metal batched text draw path")
+    text_batch_body = text_command[text_batch_start:text_batch_end]
+    require_before(
+        text_batch_body,
+        "posCount == ((uint32_t)payloadLen - 8u) / 8u",
+        "OrenAVMMetalRetainedTextResource(texts ? *texts : NULL, textID)",
+        "retained Metal batched text draws must validate position counts before retained text lookup",
+    )
     if "CFDictionarySetValue(_orenTextResourcesByID" in text or "CFDictionaryRemoveValue(_orenTextResourcesByID" in text:
         fail("retained Metal text map mutation must live in OrenAVMMetalResources")
     if "@(textID)" in text:
@@ -712,6 +723,32 @@ def main() -> int:
         fail("batched Metal image-rect commands must not append one image run per rect")
     if "OrenAVMMetalImageBatchRunCreate(texture," not in batched_block:
         fail("batched Metal image-rect commands must create one raw vertex batch run")
+    single_image_start = image_command.find("case 65:")
+    single_image_end = image_command.find("case 66:", single_image_start)
+    subrect_image_start = image_command.find("case 67:")
+    subrect_image_end = image_command.find("case 71:", subrect_image_start)
+    if single_image_start < 0 or single_image_end < 0 or subrect_image_start < 0 or subrect_image_end < 0:
+        fail("missing retained Metal image draw preflight paths")
+    single_image_body = image_command[single_image_start:single_image_end]
+    subrect_image_body = image_command[subrect_image_start:subrect_image_end]
+    require_before(
+        single_image_body,
+        "if (dw == 0 || dh == 0) return YES;",
+        "OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL",
+        "retained Metal image draws must reject zero destinations before retained image lookup",
+    )
+    require_before(
+        subrect_image_body,
+        "if (sw == 0 || sh == 0 || dw == 0 || dh == 0) return YES;",
+        "OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL",
+        "retained Metal image subrect draws must reject zero dimensions before retained image lookup",
+    )
+    require_before(
+        batched_block,
+        "if (OrenAVMMetalImageRectsHaveZeroSize(payload + 8, rectCount)) return YES;",
+        "OrenAVMMetalRetainedImageResource(imagesByID ? *imagesByID : NULL",
+        "retained Metal batched image draws must reject zero-size rects before retained image lookup",
+    )
     image_batch_start = resource_text.find("OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate")
     image_batch_end = resource_text.find("OrenAVMMetalImageRunVertexBytes", image_batch_start)
     if image_batch_start < 0 or image_batch_end < 0:
