@@ -974,6 +974,56 @@ fn norm(m) {
     return frobenius_norm(m)
 }
 
+fn norm_one(m) {
+    var ok = _check(m, "mat4.norm_one")
+    if oren_is_err(ok) { return ok }
+    var best: f64 = 0.0
+    var c = 0
+    while c < 4 {
+        var sum: f64 = 0.0
+        var r = 0
+        while r < 4 {
+            var v: f64 = m[r * 4 + c]
+            if v < 0.0 { v = 0.0 - v }
+            sum = sum + v
+            r = r + 1
+        }
+        if !math.is_finite(sum) { return oren_err(4, "mat4.norm_one: non-finite") }
+        if sum > best { best = sum }
+        c = c + 1
+    }
+    return best
+}
+
+fn one_norm(m) {
+    return norm_one(m)
+}
+
+fn norm_inf(m) {
+    var ok = _check(m, "mat4.norm_inf")
+    if oren_is_err(ok) { return ok }
+    var best: f64 = 0.0
+    var r = 0
+    while r < 4 {
+        var sum: f64 = 0.0
+        var c = 0
+        while c < 4 {
+            var v: f64 = m[r * 4 + c]
+            if v < 0.0 { v = 0.0 - v }
+            sum = sum + v
+            c = c + 1
+        }
+        if !math.is_finite(sum) { return oren_err(4, "mat4.norm_inf: non-finite") }
+        if sum > best { best = sum }
+        r = r + 1
+    }
+    return best
+}
+
+fn infinity_norm(m) {
+    return norm_inf(m)
+}
+
 fn identity() {
     return [
         1.0, 0.0, 0.0, 0.0,
