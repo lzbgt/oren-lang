@@ -2903,8 +2903,9 @@
 <p>  copies, receive-side frame headers/ext lengths/masks parse through one</p>
 <p>  receive-call prefix scratch buffer, unmasked frame sends stream raw payload spans after a</p>
 <p>	  compact header, masked client sends stream fixed-size masked chunks instead</p>
-<p>	  of allocating full payload-sized frames, byte-native WebSocket ping/pong/close helpers</p>
-<p>	  send bounded <code>u8_buf</code> control payloads directly and WSS loopback coverage exercises byte ping/pong over TLS, native binary WebSocket sends validate</p>
+<p>		  of allocating full payload-sized frames, byte-native WebSocket ping/pong/close helpers</p>
+<p>		  send bounded <code>u8_buf</code> control payloads directly with direct <code>u8_buf</code></p>
+<p>		  length checks after type validation and WSS loopback coverage exercises byte ping/pong over TLS, native binary WebSocket sends validate</p>
 <p>	  positive-length source backing storage, receive-side fragmented text/binary</p>
 <p>	  frames use scratch/accumulator storage until producing bounded exact-size</p>
 <p>	  <code>u8_buf</code> output, unfragmented binary receives expose opcode-2 payloads</p>

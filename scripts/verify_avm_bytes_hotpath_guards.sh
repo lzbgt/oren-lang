@@ -646,6 +646,8 @@ if ! grep -Fq 'if masked != 1 {' <<<"$ws_send_impl" ||
 fi
 ws_ping_impl="$(sed -n '/fn _send_frame_control_str/,/fn _send_frame_text/p' lib/std/net/ws.oren)"
 if ! grep -Fq 'fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, masked)' lib/std/net/ws.oren ||
+  ! grep -Fq 'var n = oren_buf_len(bytes)' <<<"$ws_ping_impl" ||
+  grep -Fq 'oren_bytes_len(bytes)' <<<"$ws_ping_impl" ||
   ! grep -Fq 'if n > 125 { return 0 - 22 }' <<<"$ws_ping_impl" ||
   ! grep -Fq 'return _send_frame_raw(conn, opcode, p, n, timeout_ms, masked)' <<<"$ws_ping_impl" ||
   ! grep -Fq 'fn send_ping_bytes_client(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
@@ -655,7 +657,7 @@ if ! grep -Fq 'fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, mas
   ! grep -Fq 'return _send_frame_control_bytes(conn, 10, payload, timeout_ms, 1)' lib/std/net/ws.oren ||
   ! grep -Fq 'return _send_frame_control_bytes(conn, 10, payload, timeout_ms, 0)' lib/std/net/ws.oren ||
   ! grep -Fq 'fn _send_frame_close_bytes(conn, bytes, timeout_ms, masked)' lib/std/net/ws.oren ||
-  ! grep -Fq 'if oren_bytes_len(bytes) == 1 { return 0 - 22 }' lib/std/net/ws.oren ||
+  ! grep -Fq 'if oren_is_err(n) || n == 1 { return 0 - 22 }' lib/std/net/ws.oren ||
   ! grep -Fq 'fn send_close_bytes_client(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'fn send_close_bytes_server(conn, payload, timeout_ms)' lib/std/net/ws.oren ||
   ! grep -Fq 'return _send_frame_close_bytes(conn, payload, timeout_ms, 1)' lib/std/net/ws.oren ||
@@ -663,6 +665,12 @@ if ! grep -Fq 'fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, mas
   grep -Fq 'oren_string_from_bytes' <<<"$ws_ping_impl" ||
   grep -Fq 'oren_bytes_unpack' <<<"$ws_ping_impl"; then
   echo "ERROR: native WebSocket binary ping/pong/close must send u8_buf control payloads directly without byte-list or string conversion" >&2
+  exit 1
+fi
+ws_binary_send_impl="$(sed -n '/fn _send_frame_bytes/,/fn send_text_client/p' lib/std/net/ws.oren)"
+if ! grep -Fq 'var n = oren_buf_len(bytes)' <<<"$ws_binary_send_impl" ||
+  grep -Fq 'oren_bytes_len(bytes)' <<<"$ws_binary_send_impl"; then
+  echo "ERROR: native WebSocket binary sends must use direct u8_buf length after the u8_buf type check" >&2
   exit 1
 fi
 if ! grep -Fq 'text = _make_text_payload(5003)' tests/native/test_ws_echo_loopback.oren; then
