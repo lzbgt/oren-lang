@@ -60,6 +60,9 @@ design evidence lives under `project-doc/`.
   after span validation on `u8_buf` carriers.
 - `std:buffer` unchecked raw i64 stores are now unrolled direct byte writes, so
   i64 pack/view/matrix builders avoid an eight-iteration Oren store loop.
+- `std:cbor` 64-bit integer headers and native WebSocket 64-bit extended-length
+  receives now use straight-line big-endian byte operations with focused
+  fixtures, avoiding fixed eight-iteration Oren protocol loops.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.

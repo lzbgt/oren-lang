@@ -341,6 +341,18 @@ fn server(listen_fd) {
         return 17
     }
 
+    var ext64_bs = conn.recv_bytes(10000)
+    if oren_is_err(ext64_bs) {
+        print("ws_echo_loopback: server recv ext64 bytes FAIL: " + oren_err_msg(ext64_bs))
+        return 25
+    }
+    if oren_is_u8_buf(ext64_bs) != true { return 26 }
+    wr = conn.send_bytes_server(ext64_bs, 10000)
+    if oren_is_err(wr) {
+        print("ws_echo_loopback: server send ext64 bytes FAIL: " + oren_err_msg(wr))
+        return 27
+    }
+
     var fs = conn.recv_text(10000)
     if oren_is_err(fs) {
         print("ws_echo_loopback: server recv fragmented text FAIL: " + oren_err_msg(fs))
@@ -512,6 +524,29 @@ fn run_one(listen_fd, url, resolver) {
                 } else if _bytes_equal(body_bytes, bytes) != 1 {
                     print("ws_echo_loopback: FAIL bytes mismatch")
                     rc = 28
+                }
+            }
+        }
+
+        if rc == 0 {
+            var ext64_bytes = _make_binary_payload(70000)
+            if oren_is_err(ext64_bytes) {
+                print("ws_echo_loopback: FAIL ext64 bytes alloc")
+                rc = 44
+            } else {
+                var ext64_wr = conn.send_bytes_client(ext64_bytes, 5000)
+                if oren_is_err(ext64_wr) {
+                    print("ws_echo_loopback: FAIL send ext64 bytes: " + oren_err_msg(ext64_wr))
+                    rc = 45
+                } else {
+                    var ext64_body = conn.recv_bytes(10000)
+                    if oren_is_err(ext64_body) {
+                        print("ws_echo_loopback: FAIL recv ext64 bytes: " + oren_err_msg(ext64_body))
+                        rc = 46
+                    } else if _bytes_equal(ext64_body, ext64_bytes) != 1 {
+                        print("ws_echo_loopback: FAIL ext64 bytes mismatch")
+                        rc = 47
+                    }
                 }
             }
         }

@@ -703,6 +703,17 @@ fn _write_u64_be(buf, off, v) {
     return nil
 }
 
+fn _read_u64_be(buf, off) {
+    return ((ptr_get_byte(buf + off + 0) & 255) << 56) |
+        ((ptr_get_byte(buf + off + 1) & 255) << 48) |
+        ((ptr_get_byte(buf + off + 2) & 255) << 40) |
+        ((ptr_get_byte(buf + off + 3) & 255) << 32) |
+        ((ptr_get_byte(buf + off + 4) & 255) << 24) |
+        ((ptr_get_byte(buf + off + 5) & 255) << 16) |
+        ((ptr_get_byte(buf + off + 6) & 255) << 8) |
+        (ptr_get_byte(buf + off + 7) & 255)
+}
+
 fn _mask_byte(mask0, mask1, mask2, mask3, i) {
     var m = mask0
     var r = i % 4
@@ -1120,12 +1131,7 @@ fn _recv_payload(conn, timeout_ms, want_opcode, want_bytes) {
             rc = _read_exact(conn, frame_hdr + 2, ext_len, timeout_ms)
             if rc < 0 { free(frame_hdr); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
             // u64 be (best-effort; reject huge sizes)
-            plen = 0
-            var i = 0
-            while i < 8 {
-                plen = plen * 256 + (ptr_get_byte(frame_hdr + 2 + i) & 255)
-                i = i + 1
-            }
+            plen = _read_u64_be(frame_hdr, 2)
         }
 
         // Rolling safety: cap payload size.

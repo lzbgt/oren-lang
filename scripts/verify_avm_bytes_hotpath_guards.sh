@@ -720,6 +720,14 @@ if ! grep -Fq 'ptr_set_byte(buf + off + 0, (v >> 56) & 255)' <<<"$ws_write_u64_i
   echo "ERROR: native WebSocket 64-bit extended-length headers must use straight-line big-endian byte stores" >&2
   exit 1
 fi
+if ! grep -Fq 'fn _read_u64_be(buf, off)' lib/std/net/ws.oren ||
+  ! grep -Fq '((ptr_get_byte(buf + off + 0) & 255) << 56)' <<<"$ws_write_u64_impl" ||
+  ! grep -Fq '(ptr_get_byte(buf + off + 7) & 255)' <<<"$ws_write_u64_impl" ||
+  ! grep -Fq 'plen = _read_u64_be(frame_hdr, 2)' lib/std/net/ws.oren ||
+  ! grep -Fq 'var ext64_bytes = _make_binary_payload(70000)' tests/native/test_ws_echo_loopback.oren; then
+  echo "ERROR: native WebSocket 64-bit extended-length receives must use straight-line big-endian byte reads with loopback coverage" >&2
+  exit 1
+fi
 ws_ping_impl="$(sed -n '/fn _send_frame_control_str/,/fn _send_frame_text/p' lib/std/net/ws.oren)"
 if ! grep -Fq 'fn _send_frame_control_bytes(conn, opcode, bytes, timeout_ms, masked)' lib/std/net/ws.oren ||
   ! grep -Fq 'var n = oren_buf_len(bytes)' <<<"$ws_ping_impl" ||
@@ -1072,6 +1080,16 @@ fi
 
 if grep -q 'fn _read_u16be\|fn _read_u32be\|fn _read_u64be' lib/std/cbor.oren; then
   echo "ERROR: std:cbor decode must use shared std:bytes big-endian byte-view readers directly" >&2
+  exit 1
+fi
+
+cbor_u64_push_impl="$(sed -n '/fn _push_u64be/,/fn _emit_uint/p' lib/std/cbor.oren)"
+if ! grep -Fq '_push_u8(out, (n >> 56) & 255)' <<<"$cbor_u64_push_impl" ||
+  ! grep -Fq '_push_u8(out, n & 255)' <<<"$cbor_u64_push_impl" ||
+  grep -Fq 'while i >= 0' <<<"$cbor_u64_push_impl" ||
+  ! grep -Fq 'assert_bytes_eq(big_uint, [27, 0, 0, 0, 1, 0, 0, 0, 0], "encode uint64 big endian")' tests/modules/test_cbor_sequence.oren ||
+  ! grep -Fq 'assert_bytes_eq(big_neg, [59, 0, 0, 0, 1, 0, 0, 0, 0], "encode neg uint64 big endian")' tests/modules/test_cbor_sequence.oren; then
+  echo "ERROR: std:cbor 64-bit integer encode must use straight-line big-endian byte emission with focused coverage" >&2
   exit 1
 fi
 

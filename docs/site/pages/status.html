@@ -2882,10 +2882,12 @@
 <p>  pointer reads kept unrolled,</p>
 <p>  public <code>bytes.unpack</code> routes u8 buffers through kernel byte intrinsics with</p>
 <p>  AVM optimized integer-list output, <code>buffer.u8_unpack</code> reuses that byte-native</p>
-<p>  path for u8 buffers, <code>pack</code> returns exact-size u8 buffers for valid int lists,</p>
-<p>  while u8/endian writes keep list-backed and native <code>LIST_INT</code> compatibility and <code>std:buffer</code> raw i64 stores use unrolled direct byte writes</p>
-<p>  while raw u8-buffer loads/stores plus u8 slice/strided/matrix view</p>
-<p>  loads/stores use raw pointer access after public validation, contiguous u8</p>
+<p>	  path for u8 buffers, <code>pack</code> returns exact-size u8 buffers for valid int lists,</p>
+<p>	  while u8/endian writes keep list-backed and native <code>LIST_INT</code> compatibility and <code>std:buffer</code> raw i64 stores use unrolled direct byte writes</p>
+<p>	  and CBOR/WebSocket 64-bit protocol headers use straight-line big-endian byte</p>
+<p>	  operations instead of fixed eight-iteration Oren loops</p>
+<p>	  while raw u8-buffer loads/stores plus u8 slice/strided/matrix view</p>
+<p>	  loads/stores use raw pointer access after public validation, contiguous u8</p>
 <p>  concat/copy spans use raw pointer byte copies, and overlapping in-place u8</p>
 <p>  and list/<code>LIST_INT</code> <code>copy_into</code> copies backward when needed, <code>std:buffer</code> view/matrix</p>
 <p>  <code>copy_from_bytes</code> helpers read byte carriers directly, route contiguous</p>

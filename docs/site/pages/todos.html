@@ -113,6 +113,11 @@
 </ul>
 <p>  i64 pack/view/matrix builders avoid an eight-iteration Oren store loop.</p>
 <ul>
+<li><code>std:cbor</code> 64-bit integer headers and native WebSocket 64-bit extended-length</li>
+</ul>
+<p>  receives now use straight-line big-endian byte operations with focused</p>
+<p>  fixtures, avoiding fixed eight-iteration Oren protocol loops.</p>
+<ul>
 <li>LSP now advertises and serves same-document document highlights for exact</li>
 </ul>
 <p>  scoped locals/parameters, import aliases, typed fields, and imported</p>

@@ -134,11 +134,14 @@ fn _push_u32be(out, n) {
 
 fn _push_u64be(out, n) {
     // Rolling: Oren int is assumed to be at least 64-bit signed for now.
-    var i = 7
-    while i >= 0 {
-        _push_u8(out, (n >> (i * 8)) & 255)
-        i = i - 1
-    }
+    _push_u8(out, (n >> 56) & 255)
+    _push_u8(out, (n >> 48) & 255)
+    _push_u8(out, (n >> 40) & 255)
+    _push_u8(out, (n >> 32) & 255)
+    _push_u8(out, (n >> 24) & 255)
+    _push_u8(out, (n >> 16) & 255)
+    _push_u8(out, (n >> 8) & 255)
+    _push_u8(out, n & 255)
 }
 
 fn _emit_uint(out, major, n) {

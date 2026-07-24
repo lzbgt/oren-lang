@@ -95,6 +95,13 @@ fn test_sequence_bytes_and_decode_next() {
     assert_bytes_eq(cbor.encode(cbor.cbool(true)), [245], "encode bool true singleton")
     var te = cbor.parse([255])
     assert(oren_is_err(te) == true, "parse err")
+
+    var big_uint = cbor.encode(cbor.cint(4294967296))
+    assert(oren_is_err(big_uint) != true, "encode u64 ok")
+    assert_bytes_eq(big_uint, [27, 0, 0, 0, 1, 0, 0, 0, 0], "encode uint64 big endian")
+    var big_neg = cbor.encode(cbor.cint(-4294967297))
+    assert(oren_is_err(big_neg) != true, "encode negative u64 ok")
+    assert_bytes_eq(big_neg, [59, 0, 0, 0, 1, 0, 0, 0, 0], "encode neg uint64 big endian")
 }
 
 fn test_byte_string_carriers() {
