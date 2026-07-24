@@ -139,7 +139,8 @@ surfaces, but the following blockers remain:
 - `std:math/mat4` now includes tolerance-aware affine/perspective predicates
   plus exact and tolerance-aware symmetric, upper/lower triangular, diagonal,
   translation, scale, uniform-scale, invertible, and singular predicates backed
-  by shared row-major matrix validation.
+  by a focused row-major predicate helper module so the public `mat4` facade
+  stays below the source-line guardrail.
 - `std:math/mat4` now includes checked Frobenius, one-norm, infinity-norm, and
   condition-number matrix helpers (`frobenius_norm`, `frobenius_norm_sq`,
   `norm_frobenius`, `norm`, `norm_one`, `one_norm`, `norm_inf`,
