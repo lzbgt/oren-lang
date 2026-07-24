@@ -160,7 +160,9 @@ surfaces, but the following blockers remain:
 - `std:math/mat4` now includes checked viewport/NDC conversion helpers
   (`viewport_matrix`, `inverse_viewport_matrix`, `ndc_to_window`, and
   `window_to_ndc`) and routes project/unproject through the same depth clamp
-  semantics.
+  semantics; the implementation lives in a focused viewport helper module so
+  `mat4.oren` stays below the source-line guardrail with room for future math
+  expansion.
 - `std:math/mat4` now includes checked translation editing helpers
   (`with_translation`, `set_translation`, `with_translation_vec`,
   `set_translation_vec`, and `without_translation`) that preserve existing

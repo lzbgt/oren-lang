@@ -259,7 +259,9 @@
 </ul>
 <p>  (<code>viewport_matrix</code>, <code>inverse_viewport_matrix</code>, <code>ndc_to_window</code>, and</p>
 <p>  <code>window_to_ndc</code>) and routes project/unproject through the same depth clamp</p>
-<p>  semantics.</p>
+<p>  semantics; the implementation lives in a focused viewport helper module so</p>
+<p>  <code>mat4.oren</code> stays below the source-line guardrail with room for future math</p>
+<p>  expansion.</p>
 <ul>
 <li><code>std:math/mat4</code> now includes checked translation editing helpers</li>
 </ul>
