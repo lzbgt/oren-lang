@@ -3166,6 +3166,9 @@ Working evidence:
 
 - `std:math` avoids host `libm` so bytecode/AVM, C, and native backends share the
   same source-level semantics.
+- Scalar `std:math.sqrt` keeps its deterministic eight-step Newton refinement as
+  straight-line operations, reducing loop overhead for vector and matrix helpers
+  that call it.
 - Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
   bit helpers including `signbit`/`copysign`, C/C++ classification and ordered-comparison aliases (`isnan`,
   `isinf`, `isfinite`, `isnormal`, `fpclassify`, `isunordered`, `isgreater`,

@@ -1732,6 +1732,11 @@
 </ol>
 <ul>
 <li>Expand <code>std:math</code> toward C/C++ mathlib coverage without host-libm dependency.</li>
+<li>Scalar <code>sqrt</code> keeps its deterministic eight-step Newton refinement as</li>
+</ul>
+<p>     straight-line operations to reduce loop overhead in vector and matrix</p>
+<p>     helper call sites.</p>
+<ul>
 <li>Current retained surface includes <code>fmod</code>, IEEE-style nearest-even</li>
 </ul>
 <p>     <code>remainder</code>, <code>remquo</code>, <code>modf</code>, integer rounding aliases</p>

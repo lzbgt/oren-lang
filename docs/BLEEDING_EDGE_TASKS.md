@@ -1642,6 +1642,9 @@ This file is the concise task view. Detailed implementation status lives in
 
 4. **Scientific stdlib math breadth**
    - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
+   - Scalar `sqrt` keeps its deterministic eight-step Newton refinement as
+     straight-line operations to reduce loop overhead in vector and matrix
+     helper call sites.
    - Current retained surface includes `fmod`, IEEE-style nearest-even
      `remainder`, `remquo`, `modf`, integer rounding aliases
      `lround`/`llround`/`lrint`/`llrint`, `copysign`, public ties-to-even rounding aliases, `ilogb`/`logb`,

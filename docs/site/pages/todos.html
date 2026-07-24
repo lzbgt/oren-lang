@@ -123,6 +123,11 @@
 <p>  straight-line little-endian byte operations, keeping cache/build serializers</p>
 <p>  out of fixed eight-iteration Oren loops.</p>
 <ul>
+<li>Scalar <code>std:math.sqrt</code> now keeps its deterministic eight-step Newton</li>
+</ul>
+<p>  refinement as straight-line operations, reducing loop overhead for vector and</p>
+<p>  matrix helpers that call it.</p>
+<ul>
 <li>LSP now advertises and serves same-document document highlights for exact</li>
 </ul>
 <p>  scoped locals/parameters, import aliases, typed fields, and imported</p>

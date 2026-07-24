@@ -3368,6 +3368,11 @@
 </ul>
 <p>  same source-level semantics.</p>
 <ul>
+<li>Scalar <code>std:math.sqrt</code> keeps its deterministic eight-step Newton refinement as</li>
+</ul>
+<p>  straight-line operations, reducing loop overhead for vector and matrix helpers</p>
+<p>  that call it.</p>
+<ul>
 <li>Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and</li>
 </ul>
 <p>  bit helpers including <code>signbit</code>/<code>copysign</code>, C/C++ classification and ordered-comparison aliases (<code>isnan</code>,</p>

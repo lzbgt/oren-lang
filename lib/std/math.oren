@@ -645,11 +645,14 @@ fn sqrt(x: f64) {
 
     // Fixed-iteration Newton-Raphson: g_{n+1} = 0.5 * (g + xn/g)
     // 8 iterations is ample for f64 from this guess and remains deterministic.
-    var i = 0
-    while i < 8 {
-        g = 0.5 * (g + xn / g)
-        i = i + 1
-    }
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
+    g = 0.5 * (g + xn / g)
     return g
 }
 

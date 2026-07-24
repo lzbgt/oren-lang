@@ -66,6 +66,9 @@ design evidence lives under `project-doc/`.
 - Compiler bytecode constants and ASTBIN u64 encode/decode helpers now use
   straight-line little-endian byte operations, keeping cache/build serializers
   out of fixed eight-iteration Oren loops.
+- Scalar `std:math.sqrt` now keeps its deterministic eight-step Newton
+  refinement as straight-line operations, reducing loop overhead for vector and
+  matrix helpers that call it.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.
