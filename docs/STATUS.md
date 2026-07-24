@@ -93,7 +93,7 @@ surfaces, but the following blockers remain:
 						  frame traversal, active empty-scissor or empty-clip spans skip Metal
 						  and CoreGraphics draw-only opcodes before frame-prep or
 						  CGContext/resource/text draw work, Metal full-frame clear shortcuts
-					  require unclipped and untranslated state while resource
+					  require unclipped, untranslated, fully opaque fill state while resource
 				  create/destroy opcodes still execute, malformed zero-size/count-mismatched
 				  retained image/text draws reject before retained resource lookup when the
 				  command is otherwise a no-op, immediate text opcodes reject empty or
@@ -2445,7 +2445,7 @@ Facts from the 2026-05-28 implementation pass:
   headless verifiers can parse retained 3D/resource frames and inspect vertex,
   text-run, and image-run metrics even when no `CAMetalDrawable` is available;
 	  drawable-independent preparation and live drawing now share the same
-	  prepared-frame path for run construction, text coalescing, clipped-safe clear color, and
+	  prepared-frame path for run construction, text coalescing, clipped/alpha-safe clear color, and
   metric counts. Live Metal draws keep small vertex uploads inline but promote
 large geometry/image/text runs to transient `MTLBuffer` objects retained
 through command completion, so retained meshes and batches do not rely on
@@ -3066,9 +3066,10 @@ Working evidence:
   windows, and vertex output in the view. Metal clip/transform/opacity/camera
   state stacks and opcodes now live in `OrenAVMMetalFrame`, reducing
   `OrenAVMMetalView.m` to 676 lines while keeping per-frame resource/text/image
-  command routing in the view. Metal full-frame clear-color detection now lives
-  in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
-  keeping per-frame resource/text/image command routing in the view. Metal
+	  command routing in the view. Metal full-frame clear-color detection now lives
+	  in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
+	  keeping per-frame resource/text/image command routing in the view; it only
+	  promotes unclipped, untranslated, fully opaque fills to render-pass clear. Metal
   prepared geometry/image/text draw submission now lives in
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the

@@ -863,6 +863,7 @@ def main() -> int:
         "payloadLen != 20",
         "opacity < 0.999f",
         "OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, clearRGBA)",
+        "if (clearRGBA[3] != 255) return NO;",
         "MTLClearColorMake",
     ):
         if token not in clear_command:

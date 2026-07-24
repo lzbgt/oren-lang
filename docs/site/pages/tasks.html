@@ -1515,8 +1515,8 @@
 <p>								     fully transparent Metal draw-only plus retained mesh/model opcodes and</p>
 <p>								     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,</p>
 <p>									     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only</p>
-<p>									     opcodes before frame-prep or CGContext/resource/text draw work, Metal</p>
-<p>									     full-frame clear shortcuts require unclipped, untranslated state,</p>
+<p>										     opcodes before frame-prep or CGContext/resource/text draw work, Metal</p>
+<p>										     full-frame clear shortcuts require unclipped, untranslated, fully opaque state,</p>
 <p>									     malformed zero-size/count-mismatched retained image/text draws reject before retained</p>
 <p>								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area</p>
 <p>					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>

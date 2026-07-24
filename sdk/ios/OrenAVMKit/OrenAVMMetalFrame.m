@@ -103,6 +103,7 @@ BOOL OrenAVMMetalApplyClearColorCommand(uint8_t opcode,
     if (x != 0 || y != 0 || w < logicalW || h < logicalH) return NO;
     uint8_t clearRGBA[4];
     OrenAVMMetalRGBAWithOpacity(payload + 16, opacity, clearRGBA);
+    if (clearRGBA[3] != 255) return NO;
     *clearColor = MTLClearColorMake((double)clearRGBA[0] / 255.0,
                                     (double)clearRGBA[1] / 255.0,
                                     (double)clearRGBA[2] / 255.0,
