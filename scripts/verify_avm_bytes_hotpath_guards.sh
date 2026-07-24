@@ -305,6 +305,14 @@ if ! grep -Fq 'ptr_set_byte(p + 0, (v >> 56) & 255)' <<<"$std_store_u64_be_impl"
   exit 1
 fi
 
+buffer_raw_i64_store_impl="$(sed -n '/fn _store_i64_unchecked_direct/,/fn _store_f32_unchecked_direct/p' lib/std/buffer/raw.oren)"
+if ! grep -Fq 'ptr_set_byte(data + off + 0, v & 255)' <<<"$buffer_raw_i64_store_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + off + 7, (v >> 56) & 255)' <<<"$buffer_raw_i64_store_impl" ||
+  grep -Fq 'while i < 8' <<<"$buffer_raw_i64_store_impl"; then
+  echo "ERROR: std:buffer raw i64 stores must be unrolled direct byte writes, not Oren loops" >&2
+  exit 1
+fi
+
 bytecode_codegen_impl="$(sed -n '/if name == "ptr_get"/,/Reflection-ish helpers/p' lib/compiler/codegen_bytecode/010_codegen_a.oren)"
 avm_ptr_helper_impl="$(sed -n '/static AvmValue avm_ptr_memcpy_value/,/^}/p' lib/avm/avm_native_ptr_helpers.inc)"
 c_runtime_ptr_impl="$(sed -n '/OrenValue oren_memcpy/,/^}/p' lib/runtime/060_ptr_unsafe.inc)"

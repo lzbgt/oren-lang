@@ -35,6 +35,10 @@ assert_eq(oren_buf_load_i32(b, 5), 15, 21)
 fn buf_len_i32(x: []i32): i64 { return oren_buf_len(x) }
 var b_alias: []i32 = b
 assert_eq(buf_len_i32(b_alias), 6, 29)
+var i64_direct: []i64 = buffer.i64_pack_list_int([72623859790382856, -72623859790382856])
+assert_true(!oren_is_err(i64_direct), 103)
+assert_eq(buffer.i64_unpack_list(i64_direct)[0], 72623859790382856, 104)
+assert_eq(buffer.i64_unpack_list(i64_direct)[1], -72623859790382856, 105)
 var u8_into: []u8 = buffer.u8_new(3)
 assert_true(!oren_is_err(u8_into), 86)
 assert_true(!oren_is_err(buffer.u8_pack_into(u8_into, [65, 66, 67])), 87)

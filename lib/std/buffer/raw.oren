@@ -98,11 +98,14 @@ fn _store_f64_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
 fn _store_i64_unchecked_direct(buf, idx, v) {
     var data = oren_buf_data_ptr_unchecked(buf)
     var off = idx * 8
-    var i = 0
-    while i < 8 {
-        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
-        i = i + 1
-    }
+    ptr_set_byte(data + off + 0, v & 255)
+    ptr_set_byte(data + off + 1, (v >> 8) & 255)
+    ptr_set_byte(data + off + 2, (v >> 16) & 255)
+    ptr_set_byte(data + off + 3, (v >> 24) & 255)
+    ptr_set_byte(data + off + 4, (v >> 32) & 255)
+    ptr_set_byte(data + off + 5, (v >> 40) & 255)
+    ptr_set_byte(data + off + 6, (v >> 48) & 255)
+    ptr_set_byte(data + off + 7, (v >> 56) & 255)
     return buf
 }
 fn _store_f32_unchecked_direct(buf, idx, v: f64) {
