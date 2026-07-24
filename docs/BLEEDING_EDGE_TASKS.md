@@ -1442,11 +1442,12 @@ This file is the concise task view. Detailed implementation status lives in
 					     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, software rasterization reads geometry/text/image payload fields through hoisted shared byte-view backing pointers, Scene3D binary package magic/header/table reads and payload slices use hoisted shared byte-view backing pointers with explicit span guards, Metal batched image rects validate local draw/source
 						     spans in one preflight pass before heap vertex allocation, CoreGraphics batched retained image rects preflight zero-size rects before retained image lookup, Metal/CoreGraphics retained 3D
 							     draws skip sort/color work when clipping leaves no visible triangles,
-							     fully transparent Metal draw-only plus retained mesh/model opcodes and
-							     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,
-								     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only
-								     opcodes before frame-prep or CGContext/resource/text draw work, malformed
-								     zero-size/count-mismatched retained image/text draws reject before retained
+								     fully transparent Metal draw-only plus retained mesh/model opcodes and
+								     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,
+									     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only
+									     opcodes before frame-prep or CGContext/resource/text draw work, Metal
+									     full-frame clear shortcuts require unclipped, untranslated state,
+									     malformed zero-size/count-mismatched retained image/text draws reject before retained
 								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area
 					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
 				     PPM header/body output, PPM RGBA encoding hoists validated byte-view

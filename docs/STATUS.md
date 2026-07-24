@@ -87,12 +87,13 @@ surfaces, but the following blockers remain:
   quads stay inline and batched zero-size destinations/source subrects are
   validated once before heap vertex allocation; known-size image/text batches
 	  allocate exact heap vertex storage once, retained 3D draws skip sort/color
-			  work when clipping leaves no visible triangles, fully transparent Metal
-			  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only
-					  opcodes skip vertex/texture/text-cache/lookup/depth-order work at
-					  frame traversal, active empty-scissor or empty-clip spans skip Metal
-					  and CoreGraphics draw-only opcodes before frame-prep or
-					  CGContext/resource/text draw work while resource
+				  work when clipping leaves no visible triangles, fully transparent Metal
+				  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only
+						  opcodes skip vertex/texture/text-cache/lookup/depth-order work at
+						  frame traversal, active empty-scissor or empty-clip spans skip Metal
+						  and CoreGraphics draw-only opcodes before frame-prep or
+						  CGContext/resource/text draw work, Metal full-frame clear shortcuts
+					  require unclipped and untranslated state while resource
 				  create/destroy opcodes still execute, malformed zero-size/count-mismatched
 				  retained image/text draws reject before retained resource lookup when the
 				  command is otherwise a no-op, immediate text opcodes reject empty or
@@ -2443,8 +2444,8 @@ Facts from the 2026-05-28 implementation pass:
   drawable-independent `prepareFrameResourcesWithError:` so host apps and
   headless verifiers can parse retained 3D/resource frames and inspect vertex,
   text-run, and image-run metrics even when no `CAMetalDrawable` is available;
-  drawable-independent preparation and live drawing now share the same
-  prepared-frame path for run construction, text coalescing, clear color, and
+	  drawable-independent preparation and live drawing now share the same
+	  prepared-frame path for run construction, text coalescing, clipped-safe clear color, and
   metric counts. Live Metal draws keep small vertex uploads inline but promote
 large geometry/image/text runs to transient `MTLBuffer` objects retained
 through command completion, so retained meshes and batches do not rely on

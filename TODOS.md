@@ -2826,7 +2826,7 @@ design evidence lives under `project-doc/`.
 - Metal immediate primitive draw payload expansion now lives in
   `OrenAVMMetalGeometry`, reducing `OrenAVMMetalView.m` to 1033 lines while
   keeping full-frame clear-color policy, state stacks, and opcode routing in
-  the view.
+  frame/resource helpers.
 - Metal rectangle geometry helpers now skip zero-area fill/stroke spans before
   vertex emission, matching no-op drawing semantics while avoiding degenerate
   helper-generated vertices in malformed raw frames.
@@ -2857,7 +2857,9 @@ design evidence lives under `project-doc/`.
   per-frame resource/text/image command routing in the view.
 - Metal full-frame clear-color detection now lives in `OrenAVMMetalFrame`,
   reducing `OrenAVMMetalView.m` to 663 lines while keeping per-frame
-  resource/text/image command routing in the view.
+  resource/text/image command routing in the view; the clear fast path now only
+  applies when no clip or translation is active, preserving clipped/translated
+  fill semantics.
 - Metal prepared geometry/image/text draw submission now lives in
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the view.

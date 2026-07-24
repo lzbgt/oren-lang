@@ -148,12 +148,13 @@
 <p>  quads stay inline and batched zero-size destinations/source subrects are</p>
 <p>  validated once before heap vertex allocation; known-size image/text batches</p>
 <p>	  allocate exact heap vertex storage once, retained 3D draws skip sort/color</p>
-<p>			  work when clipping leaves no visible triangles, fully transparent Metal</p>
-<p>			  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only</p>
-<p>					  opcodes skip vertex/texture/text-cache/lookup/depth-order work at</p>
-<p>					  frame traversal, active empty-scissor or empty-clip spans skip Metal</p>
-<p>					  and CoreGraphics draw-only opcodes before frame-prep or</p>
-<p>					  CGContext/resource/text draw work while resource</p>
+<p>				  work when clipping leaves no visible triangles, fully transparent Metal</p>
+<p>				  draw-only plus retained mesh/model opcodes and CoreGraphics draw-only</p>
+<p>						  opcodes skip vertex/texture/text-cache/lookup/depth-order work at</p>
+<p>						  frame traversal, active empty-scissor or empty-clip spans skip Metal</p>
+<p>						  and CoreGraphics draw-only opcodes before frame-prep or</p>
+<p>						  CGContext/resource/text draw work, Metal full-frame clear shortcuts</p>
+<p>					  require unclipped and untranslated state while resource</p>
 <p>				  create/destroy opcodes still execute, malformed zero-size/count-mismatched</p>
 <p>				  retained image/text draws reject before retained resource lookup when the</p>
 <p>				  command is otherwise a no-op, immediate text opcodes reject empty or</p>
@@ -2617,8 +2618,8 @@
 <p>  drawable-independent <code>prepareFrameResourcesWithError:</code> so host apps and</p>
 <p>  headless verifiers can parse retained 3D/resource frames and inspect vertex,</p>
 <p>  text-run, and image-run metrics even when no <code>CAMetalDrawable</code> is available;</p>
-<p>  drawable-independent preparation and live drawing now share the same</p>
-<p>  prepared-frame path for run construction, text coalescing, clear color, and</p>
+<p>	  drawable-independent preparation and live drawing now share the same</p>
+<p>	  prepared-frame path for run construction, text coalescing, clipped-safe clear color, and</p>
 <p>  metric counts. Live Metal draws keep small vertex uploads inline but promote</p>
 <p>large geometry/image/text runs to transient <code>MTLBuffer</code> objects retained</p>
 <p>through command completion, so retained meshes and batches do not rely on</p>

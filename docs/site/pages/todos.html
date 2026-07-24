@@ -3930,7 +3930,7 @@
 </ul>
 <p>  <code>OrenAVMMetalGeometry</code>, reducing <code>OrenAVMMetalView.m</code> to 1033 lines while</p>
 <p>  keeping full-frame clear-color policy, state stacks, and opcode routing in</p>
-<p>  the view.</p>
+<p>  frame/resource helpers.</p>
 <ul>
 <li>Metal rectangle geometry helpers now skip zero-area fill/stroke spans before</li>
 </ul>
@@ -3979,7 +3979,9 @@
 <li>Metal full-frame clear-color detection now lives in <code>OrenAVMMetalFrame</code>,</li>
 </ul>
 <p>  reducing <code>OrenAVMMetalView.m</code> to 663 lines while keeping per-frame</p>
-<p>  resource/text/image command routing in the view.</p>
+<p>  resource/text/image command routing in the view; the clear fast path now only</p>
+<p>  applies when no clip or translation is active, preserving clipped/translated</p>
+<p>  fill semantics.</p>
 <ul>
 <li>Metal prepared geometry/image/text draw submission now lives in</li>
 </ul>

@@ -843,8 +843,18 @@ def main() -> int:
         fail("Metal frame traversal helper must live in OrenAVMMetalFrame")
     if "OrenAVMMetalFrameState frameState" not in frame_text or "OrenAVMMetalFrameStateInit(&frameState)" not in frame_text:
         fail("Metal frame traversal must use the frame-owned state container")
-    if "OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor)" not in frame_text:
+    clear_call = "OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor)"
+    clear_guard = "if (!frameState.clip.enabled && frameState.tx == 0.0f && frameState.ty == 0.0f)"
+    if clear_call not in frame_text:
         fail("Metal full-frame clear-color detection must delegate to the frame helper")
+    if clear_guard not in frame_text:
+        fail("Metal full-frame clear-color detection must require unclipped, untranslated frame state")
+    require_before(
+        frame_text,
+        clear_guard,
+        clear_call,
+        "Metal full-frame clear-color detection must guard clip/translation before applying clear color",
+    )
     if "BOOL OrenAVMMetalApplyClearColorCommand" not in frame_text:
         fail("Metal clear-color command helper must live in OrenAVMMetalFrame")
     clear_command = frame_text[frame_text.find("BOOL OrenAVMMetalApplyClearColorCommand") :]

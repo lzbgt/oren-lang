@@ -289,7 +289,9 @@ NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* fra
         off += 4;
         if (off + (size_t)payloadLen > frame.length) break;
         const uint8_t* payload = data + off;
-        OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
+        if (!frameState.clip.enabled && frameState.tx == 0.0f && frameState.ty == 0.0f) {
+            OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
+        }
         if ((OrenAVMMetalScissorIsEmpty(frameState.clip) || frameState.opacity <= 0.0f) &&
             OrenAVMMetalOpcodeIsDrawOnly(opcode)) {
             off += payloadLen;
