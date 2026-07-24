@@ -691,6 +691,7 @@ if ! grep -Fq '    var frame_hdr = malloc(14)' lib/std/net/ws.oren ||
   exit 1
 fi
 ws_send_impl="$(sed -n '/fn _send_frame_raw/,/fn _send_frame_str/p' lib/std/net/ws.oren)"
+ws_write_u64_impl="$(sed -n '/fn _write_u64_be/,/fn _mask_byte/p' lib/std/net/ws.oren)"
 if ! grep -Fq 'if masked != 1 {' <<<"$ws_send_impl" ||
   ! grep -Fq 'var hdr = malloc(14)' <<<"$ws_send_impl" ||
   ! grep -Fq 'var pw = _io_write_from(conn, payload_ptr, payload_len, timeout_ms)' <<<"$ws_send_impl" ||
@@ -703,6 +704,12 @@ if ! grep -Fq 'if masked != 1 {' <<<"$ws_send_impl" ||
   grep -Fq 'var buf = malloc(total)' <<<"$ws_send_impl" ||
   grep -Fq 'if payload_len > 0 { oren_memcpy(buf + payload_off, payload_ptr, payload_len) }' <<<"$ws_send_impl"; then
   echo "ERROR: native WebSocket sends must stream raw unmasked payload spans and fixed-chunk masked payloads instead of copying into full-frame buffers" >&2
+  exit 1
+fi
+if ! grep -Fq 'ptr_set_byte(buf + off + 0, (v >> 56) & 255)' <<<"$ws_write_u64_impl" ||
+  ! grep -Fq 'ptr_set_byte(buf + off + 7, v & 255)' <<<"$ws_write_u64_impl" ||
+  grep -Fq 'while i < 8' <<<"$ws_write_u64_impl"; then
+  echo "ERROR: native WebSocket 64-bit extended-length headers must use straight-line big-endian byte stores" >&2
   exit 1
 fi
 ws_ping_impl="$(sed -n '/fn _send_frame_control_str/,/fn _send_frame_text/p' lib/std/net/ws.oren)"

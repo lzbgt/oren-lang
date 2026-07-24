@@ -1503,7 +1503,8 @@
 <p>     longer allocate input byte lists for syntax tokens. WebSocket accept</p>
 <p>     hashing now feeds SHA-1 directly from UTF-8 string bytes, native</p>
 <p>     WebSocket byte send helpers use direct <code>u8_buf</code> length checks after type</p>
-<p>     validation, and header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
+<p>     validation, 64-bit extended-length headers use straight-line big-endian stores,</p>
+<p>     and header slices plus unmasked frame payloads copy with <code>oren_memcpy</code>;</p>
 <p>     DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy</p>
 <p>     through <code>oren_memcpy</code> after validation;</p>
 <p>	     Base64/Base64URL</p>

@@ -692,12 +692,14 @@ fn _write_u16_be(buf, off, v) {
 
 fn _write_u64_be(buf, off, v) {
     // v is treated as unsigned 64-bit.
-    var i = 0
-    while i < 8 {
-        var shift = (7 - i) * 8
-        ptr_set_byte(buf + off + i, (v >> shift) & 255)
-        i = i + 1
-    }
+    ptr_set_byte(buf + off + 0, (v >> 56) & 255)
+    ptr_set_byte(buf + off + 1, (v >> 48) & 255)
+    ptr_set_byte(buf + off + 2, (v >> 40) & 255)
+    ptr_set_byte(buf + off + 3, (v >> 32) & 255)
+    ptr_set_byte(buf + off + 4, (v >> 24) & 255)
+    ptr_set_byte(buf + off + 5, (v >> 16) & 255)
+    ptr_set_byte(buf + off + 6, (v >> 8) & 255)
+    ptr_set_byte(buf + off + 7, v & 255)
     return nil
 }
 

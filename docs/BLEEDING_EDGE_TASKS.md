@@ -1433,7 +1433,8 @@ This file is the concise task view. Detailed implementation status lives in
      longer allocate input byte lists for syntax tokens. WebSocket accept
      hashing now feeds SHA-1 directly from UTF-8 string bytes, native
      WebSocket byte send helpers use direct `u8_buf` length checks after type
-     validation, and header slices plus unmasked frame payloads copy with `oren_memcpy`;
+     validation, 64-bit extended-length headers use straight-line big-endian stores,
+     and header slices plus unmasked frame payloads copy with `oren_memcpy`;
      DNS QNAME labels and capsule NET IPv4 sockaddr reads/rewrites also copy
      through `oren_memcpy` after validation;
 	     Base64/Base64URL

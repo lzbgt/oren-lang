@@ -47,6 +47,18 @@ if http_ip6["err"] != "http: IPv6 literal requires an IPv6-capable connector" { 
 var ws_ip6_resolve = ws._resolve_host_ipv4("2001:db8::1", 1, 0)
 if ws_ip6_resolve["ok"] != 0 { fail(44) }
 if ws_ip6_resolve["err"] != "ws: IPv6 literal requires an IPv6-capable connector" { fail(45) }
+var ws_len_buf = malloc(10)
+if ws_len_buf == 0 { fail(46) }
+ws._write_u64_be(ws_len_buf, 1, 72623859790382856) // 0x0102030405060708
+if (ptr_get_byte(ws_len_buf + 1) & 255) != 1 { fail(47) }
+if (ptr_get_byte(ws_len_buf + 2) & 255) != 2 { fail(48) }
+if (ptr_get_byte(ws_len_buf + 3) & 255) != 3 { fail(49) }
+if (ptr_get_byte(ws_len_buf + 4) & 255) != 4 { fail(50) }
+if (ptr_get_byte(ws_len_buf + 5) & 255) != 5 { fail(51) }
+if (ptr_get_byte(ws_len_buf + 6) & 255) != 6 { fail(52) }
+if (ptr_get_byte(ws_len_buf + 7) & 255) != 7 { fail(53) }
+if (ptr_get_byte(ws_len_buf + 8) & 255) != 8 { fail(54) }
+free(ws_len_buf)
 
 print("module net_url_consumers_native OK")
 exit(0)

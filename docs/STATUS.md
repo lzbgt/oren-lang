@@ -2737,7 +2737,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   upgrade headers read directly into reserved header storage without scratch
   copies, receive-side frame headers/ext lengths/masks parse through one
   receive-call prefix scratch buffer, unmasked frame sends stream raw payload spans after a
-	  compact header, masked client sends stream fixed-size masked chunks instead
+	  compact header, 64-bit extended-length headers use straight-line big-endian
+	  stores, masked client sends stream fixed-size masked chunks instead
 		  of allocating full payload-sized frames, byte-native WebSocket ping/pong/close helpers
 		  send bounded `u8_buf` control payloads directly with direct `u8_buf`
 		  length checks after type validation and WSS loopback coverage exercises byte ping/pong over TLS, native binary WebSocket sends validate
