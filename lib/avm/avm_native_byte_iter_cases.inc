@@ -423,3 +423,25 @@
             }
             break;
         }
+        case 233: { // oren_u8_buf_copy_from_string_slice_at(u8_buf, dst_start:int, string, start:int, len:int) -> u8_buf
+            if (nargs > 4 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_INT &&
+                args[2].type == AVM_VAL_STRING && args[3].type == AVM_VAL_INT && args[4].type == AVM_VAL_INT) {
+                AvmBytes* out = args[0].as.b;
+                int64_t dst_start = args[1].as.i;
+                const char* s = (const char*)args[2].as.p;
+                int64_t start = args[3].as.i;
+                int64_t n = args[4].as.i;
+                int64_t total = s ? (int64_t)strlen(s) : 0;
+                if (!out) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_copy_from_string_slice_at: out must be u8_buf"); break; }
+                if (dst_start < 0 || start < 0 || n < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_copy_from_string_slice_at: negative range"); break; }
+                if (!avm_native_byte_range_ok((int64_t)out->len, dst_start, n) || !avm_native_byte_range_ok(total, start, n) || n > 0x7fffffffLL) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_copy_from_string_slice_at: out of bounds");
+                    break;
+                }
+                if (n > 0) memcpy(out->data + dst_start, s + start, (size_t)n);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_u8_buf_copy_from_string_slice_at expects (u8_buf, int, string, int, int)");
+            }
+            break;
+        }

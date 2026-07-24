@@ -403,6 +403,22 @@ fn oren_u8_buf_copy_from_string_slice(out, s, start, len) {
     return out
 }
 
+fn oren_u8_buf_copy_from_string_slice_at(out, dst_start, s, start, len) {
+    if native_bytes_is_u8_buf(out) != true { return oren_err(4, "u8_buf_copy_from_string_slice_at: out must be u8_buf") }
+    if s == 0 || native_value_is_nil(s) { return oren_err(4, "u8_buf_copy_from_string_slice_at: s must be string") }
+    if native_is_string_ptr(s) == 0 { return oren_err(4, "u8_buf_copy_from_string_slice_at: s must be string") }
+    if dst_start < 0 || start < 0 || len < 0 { return oren_err(4, "u8_buf_copy_from_string_slice_at: negative range") }
+    var out_len = ptr_get(out + 0)
+    var total = oren_string_len(s)
+    if total < 0 { return oren_err(4, "u8_buf_copy_from_string_slice_at: invalid string") }
+    if native_bytes_range_ok(out_len, dst_start, len) != true { return oren_err(4, "u8_buf_copy_from_string_slice_at: out of bounds") }
+    if native_bytes_range_ok(total, start, len) != true { return oren_err(4, "u8_buf_copy_from_string_slice_at: out of bounds") }
+    var data = native_buf_data_ptr(out)
+    if data == 0 && len > 0 { return oren_err(8, "u8_buf_copy_from_string_slice_at: payload is nil") }
+    if len > 0 { oren_memcpy(data + dst_start, s + start, len) }
+    return out
+}
+
 // Build a string (NUL-terminated) from a byte container.
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {

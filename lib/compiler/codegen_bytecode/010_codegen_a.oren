@@ -1042,6 +1042,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_u8_buf_from_bytes_slice" { native_id = 162 }
         if name == "oren_u8_buf_from_string_slice" { native_id = 231 }
         if name == "oren_u8_buf_copy_from_string_slice" { native_id = 232 }
+        if name == "oren_u8_buf_copy_from_string_slice_at" { native_id = 233 }
         if name == "oren_err" { native_id = 19 }
         if name == "oren_is_err" { native_id = 20 }
         if name == "oren_err_code" { native_id = 21 }

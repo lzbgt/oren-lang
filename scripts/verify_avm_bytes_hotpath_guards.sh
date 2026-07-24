@@ -1078,7 +1078,7 @@ fi
 
 buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
 if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
-  ! grep -Fq 'ptr_set_byte(data + s[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_view_impl" ||
+  ! grep -Fq 'return oren_u8_buf_copy_from_string_slice_at(s[0], s[1], text, off, n)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'var input_ptr = bytesm.view_ptr(bv)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], bytesm.view_get_u8_from(input_data, input_ptr, off + i) & 255)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'ptr_set_byte(data + s[1] + i * s[3], raw._load_u8_direct(src, i) & 255)' <<<"$buffer_view_impl" ||
@@ -1090,7 +1090,15 @@ if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" 
   ! grep -Fq 'return _u8_view_copy_from_string_range(strided_store_u8, s, s[2], text, off, n, ctx)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'fn slice_copy_from_u8_buf(s, src) { return _slice_copy_from_u8_buf_direct' lib/std/buffer/view.oren ||
   ! grep -Fq 'fn strided_to_u8_buf(s) { return _strided_to_u8_buf_direct' lib/std/buffer/view.oren; then
-  echo "ERROR: std:buffer contiguous/strided u8 copies and strided exports must hoist byte-view inputs and use direct byte writes before fallback stores" >&2
+  echo "ERROR: std:buffer contiguous/strided u8 copies and strided exports must hoist byte-view inputs, use bulk contiguous string copies, and keep direct strided byte writes before fallback stores" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'if name == "oren_u8_buf_copy_from_string_slice_at" { native_id = 233 }' lib/compiler/codegen_bytecode/010_codegen_a.oren ||
+  ! grep -Fq 'case 233: { // oren_u8_buf_copy_from_string_slice_at' lib/avm/avm_native_byte_iter_cases.inc ||
+  ! grep -Fq 'OrenValue oren_u8_buf_copy_from_string_slice_at' lib/runtime/050_io_misc.inc ||
+  ! grep -Fq 'fn oren_u8_buf_copy_from_string_slice_at' lib/runtime_native/160_iteration.oren; then
+  echo "ERROR: offset-aware u8_buf string-slice bulk copy must be wired across native, C, bytecode, and AVM" >&2
   exit 1
 fi
 

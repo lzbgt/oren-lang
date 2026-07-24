@@ -483,6 +483,7 @@ fn infer_container_kind(expr, kind_env) {
             if nm == "oren_bytes_from_string_ptr" { return "buf" }
             if nm == "oren_u8_buf_from_string_slice" { return "buf" }
             if nm == "oren_u8_buf_copy_from_string_slice" { return "buf" }
+            if nm == "oren_u8_buf_copy_from_string_slice_at" { return "buf" }
             if nm == "oren_bytes_unpack" { return "list" }
             // Common string-returning helpers (best-effort) so map key-kind inference can
             // avoid unsafe pointer/int heuristics in x64 native.

@@ -872,6 +872,34 @@ OrenValue oren_u8_buf_copy_from_string_slice(OrenValue out, OrenValue s, OrenVal
     return out;
 }
 
+OrenValue oren_u8_buf_copy_from_string_slice_at(OrenValue out, OrenValue dst_start, OrenValue s, OrenValue start, OrenValue len) {
+    if (out.type != OREN_TYPE_U8_BUF || dst_start.type != OREN_TYPE_INT || s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice_at expects (u8_buf, int, string, int, int)"));
+    }
+    OrenBuf* b = out.as.buf_val;
+    if (!b || b->elem_size != 1u) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice_at: out must be u8_buf"));
+    }
+    long long d0 = dst_start.as.int_val;
+    long long s0 = start.as.int_val;
+    long long n0 = len.as.int_val;
+    if (d0 < 0 || s0 < 0 || n0 < 0) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice_at: negative range"));
+    }
+    size_t dst = (size_t)d0;
+    size_t off = (size_t)s0;
+    size_t n = (size_t)n0;
+    size_t total = strlen(s.as.string_val);
+    if (n0 > (long long)INT32_MAX || !runtime_bytes_range_ok_size((size_t)b->len, dst, n) || !runtime_bytes_range_ok_size(total, off, n)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice_at: out of bounds"));
+    }
+    if (n > 0 && !b->data) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_copy_from_string_slice_at: u8_buf payload is nil"));
+    }
+    if (n > 0) memcpy(b->data + dst, s.as.string_val + off, n);
+    return out;
+}
+
 OrenValue oren_string_from_bytes(OrenValue bytes) {
     size_t n = 0;
     const char* err_msg = NULL;

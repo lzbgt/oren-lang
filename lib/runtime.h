@@ -595,6 +595,7 @@ OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
 // Build or fill u8_buf values directly from checked string slices.
 OrenValue oren_u8_buf_from_string_slice(OrenValue s, OrenValue start, OrenValue len);
 OrenValue oren_u8_buf_copy_from_string_slice(OrenValue out, OrenValue s, OrenValue start, OrenValue len);
+OrenValue oren_u8_buf_copy_from_string_slice_at(OrenValue out, OrenValue dst_start, OrenValue s, OrenValue start, OrenValue len);
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
 // Like `oren_string_slice`, but assumes the caller already validated bounds against a known length.
 // This avoids repeated O(n) `strlen` scans in compiler hot paths (e.g., runtime include expansion).

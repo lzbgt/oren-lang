@@ -2808,7 +2808,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   output before string conversion.
   Contiguous u8 slice and dense u8 matrix copies from `u8_buf`, string,
   flat-list, or row-list sources now use shared byte-span copy/direct byte-write
-  paths before falling back to checked per-element view stores; non-contiguous
+  paths, including offset-aware string-slice bulk copies into `u8_buf` slice
+  views, before falling back to checked per-element view stores; non-contiguous
   byte-copy fallbacks now hoist shared byte-view backing pointers once per call.
   Codec and byte APIs now expose trait-backed method surfaces for the rolling
   stdlib style: `"{}".json().text()`, `"a: 1\n".yaml().text()`,
