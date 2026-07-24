@@ -1,0 +1,47 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("buffer_u8_mat_string_copy FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn main() {
+    var mat = buffer.u8_mat_pack_strings(["AB", "CD"])
+    assert_true(!oren_is_err(mat), 1)
+
+    var rc = buffer.u8_mat_copy_from_string(mat, "WXYZ")
+    assert_true(!oren_is_err(rc), 2)
+    assert_eq(buffer.u8_mat_to_string(mat), "WXYZ", 3)
+
+    rc = buffer.u8_mat_copy_from_string_slice(mat, "pqrst", 1, 4)
+    assert_true(!oren_is_err(rc), 4)
+    assert_eq(buffer.u8_mat_to_string(mat), "qrst", 5)
+
+    var backing = buffer.u8_from_string("..ABCD..")
+    assert_true(!oren_is_err(backing), 6)
+    var offset_mat = buffer.mat_view_new(backing, 2, 2, 2, 2)
+    assert_true(!oren_is_err(offset_mat), 7)
+
+    rc = buffer.u8_mat_copy_from_string_slice(offset_mat, "012345", 1, 4)
+    assert_true(!oren_is_err(rc), 8)
+    assert_eq(buffer.u8_to_string(backing), "..1234..", 9)
+    assert_eq(buffer.u8_mat_to_string(offset_mat), "1234", 10)
+
+    assert_true(oren_is_err(buffer.u8_mat_copy_from_string(mat, "abc")), 11)
+    assert_true(oren_is_err(buffer.u8_mat_copy_from_string_slice(mat, "abc", 0, 3)), 12)
+
+    print("buffer_u8_mat_string_copy OK")
+    exit(0)
+}
+
+main()

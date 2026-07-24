@@ -254,13 +254,7 @@ fn _u8_mat_copy_from_string_range(m, text, off, n, ctx) {
     if oren_is_err(text_len) { return text_len }
     if off + n > text_len { return oren_err(4, ctx + ": slice out of bounds") }
     if oren_is_u8_buf(m[0]) == true && m[4] == m[3] {
-        var data = oren_buf_data_ptr_unchecked(m[0])
-        var i = 0
-        while i < total {
-            ptr_set_byte(data + m[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)
-            i = i + 1
-        }
-        return m[0]
+        return oren_u8_buf_copy_from_string_slice_at(m[0], m[1], text, off, total)
     }
     var r = 0
     while r < m[2] {

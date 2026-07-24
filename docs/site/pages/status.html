@@ -2991,7 +2991,7 @@
 <p>  Contiguous u8 slice and dense u8 matrix copies from <code>u8_buf</code>, string,</p>
 <p>  flat-list, or row-list sources now use shared byte-span copy/direct byte-write</p>
 <p>  paths, including offset-aware string-slice bulk copies into <code>u8_buf</code> slice</p>
-<p>  views, before falling back to checked per-element view stores; non-contiguous</p>
+<p>  and dense matrix views, before falling back to checked per-element view stores; non-contiguous</p>
 <p>  byte-copy fallbacks now hoist shared byte-view backing pointers once per call.</p>
 <p>  Codec and byte APIs now expose trait-backed method surfaces for the rolling</p>
 <p>  stdlib style: <code>&quot;{}&quot;.json().text()</code>, <code>&quot;a: 1\n&quot;.yaml().text()</code>,</p>

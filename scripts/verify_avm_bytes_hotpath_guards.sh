@@ -1143,9 +1143,9 @@ if ! grep -Fq 'bytesm.copy_into(m[0], m[1], src, 0, total)' <<<"$buffer_u8_mat_i
 fi
 
 buffer_u8_mat_string_impl="$(sed -n '/fn _u8_mat_copy_from_string_range/,/fn u8_mat_copy_from_bytes/p' lib/std/buffer/mat_u8.oren)"
-if ! grep -Fq 'ptr_set_byte(data + m[1] + i, oren_string_byte_at_unchecked(text, off + i) & 255)' <<<"$buffer_u8_mat_string_impl" ||
+if ! grep -Fq 'return oren_u8_buf_copy_from_string_slice_at(m[0], m[1], text, off, total)' <<<"$buffer_u8_mat_string_impl" ||
   ! grep -Fq 'var rc = view.slice_store_u8(row, c, oren_string_byte_at_unchecked(text, idx) & 255)' <<<"$buffer_u8_mat_string_impl"; then
-  echo "ERROR: std:buffer dense u8 matrix copies from strings must use direct byte writes before falling back to checked row stores" >&2
+  echo "ERROR: std:buffer dense u8 matrix copies from strings must use offset-aware bulk string copies before falling back to checked row stores" >&2
   exit 1
 fi
 
