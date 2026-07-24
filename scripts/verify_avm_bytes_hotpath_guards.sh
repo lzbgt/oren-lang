@@ -384,6 +384,7 @@ if ! grep -Fq 'avm_native_bytes_copy_span(args[0], start, n, (uint8_t*)out' <<<"
 fi
 
 native_byte_helpers="lib/runtime_native/180_bytes_helpers.oren"
+std_strings_to_bytes_impl="$(sed -n '/fn to_bytes(s)/,/fn from_bytes(bs)/p' lib/std/strings.oren)"
 native_string_impl="$(sed -n '/fn oren_string_from_bytes(bytes)/,/fn string_concat/p' lib/runtime_native/160_iteration.oren)"
 native_copy_helper="$(sed -n '/fn native_bytes_copy_span(bytes/,/^}/p' "$native_byte_helpers")"
 native_copy_list_helper="$(sed -n '/fn native_bytes_copy_span_to_int_list(bytes/,/^}/p' "$native_byte_helpers")"
@@ -414,6 +415,12 @@ if ! grep -Fq 'oren_string_from_bytes_slice(bytes, 0, total)' <<<"$native_string
   grep -Fq 'ptr_get(list_buf + j * 8)' <<<"$native_pack_unpack_impl" ||
   grep -Fq 'ptr_get(in_buf + i * 8)' <<<"$native_pack_unpack_impl"; then
   echo "ERROR: native string/slice/pack/unpack helpers must route through shared copy-span helpers instead of duplicating list/LIST_INT loops" >&2
+  exit 1
+fi
+if ! grep -Fq 'return oren_bytes_from_string(s)' <<<"$std_strings_to_bytes_impl" ||
+  grep -Fq 'while i < n' <<<"$std_strings_to_bytes_impl" ||
+  grep -Fq '_byte_at_raw(s, i)' <<<"$std_strings_to_bytes_impl"; then
+  echo "ERROR: std:strings.to_bytes must route validated strings through byte-native runtime conversion, not a per-byte stdlib loop" >&2
   exit 1
 fi
 

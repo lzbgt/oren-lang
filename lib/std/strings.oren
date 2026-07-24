@@ -10,15 +10,7 @@ fn _byte_at_raw(s, i) { return oren_string_byte_at_unchecked(s, i) & 255 }
 
 fn to_bytes(s) {
     if _is_string(s) == false { return oren_err(4, "strings.to_bytes: s must be string") }
-    var n = _len_raw(s)
-    var out = oren_u8_buf_new_uninit(n)
-    var data = oren_buf_data_ptr_unchecked(out)
-    var i = 0
-    while i < n {
-        ptr_set_byte(data + i, _byte_at_raw(s, i))
-        i = i + 1
-    }
-    return out
+    return oren_bytes_from_string(s)
 }
 
 fn from_bytes(bs) {
