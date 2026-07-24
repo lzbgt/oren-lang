@@ -1,27 +1,5 @@
+import chk "std:math/mat4_checks"
 import math "std:math"
-
-fn _finite_scalar(x: f64, ctx) {
-    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
-    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
-    return 0
-}
-
-fn _check(m, ctx) {
-    if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
-    var i = 0
-    while i < 16 {
-        var ok = _finite_scalar(m[i], ctx)
-        if oren_is_err(ok) { return ok }
-        i = i + 1
-    }
-    return 0
-}
-
-fn _close_abs_scalar(a: f64, b: f64, abs_tol: f64, ctx) {
-    var ok = math.isclose_abs(a, b, abs_tol)
-    if oren_is_err(ok) { return oren_err(4, ctx + ": invalid tolerance") }
-    return ok
-}
 
 fn _shape_cell_ok(v: f64, idx: i64, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_translation: bool, abs_tol: f64, ctx) {
     var expect: f64 = 0.0
@@ -32,11 +10,11 @@ fn _shape_cell_ok(v: f64, idx: i64, diag0: f64, diag5: f64, diag10: f64, diag15:
     else if idx == 15 { expect = diag15 }
     else if allow_translation && (idx == 3 || idx == 7 || idx == 11) { fixed = false }
     if !fixed { return true }
-    return _close_abs_scalar(v, expect, abs_tol, ctx)
+    return chk._close_abs_scalar(v, expect, abs_tol, ctx)
 }
 
 fn _shape_abs(m, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_translation: bool, abs_tol: f64, ctx) {
-    var ok = _check(m, ctx)
+    var ok = chk._check(m, ctx)
     if oren_is_err(ok) { return ok }
     var i = 0
     while i < 16 {
@@ -50,13 +28,13 @@ fn _shape_abs(m, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_transla
 
 fn _basis_dot(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, ctx) {
     var out: f64 = x0 * x1 + y0 * y1 + z0 * z1
-    var ok = _finite_scalar(out, ctx)
+    var ok = chk._finite_scalar(out, ctx)
     if oren_is_err(ok) { return ok }
     return out
 }
 
 fn is_finite(m) {
-    return !oren_is_err(_check(m, "mat4.is_finite"))
+    return !oren_is_err(chk._check(m, "mat4.is_finite"))
 }
 
 fn isfinite(m) {
@@ -64,7 +42,7 @@ fn isfinite(m) {
 }
 
 fn is_affine(m) {
-    var ok = _check(m, "mat4.is_affine")
+    var ok = chk._check(m, "mat4.is_affine")
     if oren_is_err(ok) { return false }
     var m12: f64 = m[12]
     var m13: f64 = m[13]
@@ -78,7 +56,7 @@ fn is_affine(m) {
 }
 
 fn is_affine_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_affine_abs")
+    var ok = chk._check(m, "mat4.is_affine_abs")
     if oren_is_err(ok) { return ok }
     ok = math.isclose_abs(m[12], 0.0, abs_tol)
     if oren_is_err(ok) { return ok }
@@ -93,7 +71,7 @@ fn is_affine_abs(m, abs_tol: f64) {
 }
 
 fn has_perspective(m) {
-    var ok = _check(m, "mat4.has_perspective")
+    var ok = chk._check(m, "mat4.has_perspective")
     if oren_is_err(ok) { return false }
     return !is_affine(m)
 }
@@ -105,9 +83,9 @@ fn has_perspective_abs(m, abs_tol: f64) {
 }
 
 fn equals(a, b) {
-    var ca = _check(a, "mat4.equals")
+    var ca = chk._check(a, "mat4.equals")
     if oren_is_err(ca) { return ca }
-    var cb = _check(b, "mat4.equals")
+    var cb = chk._check(b, "mat4.equals")
     if oren_is_err(cb) { return cb }
     var i = 0
     while i < 16 {
@@ -120,9 +98,9 @@ fn equals(a, b) {
 }
 
 fn allclose_abs(a, b, abs_tol: f64) {
-    var ca = _check(a, "mat4.allclose_abs")
+    var ca = chk._check(a, "mat4.allclose_abs")
     if oren_is_err(ca) { return ca }
-    var cb = _check(b, "mat4.allclose_abs")
+    var cb = chk._check(b, "mat4.allclose_abs")
     if oren_is_err(cb) { return cb }
     var i = 0
     while i < 16 {
@@ -137,9 +115,9 @@ fn allclose_abs(a, b, abs_tol: f64) {
 }
 
 fn allclose(a, b, rel_tol: f64, abs_tol: f64) {
-    var ca = _check(a, "mat4.allclose")
+    var ca = chk._check(a, "mat4.allclose")
     if oren_is_err(ca) { return ca }
-    var cb = _check(b, "mat4.allclose")
+    var cb = chk._check(b, "mat4.allclose")
     if oren_is_err(cb) { return cb }
     var i = 0
     while i < 16 {
@@ -162,13 +140,13 @@ fn is_identity_abs(m, abs_tol: f64) {
 }
 
 fn is_diagonal(m) {
-    var ok = _check(m, "mat4.is_diagonal")
+    var ok = chk._check(m, "mat4.is_diagonal")
     if oren_is_err(ok) { return ok }
     return _shape_abs(m, m[0], m[5], m[10], m[15], false, 0.0, "mat4.is_diagonal")
 }
 
 fn is_diagonal_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_diagonal_abs")
+    var ok = chk._check(m, "mat4.is_diagonal_abs")
     if oren_is_err(ok) { return ok }
     return _shape_abs(m, m[0], m[5], m[10], m[15], false, abs_tol, "mat4.is_diagonal_abs")
 }
@@ -182,13 +160,13 @@ fn is_translation_abs(m, abs_tol: f64) {
 }
 
 fn is_scale(m) {
-    var ok = _check(m, "mat4.is_scale")
+    var ok = chk._check(m, "mat4.is_scale")
     if oren_is_err(ok) { return ok }
     return _shape_abs(m, m[0], m[5], m[10], 1.0, false, 0.0, "mat4.is_scale")
 }
 
 fn is_scale_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_scale_abs")
+    var ok = chk._check(m, "mat4.is_scale_abs")
     if oren_is_err(ok) { return ok }
     return _shape_abs(m, m[0], m[5], m[10], 1.0, false, abs_tol, "mat4.is_scale_abs")
 }
@@ -201,33 +179,33 @@ fn is_uniform_scale_abs(m, abs_tol: f64) {
     var ok = is_scale_abs(m, abs_tol)
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[0], m[5], abs_tol, "mat4.is_uniform_scale_abs")
+    ok = chk._close_abs_scalar(m[0], m[5], abs_tol, "mat4.is_uniform_scale_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[0], m[10], abs_tol, "mat4.is_uniform_scale_abs")
+    ok = chk._close_abs_scalar(m[0], m[10], abs_tol, "mat4.is_uniform_scale_abs")
     if oren_is_err(ok) { return ok }
     return ok
 }
 
 fn is_symmetric_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_symmetric_abs")
+    var ok = chk._check(m, "mat4.is_symmetric_abs")
     if oren_is_err(ok) { return ok }
-    ok = _close_abs_scalar(m[1], m[4], abs_tol, "mat4.is_symmetric_abs")
-    if oren_is_err(ok) { return ok }
-    if !ok { return false }
-    ok = _close_abs_scalar(m[2], m[8], abs_tol, "mat4.is_symmetric_abs")
+    ok = chk._close_abs_scalar(m[1], m[4], abs_tol, "mat4.is_symmetric_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[3], m[12], abs_tol, "mat4.is_symmetric_abs")
+    ok = chk._close_abs_scalar(m[2], m[8], abs_tol, "mat4.is_symmetric_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[6], m[9], abs_tol, "mat4.is_symmetric_abs")
+    ok = chk._close_abs_scalar(m[3], m[12], abs_tol, "mat4.is_symmetric_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[7], m[13], abs_tol, "mat4.is_symmetric_abs")
+    ok = chk._close_abs_scalar(m[6], m[9], abs_tol, "mat4.is_symmetric_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[11], m[14], abs_tol, "mat4.is_symmetric_abs")
+    ok = chk._close_abs_scalar(m[7], m[13], abs_tol, "mat4.is_symmetric_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = chk._close_abs_scalar(m[11], m[14], abs_tol, "mat4.is_symmetric_abs")
     if oren_is_err(ok) { return ok }
     return ok
 }
@@ -237,24 +215,24 @@ fn is_symmetric(m) {
 }
 
 fn is_upper_triangular_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_upper_triangular_abs")
+    var ok = chk._check(m, "mat4.is_upper_triangular_abs")
     if oren_is_err(ok) { return ok }
-    ok = _close_abs_scalar(m[4], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
-    if oren_is_err(ok) { return ok }
-    if !ok { return false }
-    ok = _close_abs_scalar(m[8], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    ok = chk._close_abs_scalar(m[4], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[9], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    ok = chk._close_abs_scalar(m[8], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[12], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    ok = chk._close_abs_scalar(m[9], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[13], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    ok = chk._close_abs_scalar(m[12], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[14], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    ok = chk._close_abs_scalar(m[13], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = chk._close_abs_scalar(m[14], 0.0, abs_tol, "mat4.is_upper_triangular_abs")
     if oren_is_err(ok) { return ok }
     return ok
 }
@@ -264,24 +242,24 @@ fn is_upper_triangular(m) {
 }
 
 fn is_lower_triangular_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_lower_triangular_abs")
+    var ok = chk._check(m, "mat4.is_lower_triangular_abs")
     if oren_is_err(ok) { return ok }
-    ok = _close_abs_scalar(m[1], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
-    if oren_is_err(ok) { return ok }
-    if !ok { return false }
-    ok = _close_abs_scalar(m[2], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    ok = chk._close_abs_scalar(m[1], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[3], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    ok = chk._close_abs_scalar(m[2], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[6], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    ok = chk._close_abs_scalar(m[3], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[7], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    ok = chk._close_abs_scalar(m[6], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[11], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    ok = chk._close_abs_scalar(m[7], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = chk._close_abs_scalar(m[11], 0.0, abs_tol, "mat4.is_lower_triangular_abs")
     if oren_is_err(ok) { return ok }
     return ok
 }
@@ -291,7 +269,7 @@ fn is_lower_triangular(m) {
 }
 
 fn is_orthonormal_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_orthonormal_abs")
+    var ok = chk._check(m, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     var xx = _basis_dot(m[0], m[4], m[8], m[0], m[4], m[8], "mat4.is_orthonormal_abs")
     if oren_is_err(xx) { return xx }
@@ -306,22 +284,22 @@ fn is_orthonormal_abs(m, abs_tol: f64) {
     var yz = _basis_dot(m[1], m[5], m[9], m[2], m[6], m[10], "mat4.is_orthonormal_abs")
     if oren_is_err(yz) { return yz }
 
-    ok = _close_abs_scalar(xx, 1.0, abs_tol, "mat4.is_orthonormal_abs")
+    ok = chk._close_abs_scalar(xx, 1.0, abs_tol, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(yy, 1.0, abs_tol, "mat4.is_orthonormal_abs")
+    ok = chk._close_abs_scalar(yy, 1.0, abs_tol, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(zz, 1.0, abs_tol, "mat4.is_orthonormal_abs")
+    ok = chk._close_abs_scalar(zz, 1.0, abs_tol, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(xy, 0.0, abs_tol, "mat4.is_orthonormal_abs")
+    ok = chk._close_abs_scalar(xy, 0.0, abs_tol, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(xz, 0.0, abs_tol, "mat4.is_orthonormal_abs")
+    ok = chk._close_abs_scalar(xz, 0.0, abs_tol, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(yz, 0.0, abs_tol, "mat4.is_orthonormal_abs")
+    ok = chk._close_abs_scalar(yz, 0.0, abs_tol, "mat4.is_orthonormal_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
     return true
@@ -332,18 +310,18 @@ fn is_orthonormal(m) {
 }
 
 fn is_rigid_transform_abs(m, abs_tol: f64) {
-    var ok = _check(m, "mat4.is_rigid_transform_abs")
+    var ok = chk._check(m, "mat4.is_rigid_transform_abs")
     if oren_is_err(ok) { return ok }
-    ok = _close_abs_scalar(m[12], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
-    if oren_is_err(ok) { return ok }
-    if !ok { return false }
-    ok = _close_abs_scalar(m[13], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
+    ok = chk._close_abs_scalar(m[12], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[14], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
+    ok = chk._close_abs_scalar(m[13], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
-    ok = _close_abs_scalar(m[15], 1.0, abs_tol, "mat4.is_rigid_transform_abs")
+    ok = chk._close_abs_scalar(m[14], 0.0, abs_tol, "mat4.is_rigid_transform_abs")
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = chk._close_abs_scalar(m[15], 1.0, abs_tol, "mat4.is_rigid_transform_abs")
     if oren_is_err(ok) { return ok }
     if !ok { return false }
     return is_orthonormal_abs(m, abs_tol)

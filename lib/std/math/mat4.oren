@@ -1,66 +1,8 @@
 import math "std:math"
+import chk "std:math/mat4_checks"
 import pred "std:math/mat4_predicates"
 import quat "std:math/quat"
 import viewport "std:math/mat4_viewport"
-
-fn _finite_scalar(x: f64, ctx) {
-    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
-    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
-    return 0
-}
-
-fn _finite3(x: f64, y: f64, z: f64, ctx) {
-    var a = _finite_scalar(x, ctx)
-    if oren_is_err(a) { return a }
-    var b = _finite_scalar(y, ctx)
-    if oren_is_err(b) { return b }
-    return _finite_scalar(z, ctx)
-}
-
-fn _finite4(a: f64, b: f64, c: f64, d: f64, ctx) {
-    var x = _finite3(a, b, c, ctx)
-    if oren_is_err(x) { return x }
-    return _finite_scalar(d, ctx)
-}
-
-fn _finite6(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, ctx) {
-    var x = _finite3(a, b, c, ctx)
-    if oren_is_err(x) { return x }
-    return _finite3(d, e, f, ctx)
-}
-
-fn _check(m, ctx) {
-    if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
-    var i = 0
-    while i < 16 {
-        var ok = _finite_scalar(m[i], ctx)
-        if oren_is_err(ok) { return ok }
-        i = i + 1
-    }
-    return 0
-}
-
-fn _check_vec4(v, ctx) {
-    if oren_list_len(v) != 4 { return oren_err(4, ctx + ": expected 4 values") }
-    var i = 0
-    while i < 4 {
-        var ok = _finite_scalar(v[i], ctx)
-        if oren_is_err(ok) { return ok }
-        i = i + 1
-    }
-    return 0
-}
-
-fn _check_vec3(v, ctx) {
-    if oren_list_len(v) != 3 { return oren_err(4, ctx + ": expected 3 values") }
-    var i = 0
-    while i < 3 {
-        var ok = _finite_scalar(v[i], ctx)
-        if oren_is_err(ok) { return ok }
-        i = i + 1
-    }
-    return 0
-}
 
 fn is_finite(m) {
     return pred.is_finite(m)
@@ -162,12 +104,6 @@ fn is_lower_triangular(m) {
     return pred.is_lower_triangular(m)
 }
 
-fn _close_abs_scalar(a: f64, b: f64, abs_tol: f64, ctx) {
-    var ok = math.isclose_abs(a, b, abs_tol)
-    if oren_is_err(ok) { return oren_err(4, ctx + ": invalid tolerance") }
-    return ok
-}
-
 fn is_orthonormal_abs(m, abs_tol: f64) {
     return pred.is_orthonormal_abs(m, abs_tol)
 }
@@ -218,7 +154,7 @@ fn inverse_rigid_transform_abs(m, abs_tol: f64) {
         m2, m6, m10, itz,
         0.0, 0.0, 0.0, 1.0
     ]
-    var ok = _check(out, "mat4.inverse_rigid_transform_abs")
+    var ok = chk._check(out, "mat4.inverse_rigid_transform_abs")
     if oren_is_err(ok) { return ok }
     return out
 }
@@ -236,19 +172,19 @@ fn rigid_inverse(m) {
 }
 
 fn basis_x(m) {
-    var ok = _check(m, "mat4.basis_x")
+    var ok = chk._check(m, "mat4.basis_x")
     if oren_is_err(ok) { return ok }
     return [m[0], m[4], m[8]]
 }
 
 fn basis_y(m) {
-    var ok = _check(m, "mat4.basis_y")
+    var ok = chk._check(m, "mat4.basis_y")
     if oren_is_err(ok) { return ok }
     return [m[1], m[5], m[9]]
 }
 
 fn basis_z(m) {
-    var ok = _check(m, "mat4.basis_z")
+    var ok = chk._check(m, "mat4.basis_z")
     if oren_is_err(ok) { return ok }
     return [m[2], m[6], m[10]]
 }
@@ -266,31 +202,31 @@ fn forward(m) {
 }
 
 fn row0(m) {
-    var ok = _check(m, "mat4.row0")
+    var ok = chk._check(m, "mat4.row0")
     if oren_is_err(ok) { return ok }
     return [m[0], m[1], m[2], m[3]]
 }
 
 fn row1(m) {
-    var ok = _check(m, "mat4.row1")
+    var ok = chk._check(m, "mat4.row1")
     if oren_is_err(ok) { return ok }
     return [m[4], m[5], m[6], m[7]]
 }
 
 fn row2(m) {
-    var ok = _check(m, "mat4.row2")
+    var ok = chk._check(m, "mat4.row2")
     if oren_is_err(ok) { return ok }
     return [m[8], m[9], m[10], m[11]]
 }
 
 fn row3(m) {
-    var ok = _check(m, "mat4.row3")
+    var ok = chk._check(m, "mat4.row3")
     if oren_is_err(ok) { return ok }
     return [m[12], m[13], m[14], m[15]]
 }
 
 fn row(m, index: int) {
-    var ok = _check(m, "mat4.row")
+    var ok = chk._check(m, "mat4.row")
     if oren_is_err(ok) { return ok }
     if index == 0 { return [m[0], m[1], m[2], m[3]] }
     if index == 1 { return [m[4], m[5], m[6], m[7]] }
@@ -300,7 +236,7 @@ fn row(m, index: int) {
 }
 
 fn column0(m) {
-    var ok = _check(m, "mat4.column0")
+    var ok = chk._check(m, "mat4.column0")
     if oren_is_err(ok) { return ok }
     return [m[0], m[4], m[8], m[12]]
 }
@@ -310,7 +246,7 @@ fn col0(m) {
 }
 
 fn column1(m) {
-    var ok = _check(m, "mat4.column1")
+    var ok = chk._check(m, "mat4.column1")
     if oren_is_err(ok) { return ok }
     return [m[1], m[5], m[9], m[13]]
 }
@@ -320,7 +256,7 @@ fn col1(m) {
 }
 
 fn column2(m) {
-    var ok = _check(m, "mat4.column2")
+    var ok = chk._check(m, "mat4.column2")
     if oren_is_err(ok) { return ok }
     return [m[2], m[6], m[10], m[14]]
 }
@@ -330,7 +266,7 @@ fn col2(m) {
 }
 
 fn column3(m) {
-    var ok = _check(m, "mat4.column3")
+    var ok = chk._check(m, "mat4.column3")
     if oren_is_err(ok) { return ok }
     return [m[3], m[7], m[11], m[15]]
 }
@@ -340,7 +276,7 @@ fn col3(m) {
 }
 
 fn column(m, index: int) {
-    var ok = _check(m, "mat4.column")
+    var ok = chk._check(m, "mat4.column")
     if oren_is_err(ok) { return ok }
     if index == 0 { return [m[0], m[4], m[8], m[12]] }
     if index == 1 { return [m[1], m[5], m[9], m[13]] }
@@ -360,7 +296,7 @@ fn _cell_index(row_index: int, column_index: int, ctx) {
 }
 
 fn at(m, row_index: int, column_index: int) {
-    var ok = _check(m, "mat4.at")
+    var ok = chk._check(m, "mat4.at")
     if oren_is_err(ok) { return ok }
     var idx = _cell_index(row_index, column_index, "mat4.at")
     if oren_is_err(idx) { return idx }
@@ -372,11 +308,11 @@ fn element(m, row_index: int, column_index: int) {
 }
 
 fn with_cell(m, row_index: int, column_index: int, value: f64) {
-    var ok = _check(m, "mat4.with_cell")
+    var ok = chk._check(m, "mat4.with_cell")
     if oren_is_err(ok) { return ok }
     var idx = _cell_index(row_index, column_index, "mat4.with_cell")
     if oren_is_err(idx) { return idx }
-    ok = _finite_scalar(value, "mat4.with_cell")
+    ok = chk._finite_scalar(value, "mat4.with_cell")
     if oren_is_err(ok) { return ok }
     var out = [
         m[0], m[1], m[2], m[3],
@@ -393,9 +329,9 @@ fn set_cell(m, row_index: int, column_index: int, value: f64) {
 }
 
 fn with_row(m, index: int, row_values) {
-    var ok = _check(m, "mat4.with_row")
+    var ok = chk._check(m, "mat4.with_row")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(row_values, "mat4.with_row")
+    ok = chk._check_vec4(row_values, "mat4.with_row")
     if oren_is_err(ok) { return ok }
     if index == 0 {
         return [
@@ -437,9 +373,9 @@ fn set_row(m, index: int, row_values) {
 }
 
 fn with_column(m, index: int, column_values) {
-    var ok = _check(m, "mat4.with_column")
+    var ok = chk._check(m, "mat4.with_column")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(column_values, "mat4.with_column")
+    ok = chk._check_vec4(column_values, "mat4.with_column")
     if oren_is_err(ok) { return ok }
     if index == 0 {
         return [
@@ -489,13 +425,13 @@ fn set_col(m, index: int, column_values) {
 }
 
 fn from_rows(r0, r1, r2, r3) {
-    var ok = _check_vec4(r0, "mat4.from_rows")
+    var ok = chk._check_vec4(r0, "mat4.from_rows")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(r1, "mat4.from_rows")
+    ok = chk._check_vec4(r1, "mat4.from_rows")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(r2, "mat4.from_rows")
+    ok = chk._check_vec4(r2, "mat4.from_rows")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(r3, "mat4.from_rows")
+    ok = chk._check_vec4(r3, "mat4.from_rows")
     if oren_is_err(ok) { return ok }
     return [
         r0[0], r0[1], r0[2], r0[3],
@@ -506,13 +442,13 @@ fn from_rows(r0, r1, r2, r3) {
 }
 
 fn from_columns(c0, c1, c2, c3) {
-    var ok = _check_vec4(c0, "mat4.from_columns")
+    var ok = chk._check_vec4(c0, "mat4.from_columns")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(c1, "mat4.from_columns")
+    ok = chk._check_vec4(c1, "mat4.from_columns")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(c2, "mat4.from_columns")
+    ok = chk._check_vec4(c2, "mat4.from_columns")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(c3, "mat4.from_columns")
+    ok = chk._check_vec4(c3, "mat4.from_columns")
     if oren_is_err(ok) { return ok }
     return [
         c0[0], c1[0], c2[0], c3[0],
@@ -523,13 +459,13 @@ fn from_columns(c0, c1, c2, c3) {
 }
 
 fn from_basis_translation(x_axis, y_axis, z_axis, translation_vec) {
-    var ok = _check_vec3(x_axis, "mat4.from_basis_translation")
+    var ok = chk._check_vec3(x_axis, "mat4.from_basis_translation")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(y_axis, "mat4.from_basis_translation")
+    ok = chk._check_vec3(y_axis, "mat4.from_basis_translation")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(z_axis, "mat4.from_basis_translation")
+    ok = chk._check_vec3(z_axis, "mat4.from_basis_translation")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(translation_vec, "mat4.from_basis_translation")
+    ok = chk._check_vec3(translation_vec, "mat4.from_basis_translation")
     if oren_is_err(ok) { return ok }
     return [
         x_axis[0], y_axis[0], z_axis[0], translation_vec[0],
@@ -561,13 +497,13 @@ fn _with_basis_unchecked(m, x_axis, y_axis, z_axis) {
 }
 
 fn with_basis(m, x_axis, y_axis, z_axis) {
-    var ok = _check(m, "mat4.with_basis")
+    var ok = chk._check(m, "mat4.with_basis")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(x_axis, "mat4.with_basis")
+    ok = chk._check_vec3(x_axis, "mat4.with_basis")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(y_axis, "mat4.with_basis")
+    ok = chk._check_vec3(y_axis, "mat4.with_basis")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(z_axis, "mat4.with_basis")
+    ok = chk._check_vec3(z_axis, "mat4.with_basis")
     if oren_is_err(ok) { return ok }
     return _with_basis_unchecked(m, x_axis, y_axis, z_axis)
 }
@@ -585,13 +521,13 @@ fn set_axes(m, x_axis, y_axis, z_axis) {
 }
 
 fn without_basis(m) {
-    var ok = _check(m, "mat4.without_basis")
+    var ok = chk._check(m, "mat4.without_basis")
     if oren_is_err(ok) { return ok }
     return _with_basis_unchecked(m, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
 }
 
 fn diagonal(m) {
-    var ok = _check(m, "mat4.diagonal")
+    var ok = chk._check(m, "mat4.diagonal")
     if oren_is_err(ok) { return ok }
     return [m[0], m[5], m[10], m[15]]
 }
@@ -601,7 +537,7 @@ fn diag(m) {
 }
 
 fn from_diagonal(d) {
-    var ok = _check_vec4(d, "mat4.from_diagonal")
+    var ok = chk._check_vec4(d, "mat4.from_diagonal")
     if oren_is_err(ok) { return ok }
     var d0: f64 = d[0]
     var d1: f64 = d[1]
@@ -620,7 +556,7 @@ fn from_diag(d) {
 }
 
 fn diagonal_matrix(x: f64, y: f64, z: f64, w: f64) {
-    var ok = _finite4(x, y, z, w, "mat4.diagonal_matrix")
+    var ok = chk._finite4(x, y, z, w, "mat4.diagonal_matrix")
     if oren_is_err(ok) { return ok }
     return [
         x, 0.0, 0.0, 0.0,
@@ -644,9 +580,9 @@ fn _with_diagonal_unchecked(m, d) {
 }
 
 fn with_diagonal(m, d) {
-    var ok = _check(m, "mat4.with_diagonal")
+    var ok = chk._check(m, "mat4.with_diagonal")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec4(d, "mat4.with_diagonal")
+    ok = chk._check_vec4(d, "mat4.with_diagonal")
     if oren_is_err(ok) { return ok }
     return _with_diagonal_unchecked(m, d)
 }
@@ -656,13 +592,13 @@ fn set_diagonal(m, d) {
 }
 
 fn without_diagonal(m) {
-    var ok = _check(m, "mat4.without_diagonal")
+    var ok = chk._check(m, "mat4.without_diagonal")
     if oren_is_err(ok) { return ok }
     return _with_diagonal_unchecked(m, [0.0, 0.0, 0.0, 0.0])
 }
 
 fn trace(m) {
-    var ok = _check(m, "mat4.trace")
+    var ok = chk._check(m, "mat4.trace")
     if oren_is_err(ok) { return ok }
     var m0: f64 = m[0]
     var m5: f64 = m[5]
@@ -674,7 +610,7 @@ fn trace(m) {
 }
 
 fn frobenius_norm_sq(m) {
-    var ok = _check(m, "mat4.frobenius_norm_sq")
+    var ok = chk._check(m, "mat4.frobenius_norm_sq")
     if oren_is_err(ok) { return ok }
     var out: f64 = 0.0
     var i = 0
@@ -688,7 +624,7 @@ fn frobenius_norm_sq(m) {
 }
 
 fn frobenius_norm(m) {
-    var ok = _check(m, "mat4.frobenius_norm")
+    var ok = chk._check(m, "mat4.frobenius_norm")
     if oren_is_err(ok) { return ok }
     var scale: f64 = 0.0
     var ssq: f64 = 1.0
@@ -723,7 +659,7 @@ fn norm(m) {
 }
 
 fn norm_one(m) {
-    var ok = _check(m, "mat4.norm_one")
+    var ok = chk._check(m, "mat4.norm_one")
     if oren_is_err(ok) { return ok }
     var best: f64 = 0.0
     var c = 0
@@ -748,7 +684,7 @@ fn one_norm(m) {
 }
 
 fn norm_inf(m) {
-    var ok = _check(m, "mat4.norm_inf")
+    var ok = chk._check(m, "mat4.norm_inf")
     if oren_is_err(ok) { return ok }
     var best: f64 = 0.0
     var r = 0
@@ -782,7 +718,7 @@ fn identity() {
 }
 
 fn translation(tx: f64, ty: f64, tz: f64) {
-    var ok = _finite3(tx, ty, tz, "mat4.translation")
+    var ok = chk._finite3(tx, ty, tz, "mat4.translation")
     if oren_is_err(ok) { return ok }
     return [
         1.0, 0.0, 0.0, tx,
@@ -801,7 +737,7 @@ fn translate(tx: f64, ty: f64, tz: f64) {
 }
 
 fn scale(sx: f64, sy: f64, sz: f64) {
-    var ok = _finite3(sx, sy, sz, "mat4.scale")
+    var ok = chk._finite3(sx, sy, sz, "mat4.scale")
     if oren_is_err(ok) { return ok }
     return [
         sx, 0.0, 0.0, 0.0,
@@ -820,7 +756,7 @@ fn scaling(sx: f64, sy: f64, sz: f64) {
 }
 
 fn rotation_x(radians: f64) {
-    var ok = _finite_scalar(radians, "mat4.rotation_x")
+    var ok = chk._finite_scalar(radians, "mat4.rotation_x")
     if oren_is_err(ok) { return ok }
     var c: f64 = math.cos(radians)
     var s: f64 = math.sin(radians)
@@ -833,7 +769,7 @@ fn rotation_x(radians: f64) {
 }
 
 fn rotation_y(radians: f64) {
-    var ok = _finite_scalar(radians, "mat4.rotation_y")
+    var ok = chk._finite_scalar(radians, "mat4.rotation_y")
     if oren_is_err(ok) { return ok }
     var c: f64 = math.cos(radians)
     var s: f64 = math.sin(radians)
@@ -846,7 +782,7 @@ fn rotation_y(radians: f64) {
 }
 
 fn rotation_z(radians: f64) {
-    var ok = _finite_scalar(radians, "mat4.rotation_z")
+    var ok = chk._finite_scalar(radians, "mat4.rotation_z")
     if oren_is_err(ok) { return ok }
     var c: f64 = math.cos(radians)
     var s: f64 = math.sin(radians)
@@ -897,9 +833,9 @@ fn from_quaternion(x: f64, y: f64, z: f64, w: f64) {
 }
 
 fn compose_trs(tx: f64, ty: f64, tz: f64, qx0: f64, qy0: f64, qz0: f64, qw0: f64, sx: f64, sy: f64, sz: f64) {
-    var t = _finite3(tx, ty, tz, "mat4.compose_trs")
+    var t = chk._finite3(tx, ty, tz, "mat4.compose_trs")
     if oren_is_err(t) { return t }
-    var s = _finite3(sx, sy, sz, "mat4.compose_trs")
+    var s = chk._finite3(sx, sy, sz, "mat4.compose_trs")
     if oren_is_err(s) { return s }
     var q = quat.normalize(qx0, qy0, qz0, qw0)
     if oren_is_err(q) { return q }
@@ -924,9 +860,9 @@ fn _with_translation_unchecked(m, tx: f64, ty: f64, tz: f64) {
 }
 
 fn with_translation(m, tx: f64, ty: f64, tz: f64) {
-    var ok = _check(m, "mat4.with_translation")
+    var ok = chk._check(m, "mat4.with_translation")
     if oren_is_err(ok) { return ok }
-    ok = _finite3(tx, ty, tz, "mat4.with_translation")
+    ok = chk._finite3(tx, ty, tz, "mat4.with_translation")
     if oren_is_err(ok) { return ok }
     return _with_translation_unchecked(m, tx, ty, tz)
 }
@@ -936,9 +872,9 @@ fn set_translation(m, tx: f64, ty: f64, tz: f64) {
 }
 
 fn with_translation_vec(m, translation_vec) {
-    var ok = _check(m, "mat4.with_translation_vec")
+    var ok = chk._check(m, "mat4.with_translation_vec")
     if oren_is_err(ok) { return ok }
-    ok = _check_vec3(translation_vec, "mat4.with_translation_vec")
+    ok = chk._check_vec3(translation_vec, "mat4.with_translation_vec")
     if oren_is_err(ok) { return ok }
     return _with_translation_unchecked(m, translation_vec[0], translation_vec[1], translation_vec[2])
 }
@@ -948,19 +884,19 @@ fn set_translation_vec(m, translation_vec) {
 }
 
 fn without_translation(m) {
-    var ok = _check(m, "mat4.without_translation")
+    var ok = chk._check(m, "mat4.without_translation")
     if oren_is_err(ok) { return ok }
     return _with_translation_unchecked(m, 0.0, 0.0, 0.0)
 }
 
 fn translation_of(m) {
-    var ok = _check(m, "mat4.translation_of")
+    var ok = chk._check(m, "mat4.translation_of")
     if oren_is_err(ok) { return ok }
     return [m[3], m[7], m[11]]
 }
 
 fn scale_of(m) {
-    var ok = _check(m, "mat4.scale_of")
+    var ok = chk._check(m, "mat4.scale_of")
     if oren_is_err(ok) { return ok }
     var m00: f64 = m[0]
     var m01: f64 = m[1]
@@ -984,7 +920,7 @@ fn scale_of(m) {
 }
 
 fn rotation_quat(m) {
-    var ok = _check(m, "mat4.rotation_quat")
+    var ok = chk._check(m, "mat4.rotation_quat")
     if oren_is_err(ok) { return ok }
     var s = scale_of(m)
     if oren_is_err(s) { return s }
@@ -1009,7 +945,7 @@ fn rotation_quat(m) {
 }
 
 fn decompose_trs(m) {
-    var ok = _check(m, "mat4.decompose_trs")
+    var ok = chk._check(m, "mat4.decompose_trs")
     if oren_is_err(ok) { return ok }
     var t = translation_of(m)
     if oren_is_err(t) { return t }
@@ -1029,7 +965,7 @@ fn decompose(m) {
 }
 
 fn ortho(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
-    var ok = _finite6(left, right, bottom, top, near_z, far_z, "mat4.ortho")
+    var ok = chk._finite6(left, right, bottom, top, near_z, far_z, "mat4.ortho")
     if oren_is_err(ok) { return ok }
     var rl: f64 = right - left
     var tb: f64 = top - bottom
@@ -1050,7 +986,7 @@ fn orthographic(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z
 }
 
 fn frustum(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64) {
-    var ok = _finite6(left, right, bottom, top, near_z, far_z, "mat4.frustum")
+    var ok = chk._finite6(left, right, bottom, top, near_z, far_z, "mat4.frustum")
     if oren_is_err(ok) { return ok }
     var rl: f64 = right - left
     var tb: f64 = top - bottom
@@ -1068,13 +1004,13 @@ fn frustum(left: f64, right: f64, bottom: f64, top: f64, near_z: f64, far_z: f64
 }
 
 fn perspective(fov_y_radians: f64, aspect: f64, near_z: f64, far_z: f64) {
-    var fov_ok = _finite_scalar(fov_y_radians, "mat4.perspective")
+    var fov_ok = chk._finite_scalar(fov_y_radians, "mat4.perspective")
     if oren_is_err(fov_ok) { return fov_ok }
-    var aspect_ok = _finite_scalar(aspect, "mat4.perspective")
+    var aspect_ok = chk._finite_scalar(aspect, "mat4.perspective")
     if oren_is_err(aspect_ok) { return aspect_ok }
-    var depth_ok = _finite_scalar(near_z, "mat4.perspective")
+    var depth_ok = chk._finite_scalar(near_z, "mat4.perspective")
     if oren_is_err(depth_ok) { return depth_ok }
-    depth_ok = _finite_scalar(far_z, "mat4.perspective")
+    depth_ok = chk._finite_scalar(far_z, "mat4.perspective")
     if oren_is_err(depth_ok) { return depth_ok }
     if fov_y_radians <= 0.0 { return oren_err(4, "mat4.perspective: invalid fov") }
     if fov_y_radians >= math.pi() { return oren_err(4, "mat4.perspective: invalid fov") }
@@ -1096,9 +1032,9 @@ fn perspective(fov_y_radians: f64, aspect: f64, near_z: f64, far_z: f64) {
 }
 
 fn look_at(eye_x: f64, eye_y: f64, eye_z: f64, target_x: f64, target_y: f64, target_z: f64, up_x: f64, up_y: f64, up_z: f64) {
-    var et = _finite6(eye_x, eye_y, eye_z, target_x, target_y, target_z, "mat4.look_at")
+    var et = chk._finite6(eye_x, eye_y, eye_z, target_x, target_y, target_z, "mat4.look_at")
     if oren_is_err(et) { return et }
-    var up = _finite3(up_x, up_y, up_z, "mat4.look_at")
+    var up = chk._finite3(up_x, up_y, up_z, "mat4.look_at")
     if oren_is_err(up) { return up }
     var fx0: f64 = target_x - eye_x
     var fy0: f64 = target_y - eye_y
@@ -1153,9 +1089,9 @@ fn _cell(a, b, r, c) {
 }
 
 fn mul(a, b) {
-    var ca = _check(a, "mat4.mul")
+    var ca = chk._check(a, "mat4.mul")
     if oren_is_err(ca) { return ca }
-    var cb = _check(b, "mat4.mul")
+    var cb = chk._check(b, "mat4.mul")
     if oren_is_err(cb) { return cb }
     var c00: f64 = _cell(a, b, 0, 0)
     var c01: f64 = _cell(a, b, 0, 1)
@@ -1200,7 +1136,7 @@ fn model_view_projection(model, view, projection) {
 }
 
 fn transpose(m) {
-    var cm = _check(m, "mat4.transpose")
+    var cm = chk._check(m, "mat4.transpose")
     if oren_is_err(cm) { return cm }
     return [
         m[0], m[4], m[8], m[12],
@@ -1215,7 +1151,7 @@ fn transposed(m) {
 }
 
 fn determinant(m) {
-    var cm = _check(m, "mat4.determinant")
+    var cm = chk._check(m, "mat4.determinant")
     if oren_is_err(cm) { return cm }
     var m0: f64 = m[0]
     var m1: f64 = m[1]
@@ -1270,7 +1206,7 @@ fn is_invertible_abs(m, abs_tol: f64) {
     var det0 = determinant(m)
     if oren_is_err(det0) { return det0 }
     var det: f64 = det0
-    var near_zero = _close_abs_scalar(det, 0.0, abs_tol, "mat4.is_invertible_abs")
+    var near_zero = chk._close_abs_scalar(det, 0.0, abs_tol, "mat4.is_invertible_abs")
     if oren_is_err(near_zero) { return near_zero }
     return !near_zero
 }
@@ -1290,7 +1226,7 @@ fn is_singular(m) {
 }
 
 fn _adjugate_checked(m, ctx) {
-    var cm = _check(m, ctx)
+    var cm = chk._check(m, ctx)
     if oren_is_err(cm) { return cm }
     var m0: f64 = m[0]
     var m1: f64 = m[1]
@@ -1330,7 +1266,7 @@ fn _adjugate_checked(m, ctx) {
         inv8, inv9, inv10, inv11,
         inv12, inv13, inv14, inv15
     ]
-    var ok = _check(out, ctx)
+    var ok = chk._check(out, ctx)
     if oren_is_err(ok) { return ok }
     return out
 }
@@ -1378,7 +1314,7 @@ fn inverse(m) {
         oren_list_push(out, v * inv_det)
         i = i + 1
     }
-    var ok = _check(out, "mat4.inverse")
+    var ok = chk._check(out, "mat4.inverse")
     if oren_is_err(ok) { return ok }
     return out
 }
@@ -1428,7 +1364,7 @@ fn cond_inf(m) {
 }
 
 fn inverse_affine(m) {
-    var cm = _check(m, "mat4.inverse_affine")
+    var cm = chk._check(m, "mat4.inverse_affine")
     if oren_is_err(cm) { return cm }
     var m12: f64 = m[12]
     var m13: f64 = m[13]
@@ -1469,7 +1405,7 @@ fn inverse_affine(m) {
         i20, i21, i22, 0.0 - (i20 * tx + i21 * ty + i22 * tz),
         0.0, 0.0, 0.0, 1.0
     ]
-    var ok = _check(out, "mat4.inverse_affine")
+    var ok = chk._check(out, "mat4.inverse_affine")
     if oren_is_err(ok) { return ok }
     return out
 }
@@ -1483,7 +1419,7 @@ fn affine_inverse_transform(m) {
 }
 
 fn normal_matrix3(m) {
-    var cm = _check(m, "mat4.normal_matrix3")
+    var cm = chk._check(m, "mat4.normal_matrix3")
     if oren_is_err(cm) { return cm }
     var inv = inverse(m)
     if oren_is_err(inv) { return inv }
@@ -1499,9 +1435,9 @@ fn normal_matrix(m) {
 }
 
 fn transform_point3(m, x: f64, y: f64, z: f64) {
-    var cm = _check(m, "mat4.transform_point3")
+    var cm = chk._check(m, "mat4.transform_point3")
     if oren_is_err(cm) { return cm }
-    var ok = _finite3(x, y, z, "mat4.transform_point3")
+    var ok = chk._finite3(x, y, z, "mat4.transform_point3")
     if oren_is_err(ok) { return ok }
     var m0: f64 = m[0]
     var m1: f64 = m[1]
@@ -1533,9 +1469,9 @@ fn transform_point(m, x: f64, y: f64, z: f64) {
 }
 
 fn transform_vec3(m, x: f64, y: f64, z: f64) {
-    var cm = _check(m, "mat4.transform_vec3")
+    var cm = chk._check(m, "mat4.transform_vec3")
     if oren_is_err(cm) { return cm }
-    var ok = _finite3(x, y, z, "mat4.transform_vec3")
+    var ok = chk._finite3(x, y, z, "mat4.transform_vec3")
     if oren_is_err(ok) { return ok }
     var m0: f64 = m[0]
     var m1: f64 = m[1]
@@ -1558,7 +1494,7 @@ fn transform_vector(m, x: f64, y: f64, z: f64) {
 }
 
 fn transform_normal3(m, x: f64, y: f64, z: f64) {
-    var ok = _finite3(x, y, z, "mat4.transform_normal3")
+    var ok = chk._finite3(x, y, z, "mat4.transform_normal3")
     if oren_is_err(ok) { return ok }
     var n = normal_matrix3(m)
     if oren_is_err(n) { return n }

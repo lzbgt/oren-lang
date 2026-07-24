@@ -1,0 +1,66 @@
+import math "std:math"
+
+fn _finite_scalar(x: f64, ctx) {
+    if math.is_nan(x) { return oren_err(4, ctx + ": NaN") }
+    if !math.is_finite(x) { return oren_err(4, ctx + ": non-finite") }
+    return 0
+}
+
+fn _finite3(x: f64, y: f64, z: f64, ctx) {
+    var a = _finite_scalar(x, ctx)
+    if oren_is_err(a) { return a }
+    var b = _finite_scalar(y, ctx)
+    if oren_is_err(b) { return b }
+    return _finite_scalar(z, ctx)
+}
+
+fn _finite4(a: f64, b: f64, c: f64, d: f64, ctx) {
+    var x = _finite3(a, b, c, ctx)
+    if oren_is_err(x) { return x }
+    return _finite_scalar(d, ctx)
+}
+
+fn _finite6(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, ctx) {
+    var x = _finite3(a, b, c, ctx)
+    if oren_is_err(x) { return x }
+    return _finite3(d, e, f, ctx)
+}
+
+fn _check(m, ctx) {
+    if oren_list_len(m) != 16 { return oren_err(4, ctx + ": expected 16 values") }
+    var i = 0
+    while i < 16 {
+        var ok = _finite_scalar(m[i], ctx)
+        if oren_is_err(ok) { return ok }
+        i = i + 1
+    }
+    return 0
+}
+
+fn _check_vec4(v, ctx) {
+    if oren_list_len(v) != 4 { return oren_err(4, ctx + ": expected 4 values") }
+    var i = 0
+    while i < 4 {
+        var ok = _finite_scalar(v[i], ctx)
+        if oren_is_err(ok) { return ok }
+        i = i + 1
+    }
+    return 0
+}
+
+fn _check_vec3(v, ctx) {
+    if oren_list_len(v) != 3 { return oren_err(4, ctx + ": expected 3 values") }
+    var i = 0
+    while i < 3 {
+        var ok = _finite_scalar(v[i], ctx)
+        if oren_is_err(ok) { return ok }
+        i = i + 1
+    }
+    return 0
+}
+
+fn _close_abs_scalar(a: f64, b: f64, abs_tol: f64, ctx) {
+    var ok = math.isclose_abs(a, b, abs_tol)
+    if oren_is_err(ok) { return oren_err(4, ctx + ": invalid tolerance") }
+    return ok
+}
