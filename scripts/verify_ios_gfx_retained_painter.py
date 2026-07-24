@@ -304,6 +304,8 @@ def main() -> int:
         fail("CoreGraphics retained image sub-rect draws must share the checked draw helper")
     if "if (!cgImage || w == 0 || h == 0 || !OrenAVMGfxSubrectInImage" not in text:
         fail("CoreGraphics retained image sub-rect draws must reject zero destination dimensions locally")
+    if "OrenAVMGfxImageRectsHaveZeroSize" not in text:
+        fail("CoreGraphics batched retained image sub-rect draws must preflight zero-size rects before resource lookup")
     if "OrenAVMGfxSubrectInImage(sx, sy, sw, sh, CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))" in text:
         fail("CoreGraphics batched image sub-rect draws must cache CGImage dimensions")
     if "size_t imageWidth = CGImageGetWidth(cgImage)" not in text or "size_t imageHeight = CGImageGetHeight(cgImage)" not in text:
@@ -338,6 +340,12 @@ def main() -> int:
         "rectCount == ((uint32_t)payloadLen - 8u) / 32u",
         "OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID)",
         "CoreGraphics batched retained image draws must validate rect counts before retained image lookup",
+    )
+    require_before(
+        image_command[batched_image_start:batched_image_end],
+        "if (OrenAVMGfxImageRectsHaveZeroSize(payload + 8, rectCount)) return YES;",
+        "OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID)",
+        "CoreGraphics batched retained image draws must reject zero-size rects before retained image lookup",
     )
     if "@interface OrenAVMGfxModelResource" not in text:
         fail("CoreGraphics retained models must use typed resource objects")

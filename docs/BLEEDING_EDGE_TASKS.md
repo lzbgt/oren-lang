@@ -1420,7 +1420,7 @@ This file is the concise task view. Detailed implementation status lives in
      materializing Oren byte lists with strict PEM body concatenation through raw
      exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and
 			     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
-				     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, signed checked byte-view helpers and public signed 64-bit endian getters that read `u8_buf` carriers directly after span validation, and public 64-bit endian stores use unrolled direct `u8_buf` byte writes.
+					     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32/u64 big-endian readers, signed checked byte-view helpers and public signed 64-bit endian getters that read `u8_buf` carriers directly after span validation, public 64-bit endian stores use unrolled direct `u8_buf` byte writes, native whole-buffer/slice byte-to-string/u8-buffer conversions copy `u8_buf` carriers directly after one span check, and AVM HTTP/WS text facades use whole-buffer byte-to-string conversion instead of repeated length-plus-slice conversion.
 		     `std:strings` prefix/suffix/search/equality
 			     and trim helpers plus JSON full decode/tag equality, CBOR canonical key ordering/text
 					     encoding through growable `u8_buf` output plus hoisted shared `std:bytes` byte-view backing pointers for byte-string encode and
@@ -1440,7 +1440,7 @@ This file is the concise task view. Detailed implementation status lives in
 			     decode/encode writes exact-size output buffers directly, OGF0 frame byte payloads copy
 				     directly from shared byte views with hoisted backing pointers, OGE0 event headers, payload lengths, and little-endian
 					     payload fields read from hoisted shared byte-view backing pointers, UI command validation reads geometry/text-position/image-rect fixed-width payload fields through hoisted shared byte-view backing pointers, software rasterization reads geometry/text/image payload fields through hoisted shared byte-view backing pointers, Scene3D binary package magic/header/table reads and payload slices use hoisted shared byte-view backing pointers with explicit span guards, Metal batched image rects validate local draw/source
-						     spans in one preflight pass before heap vertex allocation, Metal/CoreGraphics retained 3D
+						     spans in one preflight pass before heap vertex allocation, CoreGraphics batched retained image rects preflight zero-size rects before retained image lookup, Metal/CoreGraphics retained 3D
 							     draws skip sort/color work when clipping leaves no visible triangles,
 							     fully transparent Metal draw-only plus retained mesh/model opcodes and
 							     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,

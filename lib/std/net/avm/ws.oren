@@ -62,7 +62,7 @@ fn recv_bytes(session_id, max_len, timeout_ms) {
 fn recv_text(session_id, max_len, timeout_ms) {
     var data = socket.read_kind(session_id, max_len, 1, timeout_ms)
     if oren_is_err(data) { return data }
-    return oren_string_from_bytes_slice(data, 0, oren_bytes_len(data))
+    return oren_string_from_bytes(data)
 }
 
 fn close(session_id) {

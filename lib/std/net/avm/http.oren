@@ -79,7 +79,7 @@ fn bytes(resp: Response) {
 fn text(resp: Response) {
     var body = bytes(resp)
     if oren_is_err(body) { return body }
-    return oren_string_from_bytes_slice(body, 0, oren_bytes_len(body))
+    return oren_string_from_bytes(body)
 }
 
 fn json(resp: Response) {

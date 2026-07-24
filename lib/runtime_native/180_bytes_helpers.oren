@@ -91,6 +91,23 @@ fn native_bytes_copy_span_to_int_list(bytes, start, len, dst_list) {
     if bytes == 0 { return oren_err(4, "string_from_bytes_slice: bytes is nil") }
     if start < 0 || len < 0 { return oren_err(4, "string_from_bytes_slice: negative range") }
 
+    if native_bytes_is_u8_buf(bytes) == true {
+        var count = ptr_get(bytes + 0)
+        if native_bytes_range_ok(count, start, len) != true { return oren_err(4, "string_from_bytes_slice: out of bounds") }
+        var src = native_buf_data_ptr(bytes)
+        if src == 0 && len > 0 { return oren_err(4, "string_from_bytes_slice: buf payload is nil") }
+		    var out_direct = 0
+		    if bytes_untracked_strings_enabled() == 0 {
+		        out_direct = malloc_k(len + 1, 1)
+		    } else {
+		        out_direct = malloc(len + 1)
+		    }
+		    if out_direct == 0 { return oren_err(8, "string_from_bytes_slice: alloc failed") }
+        if len > 0 { oren_memcpy(out_direct, src + start, len) }
+		    ptr_set_byte(out_direct + len, 0)
+		    return out_direct
+    }
+
     var total = oren_bytes_len(bytes)
     if oren_is_err(total) { return oren_err(4, "string_from_bytes_slice expects list<int>, LIST_INT, or u8_buf") }
     if native_bytes_range_ok(total, start, len) != true { return oren_err(4, "string_from_bytes_slice: out of bounds") }
@@ -135,6 +152,19 @@ fn bytes_untracked_strings_enabled() {
 fn oren_u8_buf_from_bytes_slice(bytes, start, len) {
     if bytes == 0 { return oren_err(4, "u8_buf_from_bytes_slice: bytes is nil") }
     if start < 0 || len < 0 { return oren_err(4, "u8_buf_from_bytes_slice: negative range") }
+
+    if native_bytes_is_u8_buf(bytes) == true {
+        var count = ptr_get(bytes + 0)
+        if native_bytes_range_ok(count, start, len) != true { return oren_err(4, "u8_buf_from_bytes_slice: out of bounds") }
+        var out_direct = oren_u8_buf_new_uninit(len)
+        if oren_is_err(out_direct) { return out_direct }
+        if len == 0 { return out_direct }
+        var src = native_buf_data_ptr(bytes)
+        var dst = native_buf_data_ptr(out_direct)
+        if src == 0 || dst == 0 { return oren_err(8, "u8_buf_from_bytes_slice: alloc failed") }
+        oren_memcpy(dst, src + start, len)
+        return out_direct
+    }
 
     var total = oren_bytes_len(bytes)
     if oren_is_err(total) { return oren_err(4, "u8_buf_from_bytes_slice expects list<int>, LIST_INT, or u8_buf") }

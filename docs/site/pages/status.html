@@ -2668,7 +2668,8 @@
 <p>of parallel image/pixel dictionaries, with overflow-safe retained sub-rect</p>
 <p>bounds checks, shared checked sub-rect drawing, scalar-key retained image lookup,</p>
 <p>and cached image dimensions for batched atlas rects, with local zero-size</p>
-<p>sub-rect/destination rejection. CoreGraphics retained image uploads now transfer raw copied</p>
+<p>sub-rect/destination rejection and batched zero-size rect preflight before</p>
+<p>retained image lookup. CoreGraphics retained image uploads now transfer raw copied</p>
 <p>bytes to the CG data provider release callback instead of wrapping them in</p>
 <p>intermediate <code>NSData</code> objects. Retained Metal image resources now use typed texture/pixel</p>
 <p>records instead of parallel texture/pixel dictionaries, with overflow-safe</p>
@@ -2762,8 +2763,11 @@
 <p>writes. AVM byte/string slice conversion now shares checked bytes/list/</p>
 <p><code>LIST_INT</code> helpers for length checks, byte/endian reads, full-buffer string</p>
 <p>conversion, <code>bytes_to_hex</code>, <code>oren_string_from_bytes_slice</code>,</p>
-<p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; the native</p>
-<p>and legacy C runtimes now route the same byte/endian read-write,</p>
+<p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; native</p>
+<p>whole-buffer and slice byte-to-string/u8-buffer conversions now copy <code>u8_buf</code></p>
+<p>carriers directly after one span check, and AVM HTTP/WS text facades now use</p>
+<p>whole-buffer byte-to-string conversion instead of repeated length-plus-slice</p>
+<p>conversion. The native and legacy C runtimes now route the same byte/endian read-write,</p>
 <p>full-buffer string, <code>to_hex</code>, slice, pack, unpack, and SHA range family through</p>
 <p>shared byte-span helpers, keeping byte carriers on the optimized path without</p>
 <p>duplicated boxed-list copy loops; the legacy C runtime byte access/endian</p>

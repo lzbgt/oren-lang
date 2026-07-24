@@ -2494,7 +2494,8 @@ fallback records now use typed resources for image plus pixel accounting instead
 of parallel image/pixel dictionaries, with overflow-safe retained sub-rect
 bounds checks, shared checked sub-rect drawing, scalar-key retained image lookup,
 and cached image dimensions for batched atlas rects, with local zero-size
-sub-rect/destination rejection. CoreGraphics retained image uploads now transfer raw copied
+sub-rect/destination rejection and batched zero-size rect preflight before
+retained image lookup. CoreGraphics retained image uploads now transfer raw copied
 bytes to the CG data provider release callback instead of wrapping them in
 intermediate `NSData` objects. Retained Metal image resources now use typed texture/pixel
 records instead of parallel texture/pixel dictionaries, with overflow-safe
@@ -2588,8 +2589,11 @@ validation, and public 64-bit endian stores use unrolled direct `u8_buf` byte
 writes. AVM byte/string slice conversion now shares checked bytes/list/
 `LIST_INT` helpers for length checks, byte/endian reads, full-buffer string
 conversion, `bytes_to_hex`, `oren_string_from_bytes_slice`,
-`oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`; the native
-and legacy C runtimes now route the same byte/endian read-write,
+`oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`; native
+whole-buffer and slice byte-to-string/u8-buffer conversions now copy `u8_buf`
+carriers directly after one span check, and AVM HTTP/WS text facades now use
+whole-buffer byte-to-string conversion instead of repeated length-plus-slice
+conversion. The native and legacy C runtimes now route the same byte/endian read-write,
 full-buffer string, `to_hex`, slice, pack, unpack, and SHA range family through
 shared byte-span helpers, keeping byte carriers on the optimized path without
 duplicated boxed-list copy loops; the legacy C runtime byte access/endian

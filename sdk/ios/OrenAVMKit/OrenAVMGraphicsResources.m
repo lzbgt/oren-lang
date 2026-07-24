@@ -146,6 +146,21 @@ static BOOL OrenAVMGfxSubrectInImage(uint32_t sx, uint32_t sy, uint32_t sw, uint
         (uint64_t)sy + (uint64_t)sh <= (uint64_t)height;
 }
 
+static BOOL OrenAVMGfxImageRectsHaveZeroSize(const uint8_t* rects, uint32_t rectCount) {
+    if (!rects) return YES;
+    for (uint32_t i = 0; i < rectCount; i++) {
+        const uint8_t* r = rects + ((size_t)i * 32u);
+        uint32_t sw = OrenAVMGfxResourceReadU32LE(r + 8);
+        uint32_t sh = OrenAVMGfxResourceReadU32LE(r + 12);
+        uint32_t w = OrenAVMGfxResourceReadU32LE(r + 24);
+        uint32_t h = OrenAVMGfxResourceReadU32LE(r + 28);
+        if (sw == 0 || sh == 0 || w == 0 || h == 0) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 void OrenAVMGfxDrawImageSubrect(CGImageRef cgImage,
                                 size_t imageWidth,
                                 size_t imageHeight,
@@ -237,6 +252,7 @@ BOOL OrenAVMGfxHandleImageCommand(CGContextRef ctx,
                 uint32_t imageID = OrenAVMGfxResourceReadU32LE(payload);
                 uint32_t rectCount = OrenAVMGfxResourceReadU32LE(payload + 4);
                 if (rectCount == ((uint32_t)payloadLen - 8u) / 32u) {
+                    if (OrenAVMGfxImageRectsHaveZeroSize(payload + 8, rectCount)) return YES;
                     UIImage* image = OrenAVMGfxRetainedImageResource(images ? *images : NULL, imageID).image;
                     CGImageRef cgImage = image.CGImage;
                     if (!cgImage) return YES;

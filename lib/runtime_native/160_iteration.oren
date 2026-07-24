@@ -376,6 +376,9 @@ fn oren_bytes_from_string(s) {
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {
     if bytes == 0 { return 0 }
+    if native_bytes_is_u8_buf(bytes) == true {
+        return oren_string_from_bytes_slice(bytes, 0, ptr_get(bytes + 0))
+    }
     var total = oren_bytes_len(bytes)
     if oren_is_err(total) { return 0 }
     var out2 = oren_string_from_bytes_slice(bytes, 0, total)

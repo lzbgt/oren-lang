@@ -196,6 +196,21 @@ if ! grep -Fq 'runtime_bytes_len_checked(bytes, &n, &err_msg)' <<<"$c_runtime_by
   exit 1
 fi
 
+native_string_slice_impl="$(sed -n '/fn oren_string_from_bytes_slice/,/var g_untracked_strings/p' lib/runtime_native/180_bytes_helpers.oren)"
+native_u8_slice_impl="$(sed -n '/fn oren_u8_buf_from_bytes_slice/,/fn oren_bytes_to_string/p' lib/runtime_native/180_bytes_helpers.oren)"
+native_string_from_bytes_impl="$(sed -n '/fn oren_string_from_bytes(bytes)/,/fn string_concat/p' lib/runtime_native/160_iteration.oren)"
+if ! grep -Fq 'if native_bytes_is_u8_buf(bytes) == true {' <<<"$native_string_slice_impl" ||
+  ! grep -Fq 'var count = ptr_get(bytes + 0)' <<<"$native_string_slice_impl" ||
+  ! grep -Fq 'if len > 0 { oren_memcpy(out_direct, src + start, len) }' <<<"$native_string_slice_impl" ||
+  ! grep -Fq 'if native_bytes_is_u8_buf(bytes) == true {' <<<"$native_u8_slice_impl" ||
+  ! grep -Fq 'oren_memcpy(dst, src + start, len)' <<<"$native_u8_slice_impl" ||
+  ! grep -Fq 'return oren_string_from_bytes_slice(bytes, 0, ptr_get(bytes + 0))' <<<"$native_string_from_bytes_impl" ||
+  ! grep -Fq 'var ub_text = oren_string_from_bytes_slice(ub_ascii, 1, 3)' tests/native/test_bytes_set_endian.oren ||
+  ! grep -Fq 'var ub_slice = oren_u8_buf_from_bytes_slice(ub_ascii, 2, 2)' tests/native/test_bytes_set_endian.oren; then
+  echo "ERROR: native bytes/string slice helpers must copy u8_buf carriers directly after one span check" >&2
+  exit 1
+fi
+
 byte_setter_helper="$(sed -n '/static int avm_native_bytes_write_span/,/^}/p' lib/avm/avm_native_core_helpers.inc)"
 if ! grep -Fq 'bytes.type == AVM_VAL_LIST_INT' <<<"$byte_setter_helper" ||
   ! grep -Fq 'list->items[(int)idx + i] = (int64_t)src[i]' <<<"$byte_setter_helper"; then
@@ -712,6 +727,13 @@ if ! grep -Fq 'avm_embed_set_net_session_read_typed_callback(_handle, OrenAVMRun
   ! grep -Fq 'return socket.read_kind(session_id, max_len, 2, timeout_ms)' lib/std/net/avm/ws.oren ||
   ! grep -Fq 'var data = socket.read_kind(session_id, max_len, 1, timeout_ms)' lib/std/net/avm/ws.oren; then
   echo "ERROR: iOS host-backed AVM WebSocket reads must preserve text-vs-binary frame opcode expectations" >&2
+  exit 1
+fi
+if grep -Fq 'oren_string_from_bytes_slice(body, 0, oren_bytes_len(body))' lib/std/net/avm/http.oren ||
+  grep -Fq 'oren_string_from_bytes_slice(data, 0, oren_bytes_len(data))' lib/std/net/avm/ws.oren ||
+  ! grep -Fq 'return oren_string_from_bytes(body)' lib/std/net/avm/http.oren ||
+  ! grep -Fq 'return oren_string_from_bytes(data)' lib/std/net/avm/ws.oren; then
+  echo "ERROR: AVM HTTP/WS text facades must use whole-buffer byte-to-string conversion instead of repeated length+slice conversion" >&2
   exit 1
 fi
 if ! grep -Fq 'if opcode != 2 or payload != b"bin!"' scripts/libavm_ios_verify_net_helpers.py ||
