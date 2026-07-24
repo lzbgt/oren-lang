@@ -118,6 +118,11 @@
 <p>  receives now use straight-line big-endian byte operations with focused</p>
 <p>  fixtures, avoiding fixed eight-iteration Oren protocol loops.</p>
 <ul>
+<li>Compiler bytecode constants and ASTBIN u64 encode/decode helpers now use</li>
+</ul>
+<p>  straight-line little-endian byte operations, keeping cache/build serializers</p>
+<p>  out of fixed eight-iteration Oren loops.</p>
+<ul>
 <li>LSP now advertises and serves same-document document highlights for exact</li>
 </ul>
 <p>  scoped locals/parameters, import aliases, typed fields, and imported</p>

@@ -2703,7 +2703,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  path for u8 buffers, `pack` returns exact-size u8 buffers for valid int lists,
 	  while u8/endian writes keep list-backed and native `LIST_INT` compatibility and `std:buffer` raw i64 stores use unrolled direct byte writes
 	  and CBOR/WebSocket 64-bit protocol headers use straight-line big-endian byte
-	  operations instead of fixed eight-iteration Oren loops
+	  operations instead of fixed eight-iteration Oren loops, while compiler
+	  bytecode constants and ASTBIN u64 encode/decode helpers use straight-line
+	  little-endian byte operations for cache/build serializers
 	  while raw u8-buffer loads/stores plus u8 slice/strided/matrix view
 	  loads/stores use raw pointer access after public validation, contiguous u8
   concat/copy spans use raw pointer byte copies, and overlapping in-place u8

@@ -538,11 +538,14 @@ fn bytecode_compile_program(linked, config) {
 
 fn emit_u64_le(out, n) {
     // Bit-exact for signed ints too (needed for float64 bit patterns).
-    var i = 0
-    while i < 8 {
-        bytes.bytes_push(out, (n >> (i * 8)) & 255)
-        i = i + 1
-    }
+    bytes.bytes_push(out, n & 255)
+    bytes.bytes_push(out, (n >> 8) & 255)
+    bytes.bytes_push(out, (n >> 16) & 255)
+    bytes.bytes_push(out, (n >> 24) & 255)
+    bytes.bytes_push(out, (n >> 32) & 255)
+    bytes.bytes_push(out, (n >> 40) & 255)
+    bytes.bytes_push(out, (n >> 48) & 255)
+    bytes.bytes_push(out, (n >> 56) & 255)
 }
 
 fn emit_u32_le(out, n) {

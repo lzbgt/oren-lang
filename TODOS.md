@@ -63,6 +63,9 @@ design evidence lives under `project-doc/`.
 - `std:cbor` 64-bit integer headers and native WebSocket 64-bit extended-length
   receives now use straight-line big-endian byte operations with focused
   fixtures, avoiding fixed eight-iteration Oren protocol loops.
+- Compiler bytecode constants and ASTBIN u64 encode/decode helpers now use
+  straight-line little-endian byte operations, keeping cache/build serializers
+  out of fixed eight-iteration Oren loops.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.

@@ -19,6 +19,20 @@ if grep -q 'oren_bytes_unpack(out_buf)\|Fallback to list<int> for AVM runtimes w
   exit 1
 fi
 
+bytecode_emit_u64_impl="$(sed -n '/fn emit_u64_le/,/fn emit_u32_le/p' lib/compiler/codegen_bytecode/030_tail.oren)"
+astbin_u64_impl="$(sed -n '/fn _astbin_write_u64_le_ptr/,/fn _astbin_write_string_ptr/p;/fn _astbin_write_u64_le_v1_ptr/,/Growable v1 writer/p;/fn _astbin_dyn_push_u64_le/,/fn _astbin_dyn_push_string/p;/fn _astbin_read_u64_le/,/fn _astbin_unzigzag/p;/fn _astbin_g_read_u64_le/,/^}/p' lib/compiler/compiler/015_astbin.oren)"
+astbin_module_u64_impl="$(sed -n '/fn _astbin_module_dyn_push_u64_le/,/fn _astbin_module_dyn_push_string_raw/p' lib/compiler/compiler/016_astbin_module.oren)"
+if ! grep -Fq 'bytes.bytes_push(out, (n >> 56) & 255)' <<<"$bytecode_emit_u64_impl" ||
+  grep -Fq 'while i < 8' <<<"$bytecode_emit_u64_impl" ||
+  ! grep -Fq 'off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 56) & 255)' <<<"$astbin_u64_impl" ||
+  ! grep -Fq 'return (b0 & 255) | ((b1 & 255) << 8)' <<<"$astbin_u64_impl" ||
+  grep -Fq 'while i < 8' <<<"$astbin_u64_impl" ||
+  ! grep -Fq '_astbin_module_dyn_push_u8(b, (x0 >> 56) & 255)' <<<"$astbin_module_u64_impl" ||
+  grep -Fq 'while i < 8' <<<"$astbin_module_u64_impl"; then
+  echo "ERROR: compiler bytecode/ASTBIN u64 helpers must use straight-line little-endian byte operations, not fixed Oren loops" >&2
+  exit 1
+fi
+
 if grep -q 'avm_call_native2(vm, 1, 3' lib/avm/avm_native_compiler_cases.inc; then
   echo "ERROR: AVM read_u8_buf compiler shim must route to byte-native FS.read_u8_buf, not legacy read_bytes" >&2
   exit 1

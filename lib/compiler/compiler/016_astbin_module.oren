@@ -264,13 +264,14 @@ fn _astbin_module_dyn_push_varint_signed(b, x) {
 }
 
 fn _astbin_module_dyn_push_u64_le(b, x0) {
-    var x = x0
-    var i = 0
-    while i < 8 {
-        _astbin_module_dyn_push_u8(b, x & 255)
-        x = x >> 8
-        i = i + 1
-    }
+    _astbin_module_dyn_push_u8(b, x0 & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 8) & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 16) & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 24) & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 32) & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 40) & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 48) & 255)
+    _astbin_module_dyn_push_u8(b, (x0 >> 56) & 255)
     return nil
 }
 

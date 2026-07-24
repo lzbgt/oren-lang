@@ -162,13 +162,14 @@ fn _astbin_write_varint_signed_ptr(data_ptr, off, x) {
 }
 
 fn _astbin_write_u64_le_ptr(data_ptr, off, x0) {
-    var x = x0
-    var i = 0
-    while i < 8 {
-        off = _astbin_write_u8_ptr(data_ptr, off, x & 255)
-        x = x >> 8
-        i = iadd(i, 1)
-    }
+    off = _astbin_write_u8_ptr(data_ptr, off, x0 & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 8) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 16) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 24) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 32) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 40) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 48) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 56) & 255)
     return off
 }
 
@@ -217,13 +218,14 @@ fn _astbin_write_string_v1_ptr(data_ptr, off, s) {
 }
 
 fn _astbin_write_u64_le_v1_ptr(data_ptr, off, x0) {
-    var x = x0
-    var i = 0
-    while i < 8 {
-        off = _astbin_write_u8_ptr(data_ptr, off, x & 255)
-        x = x >> 8
-        i = i + 1
-    }
+    off = _astbin_write_u8_ptr(data_ptr, off, x0 & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 8) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 16) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 24) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 32) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 40) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 48) & 255)
+    off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 56) & 255)
     return off
 }
 
@@ -296,13 +298,14 @@ fn _astbin_dyn_push_varint_signed(b, x) {
 }
 
 fn _astbin_dyn_push_u64_le(b, x0) {
-    var x = x0
-    var i = 0
-    while i < 8 {
-        _astbin_dyn_push_u8(b, x & 255)
-        x = x >> 8
-        i = i + 1
-    }
+    _astbin_dyn_push_u8(b, x0 & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 8) & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 16) & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 24) & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 32) & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 40) & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 48) & 255)
+    _astbin_dyn_push_u8(b, (x0 >> 56) & 255)
     return nil
 }
 
@@ -700,14 +703,16 @@ fn _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf) {
 }
 
 fn _astbin_read_u64_le(bytes, data_ptr, off_ref, is_u8_buf) {
-    var out = 0
-    var i = 0
-    while i < 8 {
-        var b = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
-        out = out | ((b & 255) << (i * 8))
-        i = iadd(i, 1)
-    }
-    return out
+    var b0 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b1 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b2 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b3 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b4 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b5 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b6 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    var b7 = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
+    return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24) |
+        ((b4 & 255) << 32) | ((b5 & 255) << 40) | ((b6 & 255) << 48) | ((b7 & 255) << 56)
 }
 
 fn _astbin_unzigzag(zz) {
@@ -802,14 +807,16 @@ fn _astbin_g_read_uvarint() {
 }
 
 fn _astbin_g_read_u64_le() {
-    var out = 0
-    var i = 0
-    while i < 8 {
-        var b = _astbin_g_read_u8()
-        out = out | ((b & 255) << (i * 8))
-        i = iadd(i, 1)
-    }
-    return out
+    var b0 = _astbin_g_read_u8()
+    var b1 = _astbin_g_read_u8()
+    var b2 = _astbin_g_read_u8()
+    var b3 = _astbin_g_read_u8()
+    var b4 = _astbin_g_read_u8()
+    var b5 = _astbin_g_read_u8()
+    var b6 = _astbin_g_read_u8()
+    var b7 = _astbin_g_read_u8()
+    return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24) |
+        ((b4 & 255) << 32) | ((b5 & 255) << 40) | ((b6 & 255) << 48) | ((b7 & 255) << 56)
 }
 
 fn _astbin_g_read_u8_buf() {
