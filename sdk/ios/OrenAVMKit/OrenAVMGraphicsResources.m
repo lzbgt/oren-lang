@@ -338,7 +338,7 @@ void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
                              uint32_t x,
                              uint32_t y,
                              NSDictionary<NSAttributedStringKey, id>* attrs) {
-    if (!textBytes || !attrs) return;
+    if (!textBytes || textLen == 0 || !attrs) return;
     NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
     if (text) [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
 }
@@ -395,7 +395,7 @@ BOOL OrenAVMGfxHandleTextCommand(CGContextRef ctx,
                 uint32_t x = OrenAVMGfxResourceReadU32LE(payload);
                 uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 4);
                 uint32_t textLen = OrenAVMGfxResourceReadU32LE(payload + 12);
-                if (textLen <= (uint32_t)payloadLen - 16u) {
+                if (textLen == (uint32_t)payloadLen - 16u && textLen > 0) {
                     NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(attrsByRGBA,
                                                                                                       lastRGBA,
                                                                                                       lastAttributes,

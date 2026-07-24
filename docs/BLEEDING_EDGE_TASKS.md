@@ -1444,11 +1444,11 @@ This file is the concise task view. Detailed implementation status lives in
 							     draws skip sort/color work when clipping leaves no visible triangles,
 							     fully transparent Metal draw-only plus retained mesh/model opcodes and
 							     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,
-							     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only
-							     opcodes before frame-prep or CGContext/resource/text draw work, malformed
-							     zero-size/count-mismatched retained image/text draws reject before retained
-							     resource lookup when the command is otherwise a no-op, and Metal/CoreGraphics zero-area
-				     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
+								     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only
+								     opcodes before frame-prep or CGContext/resource/text draw work, malformed
+								     zero-size/count-mismatched retained image/text draws reject before retained
+								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, and Metal/CoreGraphics zero-area
+					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
 				     PPM header/body output, PPM RGBA encoding hoists validated byte-view
 			     carrier/pointers once per call, and software-raster RGBA sampling
 		     plus clear/pixel writes use raw exact-size buffer stores, and native `std:net/http`

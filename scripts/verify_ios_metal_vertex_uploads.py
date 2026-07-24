@@ -416,6 +416,8 @@ def main() -> int:
     ):
         if token not in text_command:
             fail(f"retained Metal text draw opcode must skip fully transparent texture work: {token}")
+    if "if (textLen == (uint32_t)payloadLen - 16u && textLen > 0)" not in text_command:
+        fail("Metal immediate text opcodes must reject trailing payload bytes and empty text before texture creation")
     text_batch_start = text_command.find("case 72:")
     text_batch_end = text_command.find("default:", text_batch_start)
     if text_batch_start < 0 or text_batch_end < 0:

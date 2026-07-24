@@ -576,7 +576,7 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
             if (opacity <= 0.0f) return YES;
             if (payloadLen >= 16) {
                 uint32_t textLen = OrenAVMMetalReadU32LE(payload + 12);
-                if (textLen == (uint32_t)payloadLen - 16u) {
+                if (textLen == (uint32_t)payloadLen - 16u && textLen > 0) {
                     NSString* text = [[NSString alloc] initWithBytes:payload + 16
                                                               length:(NSUInteger)textLen
                                                             encoding:NSUTF8StringEncoding];

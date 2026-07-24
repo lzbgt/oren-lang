@@ -232,6 +232,20 @@ def main() -> int:
         fail("CoreGraphics retained text draws must live in OrenAVMGraphicsResources")
     if "OrenAVMGfxDrawTextResourcePositions(texts ? *texts : NULL, textID, payload + 8, posCount)" not in resource_text:
         fail("CoreGraphics retained text batched draws must live in OrenAVMGraphicsResources")
+    draw_text_start = resource_source_text.find("void OrenAVMGfxDrawTextBytes")
+    draw_text_end = resource_source_text.find("BOOL OrenAVMGfxPutTextResource", draw_text_start)
+    handle_text_start = resource_source_text.find("BOOL OrenAVMGfxHandleTextCommand")
+    handle_text_end = resource_source_text.find("BOOL OrenAVMGfxHandleMeshCommand", handle_text_start)
+    if draw_text_start < 0 or draw_text_end < 0 or handle_text_start < 0 or handle_text_end < 0:
+        fail("missing CoreGraphics immediate text draw/command helpers")
+    draw_text_body = resource_source_text[draw_text_start:draw_text_end]
+    handle_text_body = resource_source_text[handle_text_start:handle_text_end]
+    if "if (!textBytes || textLen == 0 || !attrs) return;" not in draw_text_body:
+        fail("CoreGraphics immediate text draws must skip empty text before NSString creation")
+    if "if (textLen == (uint32_t)payloadLen - 16u && textLen > 0)" not in handle_text_body:
+        fail("CoreGraphics immediate text opcodes must reject trailing payload bytes and empty text before attribute lookup")
+    if "if (textLen <= (uint32_t)payloadLen - 16u)" in handle_text_body:
+        fail("CoreGraphics immediate text opcodes must not accept trailing payload bytes")
     if "@(textID)" in text:
         fail("CoreGraphics retained text upload/draw paths must not box text IDs")
     if 'self.orenTextResources[@(textID)] = @{@"text": text, @"color": color}' in text:
