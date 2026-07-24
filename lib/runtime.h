@@ -592,6 +592,9 @@ OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
 // Build a u8_buf from a slice of a byte container (list<int 0..255> or u8_buf).
 // Used by compiler tooling to decode astbin efficiently (memcpy on u8_buf inputs).
 OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len);
+// Build or fill u8_buf values directly from checked string slices.
+OrenValue oren_u8_buf_from_string_slice(OrenValue s, OrenValue start, OrenValue len);
+OrenValue oren_u8_buf_copy_from_string_slice(OrenValue out, OrenValue s, OrenValue start, OrenValue len);
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
 // Like `oren_string_slice`, but assumes the caller already validated bounds against a known length.
 // This avoids repeated O(n) `strlen` scans in compiler hot paths (e.g., runtime include expansion).

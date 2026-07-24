@@ -2596,8 +2596,10 @@ conversion, `bytes_to_hex`, `oren_string_from_bytes_slice`,
 `oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`; native
 whole-buffer and slice byte-to-string/u8-buffer conversions now copy `u8_buf`
 carriers directly after one span check, and AVM HTTP/WS text facades now use
-whole-buffer byte-to-string conversion instead of repeated length-plus-slice
-conversion. The native and legacy C runtimes now route the same byte/endian read-write,
+  whole-buffer byte-to-string conversion instead of repeated length-plus-slice
+  conversion; `std:buffer` string-slice u8 construction now uses a dedicated
+  byte-native runtime slice conversion instead of a stdlib per-byte loop. The
+  native and legacy C runtimes now route the same byte/endian read-write,
 full-buffer string, `to_hex`, slice, pack, unpack, and SHA range family through
 shared byte-span helpers, keeping byte carriers on the optimized path without
 duplicated boxed-list copy loops; the legacy C runtime byte access/endian
@@ -2687,9 +2689,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  byte-native output, `from_hex` keeps direct exact-size output writes,
 	  direct lowercase `to_hex` emission, and `std:strings`
 	  byte roundtrips now use byte-native u8 buffers with `to_bytes` routed
-	  through validated runtime conversion, while `std:buffer` whole-string u8
-	  construction also uses the runtime conversion instead of a source-level
-	  per-byte loop,
+		  through validated runtime conversion, while `std:buffer` whole-string and
+		  string-slice u8 construction plus contiguous string-slice copies use
+		  runtime conversion instead of source-level per-byte loops,
   `std:bytes` get/unpack/concat/copy sources read u8-buffer carriers directly,
   public unsigned plus signed 16/32-bit endian getters read `u8_buf` carriers
   through raw pointer loads after one stdlib span validation,

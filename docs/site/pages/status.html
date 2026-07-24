@@ -2770,8 +2770,10 @@
 <p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; native</p>
 <p>whole-buffer and slice byte-to-string/u8-buffer conversions now copy <code>u8_buf</code></p>
 <p>carriers directly after one span check, and AVM HTTP/WS text facades now use</p>
-<p>whole-buffer byte-to-string conversion instead of repeated length-plus-slice</p>
-<p>conversion. The native and legacy C runtimes now route the same byte/endian read-write,</p>
+<p>  whole-buffer byte-to-string conversion instead of repeated length-plus-slice</p>
+<p>  conversion; <code>std:buffer</code> string-slice u8 construction now uses a dedicated</p>
+<p>  byte-native runtime slice conversion instead of a stdlib per-byte loop. The</p>
+<p>  native and legacy C runtimes now route the same byte/endian read-write,</p>
 <p>full-buffer string, <code>to_hex</code>, slice, pack, unpack, and SHA range family through</p>
 <p>shared byte-span helpers, keeping byte carriers on the optimized path without</p>
 <p>duplicated boxed-list copy loops; the legacy C runtime byte access/endian</p>
@@ -2869,9 +2871,9 @@
 <p>	  byte-native output, <code>from_hex</code> keeps direct exact-size output writes,</p>
 <p>	  direct lowercase <code>to_hex</code> emission, and <code>std:strings</code></p>
 <p>	  byte roundtrips now use byte-native u8 buffers with <code>to_bytes</code> routed</p>
-<p>	  through validated runtime conversion, while <code>std:buffer</code> whole-string u8</p>
-<p>	  construction also uses the runtime conversion instead of a source-level</p>
-<p>	  per-byte loop,</p>
+<p>		  through validated runtime conversion, while <code>std:buffer</code> whole-string and</p>
+<p>		  string-slice u8 construction plus contiguous string-slice copies use</p>
+<p>		  runtime conversion instead of source-level per-byte loops,</p>
 <p>  <code>std:bytes</code> get/unpack/concat/copy sources read u8-buffer carriers directly,</p>
 <p>  public unsigned plus signed 16/32-bit endian getters read <code>u8_buf</code> carriers</p>
 <p>  through raw pointer loads after one stdlib span validation,</p>

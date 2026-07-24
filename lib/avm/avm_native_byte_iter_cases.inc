@@ -385,3 +385,41 @@
             }
             break;
         }
+        case 231: { // oren_u8_buf_from_string_slice(string, start:int, len:int) -> u8_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                const char* s = (const char*)args[0].as.p;
+                int64_t start = args[1].as.i;
+                int64_t n = args[2].as.i;
+                int64_t total = s ? (int64_t)strlen(s) : 0;
+                if (start < 0 || n < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_from_string_slice: negative range"); break; }
+                if (!avm_native_byte_range_ok(total, start, n) || n > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_from_string_slice: out of bounds"); break; }
+                AvmValue bv = avm_bytes_new((int)n);
+                if (bv.type != AVM_VAL_BYTES || !bv.as.b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                if (n > 0) memcpy(bv.as.b->data, s + start, (size_t)n);
+                res = bv;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_u8_buf_from_string_slice expects (string, int, int)");
+            }
+            break;
+        }
+        case 232: { // oren_u8_buf_copy_from_string_slice(u8_buf, string, start:int, len:int) -> u8_buf
+            if (nargs > 3 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_STRING &&
+                args[2].type == AVM_VAL_INT && args[3].type == AVM_VAL_INT) {
+                AvmBytes* out = args[0].as.b;
+                const char* s = (const char*)args[1].as.p;
+                int64_t start = args[2].as.i;
+                int64_t n = args[3].as.i;
+                int64_t total = s ? (int64_t)strlen(s) : 0;
+                if (!out) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_copy_from_string_slice: out must be u8_buf"); break; }
+                if (start < 0 || n < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_copy_from_string_slice: negative range"); break; }
+                if (out->len != (int)n || !avm_native_byte_range_ok(total, start, n) || n > 0x7fffffffLL) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_copy_from_string_slice: out of bounds");
+                    break;
+                }
+                if (n > 0) memcpy(out->data, s + start, (size_t)n);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_u8_buf_copy_from_string_slice expects (u8_buf, string, int, int)");
+            }
+            break;
+        }

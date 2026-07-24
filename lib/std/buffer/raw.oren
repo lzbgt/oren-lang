@@ -381,15 +381,7 @@ fn u8_from_string_slice(s, off, n) {
     var total = oren_string_len(s)
     if oren_is_err(total) { return total }
     if off + n > total { return oren_err(4, "buffer.u8_from_string_slice: slice out of bounds") }
-    var out: []u8 = u8_new_uninit(n)
-    if oren_is_err(out) { return out }
-    var data = oren_buf_data_ptr_unchecked(out)
-    var i = 0
-    while i < n {
-        ptr_set_byte(data + i, oren_string_byte_at_unchecked(s, off + i) & 255)
-        i = i + 1
-    }
-    return out
+    return oren_u8_buf_from_string_slice(s, off, n)
 }
 
 fn u8_from_bytes_slice(bytes, off, n) {
@@ -441,13 +433,7 @@ fn _u8_copy_from_string_range(out: []u8, s, off, n, ctx) {
     if oren_is_err(total) { return total }
     if off + n > total { return oren_err(4, ctx + ": slice out of bounds") }
     if oren_is_u8_buf(out) == true {
-        var data = oren_buf_data_ptr_unchecked(out)
-        var j = 0
-        while j < n {
-            ptr_set_byte(data + j, oren_string_byte_at_unchecked(s, off + j) & 255)
-            j = j + 1
-        }
-        return out
+        return oren_u8_buf_copy_from_string_slice(out, s, off, n)
     }
     var i = 0
     while i < n {

@@ -435,6 +435,18 @@ if ! grep -Fq 'return oren_bytes_from_string(s)' <<<"$buffer_raw_u8_from_string_
   echo "ERROR: std:buffer whole-string u8 creation must route through byte-native runtime conversion, not a per-byte stdlib loop" >&2
   exit 1
 fi
+buffer_raw_u8_from_string_slice_impl="$(sed -n '/fn u8_from_string_slice(s, off, n)/,/fn u8_from_bytes_slice/p' lib/std/buffer/raw.oren)"
+if ! grep -Fq 'return oren_u8_buf_from_string_slice(s, off, n)' <<<"$buffer_raw_u8_from_string_slice_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(s, off + i)' <<<"$buffer_raw_u8_from_string_slice_impl"; then
+  echo "ERROR: std:buffer string-slice u8 creation must route through byte-native runtime conversion, not a per-byte stdlib loop" >&2
+  exit 1
+fi
+buffer_raw_u8_copy_from_string_range_impl="$(sed -n '/fn _u8_copy_from_string_range/,/fn u8_copy_from_string(out/p' lib/std/buffer/raw.oren)"
+if ! grep -Fq 'return oren_u8_buf_copy_from_string_slice(out, s, off, n)' <<<"$buffer_raw_u8_copy_from_string_range_impl" ||
+  grep -Fq 'ptr_set_byte(data + j, oren_string_byte_at_unchecked(s, off + j) & 255)' <<<"$buffer_raw_u8_copy_from_string_range_impl"; then
+  echo "ERROR: std:buffer contiguous u8 string-slice copies must route through byte-native runtime conversion, not a per-byte stdlib loop" >&2
+  exit 1
+fi
 
 c_runtime_copy_helper="$(sed -n '/static int runtime_bytes_copy_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
 c_runtime_write_helper="$(sed -n '/static int runtime_bytes_write_span(OrenValue bytes/,/^}/p' lib/runtime/039_byte_copy_helpers.inc)"
@@ -1083,9 +1095,9 @@ if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" 
 fi
 
 buffer_raw_string_impl="$(sed -n '/fn _u8_copy_from_string_range/,/fn u8_copy_from_string/p' lib/std/buffer/raw.oren)"
-if ! grep -Fq 'ptr_set_byte(data + j, oren_string_byte_at_unchecked(s, off + j) & 255)' <<<"$buffer_raw_string_impl" ||
+if ! grep -Fq 'return oren_u8_buf_copy_from_string_slice(out, s, off, n)' <<<"$buffer_raw_string_impl" ||
   ! grep -Fq 'var rc = _store_u8_direct(out, i, oren_string_byte_at_unchecked(s, off + i) & 255)' <<<"$buffer_raw_string_impl"; then
-  echo "ERROR: std:buffer raw u8 string copies must use direct byte writes before falling back to checked stores" >&2
+  echo "ERROR: std:buffer raw u8 string copies must use byte-native runtime copies before falling back to checked stores" >&2
   exit 1
 fi
 

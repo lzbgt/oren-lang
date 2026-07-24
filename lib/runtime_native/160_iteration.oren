@@ -372,6 +372,37 @@ fn oren_bytes_from_string(s) {
     return oren_bytes_from_string_ptr(s)
 }
 
+fn oren_u8_buf_from_string_slice(s, start, len) {
+    if s == 0 || native_value_is_nil(s) { return oren_err(4, "u8_buf_from_string_slice: s must be string") }
+    if native_is_string_ptr(s) == 0 { return oren_err(4, "u8_buf_from_string_slice: s must be string") }
+    if start < 0 || len < 0 { return oren_err(4, "u8_buf_from_string_slice: negative range") }
+    var total = oren_string_len(s)
+    if total < 0 { return oren_err(4, "u8_buf_from_string_slice: invalid string") }
+    if native_bytes_range_ok(total, start, len) != true { return oren_err(4, "u8_buf_from_string_slice: out of bounds") }
+    var out = oren_u8_buf_new_uninit(len)
+    if oren_is_err(out) { return out }
+    var data = native_buf_data_ptr(out)
+    if data == 0 && len > 0 { return oren_err(8, "u8_buf_from_string_slice: alloc failed") }
+    if len > 0 { oren_memcpy(data, s + start, len) }
+    return out
+}
+
+fn oren_u8_buf_copy_from_string_slice(out, s, start, len) {
+    if native_bytes_is_u8_buf(out) != true { return oren_err(4, "u8_buf_copy_from_string_slice: out must be u8_buf") }
+    if s == 0 || native_value_is_nil(s) { return oren_err(4, "u8_buf_copy_from_string_slice: s must be string") }
+    if native_is_string_ptr(s) == 0 { return oren_err(4, "u8_buf_copy_from_string_slice: s must be string") }
+    if start < 0 || len < 0 { return oren_err(4, "u8_buf_copy_from_string_slice: negative range") }
+    var out_len = ptr_get(out + 0)
+    if out_len != len { return oren_err(4, "u8_buf_copy_from_string_slice: length mismatch") }
+    var total = oren_string_len(s)
+    if total < 0 { return oren_err(4, "u8_buf_copy_from_string_slice: invalid string") }
+    if native_bytes_range_ok(total, start, len) != true { return oren_err(4, "u8_buf_copy_from_string_slice: out of bounds") }
+    var data = native_buf_data_ptr(out)
+    if data == 0 && len > 0 { return oren_err(8, "u8_buf_copy_from_string_slice: payload is nil") }
+    if len > 0 { oren_memcpy(data, s + start, len) }
+    return out
+}
+
 // Build a string (NUL-terminated) from a byte container.
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {

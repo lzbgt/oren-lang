@@ -818,6 +818,60 @@ OrenValue oren_bytes_from_string(OrenValue s) {
     return out;
 }
 
+OrenValue oren_u8_buf_from_string_slice(OrenValue s, OrenValue start, OrenValue len) {
+    if (s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_string_slice expects (string, int, int)"));
+    }
+    long long s0 = start.as.int_val;
+    long long n0 = len.as.int_val;
+    if (s0 < 0 || n0 < 0) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_string_slice: negative range"));
+    }
+    size_t total = strlen(s.as.string_val);
+    size_t off = (size_t)s0;
+    size_t n = (size_t)n0;
+    if (n0 > (long long)INT32_MAX || !runtime_bytes_range_ok_size(total, off, n)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_string_slice: out of bounds"));
+    }
+    OrenValue out = oren_u8_buf_new_uninit(oren_int(n0));
+    if (oren_is_err(out).as.bool_val) return out;
+    if (out.type != OREN_TYPE_U8_BUF || !out.as.buf_val || out.as.buf_val->elem_size != 1u) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_from_string_slice: invalid u8_buf"));
+    }
+    OrenBuf* b = out.as.buf_val;
+    if (n > 0 && !b->data) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_from_string_slice: u8_buf payload is nil"));
+    }
+    if (n > 0) memcpy(b->data, s.as.string_val + off, n);
+    return out;
+}
+
+OrenValue oren_u8_buf_copy_from_string_slice(OrenValue out, OrenValue s, OrenValue start, OrenValue len) {
+    if (out.type != OREN_TYPE_U8_BUF || s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice expects (u8_buf, string, int, int)"));
+    }
+    OrenBuf* b = out.as.buf_val;
+    if (!b || b->elem_size != 1u) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice: out must be u8_buf"));
+    }
+    long long s0 = start.as.int_val;
+    long long n0 = len.as.int_val;
+    if (s0 < 0 || n0 < 0) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice: negative range"));
+    }
+    size_t total = strlen(s.as.string_val);
+    size_t off = (size_t)s0;
+    size_t n = (size_t)n0;
+    if (n0 > (long long)INT32_MAX || (size_t)b->len != n || !runtime_bytes_range_ok_size(total, off, n)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_copy_from_string_slice: out of bounds"));
+    }
+    if (n > 0 && !b->data) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_copy_from_string_slice: u8_buf payload is nil"));
+    }
+    if (n > 0) memcpy(b->data, s.as.string_val + off, n);
+    return out;
+}
+
 OrenValue oren_string_from_bytes(OrenValue bytes) {
     size_t n = 0;
     const char* err_msg = NULL;
