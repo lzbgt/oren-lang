@@ -2764,8 +2764,8 @@
 <p>streaming short-write-safe chunks instead of materializing a full-size byte</p>
 <p>mirror. <code>std:bytes</code> public signed 64-bit endian getters and signed checked</p>
 <p>byte-view helpers now read <code>u8_buf</code> carriers directly after one public span</p>
-<p>validation, and public 64-bit endian stores use unrolled direct <code>u8_buf</code> byte</p>
-<p>writes. AVM byte/string slice conversion now shares checked bytes/list/</p>
+<p>validation, big-endian 64-bit pointer reads are unrolled, and public 64-bit</p>
+<p>endian stores use unrolled direct <code>u8_buf</code> byte writes. AVM byte/string slice conversion now shares checked bytes/list/</p>
 <p><code>LIST_INT</code> helpers for length checks, byte/endian reads, full-buffer string</p>
 <p>conversion, <code>bytes_to_hex</code>, <code>oren_string_from_bytes_slice</code>,</p>
 <p><code>oren_u8_buf_from_bytes_slice</code>, <code>bytes_pack</code>, and <code>bytes_unpack</code>; native</p>
@@ -2876,8 +2876,9 @@
 <p>		  string-slice u8 construction plus contiguous string-slice copies use</p>
 <p>		  runtime conversion instead of source-level per-byte loops,</p>
 <p>  <code>std:bytes</code> get/unpack/concat/copy sources read u8-buffer carriers directly,</p>
-<p>  public unsigned plus signed 16/32-bit endian getters read <code>u8_buf</code> carriers</p>
-<p>  through raw pointer loads after one stdlib span validation,</p>
+<p>  public unsigned plus signed 16/32/64-bit endian getters read <code>u8_buf</code> carriers</p>
+<p>  through raw pointer loads after one stdlib span validation, with big-endian</p>
+<p>  64-bit pointer reads kept unrolled,</p>
 <p>  public <code>bytes.unpack</code> routes u8 buffers through kernel byte intrinsics with</p>
 <p>  AVM optimized integer-list output, <code>buffer.u8_unpack</code> reuses that byte-native</p>
 <p>  path for u8 buffers, <code>pack</code> returns exact-size u8 buffers for valid int lists,</p>
@@ -2893,7 +2894,7 @@
 <p>	  JSON full decode, scalar parse, tag equality, and escape paths</p>
 <p>				  use direct source-string byte reads or exact-size <code>u8_buf</code> output, <code>std:bytes</code></p>
 <p>					  now exposes shared checked byte views plus explicit unchecked hot-loop</p>
-<p>						  u8/u16/u32/i32/u64 little-endian readers and backing-aware u16/u32/u64 big-endian readers,</p>
+<p>							  u8/u16/u32/i32/u64 little-endian readers and backing-aware u16/u32 plus unrolled u64 big-endian readers,</p>
 <p>					  CBOR canonical key ordering/text</p>
 <p>						  encoding writes growable <code>u8_buf</code> output while byte-string</p>
 <p>							  encoding and recursive/sequence decode hoist shared <code>std:bytes</code> byte-view backing pointers,</p>

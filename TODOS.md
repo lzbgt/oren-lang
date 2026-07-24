@@ -55,6 +55,9 @@ design evidence lives under `project-doc/`.
   pointer loops.
 - `std:bytes.to_hex` now hoists direct `u8_buf` data pointers once per call,
   avoiding a repeated carrier check in each lowercase hex byte iteration.
+- `std:bytes` big-endian 64-bit pointer reads are now unrolled, so public
+  u64/i64 BE getters and checked view helpers avoid an Oren eight-iteration loop
+  after span validation on `u8_buf` carriers.
 - LSP now advertises and serves same-document document highlights for exact
   scoped locals/parameters, import aliases, typed fields, and imported
   top-level symbols by reusing existing rename/reference resolution.

@@ -250,6 +250,7 @@ if ! grep -Fq 'avm_native_bytes_len_checked(args[0], &n, &err_msg' <<<"$bytes_le
 fi
 
 std_bytes_impl="$(sed -n '/fn _u16_be_from_ptr/,/fn set_u16_be/p' lib/std/bytes.oren)"
+std_u64_be_ptr_impl="$(sed -n '/fn _u64_be_from_ptr/,/fn _i16_from_u16/p' lib/std/bytes.oren)"
 if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _copy_u8_ptr_nonoverlap(dstp, srcp, n)' <<<"$std_bytes_impl" ||
   ! grep -Fq 'return oren_memcpy(dstp, srcp, n)' <<<"$std_bytes_impl" ||
@@ -275,6 +276,12 @@ if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_be_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$(sed -n '/fn get_i64_be/,/fn set_u16_be/p' lib/std/bytes.oren)" ||
   ! grep -Fq 'if oren_is_u8_buf(bytes) == true { return _u64_le_from_ptr(oren_buf_data_ptr_unchecked(bytes), idx) }' <<<"$(sed -n '/fn get_i64_be/,/fn set_u16_be/p' lib/std/bytes.oren)"; then
   echo "ERROR: std:bytes public endian getters, including signed 64-bit getters, must read u8_buf carriers directly after public span validation" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'ptr_get_byte(p + off + 7) & 255' <<<"$std_u64_be_ptr_impl" ||
+  grep -Fq 'while i < 8' <<<"$std_u64_be_ptr_impl"; then
+  echo "ERROR: std:bytes big-endian 64-bit pointer reads must be unrolled direct byte loads, not Oren loops" >&2
   exit 1
 fi
 

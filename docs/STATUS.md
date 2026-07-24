@@ -2590,8 +2590,8 @@ a bounded scratch chunk before opening/truncating the destination, then
 streaming short-write-safe chunks instead of materializing a full-size byte
 mirror. `std:bytes` public signed 64-bit endian getters and signed checked
 byte-view helpers now read `u8_buf` carriers directly after one public span
-validation, and public 64-bit endian stores use unrolled direct `u8_buf` byte
-writes. AVM byte/string slice conversion now shares checked bytes/list/
+validation, big-endian 64-bit pointer reads are unrolled, and public 64-bit
+endian stores use unrolled direct `u8_buf` byte writes. AVM byte/string slice conversion now shares checked bytes/list/
 `LIST_INT` helpers for length checks, byte/endian reads, full-buffer string
 conversion, `bytes_to_hex`, `oren_string_from_bytes_slice`,
 `oren_u8_buf_from_bytes_slice`, `bytes_pack`, and `bytes_unpack`; native
@@ -2694,8 +2694,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 		  string-slice u8 construction plus contiguous string-slice copies use
 		  runtime conversion instead of source-level per-byte loops,
   `std:bytes` get/unpack/concat/copy sources read u8-buffer carriers directly,
-  public unsigned plus signed 16/32-bit endian getters read `u8_buf` carriers
-  through raw pointer loads after one stdlib span validation,
+  public unsigned plus signed 16/32/64-bit endian getters read `u8_buf` carriers
+  through raw pointer loads after one stdlib span validation, with big-endian
+  64-bit pointer reads kept unrolled,
   public `bytes.unpack` routes u8 buffers through kernel byte intrinsics with
   AVM optimized integer-list output, `buffer.u8_unpack` reuses that byte-native
   path for u8 buffers, `pack` returns exact-size u8 buffers for valid int lists,
@@ -2711,7 +2712,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  JSON full decode, scalar parse, tag equality, and escape paths
 				  use direct source-string byte reads or exact-size `u8_buf` output, `std:bytes`
 					  now exposes shared checked byte views plus explicit unchecked hot-loop
-						  u8/u16/u32/i32/u64 little-endian readers and backing-aware u16/u32/u64 big-endian readers,
+							  u8/u16/u32/i32/u64 little-endian readers and backing-aware u16/u32 plus unrolled u64 big-endian readers,
 					  CBOR canonical key ordering/text
 						  encoding writes growable `u8_buf` output while byte-string
 							  encoding and recursive/sequence decode hoist shared `std:bytes` byte-view backing pointers,

@@ -117,13 +117,14 @@ fn _u64_le_from_ptr(p, off) {
 }
 
 fn _u64_be_from_ptr(p, off) {
-    var acc = 0
-    var i = 0
-    while i < 8 {
-        acc = (acc << 8) | (ptr_get_byte(p + off + i) & 255)
-        i = i + 1
-    }
-    return acc
+    return ((ptr_get_byte(p + off) & 255) << 56) |
+        ((ptr_get_byte(p + off + 1) & 255) << 48) |
+        ((ptr_get_byte(p + off + 2) & 255) << 40) |
+        ((ptr_get_byte(p + off + 3) & 255) << 32) |
+        ((ptr_get_byte(p + off + 4) & 255) << 24) |
+        ((ptr_get_byte(p + off + 5) & 255) << 16) |
+        ((ptr_get_byte(p + off + 6) & 255) << 8) |
+        (ptr_get_byte(p + off + 7) & 255)
 }
 
 fn _i16_from_u16(x) {
