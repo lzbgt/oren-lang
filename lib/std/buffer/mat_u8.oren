@@ -404,6 +404,15 @@ fn u8_mat_copy_from_rows(m, rows) {
 fn u8_mat_copy_from_strings(m, rows) {
     var shape = mshared._mat_string_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_strings")
     if oren_is_err(shape) { return shape }
+    if _u8_mat_is_dense_u8_buf(m) {
+        var wr = 0
+        while wr < shape[0] {
+            var rc0 = oren_u8_buf_copy_from_string_slice_at(m[0], m[1] + wr * m[4], rows[wr], 0, shape[1])
+            if oren_is_err(rc0) { return rc0 }
+            wr = wr + 1
+        }
+        return m[0]
+    }
     var r = 0
     while r < shape[0] {
         var rc = proj.mat_row_copy_from_string(m, r, rows[r])

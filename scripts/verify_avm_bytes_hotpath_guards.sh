@@ -1149,6 +1149,13 @@ if ! grep -Fq 'return oren_u8_buf_copy_from_string_slice_at(m[0], m[1], text, of
   exit 1
 fi
 
+buffer_u8_mat_strings_impl="$(sed -n '/fn u8_mat_copy_from_strings/,/^}/p' lib/std/buffer/mat_u8.oren)"
+if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(m[0], m[1] + wr * m[4], rows[wr], 0, shape[1])' <<<"$buffer_u8_mat_strings_impl" ||
+  ! grep -Fq 'var rc = proj.mat_row_copy_from_string(m, r, rows[r])' <<<"$buffer_u8_mat_strings_impl"; then
+  echo "ERROR: std:buffer dense u8 matrix row-string copies must use offset-aware bulk string copies before falling back to row projections" >&2
+  exit 1
+fi
+
 buffer_u8_mat_list_impl="$(sed -n '/fn _u8_mat_copy_flat_list/,/fn _u8_mat_copy_from_u8_buf/p;/fn u8_mat_copy_from_rows/,/fn u8_mat_copy_from_strings/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'ptr_set_byte(data + m[1] + i, xs[i] & 255)' <<<"$buffer_u8_mat_list_impl" ||
   ! grep -Fq 'ptr_set_byte(data + m[1] + i, rows[wr][wc] & 255)' <<<"$buffer_u8_mat_list_impl" ||

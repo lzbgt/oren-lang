@@ -2787,7 +2787,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  native capsule mount path resolution, realpath segment output, readdir names,
 		  and UNIX-socket path copies through `oren_memcpy`, shared compiler
 		  byte-builder append/list/string/set stores, lexer string-literal decoding through compact byte builders, C identifier
-  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string copy
+	  escaping with raw exact-size output writes, and raw u8/view/u8-matrix string plus row-string copy
   helpers now do the same.
   `std:buffer`
   `[]u8`, u8 slice/strided view, and u8 matrix string/byte conversions now lower

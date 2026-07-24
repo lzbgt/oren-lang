@@ -37,8 +37,14 @@ fn main() {
     assert_eq(buffer.u8_to_string(backing), "..1234..", 9)
     assert_eq(buffer.u8_mat_to_string(offset_mat), "1234", 10)
 
-    assert_true(oren_is_err(buffer.u8_mat_copy_from_string(mat, "abc")), 11)
-    assert_true(oren_is_err(buffer.u8_mat_copy_from_string_slice(mat, "abc", 0, 3)), 12)
+    rc = buffer.u8_mat_copy_from_strings(offset_mat, ["lm", "no"])
+    assert_true(!oren_is_err(rc), 11)
+    assert_eq(buffer.u8_to_string(backing), "..lmno..", 12)
+    assert_eq(buffer.u8_mat_to_string(offset_mat), "lmno", 13)
+
+    assert_true(oren_is_err(buffer.u8_mat_copy_from_string(mat, "abc")), 14)
+    assert_true(oren_is_err(buffer.u8_mat_copy_from_string_slice(mat, "abc", 0, 3)), 15)
+    assert_true(oren_is_err(buffer.u8_mat_copy_from_strings(mat, ["ab", "c"])), 16)
 
     print("buffer_u8_mat_string_copy OK")
     exit(0)
