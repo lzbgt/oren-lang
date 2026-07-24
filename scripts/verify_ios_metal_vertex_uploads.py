@@ -849,11 +849,30 @@ def main() -> int:
         fail("Metal full-frame clear-color detection must delegate to the frame helper")
     if clear_guard not in frame_text:
         fail("Metal full-frame clear-color detection must require unclipped, untranslated frame state")
+    if "BOOL clearHandled = NO;" not in frame_text:
+        fail("Metal full-frame clear-color detection must retain the helper result for duplicate-fill elision")
+    if "static BOOL OrenAVMMetalHasPreparedDrawWork(NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns," not in frame_text:
+        fail("Metal full-frame clear-color elision must use a prepared-draw-work helper")
+    clear_skip = "if (clearHandled && !OrenAVMMetalHasPreparedDrawWork(vertexRuns, &vertices, textRuns, imageRuns))"
+    if clear_skip not in frame_text:
+        fail("Metal full-frame clear-color elision must skip only leading clear fills with no prepared draw work")
     require_before(
         frame_text,
         clear_guard,
         clear_call,
         "Metal full-frame clear-color detection must guard clip/translation before applying clear color",
+    )
+    require_before(
+        frame_text,
+        clear_call,
+        clear_skip,
+        "Metal full-frame clear-color elision must run after successful helper detection",
+    )
+    require_before(
+        frame_text,
+        clear_skip,
+        "BOOL primitiveHandled = OrenAVMMetalAppendPrimitiveCommand(opcode,",
+        "Metal leading clear fills must skip duplicate primitive vertex emission",
     )
     if "BOOL OrenAVMMetalApplyClearColorCommand" not in frame_text:
         fail("Metal clear-color command helper must live in OrenAVMMetalFrame")

@@ -3986,7 +3986,8 @@
 <p>  reducing <code>OrenAVMMetalView.m</code> to 663 lines while keeping per-frame</p>
 <p>  resource/text/image command routing in the view; the clear fast path now only</p>
 <p>  applies when no clip or translation is active and the fill is fully opaque,</p>
-<p>  preserving clipped, translated, and alpha-blended fill semantics.</p>
+<p>  preserving clipped, translated, and alpha-blended fill semantics, and leading</p>
+<p>  clear fills skip duplicate vertex emission when no drawable work is prepared.</p>
 <ul>
 <li>Metal prepared geometry/image/text draw submission now lives in</li>
 </ul>

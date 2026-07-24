@@ -258,6 +258,16 @@ static BOOL OrenAVMMetalOpcodeIsDrawOnly(uint8_t opcode) {
     }
 }
 
+static BOOL OrenAVMMetalHasPreparedDrawWork(NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns,
+                                             OrenAVMMetalVertexBuffer* vertices,
+                                             NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+                                             NSMutableArray<OrenAVMMetalImageRun*>** imageRuns) {
+    return vertexRuns.count > 0 ||
+           (vertices && vertices->byteLength > 0) ||
+           (textRuns && *textRuns && (*textRuns).count > 0) ||
+           (imageRuns && *imageRuns && (*imageRuns).count > 0);
+}
+
 NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* frame,
                                                                      MTLClearColor* clearColor,
                                                                      NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
@@ -290,8 +300,13 @@ NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalBuildVertexRunsForFrame(NSData* fra
         off += 4;
         if (off + (size_t)payloadLen > frame.length) break;
         const uint8_t* payload = data + off;
+        BOOL clearHandled = NO;
         if (!frameState.clip.enabled && frameState.tx == 0.0f && frameState.ty == 0.0f) {
-            OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
+            clearHandled = OrenAVMMetalApplyClearColorCommand(opcode, payload, payloadLen, logicalW, logicalH, frameState.opacity, clearColor);
+        }
+        if (clearHandled && !OrenAVMMetalHasPreparedDrawWork(vertexRuns, &vertices, textRuns, imageRuns)) {
+            off += payloadLen;
+            continue;
         }
         if ((OrenAVMMetalScissorIsEmpty(frameState.clip) || frameState.opacity <= 0.0f) &&
             OrenAVMMetalOpcodeIsDrawOnly(opcode)) {

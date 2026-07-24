@@ -93,8 +93,9 @@ surfaces, but the following blockers remain:
 						  frame traversal, active empty-scissor or empty-clip spans skip Metal
 						  and CoreGraphics draw-only opcodes before frame-prep or
 						  CGContext/resource/text draw work, Metal full-frame clear shortcuts
-					  require unclipped, untranslated, fully opaque fill state while resource
-				  create/destroy opcodes still execute, malformed zero-size/count-mismatched
+						  require unclipped, untranslated, fully opaque fill state and skip duplicate
+					  leading fill vertices only before prepared drawable work while resource
+					  create/destroy opcodes still execute, malformed zero-size/count-mismatched
 				  retained image/text draws reject before retained resource lookup when the
 				  command is otherwise a no-op, immediate text opcodes reject empty or
 				  trailing-byte payloads before attribute/texture preparation, retained
@@ -3069,7 +3070,8 @@ Working evidence:
 	  command routing in the view. Metal full-frame clear-color detection now lives
 	  in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
 	  keeping per-frame resource/text/image command routing in the view; it only
-	  promotes unclipped, untranslated, fully opaque fills to render-pass clear. Metal
+	  promotes unclipped, untranslated, fully opaque fills to render-pass clear and skips
+	  duplicate leading fill vertices before any prepared drawable work. Metal
   prepared geometry/image/text draw submission now lives in
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the

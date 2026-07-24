@@ -2862,7 +2862,8 @@ design evidence lives under `project-doc/`.
   reducing `OrenAVMMetalView.m` to 663 lines while keeping per-frame
   resource/text/image command routing in the view; the clear fast path now only
   applies when no clip or translation is active and the fill is fully opaque,
-  preserving clipped, translated, and alpha-blended fill semantics.
+  preserving clipped, translated, and alpha-blended fill semantics, and leading
+  clear fills skip duplicate vertex emission when no drawable work is prepared.
 - Metal prepared geometry/image/text draw submission now lives in
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the view.

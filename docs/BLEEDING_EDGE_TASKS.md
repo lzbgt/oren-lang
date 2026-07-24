@@ -1445,8 +1445,9 @@ This file is the concise task view. Detailed implementation status lives in
 								     fully transparent Metal draw-only plus retained mesh/model opcodes and
 								     CoreGraphics draw-only opcodes skip vertex/texture/text-cache/lookup/depth-order work,
 									     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only
-										     opcodes before frame-prep or CGContext/resource/text draw work, Metal
-										     full-frame clear shortcuts require unclipped, untranslated, fully opaque state,
+											     opcodes before frame-prep or CGContext/resource/text draw work, Metal
+											     full-frame clear shortcuts require unclipped, untranslated, fully opaque state
+										     and skip duplicate leading fill vertices before prepared drawable work,
 									     malformed zero-size/count-mismatched retained image/text draws reject before retained
 								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area
 					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
