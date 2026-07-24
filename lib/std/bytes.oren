@@ -111,9 +111,14 @@ fn _u32_be_from_ptr(p, off) {
 }
 
 fn _u64_le_from_ptr(p, off) {
-    var lo = _u32_le_from_ptr(p, off)
-    var hi = _u32_le_from_ptr(p, off + 4)
-    return lo | (hi << 32)
+    return (ptr_get_byte(p + off) & 255) |
+        ((ptr_get_byte(p + off + 1) & 255) << 8) |
+        ((ptr_get_byte(p + off + 2) & 255) << 16) |
+        ((ptr_get_byte(p + off + 3) & 255) << 24) |
+        ((ptr_get_byte(p + off + 4) & 255) << 32) |
+        ((ptr_get_byte(p + off + 5) & 255) << 40) |
+        ((ptr_get_byte(p + off + 6) & 255) << 48) |
+        ((ptr_get_byte(p + off + 7) & 255) << 56)
 }
 
 fn _u64_be_from_ptr(p, off) {

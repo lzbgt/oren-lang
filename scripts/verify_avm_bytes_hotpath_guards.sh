@@ -250,6 +250,7 @@ if ! grep -Fq 'avm_native_bytes_len_checked(args[0], &n, &err_msg' <<<"$bytes_le
 fi
 
 std_bytes_impl="$(sed -n '/fn _u16_be_from_ptr/,/fn set_u16_be/p' lib/std/bytes.oren)"
+std_u64_le_ptr_impl="$(sed -n '/fn _u64_le_from_ptr/,/fn _u64_be_from_ptr/p' lib/std/bytes.oren)"
 std_u64_be_ptr_impl="$(sed -n '/fn _u64_be_from_ptr/,/fn _i16_from_u16/p' lib/std/bytes.oren)"
 if ! grep -Fq 'fn _u16_le_from_ptr' <<<"$std_bytes_impl" ||
   ! grep -Fq 'fn _copy_u8_ptr_nonoverlap(dstp, srcp, n)' <<<"$std_bytes_impl" ||
@@ -282,6 +283,13 @@ fi
 if ! grep -Fq 'ptr_get_byte(p + off + 7) & 255' <<<"$std_u64_be_ptr_impl" ||
   grep -Fq 'while i < 8' <<<"$std_u64_be_ptr_impl"; then
   echo "ERROR: std:bytes big-endian 64-bit pointer reads must be unrolled direct byte loads, not Oren loops" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'ptr_get_byte(p + off + 7) & 255) << 56' <<<"$std_u64_le_ptr_impl" ||
+  grep -Fq 'while i < 8' <<<"$std_u64_le_ptr_impl" ||
+  grep -Fq '_u32_le_from_ptr' <<<"$std_u64_le_ptr_impl"; then
+  echo "ERROR: std:bytes little-endian 64-bit pointer reads must be unrolled direct byte loads, not Oren loops/helper calls" >&2
   exit 1
 fi
 

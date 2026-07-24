@@ -104,9 +104,9 @@
 </ul>
 <p>  avoiding a repeated carrier check in each lowercase hex byte iteration.</p>
 <ul>
-<li><code>std:bytes</code> big-endian 64-bit pointer reads are now unrolled, so public</li>
+<li><code>std:bytes</code> 64-bit pointer reads are now unrolled, so public u64/i64 BE and</li>
 </ul>
-<p>  u64/i64 BE getters and checked view helpers avoid an Oren eight-iteration loop</p>
+<p>  LE getters plus checked view helpers avoid Oren loops or chained helper calls</p>
 <p>  after span validation on <code>u8_buf</code> carriers.</p>
 <ul>
 <li>LSP now advertises and serves same-document document highlights for exact</li>
