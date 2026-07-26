@@ -606,9 +606,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     push_u32_le(p, dylinker_name_offset())
     _macho_push_string_bytes(p, dyld_path)
     bytes_push(p, 0)
-    while bytes_len(p) < cmd_start + dyld_cmdsize {
-        bytes_push(p, 0)
-    }
+    _macho_pad_to_len(p, cmd_start + dyld_cmdsize)
     
     // 7. LC_LOAD_DYLIB (libSystem) - optional for syscall-only binaries
     if need_libsystem {
@@ -621,9 +619,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // compatibility version
         _macho_push_string_bytes(p, libsys_path)
         bytes_push(p, 0) // null terminator
-        while bytes_len(p) < cmd_start_lib + libsys_cmdsize {
-            bytes_push(p, 0) // padding
-        }
+        _macho_pad_to_len(p, cmd_start_lib + libsys_cmdsize)
     }
 
     // Extra libs
@@ -640,9 +636,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // compatibility version
         _macho_push_string_bytes(p, lib_path2)
         bytes_push(p, 0)
-        while bytes_len(p) < cmd_start_lib2 + lib_cmdsize2 {
-            bytes_push(p, 0)
-        }
+        _macho_pad_to_len(p, cmd_start_lib2 + lib_cmdsize2)
         k_lib = k_lib + 1
     }
 
@@ -684,9 +678,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     }
                 
 
-    while bytes_len(p) < header_size {
-        bytes_push(p, 0)
-    }
+    _macho_pad_to_len(p, header_size)
     return p
 }
 
@@ -1633,10 +1625,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
     if trace_emit { print("[emit] macho arm64: apply fixups done") }
     
-    // Pad strtab to 16 bytes for stable layout/alignment
-    while int_mod(bytes_len(strtab), 16) != 0 {
-        bytes_push(strtab, 0)
-    }
+    // Pad strtab to 16 bytes for stable layout/alignment.
+    _macho_align(strtab, 16)
     
     var symtab_size = bytes_len(symtab)
     var strtab_size = bytes_len(strtab)
@@ -1650,13 +1640,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_size, imports_len, symtab_size, strtab_size, bind_size, bind_off, libs, is_shared, out_path)
     
     bytes_extend(prefix, code)
-    while bytes_len(prefix) < text_size {
-        bytes_push(prefix, 0)
-    }
+    _macho_pad_to_len(prefix, text_size)
     bytes_extend(prefix, data)
-    while bytes_len(prefix) < text_size + data_size {
-        bytes_push(prefix, 0)
-    }
+    _macho_pad_to_len(prefix, text_size + data_size)
     
     // LinkEdit content
     bytes_extend(prefix, bind_opcodes)

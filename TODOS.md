@@ -53,7 +53,7 @@ design evidence lives under `project-doc/`.
   now reuses `_pe_align` instead of single-byte zero pads.
 - ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing
   alignment helpers or exact zero-extension spans for dylib-id, exit-stub,
-  debug-data, page, and section-table padding.
+  debug-data, page, load-command, string-table, and section-table padding.
 - ARM64/x64 ELF final executable page padding now extends the output prefix
   directly with exact zero spans instead of allocating and copying a temporary
   `code_pad` builder.

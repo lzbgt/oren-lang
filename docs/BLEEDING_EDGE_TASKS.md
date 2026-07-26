@@ -47,6 +47,8 @@ This file is the concise task view. Detailed implementation status lives in
      `_pe_align(rdata, 2)` instead of repeated one-byte zero-pad branches.
    - Current Mach-O/ELF byte-output cleanup routes final executable padding
      through existing alignment helpers and exact zero-extension spans.
+   - Current ARM64 Mach-O cleanup routes load-command, string-table, and final
+     text/data prefix padding through `_macho_pad_to_len`/`_macho_align`.
    - Current ELF page-padding cleanup extends the output prefix directly with
      exact zero spans instead of allocating and copying a temporary `code_pad`
      builder.
