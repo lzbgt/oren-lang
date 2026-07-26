@@ -126,6 +126,11 @@
 <p>  reservation to 4096 entries, so large frame-derived op counts do not force a</p>
 <p>  large pointer-array allocation on the first valid run append.</p>
 <ul>
+<li>iOS Metal vertex-run flush now resets failed growable vertex builders at</li>
+</ul>
+<p>  continuing state boundaries, so an allocation-failed geometry run cannot poison</p>
+<p>  later geometry in the same frame.</p>
+<ul>
 <li>iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry</li>
 </ul>
 <p>  clip, translation, opacity, and camera stacks. Overflow pushes are tracked as</p>

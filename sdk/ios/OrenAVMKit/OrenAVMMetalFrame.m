@@ -465,17 +465,23 @@ OrenAVMMetalVertexBuffer* OrenAVMMetalEnsureVertexBuilder(OrenAVMMetalVertexBuff
     return vertices;
 }
 
+static void OrenAVMMetalResetFailedVertexBuilder(OrenAVMMetalVertexBuffer* vertices, BOOL continueBuilding) {
+    if (!vertices || !vertices->failed) return;
+    NSUInteger initialCapacity = vertices->initialCapacity;
+    OrenAVMMetalVertexBufferFree(vertices);
+    if (continueBuilding) OrenAVMMetalVertexBufferInit(vertices, initialCapacity);
+}
+
 void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>** runsRef,
                                 OrenAVMMetalVertexBuffer* verticesRef,
                                 NSUInteger runCapacity,
                                 OrenAVMMetalScissorState scissor,
                                 BOOL continueBuilding) {
+    if (verticesRef && verticesRef->failed) {
+        OrenAVMMetalResetFailedVertexBuilder(verticesRef, continueBuilding);
+        return;
+    }
     if (!verticesRef || verticesRef->byteLength == 0) {
-        if (verticesRef && verticesRef->failed) {
-            NSUInteger initialCapacity = verticesRef->initialCapacity;
-            OrenAVMMetalVertexBufferFree(verticesRef);
-            OrenAVMMetalVertexBufferInit(verticesRef, initialCapacity);
-        }
         return;
     }
     NSUInteger vertexBytes = 0;
@@ -498,7 +504,6 @@ void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>** runsRef
     run.hasScissor = scissor.enabled;
     run.scissor = scissor.rect;
     [runs addObject:run];
-    (void)continueBuilding;
 }
 
 static BOOL OrenAVMMetalVertexRunScissorEqual(OrenAVMMetalVertexRun* a, OrenAVMMetalVertexRun* b) {

@@ -87,6 +87,9 @@ design evidence lives under `project-doc/`.
 - Metal prepared geometry/text/image run arrays now cap their initial lazy
   reservation to 4096 entries instead of reserving the full frame-derived op
   capacity on first append.
+- Metal vertex-run flush now resets failed growable vertex builders at state
+  boundaries, so one allocation failure drops only the current run instead of
+  poisoning later geometry in the same frame.
 - Metal and CoreGraphics retained image/text draw handlers now reject malformed
   zero-size/count-mismatched draw payloads before retained resource lookup when
   the command is otherwise a no-op, preserving resource create/destroy paths.
@@ -2964,7 +2967,8 @@ design evidence lives under `project-doc/`.
   prepared runs exist, invalid or fully clipped prepared runs defer pipeline
   binding until a vertex payload is bound, and repeated same-scissor/texture/opacity
   prepared runs skip redundant encoder state writes; failed run/container allocation
-  frees taken vertex bytes during flush.
+  frees taken vertex bytes during flush, and failed growable vertex builders reset
+  at continuing state-boundary flushes.
 - Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
   context struct that carries view-owned caches and retained resource maps,
   reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,

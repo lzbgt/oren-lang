@@ -13,6 +13,14 @@ OREN_COMPILER="${OREN_COMPILER:-./oren}"
 if [[ ! -x "$OREN_COMPILER" ]]; then
   make oren > "$LOG_DIR/make_oren_for_libavm_ios_verify.log" 2>&1
 fi
+metal_frame_impl="$(cat sdk/ios/OrenAVMKit/OrenAVMMetalFrame.m)"
+if ! grep -Fq 'static void OrenAVMMetalResetFailedVertexBuilder(OrenAVMMetalVertexBuffer* vertices, BOOL continueBuilding)' <<<"$metal_frame_impl" ||
+  ! grep -Fq 'if (verticesRef && verticesRef->failed)' <<<"$metal_frame_impl" ||
+  ! grep -Fq 'OrenAVMMetalResetFailedVertexBuilder(verticesRef, continueBuilding);' <<<"$metal_frame_impl" ||
+  grep -Fq '(void)continueBuilding;' <<<"$metal_frame_impl"; then
+  echo "ERROR: Metal vertex-run flush must reset failed builders at state boundaries instead of ignoring continueBuilding" >&2
+  exit 1
+fi
 reserve_tcp_port() {
   python3 - <<'PY'
 import socket
