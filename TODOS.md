@@ -77,6 +77,8 @@ design evidence lives under `project-doc/`.
   zero-extension instead of a fixed u32 pair loop.
 - X64 PE import thunk tables now reserve ILT/IAT zero entries with exact
   byte-builder zero-extension spans instead of fixed u64 zero loops.
+- X64 PE export name-pointer tables now reserve exact zero spans through
+  byte-builder zero extension instead of fixed u32 zero loops.
 - ARM64 and x64 ELF alignment padding now computes one padding span and uses
   shared byte-builder zero extension instead of per-byte alignment loops.
 - ARM64/x64 ELF, ARM64 Mach-O, and x64 PE whole-string artifact append helpers

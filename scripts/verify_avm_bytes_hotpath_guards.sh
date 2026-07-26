@@ -1085,6 +1085,13 @@ if ! grep -Fq 'fn _pe_align(buf, align)' lib/compiler/x64_pe.oren ||
   exit 1
 fi
 
+x64_pe_exports_impl="$(sed -n '/Optional PE export table/,/Patch IMAGE_EXPORT_DIRECTORY fields/p' lib/compiler/x64_pe.oren)"
+if ! grep -Fq 'bytes_extend_zeros(rdata, n_exp * 4)' <<<"$x64_pe_exports_impl" ||
+  grep -Fq 'while ei < n_exp { push_u32_le(rdata, 0); ei = ei + 1 }' <<<"$x64_pe_exports_impl"; then
+  echo "ERROR: x64 PE export name-pointer reservations must use byte-builder zero extension, not a fixed u32 loop" >&2
+  exit 1
+fi
+
 arm64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/arm64_elf.oren)"
 x64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/x64_elf.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
