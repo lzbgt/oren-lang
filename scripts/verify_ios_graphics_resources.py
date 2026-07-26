@@ -69,6 +69,12 @@ def main() -> int:
         if token not in resource_text:
             fail(f"CoreGraphics resource helper must live in OrenAVMGraphicsResources: {token}")
     for forbidden in (
+        "if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable",
+        "if (!_orenTextAttributes) _orenTextAttributes = CFDictionaryCreateMutable",
+        "if (!_orenMeshesByID) _orenMeshesByID = CFDictionaryCreateMutable",
+        "if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable",
+        "if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable",
+        "if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable",
         "@interface OrenAVMGfxMeshResource",
         "@implementation OrenAVMGfxMeshResource",
         "static OrenAVMGfxTriangleOrder* OrenAVMGfxTriangleOrderBuffer",

@@ -67,6 +67,8 @@ def main() -> int:
         fail("shared iOS touch tracking must use pointer-keyed scalar maps")
     if "CFDictionarySetValue(_orenTouchIDs" in renderer_text or "orenPointerIDForTouch" in renderer_text:
         fail("iOS renderer touch map mutation must stay in OrenAVMGFXInput")
+    if "if (!_orenTouchIDs) _orenTouchIDs = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);" in renderer_text:
+        fail("iOS renderer touch maps must be allocated lazily by OrenAVMGFXInput")
     if renderer_text.count("OrenAVMGFXInputSendPointerEvent(self.runtime,") != 2:
         fail("CoreGraphics and Metal pointer sends must delegate to the shared helper")
     if renderer_text.count("OrenAVMGFXInputSendPointerEvents(self.runtime,") != 2:

@@ -212,6 +212,9 @@ surfaces, but the following blockers remain:
   optional coalesced output array cannot be allocated, and coalesced output
   arrays reuse the shared 4096-entry initial-capacity cap instead of reserving
   the full input run count.
+- iOS CoreGraphics and Metal renderer startup now leaves retained-resource and
+  touch scalar maps nil until first use; shared input/resource helpers allocate
+  those maps lazily.
 - iOS Metal image runs now track initialized inline-quad vertex count
   explicitly, so encoding and coalescing bind only actual inline or heap-backed
   vertex spans.

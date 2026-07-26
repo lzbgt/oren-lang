@@ -229,6 +229,10 @@
 <p>  allocation before scalar-map insertion, matching the Metal retained-resource</p>
 <p>  failure boundary.</p>
 <ul>
+<li>CoreGraphics and Metal views now leave retained-resource and touch maps nil at</li>
+</ul>
+<p>  startup; shared input/resource helpers allocate the scalar maps on first use.</p>
+<ul>
 <li>Metal text cache misses now guard typed cache-key, cache-entry, and run</li>
 </ul>
 <p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>

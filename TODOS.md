@@ -128,6 +128,8 @@ design evidence lives under `project-doc/`.
 - CoreGraphics retained image/text/model uploads now guard Objective-C resource
   allocation before scalar-map insertion, matching the Metal retained-resource
   failure boundary.
+- CoreGraphics and Metal views now leave retained-resource and touch maps nil at
+  startup; shared input/resource helpers allocate the scalar maps on first use.
 - Metal text cache misses now guard typed cache-key, cache-entry, and run
   allocation before dictionary lookup, glyph rasterization storage, or vertex
   writes.

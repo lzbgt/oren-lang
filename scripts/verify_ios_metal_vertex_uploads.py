@@ -380,6 +380,16 @@ def main() -> int:
         fail("Metal image run quad construction must live with Metal image-run resources")
     if "static const void* OrenAVMMetalRetainedTextKey" in text or "static OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource" in text:
         fail("Metal view must not define retained text scalar-map helpers")
+    for eager_map in (
+        "if (!_orenTextResourcesByID) _orenTextResourcesByID = CFDictionaryCreateMutable",
+        "if (!_orenMeshesByID) _orenMeshesByID = CFDictionaryCreateMutable",
+        "if (!_orenMeshes3DByID) _orenMeshes3DByID = CFDictionaryCreateMutable",
+        "if (!_orenMaterials3DByID) _orenMaterials3DByID = CFDictionaryCreateMutable",
+        "if (!_orenModels3DByID) _orenModels3DByID = CFDictionaryCreateMutable",
+        "if (!_orenImagesByID) _orenImagesByID = CFDictionaryCreateMutable",
+    ):
+        if eager_map in text:
+            fail("Metal retained resource maps must be allocated lazily by resource helpers")
     if "static const void* OrenAVMMetalRetainedMeshKey" in text or "static OrenAVMMetalMesh2DResource* OrenAVMMetalRetainedMesh2DResource" in text:
         fail("Metal view must not define retained mesh scalar-map helpers")
     if "static const void* OrenAVMMetalRetainedMaterialKey" in text or "static BOOL OrenAVMMetalRetainedMaterialRGBA" in text:
