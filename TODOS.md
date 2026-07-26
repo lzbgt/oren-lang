@@ -2658,6 +2658,9 @@ design evidence lives under `project-doc/`.
   Base64/Base64URL encode now hoists shared byte-view backing pointers once per
   call and maps sextets arithmetically instead of indexing alphabet strings;
   Base64URL decode uses the same direct byte-buffer output path.
+- `std:argparse` ASCII lowercasing now writes an exact-size `u8_buf` with byte
+  arithmetic instead of scanning alphabet strings and concatenating one
+  character at a time.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.

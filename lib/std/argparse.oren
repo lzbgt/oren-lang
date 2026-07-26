@@ -15,25 +15,18 @@ import list "std:list"
 
 fn _lower_ascii(s) {
     if s == nil { return "" }
-    var out = ""
+    var n = oren_string_len(s)
+    var out = oren_u8_buf_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
     var i = 0
-    while i < oren_string_len(s) {
-        var c = oren_string_char_at(s, i)
-        // Map via hardcoded string index (ASCII-only, deterministic).
-        // This avoids relying on any locale/casefolding behavior.
-        // Use -1 as "not found" sentinel (0 is a valid index).
-        var idx = -1
-        var alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        var j = 0
-        while j < 26 {
-            if oren_string_char_at(alpha, j) == c { idx = j; j = 26 }
-            else { j = j + 1 }
-        }
-        if idx >= 0 { out = out + oren_string_char_at("abcdefghijklmnopqrstuvwxyz", idx) }
-        else { out = out + c }
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        if b >= 65 && b <= 90 { b = b + 32 }
+        ptr_set_byte(data + i, b)
         i = i + 1
     }
-    return out
+    return oren_string_from_bytes_slice(out, 0, n)
 }
 
 fn _trim_spaces(s) {

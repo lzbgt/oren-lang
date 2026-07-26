@@ -100,6 +100,11 @@
 <p>  arithmetically into exact-size output buffers instead of indexing alphabet</p>
 <p>  strings for every output byte.</p>
 <ul>
+<li><code>std:argparse</code> ASCII option/env lowercasing now writes an exact-size <code>u8_buf</code></li>
+</ul>
+<p>  with byte arithmetic instead of scanning alphabet strings and repeatedly</p>
+<p>  concatenating single-character strings.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>
@@ -3158,7 +3163,7 @@
 <p>	  native WebSocket header slices plus frame payload reads</p>
 <p>  copy with <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
-<p>				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call and maps sextets arithmetically instead of indexing alphabet strings,</p>
+<p>				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call and maps sextets arithmetically instead of indexing alphabet strings, argparse ASCII lowercasing writes exact-size byte buffers instead of scanning alphabet strings,</p>
 <p>				  tolerant Base64 decode derives clean length plus trailing padding from one</p>
 <p>				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,</p>
 <p>				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,</p>

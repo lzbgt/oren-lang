@@ -69,6 +69,10 @@ fn test_help_render() {
     assert(has_line_prefix(run_lines, "  --verbose"), "run shows --verbose")
 }
 
+fn test_lower_ascii() {
+    assert(ap._lower_ascii("TrUe-OFF_19!") == "true-off_19!", "lower ascii maps uppercase only")
+}
+
 fn test_parse() {
     var p = ap.new_parser("tool", "demo tool")
     var c = ap.add_command(p, "run", "run the tool")
@@ -179,6 +183,7 @@ fn test_help_early_exit() {
 }
 
 test_help_render()
+test_lower_ascii()
 test_parse()
 test_parse_result()
 test_no_flag_sets_false()

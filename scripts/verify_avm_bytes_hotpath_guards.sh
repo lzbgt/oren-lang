@@ -893,6 +893,20 @@ if ! grep -Fq 'if opcode != 2 or payload != b"bin!"' scripts/libavm_ios_verify_n
   exit 1
 fi
 
+argparse_lower_impl="$(sed -n '/fn _lower_ascii/,/fn _trim_spaces/p' lib/std/argparse.oren)"
+if ! grep -Fq 'var out = oren_u8_buf_new_uninit(n)' <<<"$argparse_lower_impl" ||
+  ! grep -Fq 'var data = oren_buf_data_ptr_unchecked(out)' <<<"$argparse_lower_impl" ||
+  ! grep -Fq 'var b = oren_string_byte_at_unchecked(s, i) & 255' <<<"$argparse_lower_impl" ||
+  ! grep -Fq 'if b >= 65 && b <= 90 { b = b + 32 }' <<<"$argparse_lower_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + i, b)' <<<"$argparse_lower_impl" ||
+  ! grep -Fq 'return oren_string_from_bytes_slice(out, 0, n)' <<<"$argparse_lower_impl" ||
+  grep -Fq 'var alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"' <<<"$argparse_lower_impl" ||
+  grep -Fq 'oren_string_char_at("abcdefghijklmnopqrstuvwxyz"' <<<"$argparse_lower_impl" ||
+  ! grep -Fq 'lower ascii maps uppercase only' tests/modules/test_argparse.oren; then
+  echo "ERROR: argparse ASCII lowercasing must use exact-size u8_buf writes and byte arithmetic, not alphabet string scans" >&2
+  exit 1
+fi
+
 base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||
   ! grep -Fq 'fn _b64url_encode_byte(v)' <<<"$base64_encode_byte_impl" ||

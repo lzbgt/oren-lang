@@ -3689,6 +3689,11 @@
 <p>  call and maps sextets arithmetically instead of indexing alphabet strings;</p>
 <p>  Base64URL decode uses the same direct byte-buffer output path.</p>
 <ul>
+<li><code>std:argparse</code> ASCII lowercasing now writes an exact-size <code>u8_buf</code> with byte</li>
+</ul>
+<p>  arithmetic instead of scanning alphabet strings and concatenating one</p>
+<p>  character at a time.</p>
+<ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>
