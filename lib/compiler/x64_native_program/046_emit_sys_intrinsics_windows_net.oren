@@ -44,6 +44,39 @@ fn _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, next_label, wsa_err
     return nil
 }
 
+fn _emit_wsa_last_error_progress_cases_x64(ctx, labels, fixups, l_done) {
+    // WSAEWOULDBLOCK(10035) -> EAGAIN(11)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next0", 10035, 11)
+
+    // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next1", 10036, 115)
+
+    // WSAEALREADY(10037) -> EALREADY(114)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next2", 10037, 114)
+    return nil
+}
+
+fn _emit_wsa_last_error_socket_cases_x64(ctx, labels, fixups, l_done) {
+    // WSAETIMEDOUT(10060) -> ETIMEDOUT(60)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next3", 10060, 60)
+
+    // WSAECONNREFUSED(10061) -> ECONNREFUSED(111)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next4", 10061, 111)
+
+    // WSAEADDRINUSE(10048) -> EADDRINUSE(98)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next5", 10048, 98)
+
+    // WSAEINVAL(10022) -> EINVAL(22)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next6", 10022, 22)
+
+    // WSAENOTSOCK(10038) -> ENOTSOCK(88) (Linux number; used only for diagnostics)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next7", 10038, 88)
+
+    // WSAECONNRESET(10054) -> ECONNRESET(104)
+    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next8", 10054, 104)
+    return nil
+}
+
 fn _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_wsa_get_last_error expects 0 args"); return nil }
@@ -63,32 +96,8 @@ fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
     var fixups = []
     var l_done = _new_label(ctx, "wsa_err_done")
 
-    // WSAEWOULDBLOCK(10035) -> EAGAIN(11)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next0", 10035, 11)
-
-    // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next1", 10036, 115)
-
-    // WSAEALREADY(10037) -> EALREADY(114)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next2", 10037, 114)
-
-    // WSAETIMEDOUT(10060) -> ETIMEDOUT(60)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next3", 10060, 60)
-
-    // WSAECONNREFUSED(10061) -> ECONNREFUSED(111)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next4", 10061, 111)
-
-    // WSAEADDRINUSE(10048) -> EADDRINUSE(98)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next5", 10048, 98)
-
-    // WSAEINVAL(10022) -> EINVAL(22)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next6", 10022, 22)
-
-    // WSAENOTSOCK(10038) -> ENOTSOCK(88) (Linux number; used only for diagnostics)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next7", 10038, 88)
-
-    // WSAECONNRESET(10054) -> ECONNRESET(104)
-    _emit_wsa_neg_errno_case_x64(ctx, labels, fixups, l_done, "wsa_err_next8", 10054, 104)
+    _emit_wsa_last_error_progress_cases_x64(ctx, labels, fixups, l_done)
+    _emit_wsa_last_error_socket_cases_x64(ctx, labels, fixups, l_done)
 
     // Default: -EIO(5)
     _emit_set_rax_neg_errno_x64(ctx, 5)

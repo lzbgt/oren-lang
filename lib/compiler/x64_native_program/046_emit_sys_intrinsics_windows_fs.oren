@@ -187,16 +187,7 @@ fn _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, next_prefix, wine
     return nil
 }
 
-fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
-    // rax = -errno (POSIX-like) mapped from Win32 GetLastError()
-    //
-    // Uses: eax
-    _emit_win32_get_last_error_x64(ctx)
-
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "win32_err_done")
-
+fn _emit_win32_last_error_file_cases_x64(ctx, labels, fixups, l_done) {
     // ERROR_FILE_NOT_FOUND(2) / ERROR_PATH_NOT_FOUND(3) -> ENOENT(2)
     _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next0", 2, 2)
     _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next1", 3, 2)
@@ -206,7 +197,10 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
 
     // ERROR_INVALID_HANDLE(6) -> EBADF(9)
     _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next3", 6, 9)
+    return nil
+}
 
+fn _emit_win32_last_error_fs_state_cases_x64(ctx, labels, fixups, l_done) {
     // ERROR_SHARING_VIOLATION(32) -> EBUSY(16)
     _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next4", 32, 16)
 
@@ -219,6 +213,21 @@ fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
 
     // ERROR_NOT_SAME_DEVICE(17) -> EXDEV(18)
     _emit_win32_neg_errno_case_x64(ctx, labels, fixups, l_done, "win32_err_next8", 17, 18)
+    return nil
+}
+
+fn _emit_win32_last_error_to_neg_errno_common_x64(ctx) {
+    // rax = -errno (POSIX-like) mapped from Win32 GetLastError()
+    //
+    // Uses: eax
+    _emit_win32_get_last_error_x64(ctx)
+
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "win32_err_done")
+
+    _emit_win32_last_error_file_cases_x64(ctx, labels, fixups, l_done)
+    _emit_win32_last_error_fs_state_cases_x64(ctx, labels, fixups, l_done)
 
     // Default: -EIO(5)
     _emit_set_rax_neg_errno_x64(ctx, 5)

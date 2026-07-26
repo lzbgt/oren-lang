@@ -119,6 +119,9 @@ surfaces, but the following blockers remain:
   insertion, runtime-object C-string metadata merge/stash, and debug symtab
   function/import collection into focused parser bodies while preserving trace,
   rtobj metadata, and debug symbol-table order.
+- X64 Windows Win32/WSA errno mapping now delegates common error-code case
+  families to focused helper bodies while preserving emitted comparison order
+  and default `-EIO` fallback behavior.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

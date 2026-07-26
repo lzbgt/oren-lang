@@ -1009,6 +1009,15 @@ if ! grep -Fq 'fn _x64_slow_fn_top_insert_index' <<<"$x64_program_entry_shape_im
   echo "ERROR: x64 program-entry trace/cstr/debug helpers must stay split into focused parser bodies" >&2
   exit 1
 fi
+x64_windows_errno_impl="$(sed -n '/fn _emit_win32_last_error_file_cases_x64/,/fn _emit_win32_last_error_to_neg_errno_common_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
+$(sed -n '/fn _emit_wsa_last_error_progress_cases_x64/,/fn _emit_intrinsic_sys_wsa_get_last_error_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren)"
+if ! grep -Fq 'fn _emit_win32_last_error_file_cases_x64(ctx, labels, fixups, l_done)' <<<"$x64_windows_errno_impl" ||
+  ! grep -Fq 'fn _emit_win32_last_error_fs_state_cases_x64(ctx, labels, fixups, l_done)' <<<"$x64_windows_errno_impl" ||
+  ! grep -Fq 'fn _emit_wsa_last_error_progress_cases_x64(ctx, labels, fixups, l_done)' <<<"$x64_windows_errno_impl" ||
+  ! grep -Fq 'fn _emit_wsa_last_error_socket_cases_x64(ctx, labels, fixups, l_done)' <<<"$x64_windows_errno_impl"; then
+  echo "ERROR: x64 Windows errno mapping must keep Win32/WSA case families split into focused helpers" >&2
+  exit 1
+fi
 arm64_gemm_store_helper_impl="$(sed -n '/fn arm64_emit_store_d_reg_to_cursor/,/fn native_emit_panic/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 if ! grep -Fq 'fn arm64_emit_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
   ! grep -Fq 'fn arm64_emit_addp_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||

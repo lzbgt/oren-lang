@@ -115,6 +115,9 @@ This file is the concise task view. Detailed implementation status lives in
      insertion, runtime-object C-string metadata merge/stash, and debug symtab
      function/import collection into focused parser bodies while preserving
      trace, rtobj metadata, and debug symbol-table order.
+   - Current x64 Windows errno-mapping cleanup splits Win32 and WSA common
+     error-code case families into focused helper bodies while preserving branch
+     comparison order and default `-EIO` fallback behavior.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.
