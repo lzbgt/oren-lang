@@ -59,15 +59,21 @@ design evidence lives under `project-doc/`.
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops, and PE import hint/name alignment
   now reuses `_pe_align` instead of single-byte zero pads.
+- x64 PE signature and linker-version zero fields now use exact zero-extension
+  spans instead of separate zero-byte pushes.
 - ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing
   alignment helpers or exact zero-extension spans for dylib-id, exit-stub,
   debug-data, GOT, page, load-command, string-table, and section-table padding.
 - ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
   data C strings now route through shared string+zero or zero-span byte-builder
   helpers instead of separate string append plus zero-byte pushes.
+- ARM64/x64 ELF dynamic-symbol `st_other` and OSABI zero fields now use exact
+  zero-extension spans instead of single zero-byte pushes.
 - ARM64 Mach-O bind opcodes, load-command dylib names, dylib-id names, and
   import/export string-table names now route through a shared string+NUL
   byte-builder helper instead of separate string append plus terminator pushes.
+- ARM64 Mach-O initial string-table terminator and undefined-symbol `n_sect`
+  fields now use zero-extension spans instead of separate zero-byte pushes.
 - OBC linker NIL constant tags now route through byte-builder zero-extension
   rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix

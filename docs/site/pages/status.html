@@ -111,6 +111,10 @@
 </ul>
 <p>  of repeated one-byte zero-pad branches.</p>
 <ul>
+<li>x64 PE signature and linker-version zero fields now emit through exact</li>
+</ul>
+<p>  zero-extension spans instead of separate zero-byte pushes.</p>
+<ul>
 <li>ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based</li>
 </ul>
 <p>  alignment or exact zero-extension spans for residual output padding loops.</p>
@@ -120,10 +124,18 @@
 <p>  data C strings now use shared string+zero or zero-span byte-builder helpers</p>
 <p>  instead of separate string append plus single-zero pushes.</p>
 <ul>
+<li>ARM64/x64 ELF dynamic-symbol <code>st_other</code> and OSABI zero fields now use exact</li>
+</ul>
+<p>  zero-extension spans instead of single zero-byte pushes.</p>
+<ul>
 <li>ARM64 Mach-O bind-opcode symbol names, load-command dylib names, dylib-id</li>
 </ul>
 <p>  names, and import/export string-table entries now use a shared string+NUL</p>
 <p>  byte-builder helper instead of separate terminator byte pushes.</p>
+<ul>
+<li>ARM64 Mach-O initial string-table terminator and undefined-symbol <code>n_sect</code></li>
+</ul>
+<p>  fields now use zero-extension spans instead of separate zero-byte pushes.</p>
 <ul>
 <li>OBC linker NIL constant tags now use byte-builder zero-extension instead of</li>
 </ul>

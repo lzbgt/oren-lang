@@ -125,6 +125,10 @@
 </ul>
 <p>     <code>_pe_align(rdata, 2)</code> instead of repeated one-byte zero-pad branches.</p>
 <ul>
+<li>Current PE header cleanup routes signature and linker-version zero fields</li>
+</ul>
+<p>     through exact zero-extension spans instead of separate zero-byte pushes.</p>
+<ul>
 <li>Current Mach-O/ELF byte-output cleanup routes final executable padding</li>
 </ul>
 <p>     through existing alignment helpers and exact zero-extension spans.</p>
@@ -134,10 +138,18 @@
 <p>     leading NULs, and ARM64 data C strings through shared string+zero or</p>
 <p>     zero-span helpers instead of separate string append plus zero-byte pushes.</p>
 <ul>
+<li>Current ELF dynamic-symbol/header cleanup routes <code>st_other</code> and OSABI zero</li>
+</ul>
+<p>     fields through exact zero-extension spans.</p>
+<ul>
 <li>Current ARM64 Mach-O C-string cleanup routes bind symbols, load-command</li>
 </ul>
 <p>     dylib names, dylib-id names, and import/export string-table entries through</p>
 <p>     a shared string+NUL helper.</p>
+<ul>
+<li>Current ARM64 Mach-O symbol-table cleanup routes the initial string-table</li>
+</ul>
+<p>     terminator and undefined-symbol <code>n_sect</code> fields through zero-extension spans.</p>
 <ul>
 <li>Current ARM64 Mach-O cleanup routes load-command, string-table, and final</li>
 </ul>
@@ -1648,7 +1660,7 @@
 <p>     append/list/string/set stores, C</p>
 <p>     identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix</p>
 <p>     string copy helpers, <code>std:bytes.from_string</code>/<code>from_hex</code>, <code>std:strings</code> byte roundtrips,</p>
-<p>     <code>std:bytes</code> u8/endian writes with unrolled u64 <code>u8_buf</code> stores, unrolled <code>std:buffer</code> raw i64 stores for typed-buffer builders, straight-line CBOR/WebSocket u64 protocol byte operations, compiler bytecode/ASTBIN u64 serializer byte operations, x64 PE section-name literal byte plus data-directory/import-thunk/export-name-pointer zero emission, ARM64/x64 ELF alignment zero extension, compiler artifact whole-string byte-builder extension, bytecode and OBC NIL zero tags, ARM64 Mach-O C-string helper emission, ARM64 ELF/Mach-O runtime debug zero helpers, ARM64 compiler fixed pointer-slot zero extension, ARM64 Mach-O fixed UUID zero-word and 16-byte name padding emission, concat/copy u8-buffer spans, overlap-safe</p>
+<p>     <code>std:bytes</code> u8/endian writes with unrolled u64 <code>u8_buf</code> stores, unrolled <code>std:buffer</code> raw i64 stores for typed-buffer builders, straight-line CBOR/WebSocket u64 protocol byte operations, compiler bytecode/ASTBIN u64 serializer byte operations, x64 PE section-name literal byte plus data-directory/import-thunk/export-name-pointer/header-field zero emission, ARM64/x64 ELF alignment/header/symbol zero extension, compiler artifact whole-string byte-builder extension, bytecode and OBC NIL zero tags, ARM64 Mach-O C-string and symbol-table zero helper emission, ARM64 ELF/Mach-O runtime debug zero helpers, ARM64 compiler fixed pointer-slot zero extension, ARM64 Mach-O fixed UUID zero-word and 16-byte name padding emission, concat/copy u8-buffer spans, overlap-safe</p>
 <p>	     u8 <code>copy_into</code>, <code>std:buffer</code> view/matrix <code>copy_from_bytes</code> direct</p>
 <p>	     carrier reads through shared checked byte views with hoisted backing pointers for non-contiguous fallbacks,</p>
 <p>     contiguous slice/dense-matrix byte/text exports, and</p>

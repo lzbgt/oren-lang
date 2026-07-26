@@ -1260,7 +1260,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     _pe_pad_to_len(out, pe_off)
 
     // ---- PE signature ----
-    bytes_push(out, 80); bytes_push(out, 69); bytes_push(out, 0); bytes_push(out, 0) // "PE\0\0"
+    bytes_push(out, 80); bytes_push(out, 69); bytes_extend_zeros(out, 2) // "PE\0\0"
 
     // ---- COFF header (20 bytes) ----
     push_u16_le(out, 34404) // 0x8664
@@ -1277,8 +1277,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     // ---- Optional header (PE32+, 240 bytes) ----
     var opt_start = bytes_len(out)
     push_u16_le(out, 523) // 0x20B
-    bytes_push(out, 0) // MajorLinkerVersion
-    bytes_push(out, 0) // MinorLinkerVersion
+    bytes_extend_zeros(out, 2) // MajorLinkerVersion, MinorLinkerVersion
     push_u32_le(out, size_of_code)
     push_u32_le(out, size_of_init_data)
     push_u32_le(out, 0) // SizeOfUninitializedData

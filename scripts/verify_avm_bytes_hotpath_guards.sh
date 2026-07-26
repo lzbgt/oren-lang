@@ -1169,12 +1169,16 @@ if ! grep -Fq 'bytes_extend_zeros(rdata, n_exp * 4)' <<<"$x64_pe_exports_impl" |
   ! grep -Fq 'fn _pe_pad_to_len(buf, target_len)' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'if target_len > used { bytes_extend_zeros(buf, target_len - used) }' lib/compiler/x64_pe.oren ||
   ! grep -Fq '_pe_pad_to_len(out, pe_off)' <<<"$x64_pe_emit_tail_impl" ||
+  ! grep -Fq 'bytes_push(out, 80); bytes_push(out, 69); bytes_extend_zeros(out, 2) // "PE\0\0"' <<<"$x64_pe_emit_tail_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(out, 2) // MajorLinkerVersion, MinorLinkerVersion' <<<"$x64_pe_emit_tail_impl" ||
   ! grep -Fq '_pe_pad_to_len(out, opt_start + 240)' <<<"$x64_pe_emit_tail_impl" ||
   ! grep -Fq '_pe_pad_to_len(out, size_of_headers)' <<<"$x64_pe_emit_tail_impl" ||
   test "$(grep -Fc '_pe_align(out, file_align)' <<<"$x64_pe_emit_tail_impl")" != "3" ||
   grep -Fq 'while ei < n_exp { push_u32_le(rdata, 0); ei = ei + 1 }' <<<"$x64_pe_exports_impl" ||
   grep -Fq 'while int_mod(bytes_len(rdata), 4) != 0' <<<"$x64_pe_exports_impl" ||
   grep -Fq 'while bytes_len(out) < pe_off' <<<"$x64_pe_emit_tail_impl" ||
+  grep -Fq 'bytes_push(out, 80); bytes_push(out, 69); bytes_push(out, 0); bytes_push(out, 0)' <<<"$x64_pe_emit_tail_impl" ||
+  grep -Fq 'bytes_push(out, 0) // MajorLinkerVersion' <<<"$x64_pe_emit_tail_impl" ||
   grep -Fq 'while bytes_len(out) - opt_start < 240' <<<"$x64_pe_emit_tail_impl" ||
   grep -Fq 'while bytes_len(out) < size_of_headers' <<<"$x64_pe_emit_tail_impl" ||
   grep -Fq 'while int_mod(bytes_len(out), file_align) != 0' <<<"$x64_pe_emit_tail_impl"; then
@@ -1188,8 +1192,16 @@ arm64_elf_layout_impl="$(sed -n '/Append debug info (Linux ELF)/,/Patch debug st
 x64_elf_page_layout_impl="$(sed -n '/Ensure the data segment begins on a page boundary/,/If `--link` is used/p' lib/compiler/x64_elf.oren)"
 x64_elf_build_shstr_impl="$(sed -n '/Build shstrtab/,/Align and append shstrtab/p' lib/compiler/x64_elf.oren)"
 x64_elf_shstr_layout_impl="$(sed -n '/Align and append shstrtab/,/Build section header table/p' lib/compiler/x64_elf.oren)"
+arm64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/arm64_elf.oren)"
+x64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/x64_elf.oren)"
+arm64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: AArch64/p' lib/compiler/arm64_elf.oren)"
+x64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: x86-64/p' lib/compiler/x64_elf.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
+  test "$(grep -Fc 'bytes_extend_zeros(dynsym, 1) // st_other' <<<"$arm64_elf_dynsym_impl")" != "2" ||
+  test "$(grep -Fc 'bytes_extend_zeros(dynsym, 1) // st_other' <<<"$x64_elf_dynsym_impl")" != "2" ||
+  ! grep -Fq 'bytes_extend_zeros(p, 1); // OS ABI: System V' <<<"$arm64_elf_header_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(p, 1) // System V' <<<"$x64_elf_header_impl" ||
   ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$arm64_elf_align_impl" ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$arm64_elf_align_impl" ||
   ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$x64_elf_align_impl" ||
@@ -1199,6 +1211,9 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b
   ! grep -Fq 'bytes_extend_zeros(prefix, pad_len)' lib/compiler/x64_elf.oren ||
   grep -Fq 'var code_pad = bytes_new()' lib/compiler/arm64_elf.oren ||
   grep -Fq 'var code_pad = bytes_new()' lib/compiler/x64_elf.oren ||
+  grep -Fq 'bytes_push(dynsym, 0)  // st_other' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'bytes_push(p, 0); // OS ABI: System V' <<<"$arm64_elf_header_impl" ||
+  grep -Fq 'bytes_push(p, 0) // System V' <<<"$x64_elf_header_impl" ||
   test "$(grep -Fc '_bytes_align(prefix, 16)' <<<"$x64_elf_shstr_layout_impl")" != "2" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl" ||
@@ -1243,6 +1258,8 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
   test "$(grep -Fc '_macho_push_string_z(strtab,' <<<"$arm64_macho_file_impl")" != "2" ||
+  ! grep -Fq 'bytes_extend_zeros(strtab, 1)' <<<"$arm64_macho_file_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(symtab, 1) // n_sect' <<<"$arm64_macho_file_impl" ||
   ! grep -Fq '_macho_push_string_z(p, name)' <<<"$arm64_macho_bind_impl" ||
   ! grep -Fq '_macho_push_string_z(p, dyld_path)' <<<"$arm64_macho_file_impl" ||
   ! grep -Fq '_macho_push_string_z(p, libsys_path)' <<<"$arm64_macho_file_impl" ||
@@ -1265,6 +1282,8 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   grep -Fq 'bytes_push(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$arm64_elf_data_cstr_impl" ||
   grep -Fq 'bytes_push(dynstr, 0) // leading NUL' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
   grep -Fq 'bytes_push(shstr, 0)' <<<"$x64_elf_build_shstr_impl" ||
+  grep -Fq 'bytes_push(strtab, 0)' <<<"$arm64_macho_file_impl" ||
+  grep -Fq 'bytes_push(symtab, 0) // n_sect' <<<"$arm64_macho_file_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(bind_name' <<<"$arm64_macho_file_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(f_name' <<<"$arm64_macho_file_impl"; then
   echo "ERROR: compiler artifact string append helpers must use byte-builder string extension, not per-byte string loops" >&2

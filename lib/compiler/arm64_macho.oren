@@ -977,7 +977,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     // FFI Tables
     var strtab = bytes_new()
     bytes_push(strtab, 32) // Space (index 0)
-    bytes_push(strtab, 0)
+    bytes_extend_zeros(strtab, 1)
     
     var symtab = bytes_new()
     var indsymtab = bytes_new()
@@ -1028,7 +1028,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         push_u32_le(symtab, name_idx) // n_strx
         bytes_push(symtab, 1) // n_type (N_EXT | N_UNDF)
-        bytes_push(symtab, 0) // n_sect
+        bytes_extend_zeros(symtab, 1) // n_sect
         push_u16_le(symtab, 0) // n_desc
         push_u64_le(symtab, 0) // n_value
         

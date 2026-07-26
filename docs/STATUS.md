@@ -53,14 +53,20 @@ surfaces, but the following blockers remain:
   zero-extension helpers instead of open-coded zero-byte push loops.
 - x64 PE import hint/name table entries now use `_pe_align(rdata, 2)` instead
   of repeated one-byte zero-pad branches.
+- x64 PE signature and linker-version zero fields now emit through exact
+  zero-extension spans instead of separate zero-byte pushes.
 - ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based
   alignment or exact zero-extension spans for residual output padding loops.
 - ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
   data C strings now use shared string+zero or zero-span byte-builder helpers
   instead of separate string append plus single-zero pushes.
+- ARM64/x64 ELF dynamic-symbol `st_other` and OSABI zero fields now use exact
+  zero-extension spans instead of single zero-byte pushes.
 - ARM64 Mach-O bind-opcode symbol names, load-command dylib names, dylib-id
   names, and import/export string-table entries now use a shared string+NUL
   byte-builder helper instead of separate terminator byte pushes.
+- ARM64 Mach-O initial string-table terminator and undefined-symbol `n_sect`
+  fields now use zero-extension spans instead of separate zero-byte pushes.
 - OBC linker NIL constant tags now use byte-builder zero-extension instead of
   single zero-byte pushes, leaving nonzero constant tags unchanged.
 - ARM64 Mach-O load-command, string-table, and final text/data prefix padding

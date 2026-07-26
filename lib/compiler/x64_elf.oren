@@ -785,7 +785,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
 
         push_u32_le(dynsym, name_off)
         bytes_push(dynsym, 18) // st_info
-        bytes_push(dynsym, 0)  // st_other
+        bytes_extend_zeros(dynsym, 1) // st_other
         push_u16_le(dynsym, 0) // st_shndx = SHN_UNDEF
         push_u64_le(dynsym, 0) // st_value
         push_u64_le(dynsym, 0) // st_size
@@ -821,7 +821,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
 
         push_u32_le(dynsym, name_off2)
         bytes_push(dynsym, 18) // st_info
-        bytes_push(dynsym, 0)  // st_other
+        bytes_extend_zeros(dynsym, 1) // st_other
         push_u16_le(dynsym, 1) // st_shndx = .text
         push_u64_le(dynsym, text_base + fn_off) // st_value (virtual address)
         push_u64_le(dynsym, 0) // st_size (unknown)
@@ -1042,7 +1042,7 @@ fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off, is_shared_lib) {
     bytes_push(p, 2) // 64-bit
     bytes_push(p, 1) // little endian
     bytes_push(p, 1) // version
-    bytes_push(p, 0) // System V
+    bytes_extend_zeros(p, 1) // System V
     push_u64_le(p, 0) // padding (EI_PAD) + rest
 
     if is_shared_lib == true {

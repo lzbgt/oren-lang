@@ -108,6 +108,10 @@
 <p>  rather than open-coded zero-byte push loops, and PE import hint/name alignment</p>
 <p>  now reuses <code>_pe_align</code> instead of single-byte zero pads.</p>
 <ul>
+<li>x64 PE signature and linker-version zero fields now use exact zero-extension</li>
+</ul>
+<p>  spans instead of separate zero-byte pushes.</p>
+<ul>
 <li>ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing</li>
 </ul>
 <p>  alignment helpers or exact zero-extension spans for dylib-id, exit-stub,</p>
@@ -118,10 +122,18 @@
 <p>  data C strings now route through shared string+zero or zero-span byte-builder</p>
 <p>  helpers instead of separate string append plus zero-byte pushes.</p>
 <ul>
+<li>ARM64/x64 ELF dynamic-symbol <code>st_other</code> and OSABI zero fields now use exact</li>
+</ul>
+<p>  zero-extension spans instead of single zero-byte pushes.</p>
+<ul>
 <li>ARM64 Mach-O bind opcodes, load-command dylib names, dylib-id names, and</li>
 </ul>
 <p>  import/export string-table names now route through a shared string+NUL</p>
 <p>  byte-builder helper instead of separate string append plus terminator pushes.</p>
+<ul>
+<li>ARM64 Mach-O initial string-table terminator and undefined-symbol <code>n_sect</code></li>
+</ul>
+<p>  fields now use zero-extension spans instead of separate zero-byte pushes.</p>
 <ul>
 <li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
 </ul>
