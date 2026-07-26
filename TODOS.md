@@ -121,6 +121,9 @@ design evidence lives under `project-doc/`.
 - X64 call-expression cleanup now separates indirect no-spread callable
   execution, spawn call-part/spill sizing preparation, varargs prepared-call
   execution, and fast list-get-sum state packing into focused parser helpers.
+- X64 FFI/context setup cleanup now separates Linux `dlsym` resolver naming/GOT
+  reservation/body emission and base/runtime context slot setup into focused
+  helper bodies while preserving emitted instruction and data-slot order.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

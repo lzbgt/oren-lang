@@ -431,8 +431,7 @@ fn _x64_ctx_progress_trace_enabled() {
     return false
 }
 
-fn _x64_new_ctx_base(linked, platform, trace_ctx) {
-    var ctx = {}
+fn _x64_new_ctx_base_buffers(ctx, platform) {
     ctx["code"] = bytes_new()
     ctx["data"] = bytes_new()
     ctx["fixups"] = []
@@ -443,6 +442,10 @@ fn _x64_new_ctx_base(linked, platform, trace_ctx) {
     ctx["import_list"] = []
     ctx["errors"] = []
     ctx["platform"] = platform
+    return nil
+}
+
+fn _x64_new_ctx_base_globals(ctx) {
     // Global variable storage (top-level `var`).
     ctx["globals"] = {}
     ctx["globals_floaty"] = {}
@@ -452,6 +455,10 @@ fn _x64_new_ctx_base(linked, platform, trace_ctx) {
     ctx["global_root_names"] = []
     ctx["global_root_offsets"] = []
     ctx["global_root_is_runtime"] = []
+    return nil
+}
+
+fn _x64_new_ctx_base_functions(ctx) {
     // Named function declarations (name -> arity) collected before codegen.
     ctx["func_arity"] = {}
     // Named function varargs mapping (name -> fixed param count). Presence means varargs.
@@ -462,12 +469,25 @@ fn _x64_new_ctx_base(linked, platform, trace_ctx) {
     // Track which named functions are actually used as first-class values so we only
     // synthesize `__oren_fnwrap_*` wrappers when needed (Tier-1 perf; parity with arm64).
     ctx["fnwrap_needed"] = {}
-    if trace_ctx { print("[x64_ctx] base init ok") }
+    return nil
+}
 
+fn _x64_new_ctx_base_runtime_flags(ctx, platform) {
     // Expose whether runtime injection is enabled so lowering can progressively
     // switch from x64 bring-up intrinsics to shared runtime helpers (Tier-1 parity).
     ctx["inject_runtime"] = true
     ctx["abi"] = abi.x64(platform)
+    return nil
+}
+
+fn _x64_new_ctx_base(linked, platform, trace_ctx) {
+    var ctx = {}
+    _x64_new_ctx_base_buffers(ctx, platform)
+    _x64_new_ctx_base_globals(ctx)
+    _x64_new_ctx_base_functions(ctx)
+    if trace_ctx { print("[x64_ctx] base init ok") }
+
+    _x64_new_ctx_base_runtime_flags(ctx, platform)
     if trace_ctx { print("[x64_ctx] abi ok") }
     return ctx
 }
@@ -488,7 +508,7 @@ fn _x64_new_ctx_aliases(ctx, linked, trace_ctx) {
     return nil
 }
 
-fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
+fn _x64_new_ctx_runtime_cstr_slot(ctx, trace_ctx) {
     // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
     //
     // Store as offset+1 so offset 0 is representable while still using `nil` as the
@@ -496,7 +516,10 @@ fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
     var cstr_slot_off = _data_add_u64(ctx, 0)
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
     if trace_ctx { print("[x64_ctx] cstr slot ok") }
+    return nil
+}
 
+fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx) {
     // Tier-1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a small
     // boot globals storage blob used before `native_runtime_init` runs.
     //
@@ -514,7 +537,10 @@ fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
     ctx["boot_false_obj_off_enc"] = boot_off + 400 + 1
     ctx["boot_true_obj_off_enc"] = boot_off + 408 + 1
     if trace_ctx { print("[x64_ctx] boot globals ok") }
+    return nil
+}
 
+fn _x64_new_ctx_runtime_heap_slots(ctx, trace_ctx) {
     // Tier-1 export/FFI ABI bridge: reserve persistent heap register spill slots.
     //
     // x64 native uses r14/r15 as global bump allocator registers for intra-Oren calls.
@@ -526,6 +552,13 @@ fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
     ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
     ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
     if trace_ctx { print("[x64_ctx] heap slots ok") }
+    return nil
+}
+
+fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
+    _x64_new_ctx_runtime_cstr_slot(ctx, trace_ctx)
+    _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)
+    _x64_new_ctx_runtime_heap_slots(ctx, trace_ctx)
     return nil
 }
 

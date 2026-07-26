@@ -467,32 +467,29 @@ fn _x64_emit_call_got_rax_linux(ctx, got_off) {
     return nil
 }
 
-fn _x64_emit_ffi_resolver_linux64(ctx, platform) {
-    // fn __oren_ffi_resolve0(sym_ptr) -> fn_ptr (0 if unresolved)
-    //
-    // ABI: SysV int args in rdi,rsi,rdx,rcx,r8,r9; return in rax.
-    // - sym_ptr is a cstr0 pointer.
-    //
-    // Implementation:
-    // - calls `dlsym(RTLD_DEFAULT, sym_ptr)` via a GOT slot relocated by the ELF dynamic loader.
-    //
-    // Note: This resolver is only emitted when `--link` is used (so the ELF emitter will include
-    // PT_INTERP/PT_DYNAMIC and DT_NEEDED for libdl+libc).
-    var name = "__oren_ffi_resolve0"
-    if ctx == nil { return nil }
-    if ctx["functions"] == nil { ctx["functions"] = {} }
-    if ctx["functions"][name] != nil { return name }
+fn _x64_ffi_resolver_linux_name() {
+    return "__oren_ffi_resolve0"
+}
 
-    // Reserve GOT slot for dlsym.
+fn _x64_ffi_resolver_linux_reserve_dlsym(ctx) {
     var got_dlsym = _x64_linux_dyn_import_got_off(ctx, "dlsym")
     if got_dlsym == nil {
         err(ctx, "x64 native v0: internal: failed to reserve GOT slot for dlsym")
         return nil
     }
+    return got_dlsym
+}
 
+fn _x64_ffi_resolver_linux_register(ctx, name) {
+    if ctx == nil { return nil }
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][name] != nil { return nil }
     var start = bytes_len(ctx["code"])
     ctx["functions"][name] = start
+    return start
+}
 
+fn _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym) {
     // SysV: stack is 8 mod 16 at entry; align to 16 before calling dlsym.
     bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(8))
 
@@ -505,6 +502,29 @@ fn _x64_emit_ffi_resolver_linux64(ctx, platform) {
 
     bytes_extend(ctx["code"], core.insn_add_rsp_imm32(8))
     bytes_extend(ctx["code"], core.insn_ret())
+    return nil
+}
+
+fn _x64_emit_ffi_resolver_linux64(ctx, platform) {
+    // fn __oren_ffi_resolve0(sym_ptr) -> fn_ptr (0 if unresolved)
+    //
+    // ABI: SysV int args in rdi,rsi,rdx,rcx,r8,r9; return in rax.
+    // - sym_ptr is a cstr0 pointer.
+    //
+    // Implementation:
+    // - calls `dlsym(RTLD_DEFAULT, sym_ptr)` via a GOT slot relocated by the ELF dynamic loader.
+    //
+    // Note: This resolver is only emitted when `--link` is used (so the ELF emitter will include
+    // PT_INTERP/PT_DYNAMIC and DT_NEEDED for libdl+libc).
+    var name = _x64_ffi_resolver_linux_name()
+    if ctx == nil { return nil }
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][name] != nil { return name }
+
+    var got_dlsym = _x64_ffi_resolver_linux_reserve_dlsym(ctx)
+    if got_dlsym == nil { return nil }
+    _x64_ffi_resolver_linux_register(ctx, name)
+    _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym)
     return name
 }
 

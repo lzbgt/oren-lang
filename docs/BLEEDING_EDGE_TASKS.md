@@ -130,6 +130,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 call-expression cleanup splits indirect no-spread execution,
      spawn call-part/spill sizing preparation, varargs prepared-call execution,
      and fast list-get-sum state packing into focused parser helpers.
+   - Current x64 FFI/context cleanup splits Linux `dlsym` resolver setup/body
+     emission and base/runtime context slot setup into focused helpers while
+     preserving emitted instruction and data-slot order.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.
