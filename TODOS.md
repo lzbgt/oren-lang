@@ -674,9 +674,9 @@ design evidence lives under `project-doc/`.
   `_x64_emit_named_call_intrinsic_or_spread_v0` (~56ms) as the next parser-body
   target.
 - X64 named-call intrinsic/spread routing now separates statement-only
-  rejection, generic core intrinsic dispatch, LIST_INT intrinsic dispatch,
+  rejection, split index/list/list-int core intrinsic dispatch,
   `oren_call_obj_list`, and spread-call lowering while preserving dispatch
-  order. The capped profile now shows
+  order and list/list-int runtime safety gates. The capped profile now shows
   `x64_native_program.oren` at ~43.3s total / ~31.6s parse, with
   `_x64_rtobj_finalize_build` (~56ms) as the next parser-body target.
 - X64 runtime-object build finalization now separates blob materialization,

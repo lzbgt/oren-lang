@@ -2076,11 +2076,12 @@
 <p>																																																																																				  preserving batch timing/result keys. The capped profile now shows</p>
 <p>																																																																																				  <code>x64_native_program.oren</code> at about 43.5s total / 31.6s parse, with</p>
 <p>																																																																																				  <code>_x64_emit_named_call_intrinsic_or_spread_v0</code> exposed at about 56ms as the next parser body.</p>
-<p>																																																																																					  X64 named-call intrinsic/spread routing now separates statement-only rejection,</p>
-<p>																																																																																					  core intrinsic dispatch, <code>oren_call_obj_list</code>, and spread-call lowering while</p>
-<p>																																																																																					  preserving dispatch order. The capped profile now shows</p>
-<p>																																																																																					  <code>x64_native_program.oren</code> at about 43.3s total / 31.6s parse, with</p>
-<p>																																																																																					  <code>_x64_rtobj_finalize_build</code> exposed at about 56ms as the next parser body.</p>
+<p>																																																																																						  X64 named-call intrinsic/spread routing now separates statement-only rejection,</p>
+<p>																																																																																						  split index/list/list-int core intrinsic dispatch, <code>oren_call_obj_list</code>, and</p>
+<p>																																																																																						  spread-call lowering while preserving dispatch order and list/list-int runtime</p>
+<p>																																																																																						  safety gates. The capped profile now shows</p>
+<p>																																																																																						  <code>x64_native_program.oren</code> at about 43.3s total / 31.6s parse, with</p>
+<p>																																																																																						  <code>_x64_rtobj_finalize_build</code> exposed at about 56ms as the next parser body.</p>
 <p>																																																																																						  X64 runtime-object build finalization now separates blob materialization,</p>
 <p>																																																																																						  persisted metadata assembly, finalize-done logging, and result packing while</p>
 <p>																																																																																						  preserving the rtobj metadata schema keys. The capped profile now shows</p>
@@ -5251,6 +5252,12 @@ make docs-site</code></pre>
 <p>  next parser body. Linux/x64 execution validation now prefers the dedicated</p>
 <p>  Arch host <code>bruce@192.168.3.208</code>; print and result-smoke binaries pass there,</p>
 <p>  while the broader quick-integration crash is tracked as <code>NATIVE-X64-ARCH-QI</code>.</p>
+<ul>
+<li>X64 named-call core intrinsic dispatch now delegates <code>oren_index_set</code>, core</li>
+</ul>
+<p>  list operations, and LIST_INT operations through separate helper families,</p>
+<p>  keeping the central named-call wrapper as a short dispatcher while preserving</p>
+<p>  routing order and runtime safety gates.</p>
 <ul>
 <li><code>NATIVE-X64-ARCH-QI</code> is resolved on the dedicated Arch x64 host</li>
 </ul>

@@ -803,14 +803,17 @@ fn _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) {
     return false
 }
 
-fn _x64_emit_named_call_core_intrinsic_v0(ctx, expr, locals, nm) {
+fn _x64_emit_named_call_index_intrinsic_v0(ctx, expr, locals, nm) {
     // Tier-1 parity + performance: inline `oren_index_set(container, index, value)` so
     // list in-bounds stores do not pay an extra runtime call.
     if nm == "oren_index_set" {
         _emit_index_set_intrinsic_v0_x64(ctx, expr, locals)
         return true
     }
+    return false
+}
 
+fn _x64_emit_named_call_list_intrinsic_v0(ctx, expr, locals, nm) {
     // Tier‑1 parity: match arm64 by inlining core list operations with tracked-kind safety gates.
     if nm == "oren_list_len" {
         _emit_list_len_intrinsic_v0_x64(ctx, expr, locals)
@@ -820,6 +823,12 @@ fn _x64_emit_named_call_core_intrinsic_v0(ctx, expr, locals, nm) {
         _emit_list_push_intrinsic_v0_x64(ctx, expr, locals)
         return true
     }
+    return false
+}
+
+fn _x64_emit_named_call_core_intrinsic_v0(ctx, expr, locals, nm) {
+    if _x64_emit_named_call_index_intrinsic_v0(ctx, expr, locals, nm) == true { return true }
+    if _x64_emit_named_call_list_intrinsic_v0(ctx, expr, locals, nm) == true { return true }
     if _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) == true { return true }
     return false
 }
