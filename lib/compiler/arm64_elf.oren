@@ -188,21 +188,7 @@ fn _elf_push_unique(out, seen, s) {
 }
 
 fn _elf_arm64_dyn_needed_libs(user_link_libs) {
-    // Linux dynamic executables require an interpreter and a DT_NEEDED list.
-    //
-    // We always include libc + libdl (glibc-compatible); user `--link` adds more.
-    var out = []
-    var seen = {}
-    _elf_push_unique(out, seen, "libdl.so.2")
-    _elf_push_unique(out, seen, "libc.so.6")
-    if user_link_libs != nil {
-        var i = 0
-        while i < oren_list_len(user_link_libs) {
-            _elf_push_unique(out, seen, user_link_libs[i])
-            i = i + 1
-        }
-    }
-    return out
+    return elfart.dyn_needed_libs(user_link_libs)
 }
 
 fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports, export_wrappers, is_shared_lib, init_entry_off) {
@@ -287,7 +273,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     // Elf64_Sym is 24 bytes.
     var dynsym = bytes_new()
     // STN_UNDEF (all zeros)
-    push_u64_le(dynsym, 0); push_u64_le(dynsym, 0); push_u64_le(dynsym, 0)
+    bytes_extend_zeros(dynsym, 24)
 
     // Each import becomes one undefined global function symbol entry.
     // st_info = (STB_GLOBAL<<4) | STT_FUNC = 0x12
@@ -298,12 +284,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
         var name_off = sym_dynstr_offs[nm2]
         if name_off == nil { name_off = 0 }
 
-        push_u32_le(dynsym, name_off)
-        bytes_push(dynsym, 18) // st_info
-        bytes_extend_zeros(dynsym, 1) // st_other
-        push_u16_le(dynsym, 0) // st_shndx = SHN_UNDEF
-        push_u64_le(dynsym, 0) // st_value
-        push_u64_le(dynsym, 0) // st_size
+        elfart.push_dynsym_undef_func(dynsym, name_off)
         i_sym = i_sym + 1
     }
 
@@ -331,12 +312,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
         var name_off2 = sym_dynstr_offs[enm]
         if name_off2 == nil { name_off2 = 0 }
 
-        push_u32_le(dynsym, name_off2)
-        bytes_push(dynsym, 18) // st_info
-        bytes_extend_zeros(dynsym, 1) // st_other
-        push_u16_le(dynsym, 1) // st_shndx = .text
-        push_u64_le(dynsym, text_base + fn_off) // st_value (virtual address)
-        push_u64_le(dynsym, 0) // st_size (unknown)
+        elfart.push_dynsym_text_func(dynsym, name_off2, text_base + fn_off)
         i_sym = i_sym + 1
     }
 
@@ -375,95 +351,15 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
         i_rel = i_rel + 1
     }
 
-    // --- Build SysV hash (DT_HASH) over dynsym ---
-    // Keep this tiny (1 bucket). With nbucket=1, all symbols land in bucket 0.
-    var hash = bytes_new()
     var nchain = 1 + oren_list_len(imports) + oren_list_len(exports)
-    var nbucket = 1
-    push_u32_le(hash, nbucket)
-    push_u32_le(hash, nchain)
-    // buckets[nbucket]
-    push_u32_le(hash, 0)
-    // chains[nchain]
-    var ci = 0
-    while ci < nchain { push_u32_le(hash, 0); ci = ci + 1 }
-
-    // Link all symbols in order: bucket[0]=1, chain[1]=2, ..., chain[last]=0.
-    var last = 0
-    var si = 1
-    while si < nchain {
-        if last == 0 {
-            // buckets[0] at offset 8 in the hash table
-            set_u32_le(hash, 8, si)
-        } else {
-            // chains array starts at offset: 8 + 4*nbucket
-            var chains_off = 8 + 4 * nbucket
-            set_u32_le(hash, chains_off + 4 * last, si)
-        }
-        last = si
-        si = si + 1
-    }
+    var hash = elfart.build_sysv_hash(nchain)
 
     // --- Append all dynamic tables into the main `.data` blob ---
-    _bytes_align(data, 8)
-    var hash_off = bytes_len(data)
-    bytes_extend(data, hash)
-
-    _bytes_align(data, 8)
-    var dynstr_off = bytes_len(data)
-    bytes_extend(data, dynstr)
-
-    _bytes_align(data, 8)
-    var dynsym_off = bytes_len(data)
-    bytes_extend(data, dynsym)
-
-    _bytes_align(data, 8)
-    var rela_off = bytes_len(data)
-    bytes_extend(data, rela)
+    var table_offsets = elfart.append_dyn_tables(data, hash, dynstr, dynsym, rela)
 
     // --- Build .dynamic (DT_DYNAMIC) ---
-    var dyn = bytes_new()
-    // DT_NEEDED entries (d_val offsets into dynstr)
-    var i_need2 = 0
-    while i_need2 < oren_list_len(needed) {
-        var lib2 = needed[i_need2]
-        var off2 = needed_dynstr_offs[lib2]
-        if off2 == nil { off2 = 0 }
-        push_u64_le(dyn, 1)      // DT_NEEDED
-        push_u64_le(dyn, off2)   // d_val (string table offset)
-        i_need2 = i_need2 + 1
-    }
-
     var data_addr = base + data_file_off
-    var hash_addr = data_addr + hash_off
-    var dynstr_addr = data_addr + dynstr_off
-    var dynsym_addr = data_addr + dynsym_off
-    var rela_addr = data_addr + rela_off
-
-    // DT_HASH, DT_STRTAB, DT_SYMTAB (pointers)
-    push_u64_le(dyn, 4);  push_u64_le(dyn, hash_addr)   // DT_HASH
-    push_u64_le(dyn, 5);  push_u64_le(dyn, dynstr_addr) // DT_STRTAB
-    push_u64_le(dyn, 6);  push_u64_le(dyn, dynsym_addr) // DT_SYMTAB
-
-    // DT_STRSZ, DT_SYMENT
-    push_u64_le(dyn, 10); push_u64_le(dyn, bytes_len(dynstr)) // DT_STRSZ
-    push_u64_le(dyn, 11); push_u64_le(dyn, 24)               // DT_SYMENT (Elf64_Sym)
-
-    // DT_RELA, DT_RELASZ, DT_RELAENT
-    push_u64_le(dyn, 7);  push_u64_le(dyn, rela_addr)        // DT_RELA
-    push_u64_le(dyn, 8);  push_u64_le(dyn, bytes_len(rela))  // DT_RELASZ
-    push_u64_le(dyn, 9);  push_u64_le(dyn, 24)               // DT_RELAENT (Elf64_Rela)
-
-    // Shared lib init array tags.
-    // DT_INIT_ARRAY (25), DT_INIT_ARRAYSZ (27)
-    if is_shared_lib == true && init_array_off != nil {
-        var init_array_addr = data_addr + init_array_off
-        push_u64_le(dyn, 25); push_u64_le(dyn, init_array_addr)
-        push_u64_le(dyn, 27); push_u64_le(dyn, 8)
-    }
-
-    // DT_NULL terminator
-    push_u64_le(dyn, 0); push_u64_le(dyn, 0)
+    var dyn = elfart.build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off)
 
     _bytes_align(data, 8)
     var dynamic_off = bytes_len(data)

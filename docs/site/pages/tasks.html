@@ -193,6 +193,13 @@
 <p>     zeroed runtime record slots through <code>native_debug_artifact.oren</code> while</p>
 <p>     keeping object-format placement and fixup/patch semantics format-local.</p>
 <ul>
+<li>Current ELF dynamic artifact abstraction shares DT_NEEDED default list</li>
+</ul>
+<p>     construction, dynsym import/export function entries, one-bucket SysV hash</p>
+<p>     emission, dynamic-table blob placement, and common DT_DYNAMIC tags through</p>
+<p>     <code>elf_artifact.oren</code> while keeping arch import validation and RELA</p>
+<p>     relocation semantics local.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

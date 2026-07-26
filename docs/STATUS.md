@@ -4740,6 +4740,11 @@ make docs-site
   32-byte zeroed runtime record slots while keeping object-format placement,
   relocation/fixup attachment, and Mach-O runtime-object patching local to the
   format emitters.
+- X64 and ARM64 ELF emitters now share `elf_artifact.oren` for common
+  dynamic-link scaffolding: default glibc-compatible DT_NEEDED libs, dynsym
+  function entries, one-bucket SysV hash construction, dynamic table blob
+  placement, and stable DT_DYNAMIC tags while leaving import validation, export
+  resolution, and RELA relocation generation in the arch emitters.
 
 ## Documentation Guardrail
 

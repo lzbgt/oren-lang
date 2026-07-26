@@ -58,3 +58,122 @@ fn push_unique(out, seen, s) {
     oren_list_push(out, s)
     return nil
 }
+
+fn dyn_needed_libs(user_link_libs) {
+    // Linux dynamic executables currently use glibc-compatible libc + libdl.
+    var out = []
+    var seen = {}
+    push_unique(out, seen, "libdl.so.2")
+    push_unique(out, seen, "libc.so.6")
+    if user_link_libs != nil {
+        var i = 0
+        var n = oren_list_len(user_link_libs)
+        while i < n {
+            push_unique(out, seen, user_link_libs[i])
+            i = i + 1
+        }
+    }
+    return out
+}
+
+fn push_dynsym_undef_func(dynsym, name_off) {
+    if name_off == nil { name_off = 0 }
+    artifact.push_u32_le(dynsym, name_off)
+    artifact.bytes_push(dynsym, 18) // STB_GLOBAL | STT_FUNC
+    artifact.bytes_extend_zeros(dynsym, 1) // st_other
+    artifact.push_u16_le(dynsym, 0) // SHN_UNDEF
+    artifact.bytes_extend_zeros(dynsym, 16) // st_value + st_size
+    return nil
+}
+
+fn push_dynsym_text_func(dynsym, name_off, text_addr) {
+    if name_off == nil { name_off = 0 }
+    if text_addr == nil { text_addr = 0 }
+    artifact.push_u32_le(dynsym, name_off)
+    artifact.bytes_push(dynsym, 18) // STB_GLOBAL | STT_FUNC
+    artifact.bytes_extend_zeros(dynsym, 1) // st_other
+    artifact.push_u16_le(dynsym, 1) // .text
+    artifact.push_u64_le(dynsym, text_addr)
+    artifact.bytes_extend_zeros(dynsym, 8) // unknown size
+    return nil
+}
+
+fn build_sysv_hash(nchain) {
+    var hash = artifact.bytes_new()
+    var nbucket = 1
+    artifact.push_u32_le(hash, nbucket)
+    artifact.push_u32_le(hash, nchain)
+    artifact.bytes_extend_zeros(hash, (nbucket + nchain) * 4)
+    var last = 0
+    var si = 1
+    while si < nchain {
+        if last == 0 {
+            artifact.set_u32_le(hash, 8, si)
+        } else {
+            var chains_off = 8 + 4 * nbucket
+            artifact.set_u32_le(hash, chains_off + 4 * last, si)
+        }
+        last = si
+        si = si + 1
+    }
+    return hash
+}
+
+fn append_dyn_tables(data, hash, dynstr, dynsym, rela) {
+    bytes_align(data, 8)
+    var hash_off = artifact.bytes_len(data)
+    artifact.bytes_extend(data, hash)
+
+    bytes_align(data, 8)
+    var dynstr_off = artifact.bytes_len(data)
+    artifact.bytes_extend(data, dynstr)
+
+    bytes_align(data, 8)
+    var dynsym_off = artifact.bytes_len(data)
+    artifact.bytes_extend(data, dynsym)
+
+    bytes_align(data, 8)
+    var rela_off = artifact.bytes_len(data)
+    artifact.bytes_extend(data, rela)
+    return {"hash_off": hash_off, "dynstr_off": dynstr_off, "dynsym_off": dynsym_off, "rela_off": rela_off}
+}
+
+fn push_dynamic_entry(dyn, tag, value) {
+    artifact.push_u64_le(dyn, tag)
+    artifact.push_u64_le(dyn, value)
+    return nil
+}
+
+fn build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off) {
+    var dyn = artifact.bytes_new()
+    var i_need = 0
+    while needed != nil && i_need < oren_list_len(needed) {
+        var lib = needed[i_need]
+        var off = nil
+        if needed_dynstr_offs != nil { off = needed_dynstr_offs[lib] }
+        if off == nil { off = 0 }
+        push_dynamic_entry(dyn, 1, off) // DT_NEEDED
+        i_need = i_need + 1
+    }
+
+    var hash_addr = data_addr + table_offsets["hash_off"]
+    var dynstr_addr = data_addr + table_offsets["dynstr_off"]
+    var dynsym_addr = data_addr + table_offsets["dynsym_off"]
+    var rela_addr = data_addr + table_offsets["rela_off"]
+
+    push_dynamic_entry(dyn, 4, hash_addr) // DT_HASH
+    push_dynamic_entry(dyn, 5, dynstr_addr) // DT_STRTAB
+    push_dynamic_entry(dyn, 6, dynsym_addr) // DT_SYMTAB
+    push_dynamic_entry(dyn, 10, artifact.bytes_len(dynstr)) // DT_STRSZ
+    push_dynamic_entry(dyn, 11, 24) // DT_SYMENT
+    push_dynamic_entry(dyn, 7, rela_addr) // DT_RELA
+    push_dynamic_entry(dyn, 8, artifact.bytes_len(rela)) // DT_RELASZ
+    push_dynamic_entry(dyn, 9, 24) // DT_RELAENT
+
+    if init_array_off != nil {
+        push_dynamic_entry(dyn, 25, data_addr + init_array_off) // DT_INIT_ARRAY
+        push_dynamic_entry(dyn, 27, 8) // DT_INIT_ARRAYSZ
+    }
+    push_dynamic_entry(dyn, 0, 0) // DT_NULL
+    return dyn
+}
