@@ -39,6 +39,9 @@ design evidence lives under `project-doc/`.
 - Compiler bytecode constant strings and ARM64 Mach-O import/export string-table
   names now append through byte-builder string extension instead of per-byte
   string-read loops, with the byte-hotpath guard pinning both shapes.
+- ARM64/x64 native compiler data-section alignment and fixed table reservations
+  now use exact byte-builder zero-extension spans instead of repeated zero-byte
+  push loops in the context and data I/O helpers.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

@@ -2,6 +2,14 @@
 //
 // Context initialization, rtobj helper decoding, and global-roots init.
 
+fn _arm64_data_align8(ctx) {
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    var rem = int_mod(bytes_len(ctx["data"]), 8)
+    if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }
+    return nil
+}
+
 fn _arm64_new_ctx(linked, platform) {
     // Initialize the shared arm64 native compiler context (code/data builders, maps, ABI).
     //
@@ -75,7 +83,7 @@ fn _arm64_new_ctx(linked, platform) {
 
     // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
     // (See comments in `native_compile_program_arm64` for the entry stub details.)
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _arm64_data_align8(ctx)
     var cstr_slot_off = bytes_len(ctx["data"])
     bytes_extend_zeros(ctx["data"], 8)
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
@@ -88,7 +96,7 @@ fn _arm64_new_ctx(linked, platform) {
     // - The entry stub writes:
     //     g_storage = &boot_globals_storage
     //     boot_globals_storage[value_nil/false/true] = distinct pointers within the blob
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _arm64_data_align8(ctx)
     var g_storage_slot_off = bytes_len(ctx["data"])
     bytes_extend_zeros(ctx["data"], 8)
     if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
@@ -96,10 +104,9 @@ fn _arm64_new_ctx(linked, platform) {
     oren_list_push(ctx["global_root_offsets"], g_storage_slot_off)
     oren_list_push(ctx["global_root_is_runtime"], false)
 
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _arm64_data_align8(ctx)
     var boot_off = bytes_len(ctx["data"])
-    var z = 0
-    while z < 512 { bytes_push(ctx["data"], 0); z = z + 1 }
+    bytes_extend_zeros(ctx["data"], 512)
     ctx["boot_globals_storage_off_enc"] = boot_off + 1
 
     // Tier‑1 export/FFI ABI bridge: reserve persistent heap spill slots.
@@ -107,12 +114,12 @@ fn _arm64_new_ctx(linked, platform) {
     // arm64 native uses dedicated heap registers (mirrors x64's r14/r15 design). Export wrappers
     // will eventually use these spill slots to preserve platform ABI non-volatiles at external
     // boundaries (e.g. `.dylib` / future `.so`), while keeping heap state persistent across calls.
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _arm64_data_align8(ctx)
     var heap_limit_slot_off = bytes_len(ctx["data"])
     bytes_extend_zeros(ctx["data"], 8)
     ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
 
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _arm64_data_align8(ctx)
     var heap_ptr_slot_off = bytes_len(ctx["data"])
     bytes_extend_zeros(ctx["data"], 8)
     ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
@@ -297,7 +304,7 @@ fn _arm64_emit_global_roots_init(ctx) {
     }
     var root_count = oren_list_len(root_offsets)
     if root_count > 0 {
-        while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        _arm64_data_align8(ctx)
         var table_off = bytes_len(ctx["data"])
         var ri = 0
         while ri < root_count {

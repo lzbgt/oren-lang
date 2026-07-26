@@ -76,6 +76,11 @@
 <p>  names now append through byte-builder string extension instead of per-byte</p>
 <p>  string-read loops, with the byte-hotpath guard pinning both shapes.</p>
 <ul>
+<li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
+</ul>
+<p>  now use exact byte-builder zero-extension spans instead of repeated zero-byte</p>
+<p>  push loops in the context and data I/O helpers.</p>
+<ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>
 <p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>

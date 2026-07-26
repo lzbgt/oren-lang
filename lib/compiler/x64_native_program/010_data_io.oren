@@ -1,9 +1,22 @@
+fn _bytes_align8(buf) {
+    if buf == nil { return nil }
+    var rem = core.int_mod(bytes_len(buf), 8)
+    if rem != 0 { bytes_extend_zeros(buf, 8 - rem) }
+    return nil
+}
+
+fn _data_align8(ctx) {
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    return _bytes_align8(ctx["data"])
+}
+
 fn _data_add_cstr_newline(ctx, s) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if s == nil { s = "" }
     // 8B align (helps future u64 reads; harmless for strings).
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     // Avoid allocating an intermediate `list<int>` for large compiler workloads.
     // Append bytes (excluding NUL), then newline+NUL.
@@ -17,7 +30,7 @@ fn _data_add_cstr_newline(ctx, s) {
     bytes_push(ctx["data"], 10)
     bytes_push(ctx["data"], 0)
     // Re-align after the write (keeps following tables u64-friendly).
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     // Return {"off": int, "len": int} where len excludes trailing NUL.
     return {"off": off, "len": n + 1}
 }
@@ -156,7 +169,7 @@ fn _data_cstr0_cap_string(s) {
 }
 
 fn _data_cstr0_append_raw(ctx, s) {
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     bytes_extend_string(ctx["data"], s)
     bytes_push(ctx["data"], 0)
@@ -218,7 +231,7 @@ fn _data_add_cstr0_nodedup(ctx, s) {
         err(ctx, "x64 native v0: _data_add_cstr0_nodedup expects string, got " + tn)
         return 0
     }
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     var n0 = oren_string_len(s)
     if n0 > 1048576 {
@@ -314,7 +327,7 @@ fn _data_finalize_cstr0_table(ctx) {
     var rt_count = _data_cstr0_runtime_count(ctx)
     var user_count = oren_list_len(offs)
 
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var table_off = bytes_len(ctx["data"])
 
     // Always emit a table (even if empty) so entry stubs can call init unconditionally.
@@ -365,7 +378,7 @@ fn _data_fnobj_existing_off(ctx, fn_name) {
 }
 
 fn _data_fnobj_append_zeroed(ctx) {
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     push_u64_le(ctx["data"], 0) // code_ptr placeholder, patched by fixup.
     push_u64_le(ctx["data"], 0) // env_ptr placeholder, reserved for closures.
@@ -388,7 +401,7 @@ fn _data_add_u64(ctx, val) {
     // - (rolling) mutable globals like tracking list heads (requires writable mappings)
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     push_u64_le(ctx["data"], val)
     return off
@@ -403,7 +416,7 @@ fn _data_add_zeros(ctx, nbytes) {
     if nbytes == nil || nbytes <= 0 { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     // Keep pointers 8-byte aligned so later u64 reads/writes remain well-formed.
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     bytes_extend_zeros(ctx["data"], nbytes)
     return off
@@ -450,12 +463,11 @@ fn _data_reserve_symtab(ctx, sym_names) {
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
     // 8-byte align for u64 reads.
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var symtab_off = bytes_len(ctx["data"])
     var count = oren_list_len(sym_names)
     var total = 8 + count * 8
-    var i = 0
-    while i < total { bytes_push(ctx["data"], 0); i = i + 1 }
+    bytes_extend_zeros(ctx["data"], total)
 
     // Store offsets as `off+1` so offset 0 is representable while still using `nil` as the
     // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
@@ -660,11 +672,10 @@ fn _data_reserve_linetab(ctx, cap_entries) {
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
     // 8-byte align for u64 reads.
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var linetab_off = bytes_len(ctx["data"])
     var total = 8 + cap_entries * 8
-    var i = 0
-    while i < total { bytes_push(ctx["data"], 0); i = i + 1 }
+    bytes_extend_zeros(ctx["data"], total)
 
     ctx["linetab_off"] = linetab_off
     ctx["linetab_cap"] = cap_entries
@@ -834,11 +845,11 @@ fn _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len) {
     var nb_len = oren_string_len(disp)
     push_u64_le(ctx["data"], nb_len)
     bytes_extend_string(ctx["data"], disp)
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
 
     // File/line/column/parameter metadata is reserved for later native debug data.
     push_u64_le(ctx["data"], 0)
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     push_u64_le(ctx["data"], 0)
     push_u64_le(ctx["data"], 0)
     push_u64_le(ctx["data"], 0)
@@ -895,7 +906,7 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
     _data_sort_dbginfo_entries_by_off(entries)
 
     // Align `.data` to 8B for u64 reads.
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var table_off = bytes_len(ctx["data"])
 
     // Build the table.

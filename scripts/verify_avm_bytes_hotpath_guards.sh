@@ -1164,13 +1164,29 @@ fi
 arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"
-if ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_ctx_impl" ||
+if ! grep -Fq 'fn _arm64_data_align8(ctx)' lib/compiler/arm64_native_program/010_ctx.oren ||
+  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }' lib/compiler/arm64_native_program/010_ctx.oren ||
+  ! grep -Fq 'bytes_extend_zeros(ctx["data"], 512)' <<<"$arm64_ctx_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_ctx_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_global_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_stmt_binding_impl" ||
+  grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' lib/compiler/arm64_native_program/010_ctx.oren ||
   grep -Fq 'while z < 8' <<<"$arm64_ctx_impl" ||
+  grep -Fq 'while z < 512' <<<"$arm64_ctx_impl" ||
   grep -Fq 'while k < 8' <<<"$arm64_global_impl" ||
   grep -Fq 'while k < 8' <<<"$arm64_stmt_binding_impl"; then
   echo "ERROR: ARM64 compiler 8-byte zero slot reservations must use bytes_extend_zeros, not fixed byte-push loops" >&2
+  exit 1
+fi
+
+x64_data_io_impl="$(cat lib/compiler/x64_native_program/010_data_io.oren)"
+if ! grep -Fq 'fn _bytes_align8(buf)' <<<"$x64_data_io_impl" ||
+  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, 8 - rem) }' <<<"$x64_data_io_impl" ||
+  ! grep -Fq 'fn _data_align8(ctx)' <<<"$x64_data_io_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(ctx["data"], total)' <<<"$x64_data_io_impl" ||
+  grep -Fq 'while core.int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$x64_data_io_impl" ||
+  grep -Fq 'while i < total { bytes_push(ctx["data"], 0)' <<<"$x64_data_io_impl"; then
+  echo "ERROR: x64 native data-section alignment and table reservations must use byte-builder zero extension" >&2
   exit 1
 fi
 

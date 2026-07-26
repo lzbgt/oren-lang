@@ -28,6 +28,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current compiler byte-output cleanup routes full-string bytecode constants
      and ARM64 Mach-O string-table names through byte-builder string extension
      instead of residual per-byte string-read loops.
+   - Current native compiler data-section cleanup routes ARM64/x64 alignment and
+     fixed table reservations through exact byte-builder zero-extension spans.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.
