@@ -59,7 +59,9 @@
 <li>Compiler byte output now routes bytecode constant strings and ARM64 Mach-O</li>
 </ul>
 <p>  import/export string-table names through byte-builder string extension,</p>
-<p>  removing residual per-byte string-read loops from those hot emitters.</p>
+<p>  removing residual per-byte string-read loops from those hot emitters. The</p>
+<p>  central byte-builder string and NUL-string extension helpers now bulk-copy</p>
+<p>  validated string spans directly into builder <code>u8_buf</code> storage.</p>
 <ul>
 <li>Compiler byte output now also routes PE/ELF and native C-string append helpers</li>
 </ul>

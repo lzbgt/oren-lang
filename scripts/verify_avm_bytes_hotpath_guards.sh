@@ -1199,6 +1199,13 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   exit 1
 fi
 
+bytes_builder_string_impl="$(sed -n '/fn bytes_extend_string(b, s)/,/fn bytes_set_u8/p' lib/compiler/bytes_builder.oren)"
+if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <<<"$bytes_builder_string_impl" ||
+  grep -Fq 'ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)' <<<"$bytes_builder_string_impl"; then
+  echo "ERROR: compiler byte-builder string extension must copy string spans directly, not loop per byte" >&2
+  exit 1
+fi
+
 arm64_elf_runtime_debug_impl="$(sed -n '/fn emit_debug_info/,/fn _elf_push_utf8_aligned/p' lib/compiler/arm64_elf.oren)"
 arm64_elf_runtime_debug_zero4_calls="$(grep -Fc '_elf_push_u64_zero4(p)' <<<"$arm64_elf_runtime_debug_impl")"
 if ! grep -Fq 'fn _elf_push_u64_zero4(p)' lib/compiler/arm64_elf.oren ||

@@ -219,13 +219,8 @@ fn bytes_extend_string(b, s) {
     if n <= 0 { return nil }
     var used = _bytes_len_raw(b)
     _bytes_ensure_capacity(b, used + n)
-    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
-    if dstp == 0 { oren_fail(1, "bytes_extend_string: buf data ptr is nil") }
-    var i = 0
-    while i < n {
-        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
+    var rc = oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)
+    if oren_is_err(rc) { oren_fail(1, "bytes_extend_string: string copy failed") }
     _bytes_set_len_raw(b, used + n)
     return nil
 }
@@ -237,10 +232,9 @@ fn bytes_extend_string_z(b, s) {
     _bytes_ensure_capacity(b, used + n + 1)
     var dstp = oren_buf_data_ptr_unchecked(b["buf"])
     if dstp == 0 { oren_fail(1, "bytes_extend_string_z: buf data ptr is nil") }
-    var i = 0
-    while i < n {
-        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
+    if n > 0 {
+        var rc = oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)
+        if oren_is_err(rc) { oren_fail(1, "bytes_extend_string_z: string copy failed") }
     }
     ptr_set_byte(iadd(dstp, used + n), 0)
     _bytes_set_len_raw(b, used + n + 1)

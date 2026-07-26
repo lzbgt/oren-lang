@@ -27,7 +27,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Do not retain local codegen probes unless profiles prove aggregate wall-time wins.
    - Current compiler byte-output cleanup routes full-string bytecode constants
      and ARM64 Mach-O string-table names through byte-builder string extension
-     instead of residual per-byte string-read loops.
+     instead of residual per-byte string-read loops, and that central helper now
+     bulk-copies validated string spans into builder `u8_buf` storage.
    - Current PE/ELF and native compiler C-string output cleanup routes
      NUL-terminated string appends through shared byte-builder string+zero
      extension.

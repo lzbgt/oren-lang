@@ -74,7 +74,9 @@
 <li>Compiler bytecode constant strings and ARM64 Mach-O import/export string-table</li>
 </ul>
 <p>  names now append through byte-builder string extension instead of per-byte</p>
-<p>  string-read loops, with the byte-hotpath guard pinning both shapes.</p>
+<p>  string-read loops, and the central byte-builder string/NUL-string extension</p>
+<p>  helpers now bulk-copy validated string spans directly into builder <code>u8_buf</code></p>
+<p>  storage with the byte-hotpath guard pinning those shapes.</p>
 <ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
