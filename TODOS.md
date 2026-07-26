@@ -49,7 +49,8 @@ design evidence lives under `project-doc/`.
   open-coded zero-byte alignment loops.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
-  rather than open-coded zero-byte push loops.
+  rather than open-coded zero-byte push loops, and PE import hint/name alignment
+  now reuses `_pe_align` instead of single-byte zero pads.
 - ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing
   alignment helpers or exact zero-extension spans for dylib-id, exit-stub,
   debug-data, page, and section-table padding.

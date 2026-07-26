@@ -91,7 +91,8 @@
 <li>x64 PE export-table, DOS/optional/header, and section raw-data padding now</li>
 </ul>
 <p>  routes through <code>_pe_align</code>/<code>_pe_pad_to_len</code> byte-builder zero-extension helpers</p>
-<p>  rather than open-coded zero-byte push loops.</p>
+<p>  rather than open-coded zero-byte push loops, and PE import hint/name alignment</p>
+<p>  now reuses <code>_pe_align</code> instead of single-byte zero pads.</p>
 <ul>
 <li>ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing</li>
 </ul>

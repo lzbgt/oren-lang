@@ -1111,12 +1111,15 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b
 fi
 
 x64_pe_import_thunks_impl="$(sed -n '/Align to 8 for thunk arrays/,/Hint.Name entries/p' lib/compiler/x64_pe.oren)"
+x64_pe_import_names_impl="$(sed -n '/Hint.Name entries/,/var off_dll_k32/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'fn _pe_align(buf, align)' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'fn _pe_reserve_u64_zeros(buf, count)' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'bytes_extend_zeros(buf, count * 8)' lib/compiler/x64_pe.oren ||
   test "$(grep -Fc '_pe_reserve_u64_zeros(rdata,' <<<"$x64_pe_import_thunks_impl")" != "8" ||
+  test "$(grep -Fc '_pe_align(rdata, 2)' <<<"$x64_pe_import_names_impl")" != "4" ||
   grep -Fq 'push_u64_le(rdata, 0)' <<<"$x64_pe_import_thunks_impl" ||
-  grep -Fq 'while int_mod(bytes_len(rdata), 8) != 0' <<<"$x64_pe_import_thunks_impl"; then
+  grep -Fq 'while int_mod(bytes_len(rdata), 8) != 0' <<<"$x64_pe_import_thunks_impl" ||
+  grep -Fq 'if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }' <<<"$x64_pe_import_names_impl"; then
   echo "ERROR: x64 PE import thunk reservations must use byte-builder zero-extension, not fixed u64/alignment loops" >&2
   exit 1
 fi

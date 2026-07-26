@@ -777,7 +777,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         hn_offs[nm] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nm)
-        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        _pe_align(rdata, 2)
         i0 = i0 + 1
     }
     i0 = 0
@@ -786,7 +786,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         hn_offs[nm_kb] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nm_kb)
-        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        _pe_align(rdata, 2)
         i0 = i0 + 1
     }
     i0 = 0
@@ -795,7 +795,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         hn_offs[nmw] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nmw)
-        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        _pe_align(rdata, 2)
         i0 = i0 + 1
     }
     i0 = 0
@@ -804,7 +804,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         hn_offs[nm2] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nm2)
-        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        _pe_align(rdata, 2)
         i0 = i0 + 1
     }
 

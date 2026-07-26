@@ -90,6 +90,10 @@
 </ul>
 <p>  zero-extension helpers instead of open-coded zero-byte push loops.</p>
 <ul>
+<li>x64 PE import hint/name table entries now use <code>_pe_align(rdata, 2)</code> instead</li>
+</ul>
+<p>  of repeated one-byte zero-pad branches.</p>
+<ul>
 <li>ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based</li>
 </ul>
 <p>  alignment or exact zero-extension spans for residual output padding loops.</p>

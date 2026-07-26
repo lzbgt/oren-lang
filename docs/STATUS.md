@@ -42,6 +42,8 @@ surfaces, but the following blockers remain:
   alignment now reuses the shared byte-builder zero-extension alignment helper.
 - x64 PE export, header, and raw-section padding now use exact byte-builder
   zero-extension helpers instead of open-coded zero-byte push loops.
+- x64 PE import hint/name table entries now use `_pe_align(rdata, 2)` instead
+  of repeated one-byte zero-pad branches.
 - ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based
   alignment or exact zero-extension spans for residual output padding loops.
 - ARM64/x64 ELF page padding now extends the final output prefix directly with

@@ -43,6 +43,8 @@ This file is the concise task view. Detailed implementation status lives in
      synthetic global, and debug-root table alignment through the same helper.
    - Current PE byte-output cleanup routes export/header/raw-section padding
      through exact byte-builder zero-extension helpers.
+   - Current PE import-name cleanup routes hint/name entry alignment through
+     `_pe_align(rdata, 2)` instead of repeated one-byte zero-pad branches.
    - Current Mach-O/ELF byte-output cleanup routes final executable padding
      through existing alignment helpers and exact zero-extension spans.
    - Current ELF page-padding cleanup extends the output prefix directly with
