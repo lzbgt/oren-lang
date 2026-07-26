@@ -30,6 +30,8 @@ surfaces, but the following blockers remain:
 - ASTBIN v2 dyn writers and scan-cache save strings now bulk-copy validated
   string spans directly into their reserved `u8_buf` storage instead of looping
   through per-byte `oren_string_byte_at_unchecked` reads.
+- Bytecode NIL constant tags now use byte-builder zero-extension instead of a
+  single zero-byte push, matching the linked-OBC NIL tag cleanup.
 - Compiler byte output now also routes PE/ELF and native C-string append helpers
   through shared byte-builder NUL-terminated string extension, preserving offsets
   while avoiding separate terminator growth/write paths.

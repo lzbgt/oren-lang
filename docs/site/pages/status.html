@@ -68,6 +68,10 @@
 <p>  string spans directly into their reserved <code>u8_buf</code> storage instead of looping</p>
 <p>  through per-byte <code>oren_string_byte_at_unchecked</code> reads.</p>
 <ul>
+<li>Bytecode NIL constant tags now use byte-builder zero-extension instead of a</li>
+</ul>
+<p>  single zero-byte push, matching the linked-OBC NIL tag cleanup.</p>
+<ul>
 <li>Compiler byte output now also routes PE/ELF and native C-string append helpers</li>
 </ul>
 <p>  through shared byte-builder NUL-terminated string extension, preserving offsets</p>

@@ -44,6 +44,9 @@ design evidence lives under `project-doc/`.
 - Compiler ASTBIN dyn writers and scan-cache save strings now bulk-copy
   validated string spans directly into reserved `u8_buf` storage instead of
   looping through per-byte string reads.
+- Compiler bytecode NIL constant tags now route through byte-builder
+  zero-extension instead of a single zero-byte push, matching the linked-OBC NIL
+  tag emission shape.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now use exact byte-builder zero-extension spans instead of repeated zero-byte
   push loops in the context and data I/O helpers.

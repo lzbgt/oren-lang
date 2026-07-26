@@ -582,7 +582,7 @@ fn bytecode_emit_program(out_path, ctx) {
     while i < n_consts {
         var c = consts[i]
         if c["type"] == "Nil" {
-            bytes.bytes_push(out, 0) // Type NIL
+            bytes.bytes_extend_zeros(out, 1) // Type NIL
         }
         if c["type"] == "Integer" {
             bytes.bytes_push(out, 1) // Type INT
