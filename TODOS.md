@@ -101,6 +101,10 @@ design evidence lives under `project-doc/`.
   data-alignment helper.
 - Runtime-object debug-name sidecar blobs now align with byte-builder zero-span
   extension instead of repeated zero-byte pushes.
+- X64 program-entry compile helpers now split bounded slow-function trace
+  insertion, runtime-object C-string metadata merge/stash, and debug symtab
+  function/import collection into focused parser bodies while preserving trace,
+  rtobj metadata, and debug symbol-table order.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

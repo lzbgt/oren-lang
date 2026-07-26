@@ -998,6 +998,17 @@ if ! grep -Fq 'fn _x64_emit_named_call_index_intrinsic_v0' <<<"$x64_named_call_c
   echo "ERROR: x64 named-call core intrinsic dispatch must keep index/list/list-int routing in split helpers" >&2
   exit 1
 fi
+x64_program_entry_shape_impl="$(cat lib/compiler/x64_native_program/090_program_entry/020_part_b.oren)
+$(sed -n '/fn _x64_rtobj_should_merge_cstr0_offs/,/fn _x64_rtobj_apply_function_metadata/p' lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
+$(sed -n '/fn _x64_reserve_debug_symtab/,/fn _x64_setup_program_debug_metadata/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)"
+if ! grep -Fq 'fn _x64_slow_fn_top_insert_index' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_merge_cstr0_offs(ctx, offs, trace)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_stash_cstr0_lists(ctx, meta, trace)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_push_debug_function_names(sym_seen, sym_names, fns)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_push_debug_import_names(sym_seen, sym_names, imports0)' <<<"$x64_program_entry_shape_impl"; then
+  echo "ERROR: x64 program-entry trace/cstr/debug helpers must stay split into focused parser bodies" >&2
+  exit 1
+fi
 arm64_gemm_store_helper_impl="$(sed -n '/fn arm64_emit_store_d_reg_to_cursor/,/fn native_emit_panic/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 if ! grep -Fq 'fn arm64_emit_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
   ! grep -Fq 'fn arm64_emit_addp_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||

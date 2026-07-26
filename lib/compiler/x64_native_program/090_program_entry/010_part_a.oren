@@ -174,47 +174,33 @@ fn _x64_rtobj_apply_imports_and_ffi(ctx, meta, trace, phase_log) {
     return nil
 }
 
-fn _x64_rtobj_apply_cstr_metadata(ctx, meta, trace) {
-    // Merge runtime cstr0 dedup map (string -> off+1).
-    //
-    // PERF (stage2-native, x64 emit):
-    // This map can be very large (all runtime string literals). Merging it on every build
-    // adds measurable overhead even when the runtime object cache hits.
-    //
-    // Correctness:
-    // - We MUST still merge `cstr0_list_enc` so the entry stub registers runtime literals.
-    // - We do NOT need to merge the dedup map for correctness; skipping it only means user
-    //   strings may duplicate bytes already present in the cached runtime data tail.
-    //
-    // Policy:
-    // - Default: skip merging runtime `cstr0_offs` for throughput.
-    // - Opt-in: set `OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS=1` to merge and reduce binary size.
-    var merge_cstr0_offs = oren_env("OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS") != nil
-    if merge_cstr0_offs && meta["cstr0_offs"] != nil {
-        if trace { print("[x64_rtobj_apply] cstr0 offs merge start") }
-        if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
-        var idxo = 0
-        var pairo = [nil, nil]
-        while 1 {
-            var oko = oren_iter_next_entry(meta["cstr0_offs"], idxo, pairo)
-            if oko == 0 { break }
-            var k0 = pairo[0]
-            var v0 = pairo[1]
-            if k0 != nil && v0 != nil {
-                if ctx["cstr0_offs"][k0] == nil {
-                    ctx["cstr0_offs"][k0] = v0
-                }
-            }
-            idxo = idxo + 1
-        }
-        if trace { print("[x64_rtobj_apply] cstr0 offs merge done count=" + oren_int_to_string(idxo)) }
-    }
+fn _x64_rtobj_should_merge_cstr0_offs() {
+    return oren_env("OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS") != nil
+}
 
-    // Keep runtime cstr0 offsets encoded until final data-table emission.
-    //
-    // Stage2-native x64 can spend disproportionate time in the eager decode+push merge
-    // even for modest runtime literal tables. Stashing the encoded/u8 rtobj list matches the
-    // arm64 rtobj path and leaves `ctx["cstr0_list"]` for user/backend-emitted literals only.
+fn _x64_rtobj_merge_cstr0_offs(ctx, offs, trace) {
+    if offs == nil { return nil }
+    if trace { print("[x64_rtobj_apply] cstr0 offs merge start") }
+    if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
+    var idxo = 0
+    var pairo = [nil, nil]
+    while 1 {
+        var oko = oren_iter_next_entry(offs, idxo, pairo)
+        if oko == 0 { break }
+        var k0 = pairo[0]
+        var v0 = pairo[1]
+        if k0 != nil && v0 != nil {
+            if ctx["cstr0_offs"][k0] == nil {
+                ctx["cstr0_offs"][k0] = v0
+            }
+        }
+        idxo = idxo + 1
+    }
+    if trace { print("[x64_rtobj_apply] cstr0 offs merge done count=" + oren_int_to_string(idxo)) }
+    return nil
+}
+
+fn _x64_rtobj_stash_cstr0_lists(ctx, meta, trace) {
     if trace { print("[x64_rtobj_apply] cstr0 list stash start") }
     var c0_u8 = meta["cstr0_offsets_u8"]
     if c0_u8 != nil {
@@ -226,6 +212,16 @@ fn _x64_rtobj_apply_cstr_metadata(ctx, meta, trace) {
     }
     if trace { print("[x64_rtobj_apply] cstr0 list stash done") }
     return nil
+}
+
+fn _x64_rtobj_apply_cstr_metadata(ctx, meta, trace) {
+    // Default skips huge runtime cstr0-off merges for throughput; opt-in keeps binary size smaller.
+    if _x64_rtobj_should_merge_cstr0_offs() == true {
+        _x64_rtobj_merge_cstr0_offs(ctx, meta["cstr0_offs"], trace)
+    }
+
+    // Keep runtime cstr0 offsets encoded until final data-table emission.
+    return _x64_rtobj_stash_cstr0_lists(ctx, meta, trace)
 }
 
 fn _x64_rtobj_apply_function_metadata(ctx, meta, trace) {

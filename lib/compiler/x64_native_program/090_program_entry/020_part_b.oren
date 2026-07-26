@@ -1,29 +1,28 @@
-fn _x64_slow_fn_top_push(top, top_n, ms, nm) {
-    // Keep a bounded descending list of slow function compiles.
-    //
-    // Intended for diagnosing x64 codegen hot spots without huge logs.
-    // Enable via:
-    //   OREN_TRACE_X64_TOP_SLOW_FNS=1
-    // Optional:
-    //   OREN_TRACE_X64_TOP_SLOW_FNS_N=20
-    //
-    // `top` shape: list<map{ms:int, name:string}>
-    if top == nil || top_n <= 0 { return nil }
+// Keep a bounded descending list of slow function compiles.
+//
+// Intended for diagnosing x64 codegen hot spots without huge logs.
+// Enable via:
+//   OREN_TRACE_X64_TOP_SLOW_FNS=1
+// Optional:
+//   OREN_TRACE_X64_TOP_SLOW_FNS_N=20
+//
+// `top` shape: list<map{ms:int, name:string}>
+fn _x64_slow_fn_top_entry(ms, nm) {
     if nm == nil || nm == "" { nm = "?" }
+    return {"ms": ms, "name": nm}
+}
 
-    var entry = {"ms": ms, "name": nm}
-    var n = oren_list_len(top)
-
-    // If the list is already full and this sample is not slower than the current slowest,
-    // skip immediately to keep overhead bounded.
+fn _x64_slow_fn_top_skip_full(top, top_n, ms, n) {
     if n >= top_n {
         var last = top[n - 1]
         var last_ms = -1
         if last != nil && last["ms"] != nil { last_ms = last["ms"] }
-        if ms <= last_ms { return nil }
+        if ms <= last_ms { return true }
     }
+    return false
+}
 
-    // Find insertion point in descending order.
+fn _x64_slow_fn_top_insert_index(top, ms, n) {
     var i = 0
     while i < n {
         var cur = top[i]
@@ -32,9 +31,11 @@ fn _x64_slow_fn_top_push(top, top_n, ms, nm) {
         if ms > cur_ms { break }
         i = i + 1
     }
+    return i
+}
 
+fn _x64_slow_fn_top_insert(top, top_n, entry, i, n) {
     if n < top_n {
-        // Grow by one, then shift tail right and insert.
         oren_list_push(top, nil)
         var j = oren_list_len(top) - 1
         while j > i {
@@ -45,7 +46,6 @@ fn _x64_slow_fn_top_push(top, top_n, ms, nm) {
         return nil
     }
 
-    // List is full: shift in-place and overwrite the last element.
     var j2 = n - 1
     while j2 > i {
         top[j2] = top[j2 - 1]
@@ -55,3 +55,11 @@ fn _x64_slow_fn_top_push(top, top_n, ms, nm) {
     return nil
 }
 
+fn _x64_slow_fn_top_push(top, top_n, ms, nm) {
+    if top == nil || top_n <= 0 { return nil }
+    var n = oren_list_len(top)
+    if _x64_slow_fn_top_skip_full(top, top_n, ms, n) == true { return nil }
+    var entry = _x64_slow_fn_top_entry(ms, nm)
+    var i = _x64_slow_fn_top_insert_index(top, ms, n)
+    return _x64_slow_fn_top_insert(top, top_n, entry, i, n)
+}

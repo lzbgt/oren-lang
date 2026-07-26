@@ -48,7 +48,16 @@ fn _x64_reserve_debug_symtab(ctx, fns, wrappers, imports0, used_rtobj) {
     // Add runtime symbols from the cached meta so best-effort traces can resolve runtime frames too.
     if used_rtobj == true { _x64_push_rtobj_symtab_names(ctx, sym_seen, sym_names) }
 
-    // User functions (deterministic: source order).
+    _x64_push_debug_function_names(sym_seen, sym_names, fns)
+    _x64_push_debug_function_names(sym_seen, sym_names, wrappers)
+    _x64_push_debug_import_names(sym_seen, sym_names, imports0)
+
+    _data_reserve_symtab(ctx, sym_names)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return true
+}
+
+fn _x64_push_debug_function_names(sym_seen, sym_names, fns) {
     var si0 = 0
     while si0 < oren_list_len(fns) {
         var fn1 = fns[si0]
@@ -57,16 +66,10 @@ fn _x64_reserve_debug_symtab(ctx, fns, wrappers, imports0, used_rtobj) {
         }
         si0 = si0 + 1
     }
-    // Wrappers (deterministic: synthesis order).
-    si0 = 0
-    while si0 < oren_list_len(wrappers) {
-        var w1 = wrappers[si0]
-        if w1 != nil && w1["name"] != nil && w1["name"] != "" {
-            _x64_symtab_push_unique(sym_seen, sym_names, w1["name"])
-        }
-        si0 = si0 + 1
-    }
-    // FFI stubs (deterministic: declaration order).
+    return nil
+}
+
+fn _x64_push_debug_import_names(sym_seen, sym_names, imports0) {
     if imports0 != nil {
         var ii1 = 0
         while ii1 < oren_list_len(imports0) {
@@ -77,10 +80,7 @@ fn _x64_reserve_debug_symtab(ctx, fns, wrappers, imports0, used_rtobj) {
             ii1 = ii1 + 1
         }
     }
-
-    _data_reserve_symtab(ctx, sym_names)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    return true
+    return nil
 }
 
 fn _x64_setup_program_debug_metadata(ctx, platform, fns, wrappers, used_rtobj, want_resolve_symbol) {

@@ -115,6 +115,10 @@ surfaces, but the following blockers remain:
   data-alignment helper instead of open-coded zero-byte padding.
 - Runtime-object debug-name sidecar alignment now uses byte-builder zero-span
   extension instead of per-byte zero pushes.
+- X64 program-entry compile helpers now split bounded slow-function trace
+  insertion, runtime-object C-string metadata merge/stash, and debug symtab
+  function/import collection into focused parser bodies while preserving trace,
+  rtobj metadata, and debug symbol-table order.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

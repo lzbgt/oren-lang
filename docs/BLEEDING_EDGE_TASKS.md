@@ -111,6 +111,10 @@ This file is the concise task view. Detailed implementation status lives in
      byte-builder span helpers.
    - Current runtime-object sidecar cleanup routes debug-name alignment through
      byte-builder zero-extension instead of per-byte zero pushes.
+   - Current x64 program-entry cleanup splits bounded slow-function trace
+     insertion, runtime-object C-string metadata merge/stash, and debug symtab
+     function/import collection into focused parser bodies while preserving
+     trace, rtobj metadata, and debug symbol-table order.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.
