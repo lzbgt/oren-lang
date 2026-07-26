@@ -71,6 +71,8 @@ design evidence lives under `project-doc/`.
 - ARM64 native compiler data-slot reservations now use the shared byte-builder
   zero-extension path for fixed eight-byte pointer slots instead of per-byte
   push loops.
+- ARM64 Mach-O LC_UUID zero-word emission is straight-line instead of a fixed
+  four-iteration header loop.
 - Scalar `std:math.sqrt` now keeps its deterministic eight-step Newton
   refinement as straight-line operations, reducing loop overhead for vector and
   matrix helpers that call it.

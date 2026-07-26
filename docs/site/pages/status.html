@@ -244,6 +244,10 @@
 <p>  reservations now route fixed eight-byte zero fills through the shared</p>
 <p>  byte-builder zero-extension path instead of per-byte push loops.</p>
 <ul>
+<li>ARM64 Mach-O LC_UUID emission now writes the four zero u32 words</li>
+</ul>
+<p>  straight-line, keeping fixed header bytes out of avoidable compiler loops.</p>
+<ul>
 <li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
 </ul>
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>

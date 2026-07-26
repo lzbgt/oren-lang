@@ -1078,6 +1078,16 @@ if ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_ctx_impl" ||
   exit 1
 fi
 
+arm64_macho_uuid_impl="$(sed -n '/^[[:space:]]*\/\/ LC_UUID/,/^[[:space:]]*\/\/ 8\. LC_MAIN or LC_ID_DYLIB/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_uuid_zero_words="$(grep -Fc 'push_u32_le(p, 0)' <<<"$arm64_macho_uuid_impl")"
+if ! grep -Fq 'push_u32_le(p, lc_uuid())' <<<"$arm64_macho_uuid_impl" ||
+  ! grep -Fq 'push_u32_le(p, cmdsize_uuid())' <<<"$arm64_macho_uuid_impl" ||
+  test "$arm64_macho_uuid_zero_words" != "4" ||
+  grep -Fq 'while k_uuid < 4' <<<"$arm64_macho_uuid_impl"; then
+  echo "ERROR: ARM64 Mach-O LC_UUID zero words must be emitted straight-line, not through a fixed loop" >&2
+  exit 1
+fi
+
 if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands.oren; then
     echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
     exit 1

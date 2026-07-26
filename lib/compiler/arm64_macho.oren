@@ -646,8 +646,10 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     // LC_UUID
     push_u32_le(p, lc_uuid())
     push_u32_le(p, cmdsize_uuid())
-    var k_uuid = 0
-    while k_uuid < 4 { push_u32_le(p, 0); k_uuid = k_uuid + 1 }
+    push_u32_le(p, 0)
+    push_u32_le(p, 0)
+    push_u32_le(p, 0)
+    push_u32_le(p, 0)
     
     // 8. LC_MAIN or LC_ID_DYLIB
     if is_shared {

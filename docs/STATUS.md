@@ -152,6 +152,8 @@ surfaces, but the following blockers remain:
 - ARM64 native compiler context, global, and statement-binding pointer-slot
   reservations now route fixed eight-byte zero fills through the shared
   byte-builder zero-extension path instead of per-byte push loops.
+- ARM64 Mach-O LC_UUID emission now writes the four zero u32 words
+  straight-line, keeping fixed header bytes out of avoidable compiler loops.
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.
