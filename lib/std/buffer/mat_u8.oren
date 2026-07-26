@@ -65,17 +65,10 @@ fn u8_mat_pack_strings(rows) {
     // Safe: string rows pack writes every element of the fresh buffer before successful return.
     var out = raw.u8_new_uninit(nrows * ncols)
     if oren_is_err(out) { return out }
-    var data = oren_buf_data_ptr_unchecked(out)
-    var i = 0
     var r = 0
     while r < nrows {
-        var row = rows[r]
-        var c = 0
-        while c < ncols {
-            ptr_set_byte(data + i, oren_string_byte_at_unchecked(row, c) & 255)
-            i = i + 1
-            c = c + 1
-        }
+        var rc = oren_u8_buf_copy_from_string_slice_at(out, r * ncols, rows[r], 0, ncols)
+        if oren_is_err(rc) { return rc }
         r = r + 1
     }
     return core.mat_view_new(out, 0, nrows, ncols, ncols)
