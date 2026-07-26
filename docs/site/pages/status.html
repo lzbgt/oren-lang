@@ -213,6 +213,18 @@
 </ul>
 <p>  destination setup, byte loop emission, and fixup patching.</p>
 <ul>
+<li>X64 string-batch operation input handling now separates input-list extraction</li>
+</ul>
+<p>  from derived count/state calculation.</p>
+<ul>
+<li>Windows x64 entry envblock capture now separates the <code>GetEnvironmentStringsA</code></li>
+</ul>
+<p>  IAT call from the entry scratch-slot store.</p>
+<ul>
+<li>X64 runtime-object RIP data32 fixup replay now separates map iteration,</li>
+</ul>
+<p>  per-label fixup application, and phase-log completion.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

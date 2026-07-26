@@ -113,12 +113,20 @@ fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
     //
     // Clobbers: RAX
     if ctx == nil { return nil }
+    _x64_emit_get_environment_strings_call(ctx)
+    _x64_store_envblock_in_entry_scratch(ctx, scratch_base)
+    return nil
+}
 
+fn _x64_emit_get_environment_strings_call(ctx) {
     var mov_iat_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_GetEnvironmentStringsA")
     bytes_extend(ctx["code"], core.insn_call_rax()) // rax = env_block (or 0)
+    return nil
+}
 
+fn _x64_store_envblock_in_entry_scratch(ctx, scratch_base) {
     // scratch[16] = env_block (later overwritten with envp pointer)
     _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
     return nil

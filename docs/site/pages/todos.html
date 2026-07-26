@@ -176,6 +176,18 @@
 </ul>
 <p>  destination setup, byte loop emission, and fixup patching.</p>
 <ul>
+<li>X64 string-batch operation input handling now separates input-list extraction</li>
+</ul>
+<p>  from derived count/state calculation.</p>
+<ul>
+<li>Windows x64 entry envblock capture now separates the <code>GetEnvironmentStringsA</code></li>
+</ul>
+<p>  IAT call from the entry scratch-slot store.</p>
+<ul>
+<li>X64 runtime-object RIP data32 fixup replay now separates map iteration,</li>
+</ul>
+<p>  per-label fixup application, and phase-log completion.</p>
+<ul>
 <li>x64 PE export-table, DOS/optional/header, and section raw-data padding now</li>
 </ul>
 <p>  routes through <code>_pe_align</code>/<code>_pe_pad_to_len</code> byte-builder zero-extension helpers</p>

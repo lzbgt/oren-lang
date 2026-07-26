@@ -64,11 +64,43 @@ fn _x64_string_batch_collect_items(batch_n, batch_items, batch_items_n, batch_na
 }
 
 fn _x64_string_batch_input_state(op) {
+    var lists = _x64_string_batch_input_lists(op)
+    var counts = _x64_string_batch_input_counts(lists)
+    return {
+        "names": lists["names"],
+        "values": lists["values"],
+        "off_encs": lists["off_encs"],
+        "slot_offs_src": lists["slot_offs_src"],
+        "items": lists["items"],
+        "items_n": counts["items_n"],
+        "n": counts["n"],
+        "names_n": counts["names_n"],
+        "off_encs_n": counts["off_encs_n"],
+        "slot_offs_src_n": counts["slot_offs_src_n"]
+    }
+}
+
+fn _x64_string_batch_input_lists(op) {
     var batch_names = op["names"]
     var batch_values = op["values"]
     var batch_off_encs = op["off_encs"]
     var batch_slot_offs_src = op["slot_offs"]
     var batch_items = op["items"]
+    return {
+        "names": batch_names,
+        "values": batch_values,
+        "off_encs": batch_off_encs,
+        "slot_offs_src": batch_slot_offs_src,
+        "items": batch_items
+    }
+}
+
+fn _x64_string_batch_input_counts(lists) {
+    var batch_names = lists["names"]
+    var batch_values = lists["values"]
+    var batch_off_encs = lists["off_encs"]
+    var batch_slot_offs_src = lists["slot_offs_src"]
+    var batch_items = lists["items"]
     var batch_items_n = 0
     if batch_items != nil { batch_items_n = oren_list_len(batch_items) }
     var batch_n = 0
@@ -84,11 +116,6 @@ fn _x64_string_batch_input_state(op) {
     var batch_slot_offs_src_n = 0
     if batch_slot_offs_src != nil { batch_slot_offs_src_n = oren_list_len(batch_slot_offs_src) }
     return {
-        "names": batch_names,
-        "values": batch_values,
-        "off_encs": batch_off_encs,
-        "slot_offs_src": batch_slot_offs_src,
-        "items": batch_items,
         "items_n": batch_items_n,
         "n": batch_n,
         "names_n": batch_names_n,

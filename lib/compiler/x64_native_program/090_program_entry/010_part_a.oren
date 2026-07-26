@@ -575,32 +575,45 @@ fn _x64_rtobj_apply_rip_data32_fixups(ctx, meta, base_code, trace, phase_log) {
     // Preferred representation (rolling): rip_data32 positions aggregated by label.
     var r32 = meta["rip_data32_fixups_enc"]
     if r32 != nil {
-        if trace { print("[x64_rtobj_apply] rip_data32 start") }
-        var idx2 = 0
-        var pair2 = [nil, nil]
-        while 1 {
-            var ok2 = oren_iter_next_entry(r32, idx2, pair2)
-            if ok2 == 0 { break }
-            var lab2 = pair2[0]
-            var xs2 = pair2[1]
-            if lab2 != nil && xs2 != nil {
-                var i2 = 0
-                while i2 < oren_list_len(xs2) {
-                    var p_enc = xs2[i2]
-                    var p0 = _rtobj_decode_int_enc(p_enc)
-                    if p0 != nil { _x64_add_rip_data32_fixup(ctx, base_code + p0, lab2) }
-                    i2 = i2 + 1
-                }
-            }
-            idx2 = idx2 + 1
-        }
-        if trace { print("[x64_rtobj_apply] rip_data32 done labels=" + oren_int_to_string(idx2)) }
-        if phase_log != nil {
-            _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.rip_data32.done",
-                "labels=" + oren_int_to_string(idx2))
-        }
+        var labels_n = _x64_rtobj_apply_rip_data32_map(ctx, r32, base_code, trace)
+        _x64_rtobj_log_rip_data32_done(phase_log, labels_n)
     } else if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.rip_data32.done", "labels=0")
+    }
+    return nil
+}
+
+fn _x64_rtobj_apply_rip_data32_map(ctx, r32, base_code, trace) {
+    if trace { print("[x64_rtobj_apply] rip_data32 start") }
+    var idx2 = 0
+    var pair2 = [nil, nil]
+    while 1 {
+        var ok2 = oren_iter_next_entry(r32, idx2, pair2)
+        if ok2 == 0 { break }
+        _x64_rtobj_apply_rip_data32_label(ctx, base_code, pair2[0], pair2[1])
+        idx2 = idx2 + 1
+    }
+    if trace { print("[x64_rtobj_apply] rip_data32 done labels=" + oren_int_to_string(idx2)) }
+    return idx2
+}
+
+fn _x64_rtobj_apply_rip_data32_label(ctx, base_code, lab2, xs2) {
+    if lab2 == nil || xs2 == nil { return nil }
+    var i2 = 0
+    var xs2_n = oren_list_len(xs2)
+    while i2 < xs2_n {
+        var p_enc = xs2[i2]
+        var p0 = _rtobj_decode_int_enc(p_enc)
+        if p0 != nil { _x64_add_rip_data32_fixup(ctx, base_code + p0, lab2) }
+        i2 = i2 + 1
+    }
+    return nil
+}
+
+fn _x64_rtobj_log_rip_data32_done(phase_log, labels_n) {
+    if phase_log != nil {
+        _x64_program_phase_log_append(phase_log, "x64.rtobj.apply_code.rip_data32.done",
+            "labels=" + oren_int_to_string(labels_n))
     }
     return nil
 }

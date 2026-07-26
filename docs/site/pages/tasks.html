@@ -350,6 +350,18 @@
 <li>Current x64 pointer C-string length cleanup separates label allocation,</li>
 </ul>
 <p>     pointer/destination setup, byte loop emission, and fixup patching.</p>
+<ul>
+<li>Current x64 string-batch input cleanup separates input-list extraction from</li>
+</ul>
+<p>     derived count/state calculation.</p>
+<ul>
+<li>Current Windows x64 entry envblock cleanup separates the</li>
+</ul>
+<p>     <code>GetEnvironmentStringsA</code> IAT call from the entry scratch-slot store.</p>
+<ul>
+<li>Current x64 runtime-object RIP data32 fixup cleanup separates map</li>
+</ul>
+<p>     iteration, per-label fixup application, and phase-log completion.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

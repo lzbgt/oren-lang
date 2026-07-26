@@ -1003,11 +1003,15 @@ if ! grep -Fq 'fn _x64_emit_named_call_index_intrinsic_v0' <<<"$x64_named_call_c
 fi
 x64_program_entry_shape_impl="$(cat lib/compiler/x64_native_program/090_program_entry/020_part_b.oren)
 $(sed -n '/fn _x64_rtobj_should_merge_cstr0_offs/,/fn _x64_rtobj_apply_function_metadata/p' lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
+$(sed -n '/fn _x64_rtobj_apply_rip_data32_fixups/,/fn _x64_rtobj_apply_code_to_ctx/p' lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
 $(sed -n '/fn _x64_rtobj_symtab_compact_names/,/fn _x64_reserve_debug_symtab/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)
 $(sed -n '/fn _x64_reserve_debug_symtab/,/fn _x64_setup_program_debug_metadata/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)"
 if ! grep -Fq 'fn _x64_slow_fn_top_insert_index' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_rtobj_merge_cstr0_offs(ctx, offs, trace)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_rtobj_stash_cstr0_lists(ctx, meta, trace)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_apply_rip_data32_map(ctx, r32, base_code, trace)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_apply_rip_data32_label(ctx, base_code, lab2, xs2)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_log_rip_data32_done(phase_log, labels_n)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_rtobj_symtab_compact_names(ctx)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_rtobj_symtab_name(ctx, sym_seen, sym_names, rnm)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_rtobj_symtab_names_list(ctx, sym_seen, sym_names, rt_names)' <<<"$x64_program_entry_shape_impl" ||
@@ -1015,6 +1019,18 @@ if ! grep -Fq 'fn _x64_slow_fn_top_insert_index' <<<"$x64_program_entry_shape_im
   ! grep -Fq 'fn _x64_push_debug_function_names(sym_seen, sym_names, fns)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_debug_import_names(sym_seen, sym_names, imports0)' <<<"$x64_program_entry_shape_impl"; then
   echo "ERROR: x64 program-entry trace/cstr/debug helpers must stay split into focused parser bodies" >&2
+  exit 1
+fi
+x64_string_batch_input_split_impl="$(sed -n '/fn _x64_string_batch_input_state/,/fn _x64_string_batch_prepare_op/p' lib/compiler/x64_native_program/060_emit_ops_string_batch.oren)"
+if ! grep -Fq 'fn _x64_string_batch_input_lists(op)' <<<"$x64_string_batch_input_split_impl" ||
+  ! grep -Fq 'fn _x64_string_batch_input_counts(lists)' <<<"$x64_string_batch_input_split_impl"; then
+  echo "ERROR: x64 string-batch input state must keep list extraction and count derivation split" >&2
+  exit 1
+fi
+x64_envblock_capture_split_impl="$(sed -n '/fn _emit_entry_capture_envblock_windows_x64/,/fn _x64_win_entry_args_state/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
+if ! grep -Fq 'fn _x64_emit_get_environment_strings_call(ctx)' <<<"$x64_envblock_capture_split_impl" ||
+  ! grep -Fq 'fn _x64_store_envblock_in_entry_scratch(ctx, scratch_base)' <<<"$x64_envblock_capture_split_impl"; then
+  echo "ERROR: Windows x64 envblock capture must keep GetEnvironmentStringsA call and scratch-store helpers split" >&2
   exit 1
 fi
 x64_windows_errno_impl="$(sed -n '/fn _emit_win32_last_error_file_cases_x64/,/fn _emit_win32_last_error_to_neg_errno_common_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)

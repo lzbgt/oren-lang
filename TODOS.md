@@ -95,6 +95,12 @@ design evidence lives under `project-doc/`.
   dynamic runtime map-get dispatch.
 - X64 pointer C-string length emission now separates label allocation, pointer/
   destination setup, byte loop emission, and fixup patching.
+- X64 string-batch operation input handling now separates input-list extraction
+  from derived count/state calculation.
+- Windows x64 entry envblock capture now separates the `GetEnvironmentStringsA`
+  IAT call from the entry scratch-slot store.
+- X64 runtime-object RIP data32 fixup replay now separates map iteration,
+  per-label fixup application, and phase-log completion.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops, and PE import hint/name alignment

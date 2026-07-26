@@ -111,6 +111,12 @@ surfaces, but the following blockers remain:
   dynamic runtime map-get dispatch.
 - X64 pointer C-string length emission now separates label allocation, pointer/
   destination setup, byte loop emission, and fixup patching.
+- X64 string-batch operation input handling now separates input-list extraction
+  from derived count/state calculation.
+- Windows x64 entry envblock capture now separates the `GetEnvironmentStringsA`
+  IAT call from the entry scratch-slot store.
+- X64 runtime-object RIP data32 fixup replay now separates map iteration,
+  per-label fixup application, and phase-log completion.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
