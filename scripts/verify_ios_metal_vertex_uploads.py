@@ -751,6 +751,17 @@ def main() -> int:
         fail("Metal image runs must be built from cached texture/dimensions, not ID lookups")
     if "OrenAVMMetalImageRunCreate(texture," not in resource_text:
         fail("missing cached-texture Metal image-run helper")
+    image_run_start = resource_text.find("OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate")
+    image_run_end = resource_text.find("static BOOL OrenAVMMetalImageRectsHaveZeroSize", image_run_start)
+    if image_run_start < 0 or image_run_end < 0:
+        fail("missing Metal single image-run helper")
+    image_run_body = resource_text[image_run_start:image_run_end]
+    require_before(
+        image_run_body,
+        "if (!run) return nil;",
+        "OrenAVMMetalWriteTextureQuad(run->vertices",
+        "single Metal image run construction must guard run allocation before inline vertex writes",
+    )
     image_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleImageCommand") :]
     for token in (
         "case 64:",
@@ -813,6 +824,12 @@ def main() -> int:
     if image_batch_start < 0 or image_batch_end < 0:
         fail("missing Metal image batch-run helper")
     image_batch_body = resource_text[image_batch_start:image_batch_end]
+    require_before(
+        image_batch_body,
+        "if (!run) return nil;",
+        "OrenAVMMetalImageRunAllocateExactHeapVertices(run, vertexCount)",
+        "batched Metal image run construction must guard run allocation before heap vertex allocation",
+    )
     for token in (
         "uint32_t dx = OrenAVMMetalReadU32LE(r + 16);",
         "uint32_t dy = OrenAVMMetalReadU32LE(r + 20);",

@@ -143,6 +143,7 @@ OrenAVMMetalImageRun* OrenAVMMetalImageRunCreate(id<MTLTexture> texture,
     float u1 = (float)((uint64_t)sx + (uint64_t)sw) / (float)textureWidth;
     float v1 = (float)((uint64_t)sy + (uint64_t)sh) / (float)textureHeight;
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
+    if (!run) return nil;
     run.texture = texture;
     OrenAVMMetalWriteTextureQuad(run->vertices, x, y, w, h, logicalWidth, logicalHeight, u0, v0, u1, v1);
     run->inlineVertexCount = 6u;
@@ -230,6 +231,7 @@ static OrenAVMMetalImageRun* OrenAVMMetalImageBatchRunCreate(id<MTLTexture> text
         if (!OrenAVMMetalSubrectInTexture(sx, sy, sw, sh, textureWidth, textureHeight)) return nil;
     }
     OrenAVMMetalImageRun* run = [[OrenAVMMetalImageRun alloc] init];
+    if (!run) return nil;
     run.texture = texture;
     run.opacity = opacity;
     if (!OrenAVMMetalImageRunAllocateExactHeapVertices(run, vertexCount)) return nil;

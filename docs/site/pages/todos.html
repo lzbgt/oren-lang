@@ -100,6 +100,10 @@
 <p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>
 <p>  writes.</p>
 <ul>
+<li>Metal single and batched image-run construction now guards run allocation</li>
+</ul>
+<p>  before inline vertex writes or exact heap vertex allocation.</p>
+<ul>
 <li>Metal prepared geometry/text/image run arrays now cap their initial lazy</li>
 </ul>
 <p>  reservation to 4096 entries instead of reserving the full frame-derived op</p>

@@ -53,6 +53,8 @@ design evidence lives under `project-doc/`.
 - Metal text cache misses now guard typed cache-key, cache-entry, and run
   allocation before dictionary lookup, glyph rasterization storage, or vertex
   writes.
+- Metal single and batched image-run construction now guards run allocation
+  before inline vertex writes or exact heap vertex allocation.
 - Metal prepared geometry/text/image run arrays now cap their initial lazy
   reservation to 4096 entries instead of reserving the full frame-derived op
   capacity on first append.
