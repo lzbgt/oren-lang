@@ -47,6 +47,8 @@ design evidence lives under `project-doc/`.
 - Metal and CoreGraphics retained image/text draw handlers now reject malformed
   zero-size/count-mismatched draw payloads before retained resource lookup when
   the command is otherwise a no-op, preserving resource create/destroy paths.
+- CoreGraphics OGF0 frame traversal now breaks on truncated payloads and still
+  restores saved CGContext state instead of returning before state cleanup.
 - `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
   through bounded `oren_memcpy` in native and bytecode, while fixtures cover both
   overlapping self-copy directions across AVM and native quick integration.

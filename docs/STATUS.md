@@ -133,6 +133,8 @@ surfaces, but the following blockers remain:
 - CoreGraphics and Metal retained text, mesh, and model uploads now preflight
   scalar-map storage before retained string/object allocation or raw payload
   copies.
+- CoreGraphics OGF0 frame traversal now breaks on truncated payloads so saved
+  CGContext state is restored before the draw pass returns.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers
   (`cofactor`, `adjugate`, `adjoint`, `minor3`, and `minor`) that share the
   inverse cofactor formula while keeping singular finite matrices inspectable.

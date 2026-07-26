@@ -90,6 +90,10 @@
 <p>  zero-size/count-mismatched draw payloads before retained resource lookup when</p>
 <p>  the command is otherwise a no-op, preserving resource create/destroy paths.</p>
 <ul>
+<li>CoreGraphics OGF0 frame traversal now breaks on truncated payloads and still</li>
+</ul>
+<p>  restores saved CGContext state instead of returning before state cleanup.</p>
+<ul>
 <li><code>std:bytes.copy_into</code> now routes validated non-overlapping <code>u8_buf</code> spans</li>
 </ul>
 <p>  through bounded <code>oren_memcpy</code> in native and bytecode, while fixtures cover both</p>

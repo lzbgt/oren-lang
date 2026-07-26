@@ -125,6 +125,11 @@ def main() -> int:
         fail("CoreGraphics frame traversal must delegate state opcodes to OrenAVMGfxHandleFrameStateCommand")
     if "OrenAVMGfxRestoreFrameState(ctx, &frameState)" not in frame_text:
         fail("CoreGraphics frame traversal must delegate final state cleanup to OrenAVMGraphicsFrame")
+    draw_frame_block = between(frame_source_text, "void OrenAVMGfxDrawFrame", "BOOL OrenAVMGfxHandleFrameStateCommand")
+    if "if (off + (size_t)payloadLen > len) break;" not in draw_frame_block:
+        fail("CoreGraphics truncated frame payloads must break traversal so saved CGContext state is restored")
+    if "if (off + (size_t)payloadLen > len) return;" in draw_frame_block:
+        fail("CoreGraphics truncated frame payloads must not return before restoring saved CGContext state")
     if "frameState.depthEnabled" not in frame_text or "frameState.nearZ" not in frame_text or "frameState.farZ" not in frame_text:
         fail("CoreGraphics retained 3D draws must consume frame-state depth windows")
 

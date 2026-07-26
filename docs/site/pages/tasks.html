@@ -1520,8 +1520,8 @@
 <p>											     full-frame clear shortcuts require unclipped, untranslated, fully opaque state</p>
 <p>										     and skip duplicate leading fill vertices before prepared drawable work</p>
 <p>									     plus unused pipeline binding when no prepared runs exist,</p>
-<p>									     malformed zero-size/count-mismatched retained image/text draws reject before retained</p>
-<p>								     resource lookup when the command is otherwise a no-op, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area</p>
+<p>										     malformed zero-size/count-mismatched retained image/text draws reject before retained</p>
+<p>									     resource lookup when the command is otherwise a no-op, CoreGraphics truncated OGF0 payloads break traversal after restoring saved CGContext state, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area</p>
 <p>					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
 <p>				     PPM header/body output, PPM RGBA encoding hoists validated byte-view</p>
 <p>			     carrier/pointers once per call, and software-raster RGBA sampling</p>

@@ -142,7 +142,7 @@ void OrenAVMGfxDrawFrame(CGContextRef ctx, NSData* frame, OrenAVMGfxFrameDrawCon
         uint8_t opcode = data[off];
         uint16_t payloadLen = OrenAVMGfxReadU16LE(data + off + 2);
         off += 4;
-        if (off + (size_t)payloadLen > len) return;
+        if (off + (size_t)payloadLen > len) break;
         const uint8_t* payload = data + off;
 
         if (OrenAVMGfxHandleFrameStateCommand(ctx, opcode, payload, payloadLen, &frameState)) {
