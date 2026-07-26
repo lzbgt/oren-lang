@@ -2868,7 +2868,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  shared compiler byte-view readers, PPM RGBA input reads hoist the validated
 	  byte-view carrier/pointer once per encode, software raster image/mesh RGBA
 	  sampling, and software raster clear/pixel writes now use raw exact-size
-	  buffer stores or direct u8-buffer access, and
+  buffer stores or direct u8-buffer access, plain `std:ui/avm` text frame
+  payloads copy validated strings directly into exact-size frame buffers, and
   native `oren_write_file` writes strings directly through syscalls without a
   transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and
   read digest inputs through shared byte views during virtual padding expansion, SHA hex helpers and

@@ -613,6 +613,7 @@ fi
 
 std_bytes_view_impl="$(sed -n '/fn view_get_u16_be_unchecked/,/fn view_get_u32_be_unchecked/p' lib/std/bytes.oren)"
 ui_avm_append_bytes_impl="$(sed -n '/fn _append_bytes/,/fn _string_byte_len/p' lib/std/ui/avm.oren)"
+ui_avm_append_string_impl="$(sed -n '/fn _append_string/,/fn _push_frame_header/p' lib/std/ui/avm.oren)"
 ui_avm_decode_event_impl="$(sed -n '/fn decode_event_bytes(ev)/,/fn next_event/p' lib/std/ui/avm.oren)"
 if ! grep -Fq 'fn view_get_u16_le_unchecked(v, idx)' <<<"$std_bytes_view_impl" ||
   ! grep -Fq 'if p != nil { return _u16_le_from_ptr(p, idx) }' <<<"$std_bytes_view_impl" ||
@@ -634,6 +635,8 @@ if ! grep -Fq 'fn view_get_u16_le_unchecked(v, idx)' <<<"$std_bytes_view_impl" |
   ! grep -Fq 'var input_ptr = bytes.view_ptr(bv)' <<<"$ui_avm_append_bytes_impl" ||
   ! grep -Fq 'raw._copy_u8_ptr_forward(oren_buf_data_ptr_unchecked(wr[0]) + wr[1], input_ptr, n)' <<<"$ui_avm_append_bytes_impl" ||
   ! grep -Fq 'var b = bytes.view_get_u8_from(input_data, input_ptr, i)' <<<"$ui_avm_append_bytes_impl" ||
+  ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(wr[0], wr[1], s, 0, n)' <<<"$ui_avm_append_string_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(s, i)' <<<"$ui_avm_append_string_impl" ||
   ! grep -Fq 'var ev_data = bytes.view_bytes(ev_view)' <<<"$ui_avm_decode_event_impl" ||
   ! grep -Fq 'var ev_ptr = bytes.view_ptr(ev_view)' <<<"$ui_avm_decode_event_impl" ||
   ! grep -Fq 'var payload_len = bytes.view_get_u16_le_from(ev_data, ev_ptr, 10)' <<<"$ui_avm_decode_event_impl" ||

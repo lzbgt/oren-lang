@@ -117,6 +117,8 @@ design evidence lives under `project-doc/`.
   pointer loops.
 - `std:bytes.to_hex` now hoists direct `u8_buf` data pointers once per call,
   avoiding a repeated carrier check in each lowercase hex byte iteration.
+- `std:ui/avm` plain text frame payloads now copy validated strings directly
+  into the exact-size frame `u8_buf` instead of looping over string bytes.
 - `std:bytes` 64-bit pointer reads are now unrolled, so public u64/i64 BE and
   LE getters plus checked view helpers avoid Oren loops or chained helper calls
   after span validation on `u8_buf` carriers.

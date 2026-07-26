@@ -3116,7 +3116,8 @@
 <p>	  shared compiler byte-view readers, PPM RGBA input reads hoist the validated</p>
 <p>	  byte-view carrier/pointer once per encode, software raster image/mesh RGBA</p>
 <p>	  sampling, and software raster clear/pixel writes now use raw exact-size</p>
-<p>	  buffer stores or direct u8-buffer access, and</p>
+<p>  buffer stores or direct u8-buffer access, plain <code>std:ui/avm</code> text frame</p>
+<p>  payloads copy validated strings directly into exact-size frame buffers, and</p>
 <p>  native <code>oren_write_file</code> writes strings directly through syscalls without a</p>
 <p>  transient byte list. SHA-1/SHA-256 can now hash UTF-8 strings directly and</p>
 <p>  read digest inputs through shared byte views during virtual padding expansion, SHA hex helpers and</p>

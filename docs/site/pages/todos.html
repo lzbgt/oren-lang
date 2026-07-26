@@ -210,6 +210,10 @@
 </ul>
 <p>  avoiding a repeated carrier check in each lowercase hex byte iteration.</p>
 <ul>
+<li><code>std:ui/avm</code> plain text frame payloads now copy validated strings directly</li>
+</ul>
+<p>  into the exact-size frame <code>u8_buf</code> instead of looping over string bytes.</p>
+<ul>
 <li><code>std:bytes</code> 64-bit pointer reads are now unrolled, so public u64/i64 BE and</li>
 </ul>
 <p>  LE getters plus checked view helpers avoid Oren loops or chained helper calls</p>
