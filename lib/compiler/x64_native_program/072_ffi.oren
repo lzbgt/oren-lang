@@ -656,8 +656,7 @@ fn _x64_emit_ffi_stub_linux_dyn_panic(ctx, data, labels) {
     return nil
 }
 
-fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
-    // Linux x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
+fn _x64_prepare_lazy_ffi_stub(ctx, nm, resolver_name) {
     if ctx == nil { return nil }
     if nm == nil || nm == "" { return nil }
     if resolver_name == nil || resolver_name == "" {
@@ -667,13 +666,15 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
 
     if ctx["functions"] == nil { ctx["functions"] = {} }
     if ctx["functions"][nm] != nil { return nil }
+    return true
+}
 
-    var data = _x64_ffi_stub_linux_dyn_data(ctx, nm)
+fn _x64_register_lazy_ffi_stub(ctx, nm, data) {
     ctx["functions"][nm] = bytes_len(ctx["code"])
+    return {"labels": {"have": _new_label(ctx, "ffi_have"), "fail": _new_label(ctx, "ffi_fail")}, "fixups": []}
+}
 
-    var labels = {"have": _new_label(ctx, "ffi_have"), "fail": _new_label(ctx, "ffi_fail")}
-    var local_fixups = []
-
+fn _x64_emit_ffi_stub_linux_dyn_body(ctx, data, resolver_name, labels, local_fixups) {
     _x64_emit_ffi_stub_linux_dyn_cached_load(ctx, data, labels, local_fixups)
     _x64_emit_ffi_stub_linux_dyn_spill_args(ctx)
     _x64_emit_ffi_stub_linux_dyn_call_resolver(ctx, data, resolver_name, labels, local_fixups)
@@ -681,8 +682,23 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
     _x64_emit_ffi_stub_linux_dyn_restore_args(ctx)
     _x64_emit_ffi_stub_linux_dyn_tailcall(ctx, labels)
     _x64_emit_ffi_stub_linux_dyn_panic(ctx, data, labels)
+    return nil
+}
 
-    _patch_local_fixups(ctx, labels, local_fixups)
+fn _x64_finish_lazy_ffi_stub(ctx, state) {
+    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    return nil
+}
+
+fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
+    // Linux x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
+    if _x64_prepare_lazy_ffi_stub(ctx, nm, resolver_name) != true { return nil }
+    var data = _x64_ffi_stub_linux_dyn_data(ctx, nm)
+    var state = _x64_register_lazy_ffi_stub(ctx, nm, data)
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    _x64_emit_ffi_stub_linux_dyn_body(ctx, data, resolver_name, labels, local_fixups)
+    _x64_finish_lazy_ffi_stub(ctx, state)
     return nil
 }
 
@@ -778,24 +794,7 @@ fn _x64_emit_ffi_stub_win64_panic(ctx, data, labels) {
     return nil
 }
 
-fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
-    // Windows x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
-    if ctx == nil { return nil }
-    if nm == nil || nm == "" { return nil }
-    if resolver_name == nil || resolver_name == "" {
-        err(ctx, "x64 native v0: internal: missing ffi resolver name")
-        return nil
-    }
-
-    if ctx["functions"] == nil { ctx["functions"] = {} }
-    if ctx["functions"][nm] != nil { return nil }
-
-    var data = _x64_ffi_stub_win64_data(ctx, nm)
-    ctx["functions"][nm] = bytes_len(ctx["code"])
-
-    var labels = {"have": _new_label(ctx, "ffi_have"), "fail": _new_label(ctx, "ffi_fail")}
-    var local_fixups = []
-
+fn _x64_emit_ffi_stub_win64_body(ctx, data, resolver_name, labels, local_fixups) {
     _x64_emit_ffi_stub_win64_cached_load(ctx, data, labels, local_fixups)
     _x64_emit_ffi_stub_win64_spill_args(ctx)
     _x64_emit_ffi_stub_win64_call_resolver(ctx, data, resolver_name, labels, local_fixups)
@@ -803,8 +802,16 @@ fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
     _x64_emit_ffi_stub_win64_restore_args(ctx)
     _x64_emit_ffi_stub_win64_tailcall(ctx, labels)
     _x64_emit_ffi_stub_win64_panic(ctx, data, labels)
+    return nil
+}
 
-    _patch_local_fixups(ctx, labels, local_fixups)
+fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
+    // Windows x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
+    if _x64_prepare_lazy_ffi_stub(ctx, nm, resolver_name) != true { return nil }
+    var data = _x64_ffi_stub_win64_data(ctx, nm)
+    var state = _x64_register_lazy_ffi_stub(ctx, nm, data)
+    _x64_emit_ffi_stub_win64_body(ctx, data, resolver_name, state["labels"], state["fixups"])
+    _x64_finish_lazy_ffi_stub(ctx, state)
     return nil
 }
 

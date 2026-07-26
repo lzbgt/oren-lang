@@ -1057,7 +1057,7 @@ $(sed -n '/fn _x64_call_obj_list_intrinsic_state/,/fn _x64_call_obj_list_abi_reg
 $(sed -n '/fn _x64_load_direct_call_reg_arg_v0/,/fn _x64_emit_direct_call_fixup_and_return_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_indirect_call_runtime_ready/,/fn _x64_spawn_spill_explicit_args/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_varargs_named_call_emit_prepared/,/fn _x64_emit_named_call_statement_only_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
-$(sed -n '/fn _x64_member_emit_namespace_value/,/fn _emit_member_expr_v0/p' lib/compiler/x64_native_program/045_emit_member_expr.oren) $(sed -n '/fn _x64_local_var_offset/,/fn _emit_load_var_to_reg_x64/p' lib/compiler/x64_native_program/036_emit_var_helpers.oren) $(sed -n '/fn _x64_fn_value_needs_suffix_lookup/,/fn _emit_named_function_value_to_rax/p' lib/compiler/x64_native_program/040_emit_expr_eval.oren) $(sed -n '/fn _x64_emit_cmp_string_ptr_check_one/,/fn _x64_emit_cmp_string_returns/p' lib/compiler/x64_native_program/050_emit_cmp_labels.oren) $(sed -n '/fn _x64_gc_root_insert_sorted/,/fn _emit_gc_root_push_locals_x64/p' lib/compiler/x64_native_program/055_emit_ops_locals.oren)"
+$(sed -n '/fn _x64_member_emit_namespace_value/,/fn _emit_member_expr_v0/p' lib/compiler/x64_native_program/045_emit_member_expr.oren) $(sed -n '/fn _x64_local_var_offset/,/fn _emit_load_var_to_reg_x64/p' lib/compiler/x64_native_program/036_emit_var_helpers.oren) $(sed -n '/fn _x64_fn_value_needs_suffix_lookup/,/fn _emit_named_function_value_to_rax/p' lib/compiler/x64_native_program/040_emit_expr_eval.oren) $(sed -n '/fn _x64_emit_cmp_string_ptr_check_one/,/fn _x64_emit_cmp_string_returns/p' lib/compiler/x64_native_program/050_emit_cmp_labels.oren) $(sed -n '/fn _x64_while_labels/,/fn _emit_trace_list_header_x64/p' lib/compiler/x64_native_program/057_emit_ops_while_emit.oren) $(sed -n '/fn _x64_gc_root_insert_sorted/,/fn _emit_gc_root_push_locals_x64/p' lib/compiler/x64_native_program/055_emit_ops_locals.oren)"
 if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _intr_tmp_named_off(ctx, locals, idx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_fast_list_get_sum_abi_regs(ctx)' <<<"$x64_parser_helper_split_impl" ||
@@ -1078,7 +1078,7 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   ! grep -Fq 'fn _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_spawn_call_parts(ctx, expr)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_spawn_prepare_state(parts, args, argc, spread, has_spread, base)' <<<"$x64_parser_helper_split_impl" ||
-  ! grep -Fq 'fn _x64_varargs_named_call_emit_prepared(ctx, locals, st)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_varargs_named_call_emit_prepared(ctx, locals, st)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_emit_while_cond_jump(ctx, op, locals, local_fixups, end_label2)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_member_index_expr(ctx, expr)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_local_var_offset(locals, name)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_emit_load_global_to_reg(ctx, name, dst_reg)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_resolve_unique_fn_suffix(ctx, fn_name)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_emit_cmp_string_byte_order(ctx, names, fixups)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_gc_root_insert_sorted(offs, seen, off)' <<<"$x64_parser_helper_split_impl"; then
   echo "ERROR: x64 temp, list-sum, Windows process, call-expression, direct-call, member, var-load, function-value, compare, and GC-root preparation must stay split into focused parser helpers" >&2; exit 1
 fi
@@ -1123,7 +1123,7 @@ $(sed -n '/fn _data_cstr0_normalize_sentinel/,/fn _data_add_fnobj/p' lib/compile
 $(sed -n '/fn _data_reserve_u64_table_region/,/fn _x64_data_rtobj_decode_enc0/p' lib/compiler/x64_native_program/010_data_io.oren)
 $(sed -n '/fn _data_store_linetab_reservation/,/fn _data_finalize_linetab/p' lib/compiler/x64_native_program/010_data_io.oren)
 $(sed -n '/fn _data_dbginfo_entry_offsets/,/fn _data_finalize_linetab_table/p' lib/compiler/x64_native_program/010_data_io.oren)
-$(sed -n '/fn _x64_ffi_resolver_linux_name/,/fn _x64_ffi_stub_linux_dyn_data/p' lib/compiler/x64_native_program/072_ffi.oren)
+$(sed -n '/fn _x64_ffi_resolver_linux_name/,/fn _x64_ffi_stub_linux_dyn_data/p' lib/compiler/x64_native_program/072_ffi.oren) $(sed -n '/fn _x64_emit_ffi_stub_linux_dyn_cached_load/,/fn _x64_emit_ffi_stubs/p' lib/compiler/x64_native_program/072_ffi.oren)
 $(sed -n '/fn _x64_new_ctx_base_buffers/,/fn _x64_new_ctx_aliases/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)
 $(sed -n '/fn _x64_new_ctx_runtime_cstr_slot/,/fn _x64_new_ctx_trace_flags/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
 if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64_sys_data_split_impl" ||
@@ -1155,7 +1155,7 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _data_store_linetab_reservation(ctx, linetab_off, cap_entries)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_emit_cstr0_table(ctx, state)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_fcntl_getfl_translate_success(ctx, labels, fixups)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_emit_sys_read_windows_stdin_handle(ctx, local_fixups, tmp_fd, l_have_handle)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_emit_dbginfo_table(ctx, platform, entries)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_emit_ffi_stub_win64_body(ctx, data, resolver_name, labels, local_fixups)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_base_functions(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)' <<<"$x64_sys_data_split_impl"; then
   echo "ERROR: x64 system read/write/fcntl/stat/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2; exit 1

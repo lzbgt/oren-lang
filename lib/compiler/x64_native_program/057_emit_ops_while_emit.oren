@@ -1,13 +1,21 @@
-fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
-    var cond_label = _new_label(ctx, "while_cond")
-    var body_label = _new_label(ctx, "while_body")
-    var end_label2 = _new_label(ctx, "while_end")
+fn _x64_while_labels(ctx) {
+    return {
+        "cond": _new_label(ctx, "while_cond"),
+        "body": _new_label(ctx, "while_body"),
+        "end": _new_label(ctx, "while_end")
+    }
+}
 
+fn _x64_emit_while_cond_header(ctx, locals, labels, local_fixups, cond_label) {
     _emit_label(ctx, labels, cond_label)
     if _x64_native_block_weighted_gas_enabled(ctx) == true {
         _emit_native_gas_note_x64(ctx, 2)
     }
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
+    return nil
+}
+
+fn _x64_emit_while_cond_jump(ctx, op, locals, local_fixups, end_label2) {
     var dynamic_cond_note = nil
     var dynamic_cond_start = nil
     if _x64_native_dynamic_emitter_gas_enabled(ctx) == true {
@@ -19,11 +27,26 @@ fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label
     if dynamic_cond_note != nil && dynamic_cond_start != nil {
         _patch_native_gas_note_x64_u32(ctx, dynamic_cond_note, bytes_len(ctx["code"]) - dynamic_cond_start)
     }
+    return true
+}
 
+fn _x64_emit_while_body(ctx, op, locals, labels, local_fixups, epilogue_label, platform, cond_label, body_label, end_label2) {
     _emit_label(ctx, labels, body_label)
     _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _emit_jmp_to_label(ctx, local_fixups, cond_label)
+    return true
+}
+
+fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
+    var wl = _x64_while_labels(ctx)
+    var cond_label = wl["cond"]
+    var body_label = wl["body"]
+    var end_label2 = wl["end"]
+
+    _x64_emit_while_cond_header(ctx, locals, labels, local_fixups, cond_label)
+    if _x64_emit_while_cond_jump(ctx, op, locals, local_fixups, end_label2) != true { return nil }
+    if _x64_emit_while_body(ctx, op, locals, labels, local_fixups, epilogue_label, platform, cond_label, body_label, end_label2) != true { return nil }
     _emit_label(ctx, labels, end_label2)
     return nil
 }

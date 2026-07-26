@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- X64 lazy FFI stub and generic while lowering cleanup now separates shared
+  lazy-stub validation/registration/fixup patching plus per-platform stub bodies,
+  and generic while label/header/condition/body emission into focused helpers.
 - X64 Windows FFI DLL collection now uses shared unique-list helpers for
   platform `--link` DLLs and per-declaration `@ffi.dll` entries while preserving
   the built-in `kernel32.dll` fallback order.

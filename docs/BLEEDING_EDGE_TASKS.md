@@ -224,6 +224,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current Windows x64 FFI DLL collection shares unique-list collection helpers
      for platform `--link` DLLs and per-declaration `@ffi.dll` entries while
      preserving the built-in `kernel32.dll` fallback order.
+   - Current x64 lazy FFI stub and generic while cleanup separates shared
+     lazy-stub validation/registration/fixup patching, per-platform stub bodies,
+     and while label/header/condition/body emission.
    - Current x64 string/function cleanup separates string-batch count/item
      collection, callee-save and parameter spill emission, function phase start
      logging, and compiled-entry call-depth gating.
