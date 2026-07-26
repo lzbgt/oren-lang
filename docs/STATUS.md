@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 system-intrinsic cleanup now separates Linux `sys_write` label/body/finish
+  lowering, Linux pipe success widening, Linux thread clone setup/syscall, and
+  Windows QPC frequency labels/body/finish into focused helpers.
 - X64 program-entry context cleanup now separates Windows entry argv data
   reservation from label/fixup initialization and shares trace env-flag
   assignment while preserving per-flag trace behavior.

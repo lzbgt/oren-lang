@@ -47,13 +47,14 @@ fn _x64_linux_pipe_emit_syscall(ctx, st) {
     _emit_mov_mrbp_r64(ctx, 0 - st["tmp_rc"], 0) // save rc
 }
 
-fn _x64_linux_pipe_emit_widen_success(ctx, st) {
-    var labels = {}
-    var fixups = []
+fn _x64_linux_pipe_widen_labels(ctx) {
+    return {"labels": {}, "fixups": [], "skip": _new_label(ctx, "pipe_skip_widen")}
+}
+
+fn _x64_linux_pipe_emit_widen_body(ctx, st, lab) {
     _intr_load_x64(ctx, 11, st["tmp_rc"]) // r11 = rc
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    var l_skip_widen = _new_label(ctx, "pipe_skip_widen")
-    _emit_jcc_to_label(ctx, fixups, "ne", l_skip_widen)
+    _emit_jcc_to_label(ctx, lab["fixups"], "ne", lab["skip"])
 
     // Widen int[2] (32-bit fds) into two u64 slots in-place.
     _intr_load_x64(ctx, 10, st["tmp_ptr"]) // r10 = ptr
@@ -68,12 +69,20 @@ fn _x64_linux_pipe_emit_widen_success(ctx, st) {
     bytes_extend(ctx["code"], core.insn_mov_r32_r32(8, 11)) // r8d = wfd (zero-extend)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8)) // ptr += 8
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 8))  // [ptr+8] = wfd (u64)
+    return nil
+}
 
-    _emit_label(ctx, labels, l_skip_widen)
-    _patch_local_fixups(ctx, labels, fixups)
-
+fn _x64_linux_pipe_finish_widen(ctx, st, lab) {
+    _emit_label(ctx, lab["labels"], lab["skip"])
+    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
     // IMPORTANT: preserve the syscall return value in RAX for callers.
     _intr_load_x64(ctx, 0, st["tmp_rc"]) // rax = rc
+}
+
+fn _x64_linux_pipe_emit_widen_success(ctx, st) {
+    var lab = _x64_linux_pipe_widen_labels(ctx)
+    _x64_linux_pipe_emit_widen_body(ctx, st, lab)
+    _x64_linux_pipe_finish_widen(ctx, st, lab)
 }
 
 fn _x64_linux_pipe_emit_posthook(ctx, st, capsule) {
@@ -659,17 +668,22 @@ fn _x64_linux_thread_create_state(ctx, locals, args) {
     return {"base": base_tc, "tmp_start": tmp_start, "tmp_arg": tmp_arg, "tmp_stack_top": tmp_stack_top, "tmp_ctid": tmp_ctid}
 }
 
-fn _x64_emit_linux_thread_clone_call(ctx, state, capsule) {
-    if capsule {
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
-    }
-
+fn _x64_linux_thread_clone_flags() {
     // Linux clone(2) flags for a real OS thread in the same address space:
     //   CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM |
     //   CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID | CLONE_CHILD_SETTID
     // Constants verified against project-doc/web/linux/include_uapi_linux_sched.h.
-    var flags = 0x01350F00
+    return 0x01350F00
+}
 
+fn _x64_emit_linux_thread_clone_prehook(ctx, capsule) {
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
+    }
+    return nil
+}
+
+fn _x64_emit_linux_thread_clone_setup(ctx, state) {
     // Preserve the start routine and argument across the clone syscall in callee-saved regs.
     _intr_load_x64(ctx, 12, state["tmp_start"]) // r12 = start_addr
     _intr_load_x64(ctx, 13, state["tmp_arg"])   // r13 = arg_ptr
@@ -677,14 +691,24 @@ fn _x64_emit_linux_thread_clone_call(ctx, state, capsule) {
     // Align child SP down to 16 before call; callee sees standard SysV RSP%16==8.
     _intr_load_x64(ctx, 6, state["tmp_stack_top"]) // rsi = stack_top
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(6, 4294967280)) // align down to 16
+    return nil
+}
 
+fn _x64_emit_linux_thread_clone_syscall(ctx, state) {
     // clone(flags, child_stack, ptid, ctid, tls)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, flags)) // edi = flags
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, _x64_linux_thread_clone_flags())) // edi = flags
     _intr_load_x64(ctx, 2, state["tmp_ctid"])  // rdx = ptid (reuse ctid_ptr for parent_tid)
     _intr_load_x64(ctx, 10, state["tmp_ctid"]) // r10 = ctid_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8 = tls = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
     bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_emit_linux_thread_clone_call(ctx, state, capsule) {
+    _x64_emit_linux_thread_clone_prehook(ctx, capsule)
+    _x64_emit_linux_thread_clone_setup(ctx, state)
+    _x64_emit_linux_thread_clone_syscall(ctx, state)
     return nil
 }
 

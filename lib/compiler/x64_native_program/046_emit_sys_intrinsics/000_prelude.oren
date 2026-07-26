@@ -503,6 +503,36 @@ fn _x64_emit_sys_write_windows_finish(ctx, labels, local_fixups, l_ret0, l_done,
     return nil
 }
 
+fn _x64_sys_write_linux_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "ret0": _new_label(ctx, "sys_write_ret0"),
+        "done": _new_label(ctx, "sys_write_done")
+    }
+}
+
+fn _x64_emit_sys_write_linux_body(ctx, st, lab) {
+    _intr_load_x64(ctx, 0, st["tmp_len"])
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, lab["local_fixups"], "le", lab["ret0"])
+    _x64_emit_linux_fd_buf_syscall_args(ctx, st)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_write()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    _emit_jmp_to_label(ctx, lab["local_fixups"], lab["done"])
+    return nil
+}
+
+fn _x64_emit_sys_write_linux_finish(ctx, st, lab) {
+    _emit_label(ctx, lab["labels"], lab["ret0"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_label(ctx, lab["labels"], lab["done"])
+    _patch_local_fixups(ctx, lab["labels"], lab["local_fixups"])
+    _intr_tmp_pop(ctx, st["base"])
+    return nil
+}
+
 fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
     // Windows: WriteFile-based writer. Returns bytes written or -EIO on failure.
     var state = _x64_prepare_sys_write_windows_args(ctx, locals, args, capsule)
@@ -516,29 +546,9 @@ fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
 fn _emit_intrinsic_sys_write_linux_x64(ctx, locals, args, capsule) {
     var st = _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, "native_capsule_sys_write_pre")
     if st == nil { return nil }
-    var base = st["base"]
-    var tmp_len = st["tmp_len"]
-
-    var labels = {}
-    var local_fixups = []
-    var l_ret0 = _new_label(ctx, "sys_write_ret0")
-    var l_done = _new_label(ctx, "sys_write_done")
-
-    _intr_load_x64(ctx, 0, tmp_len)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
-
-    _x64_emit_linux_fd_buf_syscall_args(ctx, st)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_write()))
-    bytes_extend(ctx["code"], core.insn_syscall())
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_ret0)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-    _intr_tmp_pop(ctx, base)
+    var lab = _x64_sys_write_linux_labels(ctx)
+    _x64_emit_sys_write_linux_body(ctx, st, lab)
+    _x64_emit_sys_write_linux_finish(ctx, st, lab)
     return nil
 }
 

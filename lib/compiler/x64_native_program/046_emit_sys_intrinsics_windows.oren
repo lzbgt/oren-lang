@@ -520,6 +520,31 @@ fn _x64_qpc_frequency_emit_result_windows(ctx, labels, fixups, l_ret0, l_done) {
     return nil
 }
 
+fn _x64_qpc_frequency_labels(ctx) {
+    return {
+        "labels": {},
+        "fixups": [],
+        "done": _new_label(ctx, "sys_qpc_freq_done"),
+        "ok": _new_label(ctx, "sys_qpc_freq_ok"),
+        "ret0": _new_label(ctx, "sys_qpc_freq_ret0")
+    }
+}
+
+fn _x64_qpc_frequency_emit_body_windows(ctx, state, lab) {
+    _x64_qpc_frequency_emit_ptr_guard_windows(ctx, state["tmp_p"], lab["fixups"], lab["ok"], lab["done"])
+    _emit_label(ctx, lab["labels"], lab["ok"])
+    _x64_qpc_frequency_emit_call_windows(ctx, state["tmp_p"])
+    _x64_qpc_frequency_emit_result_windows(ctx, lab["labels"], lab["fixups"], lab["ret0"], lab["done"])
+    return nil
+}
+
+fn _x64_qpc_frequency_finish_windows(ctx, state, lab) {
+    _emit_label(ctx, lab["labels"], lab["done"])
+    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
+    _intr_tmp_pop(ctx, state["base"])
+    return nil
+}
+
 fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_qpc_frequency expects 1 arg"); return nil }
@@ -531,21 +556,9 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     // Writes the QueryPerformanceCounter frequency (ticks/sec) as a u64 to *freq_ptr.
     var state = _x64_qpc_frequency_prepare_windows(ctx, locals, args)
     if state == nil { return nil }
-
-    var labels = {}
-    var fixups = []
-    var l_done = _new_label(ctx, "sys_qpc_freq_done")
-    var l_ok = _new_label(ctx, "sys_qpc_freq_ok")
-    var l_ret0 = _new_label(ctx, "sys_qpc_freq_ret0")
-
-    _x64_qpc_frequency_emit_ptr_guard_windows(ctx, state["tmp_p"], fixups, l_ok, l_done)
-    _emit_label(ctx, labels, l_ok)
-    _x64_qpc_frequency_emit_call_windows(ctx, state["tmp_p"])
-    _x64_qpc_frequency_emit_result_windows(ctx, labels, fixups, l_ret0, l_done)
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, state["base"])
+    var lab = _x64_qpc_frequency_labels(ctx)
+    _x64_qpc_frequency_emit_body_windows(ctx, state, lab)
+    _x64_qpc_frequency_finish_windows(ctx, state, lab)
     return nil
 }
 
