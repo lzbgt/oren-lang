@@ -85,6 +85,11 @@
 <p>  scalar-map storage before retained string/object allocation or raw payload</p>
 <p>  copies.</p>
 <ul>
+<li>Metal retained image/text/model uploads now guard Objective-C resource</li>
+</ul>
+<p>  allocation before scalar-map insertion, and prepared image/text draw appends</p>
+<p>  fail explicitly if lazy run-array allocation fails.</p>
+<ul>
 <li>Metal and CoreGraphics retained image/text draw handlers now reject malformed</li>
 </ul>
 <p>  zero-size/count-mismatched draw payloads before retained resource lookup when</p>

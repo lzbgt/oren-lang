@@ -22,6 +22,11 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- iOS Metal retained image/text/model upload helpers now guard Objective-C
+  resource allocation before CF dictionary insertion, and prepared image/text
+  run appends report lazy run-array allocation failure instead of silently
+  dropping valid runs. `scripts/verify_ios_metal_vertex_uploads.py` guards the
+  allocation and append shapes.
 - iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry
   clip, translation, opacity, and camera stacks. Overflow pushes are tracked as
   no-op frames and consume matching pops without mutating the nearest real outer

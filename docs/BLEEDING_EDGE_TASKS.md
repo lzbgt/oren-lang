@@ -1452,7 +1452,7 @@ This file is the concise task view. Detailed implementation status lives in
 											     plus unused pipeline binding when no prepared runs exist or no valid prepared run
 											     reaches vertex binding, repeated same-scissor/texture/opacity Metal prepared runs skip redundant encoder state writes, and failed Metal run/container allocation frees taken vertex bytes during flush,
 											     malformed zero-size/count-mismatched retained image/text draws reject before retained
-									     resource lookup when the command is otherwise a no-op, CoreGraphics truncated OGF0 payloads break traversal after restoring saved CGContext state, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area
+										     resource lookup when the command is otherwise a no-op, Metal retained image/text/model uploads guard resource allocation before map insertion and image/text appends report lazy run-array allocation failure, CoreGraphics truncated OGF0 payloads break traversal after restoring saved CGContext state, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area
 					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,
 				     PPM header/body output, PPM RGBA encoding hoists validated byte-view
 			     carrier/pointers once per call, and software-raster RGBA sampling

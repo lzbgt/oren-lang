@@ -102,6 +102,7 @@ BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
                bytesPerRow:(NSUInteger)width * 4u];
 
     OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
+    if (!resource) return NO;
     resource.texture = texture;
     resource.pixels = pixels;
     CFDictionarySetValue(*imagesByID, OrenAVMMetalRetainedImageKey(imageID), (__bridge const void*)resource);
@@ -324,15 +325,18 @@ NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns(NSArray<OrenAVMMet
     return out;
 }
 
-static void OrenAVMMetalAppendImageRun(NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
+static BOOL OrenAVMMetalAppendImageRun(NSMutableArray<OrenAVMMetalImageRun*>** imageRuns,
                                        NSUInteger runCapacity,
                                        OrenAVMMetalImageRun* run,
                                        BOOL hasScissor,
                                        MTLScissorRect scissor) {
-    if (!run) return;
+    if (!run) return YES;
     run.hasScissor = hasScissor;
     run.scissor = scissor;
-    [OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity) addObject:run];
+    NSMutableArray* runs = OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity);
+    if (!runs) return NO;
+    [runs addObject:run];
+    return YES;
 }
 
 BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
@@ -384,24 +388,26 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                 if (texture) {
                     NSUInteger textureWidth = texture.width;
                     NSUInteger textureHeight = texture.height;
-                    OrenAVMMetalAppendImageRun(imageRuns,
-                                               runCapacity,
-                                               OrenAVMMetalImageRunCreate(texture,
-                                                                          textureWidth,
-                                                                          textureHeight,
-                                                                          0,
-                                                                          0,
-                                                                          (uint32_t)textureWidth,
-                                                                          (uint32_t)textureHeight,
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
-                                                                          (float)dw,
-                                                                          (float)dh,
-                                                                          opacity,
-                                                                          logicalWidth,
-                                                                          logicalHeight),
-                                               hasScissor,
-                                               scissor);
+                    if (!OrenAVMMetalAppendImageRun(imageRuns,
+                                                    runCapacity,
+                                                    OrenAVMMetalImageRunCreate(texture,
+                                                                               textureWidth,
+                                                                               textureHeight,
+                                                                               0,
+                                                                               0,
+                                                                               (uint32_t)textureWidth,
+                                                                               (uint32_t)textureHeight,
+                                                                               (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
+                                                                               (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
+                                                                               (float)dw,
+                                                                               (float)dh,
+                                                                               opacity,
+                                                                               logicalWidth,
+                                                                               logicalHeight),
+                                                    hasScissor,
+                                                    scissor)) {
+                        return NO;
+                    }
                 }
             }
             return YES;
@@ -428,24 +434,26 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                 if (texture) {
                     NSUInteger textureWidth = texture.width;
                     NSUInteger textureHeight = texture.height;
-                    OrenAVMMetalAppendImageRun(imageRuns,
-                                               runCapacity,
-                                               OrenAVMMetalImageRunCreate(texture,
-                                                                          textureWidth,
-                                                                          textureHeight,
-                                                                          OrenAVMMetalReadU32LE(payload + 4),
-                                                                          OrenAVMMetalReadU32LE(payload + 8),
-                                                                          sw,
-                                                                          sh,
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 20) + tx,
-                                                                          (float)OrenAVMMetalReadU32LE(payload + 24) + ty,
-                                                                          (float)dw,
-                                                                          (float)dh,
-                                                                          opacity,
-                                                                          logicalWidth,
-                                                                          logicalHeight),
-                                               hasScissor,
-                                               scissor);
+                    if (!OrenAVMMetalAppendImageRun(imageRuns,
+                                                    runCapacity,
+                                                    OrenAVMMetalImageRunCreate(texture,
+                                                                               textureWidth,
+                                                                               textureHeight,
+                                                                               OrenAVMMetalReadU32LE(payload + 4),
+                                                                               OrenAVMMetalReadU32LE(payload + 8),
+                                                                               sw,
+                                                                               sh,
+                                                                               (float)OrenAVMMetalReadU32LE(payload + 20) + tx,
+                                                                               (float)OrenAVMMetalReadU32LE(payload + 24) + ty,
+                                                                               (float)dw,
+                                                                               (float)dh,
+                                                                               opacity,
+                                                                               logicalWidth,
+                                                                               logicalHeight),
+                                                    hasScissor,
+                                                    scissor)) {
+                        return NO;
+                    }
                 }
             }
             return YES;
@@ -464,39 +472,43 @@ BOOL OrenAVMMetalHandleImageCommand(CFMutableDictionaryRef* imagesByID,
                         NSUInteger textureHeight = texture.height;
                         if (rectCount == 1) {
                             const uint8_t* r = payload + 8;
-                            OrenAVMMetalAppendImageRun(imageRuns,
-                                                       runCapacity,
-                                                       OrenAVMMetalImageRunCreate(texture,
-                                                                                  textureWidth,
-                                                                                  textureHeight,
-                                                                                  OrenAVMMetalReadU32LE(r),
-                                                                                  OrenAVMMetalReadU32LE(r + 4),
-                                                                                  OrenAVMMetalReadU32LE(r + 8),
-                                                                                  OrenAVMMetalReadU32LE(r + 12),
-                                                                                  (float)OrenAVMMetalReadU32LE(r + 16) + tx,
-                                                                                  (float)OrenAVMMetalReadU32LE(r + 20) + ty,
-                                                                                  (float)OrenAVMMetalReadU32LE(r + 24),
-                                                                                  (float)OrenAVMMetalReadU32LE(r + 28),
-                                                                                  opacity,
-                                                                                  logicalWidth,
-                                                                                  logicalHeight),
-                                                       hasScissor,
-                                                       scissor);
-                        } else {
-                            OrenAVMMetalAppendImageRun(imageRuns,
-                                                       runCapacity,
-                                                       OrenAVMMetalImageBatchRunCreate(texture,
+                            if (!OrenAVMMetalAppendImageRun(imageRuns,
+                                                            runCapacity,
+                                                            OrenAVMMetalImageRunCreate(texture,
                                                                                        textureWidth,
                                                                                        textureHeight,
-                                                                                       payload + 8,
-                                                                                       rectCount,
-                                                                                       tx,
-                                                                                       ty,
+                                                                                       OrenAVMMetalReadU32LE(r),
+                                                                                       OrenAVMMetalReadU32LE(r + 4),
+                                                                                       OrenAVMMetalReadU32LE(r + 8),
+                                                                                       OrenAVMMetalReadU32LE(r + 12),
+                                                                                       (float)OrenAVMMetalReadU32LE(r + 16) + tx,
+                                                                                       (float)OrenAVMMetalReadU32LE(r + 20) + ty,
+                                                                                       (float)OrenAVMMetalReadU32LE(r + 24),
+                                                                                       (float)OrenAVMMetalReadU32LE(r + 28),
                                                                                        opacity,
                                                                                        logicalWidth,
                                                                                        logicalHeight),
-                                                       hasScissor,
-                                                       scissor);
+                                                            hasScissor,
+                                                            scissor)) {
+                                return NO;
+                            }
+                        } else {
+                            if (!OrenAVMMetalAppendImageRun(imageRuns,
+                                                            runCapacity,
+                                                            OrenAVMMetalImageBatchRunCreate(texture,
+                                                                                            textureWidth,
+                                                                                            textureHeight,
+                                                                                            payload + 8,
+                                                                                            rectCount,
+                                                                                            tx,
+                                                                                            ty,
+                                                                                            opacity,
+                                                                                            logicalWidth,
+                                                                                            logicalHeight),
+                                                            hasScissor,
+                                                            scissor)) {
+                                return NO;
+                            }
                         }
                     }
                 }
@@ -520,8 +532,8 @@ OrenAVMMetalTextResource* OrenAVMMetalRetainedTextResource(CFDictionaryRef texts
 BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
                                  uint32_t textID,
                                  uint32_t rgbaValue,
-	                                 const uint8_t* textBytes,
-	                                 uint32_t textLen) {
+                                 const uint8_t* textBytes,
+                                 uint32_t textLen) {
     if (!texts || textID == 0 || !textBytes || textLen == 0) return NO;
     if (!OrenAVMMetalEnsureRetainedResourceMap(texts)) return NO;
     NSString* text = [[NSString alloc] initWithBytes:textBytes
@@ -529,6 +541,7 @@ BOOL OrenAVMMetalPutTextResource(CFMutableDictionaryRef* texts,
                                            encoding:NSUTF8StringEncoding];
     if (!text) return NO;
     OrenAVMMetalTextResource* resource = [[OrenAVMMetalTextResource alloc] init];
+    if (!resource) return NO;
     resource.text = text;
     resource.rgbaValue = rgbaValue;
     CFDictionarySetValue(*texts, OrenAVMMetalRetainedTextKey(textID), (__bridge const void*)resource);
@@ -539,15 +552,18 @@ void OrenAVMMetalRemoveTextResource(CFMutableDictionaryRef texts, uint32_t textI
     if (texts && textID != 0) CFDictionaryRemoveValue(texts, OrenAVMMetalRetainedTextKey(textID));
 }
 
-static void OrenAVMMetalAppendTextRun(NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
+static BOOL OrenAVMMetalAppendTextRun(NSMutableArray<OrenAVMMetalTextRun*>** textRuns,
                                       NSUInteger runCapacity,
                                       OrenAVMMetalTextRun* run,
                                       BOOL hasScissor,
                                       MTLScissorRect scissor) {
-    if (!run) return;
+    if (!run) return YES;
     run.hasScissor = hasScissor;
     run.scissor = scissor;
-    [OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity) addObject:run];
+    NSMutableArray* runs = OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity);
+    if (!runs) return NO;
+    [runs addObject:run];
+    return YES;
 }
 
 BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
@@ -580,24 +596,26 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
                     NSString* text = [[NSString alloc] initWithBytes:payload + 16
                                                               length:(NSUInteger)textLen
                                                             encoding:NSUTF8StringEncoding];
-                    OrenAVMMetalAppendTextRun(textRuns,
-                                              runCapacity,
-                                              OrenAVMMetalCreateTextRun(device,
-                                                                        screen,
-                                                                        textAtlas,
-                                                                        textCache,
-                                                                        textCacheOrder,
-                                                                        textAttributes,
-                                                                        textCachePixels,
-                                                                        text,
-                                                                        (float)OrenAVMMetalReadU32LE(payload) + tx,
-                                                                        (float)OrenAVMMetalReadU32LE(payload + 4) + ty,
-                                                                        payload + 8,
-                                                                        opacity,
-                                                                        logicalWidth,
-                                                                        logicalHeight),
-                                              hasScissor,
-                                              scissor);
+                    if (!OrenAVMMetalAppendTextRun(textRuns,
+                                                   runCapacity,
+                                                   OrenAVMMetalCreateTextRun(device,
+                                                                             screen,
+                                                                             textAtlas,
+                                                                             textCache,
+                                                                             textCacheOrder,
+                                                                             textAttributes,
+                                                                             textCachePixels,
+                                                                             text,
+                                                                             (float)OrenAVMMetalReadU32LE(payload) + tx,
+                                                                             (float)OrenAVMMetalReadU32LE(payload + 4) + ty,
+                                                                             payload + 8,
+                                                                             opacity,
+                                                                             logicalWidth,
+                                                                             logicalHeight),
+                                                   hasScissor,
+                                                   scissor)) {
+                        return NO;
+                    }
                 }
             }
             return YES;
@@ -623,24 +641,26 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
                 if (resource.text) {
                     uint8_t textRGBA[4];
                     OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
-                    OrenAVMMetalAppendTextRun(textRuns,
-                                              runCapacity,
-                                              OrenAVMMetalCreateTextRun(device,
-                                                                        screen,
-                                                                        textAtlas,
-                                                                        textCache,
-                                                                        textCacheOrder,
-                                                                        textAttributes,
-                                                                        textCachePixels,
-                                                                        resource.text,
-                                                                        (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
-                                                                        (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
-                                                                        textRGBA,
-                                                                        opacity,
-                                                                        logicalWidth,
-                                                                        logicalHeight),
-                                              hasScissor,
-                                              scissor);
+                    if (!OrenAVMMetalAppendTextRun(textRuns,
+                                                   runCapacity,
+                                                   OrenAVMMetalCreateTextRun(device,
+                                                                             screen,
+                                                                             textAtlas,
+                                                                             textCache,
+                                                                             textCacheOrder,
+                                                                             textAttributes,
+                                                                             textCachePixels,
+                                                                             resource.text,
+                                                                             (float)OrenAVMMetalReadU32LE(payload + 4) + tx,
+                                                                             (float)OrenAVMMetalReadU32LE(payload + 8) + ty,
+                                                                             textRGBA,
+                                                                             opacity,
+                                                                             logicalWidth,
+                                                                             logicalHeight),
+                                                   hasScissor,
+                                                   scissor)) {
+                        return NO;
+                    }
                 }
             }
             return YES;
@@ -661,26 +681,28 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
                     if (!resource.text) return YES;
                     uint8_t textRGBA[4];
                     OrenAVMMetalRGBAValueBytes(resource.rgbaValue, textRGBA);
-                    OrenAVMMetalAppendTextRun(textRuns,
-                                              runCapacity,
-                                              OrenAVMMetalCreateTextBatchRun(device,
-                                                                             screen,
-                                                                             textAtlas,
-                                                                             textCache,
-                                                                             textCacheOrder,
-                                                                             textAttributes,
-                                                                             textCachePixels,
-                                                                             resource.text,
-                                                                             payload + 8,
-                                                                             posCount,
-                                                                             tx,
-                                                                             ty,
-                                                                             textRGBA,
-                                                                             opacity,
-                                                                             logicalWidth,
-                                                                             logicalHeight),
-                                              hasScissor,
-                                              scissor);
+                    if (!OrenAVMMetalAppendTextRun(textRuns,
+                                                   runCapacity,
+                                                   OrenAVMMetalCreateTextBatchRun(device,
+                                                                                  screen,
+                                                                                  textAtlas,
+                                                                                  textCache,
+                                                                                  textCacheOrder,
+                                                                                  textAttributes,
+                                                                                  textCachePixels,
+                                                                                  resource.text,
+                                                                                  payload + 8,
+                                                                                  posCount,
+                                                                                  tx,
+                                                                                  ty,
+                                                                                  textRGBA,
+                                                                                  opacity,
+                                                                                  logicalWidth,
+                                                                                  logicalHeight),
+                                                   hasScissor,
+                                                   scissor)) {
+                        return NO;
+                    }
                 }
             }
             return YES;
@@ -1196,6 +1218,7 @@ BOOL OrenAVMMetalPutModelResource(CFMutableDictionaryRef* models,
     if (!models || modelID == 0 || meshID == 0 || scaleMilli == 0) return NO;
     if (!OrenAVMMetalEnsureRetainedResourceMap(models)) return NO;
     OrenAVMMetalModelResource* model = [[OrenAVMMetalModelResource alloc] init];
+    if (!model) return NO;
     model.meshID = meshID;
     model.materialID = materialID;
     model.x = x;

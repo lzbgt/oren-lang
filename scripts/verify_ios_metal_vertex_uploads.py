@@ -406,6 +406,10 @@ def main() -> int:
                    "OrenAVMMetalEnsureRetainedResourceMap(texts)",
                    "[[OrenAVMMetalTextResource alloc] init]",
                    "retained Metal text uploads must preflight scalar-map storage before resource allocation")
+    require_before(put_text_body,
+                   "if (!resource) return NO;",
+                   "CFDictionarySetValue(*texts",
+                   "retained Metal text uploads must guard resource allocation before map insertion")
     text_command = resource_text[resource_text.find("BOOL OrenAVMMetalHandleTextCommand") :]
     for token in (
         "case 2:",
@@ -664,6 +668,10 @@ def main() -> int:
         fail("retained Metal image upload helper missing scalar map or texture upload path")
     if image_map_alloc > texture_alloc or image_map_alloc > texture_upload:
         fail("retained Metal image uploads must preflight scalar-map storage before allocating/filling MTLTexture")
+    require_before(put_image_body,
+                   "if (!resource) return NO;",
+                   "CFDictionarySetValue(*imagesByID",
+                   "retained Metal image uploads must guard resource allocation before map insertion")
     image_run_start = resource_text.find("@interface OrenAVMMetalImageRun")
     image_run_end = resource_text.find("@end", image_run_start)
     if image_run_start < 0 or image_run_end < 0:
@@ -801,7 +809,7 @@ def main() -> int:
     if "NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns" not in resource_text:
         fail("Metal image runs must expose prepared-frame coalescing")
     image_coalesce_start = resource_text.find("NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns")
-    image_coalesce_end = resource_text.find("static void OrenAVMMetalAppendImageRun", image_coalesce_start)
+    image_coalesce_end = resource_text.find("static BOOL OrenAVMMetalAppendImageRun", image_coalesce_start)
     if image_coalesce_start < 0 or image_coalesce_end < 0:
         fail("missing Metal image run coalescing helper body")
     image_coalesce_body = resource_text[image_coalesce_start:image_coalesce_end]
@@ -819,6 +827,18 @@ def main() -> int:
     ):
         if token not in image_coalesce_body:
             fail(f"Metal image coalescing missing expected path: {token}")
+    image_append_start = resource_text.find("static BOOL OrenAVMMetalAppendImageRun")
+    image_append_end = resource_text.find("BOOL OrenAVMMetalHandleImageCommand", image_append_start)
+    if image_append_start < 0 or image_append_end < 0:
+        fail("missing checked Metal image run append helper")
+    image_append_body = resource_text[image_append_start:image_append_end]
+    for token in (
+        "NSMutableArray* runs = OrenAVMMetalEnsureRunArray((NSMutableArray**)imageRuns, runCapacity);",
+        "if (!runs) return NO;",
+        "[runs addObject:run];",
+    ):
+        if token not in image_append_body:
+            fail(f"Metal image run append must check lazy run-array allocation: {token}")
     if "@interface OrenAVMMetalModelResource" not in metal_text:
         fail("retained Metal models must use typed resource objects")
     if 'NSMutableDictionary<NSNumber*, NSDictionary<NSString*, NSNumber*>*>* orenModels3D' in text:
@@ -842,6 +862,10 @@ def main() -> int:
                    "OrenAVMMetalEnsureRetainedResourceMap(models)",
                    "[[OrenAVMMetalModelResource alloc] init]",
                    "retained Metal model uploads must preflight scalar-map storage before resource allocation")
+    require_before(put_model_body,
+                   "if (!model) return NO;",
+                   "CFDictionarySetValue(*models",
+                   "retained Metal model uploads must guard resource allocation before map insertion")
     if "CFDictionarySetValue(_orenModels3DByID" in text or "CFDictionaryRemoveValue(_orenModels3DByID" in text:
         fail("retained Metal model map mutation must live in OrenAVMMetalResources")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
@@ -1058,6 +1082,18 @@ def main() -> int:
         fail("Metal frame run arrays must use lazy OrenAVMMetalEnsureRunArray allocation")
     if metal_text.count("OrenAVMMetalEnsureRunArray(") < 5:
         fail("expected lazy run-array helper calls for geometry/text/image add sites")
+    text_append_start = resource_text.find("static BOOL OrenAVMMetalAppendTextRun")
+    text_append_end = resource_text.find("BOOL OrenAVMMetalHandleTextCommand", text_append_start)
+    if text_append_start < 0 or text_append_end < 0:
+        fail("missing checked Metal text run append helper")
+    text_append_body = resource_text[text_append_start:text_append_end]
+    for token in (
+        "NSMutableArray* runs = OrenAVMMetalEnsureRunArray((NSMutableArray**)textRuns, runCapacity);",
+        "if (!runs) return NO;",
+        "[runs addObject:run];",
+    ):
+        if token not in text_append_body:
+            fail(f"Metal text run append must check lazy run-array allocation: {token}")
 
     in_helper = False
     saw_helper_body = False
