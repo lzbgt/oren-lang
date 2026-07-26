@@ -405,15 +405,7 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
     
                 // Store results to out_ptr as f64 bits (row-major).
                 push_u32_le(ctx["code"], insn_mov_reg(16, 9)) // X16 = out_ptr write cursor
-                var rr = 0
-                while rr < 16 {
-                    push_u32_le(ctx["code"], insn_umov_x_d(11, rr))
-                    push_u32_le(ctx["code"], insn_str_ptr(11, 16))
-                    if rr != 15 {
-                        push_u32_le(ctx["code"], insn_add_imm(16, 16, 8))
-                    }
-                    rr = rr + 1
-                }
+                arm64_emit_store_d_regs_0_15_to_cursor(ctx, 11, 16)
                 return true
             }
 

@@ -956,6 +956,16 @@ if [[ "$(grep -F 'core.insn_movdqu_m128_xmm_disp(0,' <<<"$x64_ctx_xmm_impl" | wc
   echo "ERROR: x64 context-switch XMM save/restore emission must stay straight-line, not fixed compiler loops" >&2
   exit 1
 fi
+arm64_gemm_store_helper_impl="$(sed -n '/fn arm64_emit_store_d_reg_to_cursor/,/fn native_emit_panic/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
+if ! grep -Fq 'fn arm64_emit_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
+  ! grep -Fq 'fn arm64_emit_addp_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
+  [[ "$(grep -F 'arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg,' <<<"$arm64_gemm_store_helper_impl" | wc -l | tr -d ' ')" -lt "16" ]] ||
+  [[ "$(grep -F 'arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg,' <<<"$arm64_gemm_store_helper_impl" | wc -l | tr -d ' ')" -lt "16" ]] ||
+  grep -Fq 'while storei < 16' lib/compiler/arm64_native_expr/036_lowering_c_simd.oren ||
+  grep -Fq 'while rr < 16' lib/compiler/arm64_native_expr/040_lowering_d.oren lib/compiler/arm64_native_expr/060_lowering_f.oren; then
+  echo "ERROR: ARM64 GEMM result stores must use shared straight-line V0..V15 store helpers, not fixed compiler loops" >&2
+  exit 1
+fi
 
 base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||

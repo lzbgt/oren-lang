@@ -3491,6 +3491,9 @@ Working evidence:
   now walk direct row chunks instead of dynamic 16-cell loops. Native-focused
   mat4 verification rejected a direct norm-sum rewrite, so norm accumulation
   stays on the existing backend-proven loop path.
+- ARM64 native SIMD/GEMM result-store emission now uses shared straight-line
+  V0..V15 cursor-store helpers for the i32/f32/f64 4x4 GEMM lowering chunks,
+  with the hotpath guard rejecting the old duplicated fixed loops.
 
 ## Key Verification Entrypoints
 

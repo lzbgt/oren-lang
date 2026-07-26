@@ -141,6 +141,11 @@
 <p>  norm-sum rewrite was rejected after native backend fixtures disagreed, so</p>
 <p>  numerically sensitive norm accumulation remains on the proven loop path.</p>
 <ul>
+<li>ARM64 native SIMD/GEMM result-store emission now shares straight-line V0..V15</li>
+</ul>
+<p>  cursor-store helpers for i32/f32/f64 4x4 GEMM paths instead of keeping</p>
+<p>  duplicated fixed compiler loops in individual lowering chunks.</p>
+<ul>
 <li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
 </ul>
 <p>  rather than single zero-byte pushes while preserving nonzero constant tags.</p>

@@ -3831,6 +3831,11 @@
 <p>  now walk direct row chunks instead of dynamic 16-cell loops. Native-focused</p>
 <p>  mat4 verification rejected a direct norm-sum rewrite, so norm accumulation</p>
 <p>  stays on the existing backend-proven loop path.</p>
+<ul>
+<li>ARM64 native SIMD/GEMM result-store emission now uses shared straight-line</li>
+</ul>
+<p>  V0..V15 cursor-store helpers for the i32/f32/f64 4x4 GEMM lowering chunks,</p>
+<p>  with the hotpath guard rejecting the old duplicated fixed loops.</p>
 <h2 id="key-verification-entrypoints">Key Verification Entrypoints</h2>
 <pre><code>./oretest
 ./oretest --selfhost

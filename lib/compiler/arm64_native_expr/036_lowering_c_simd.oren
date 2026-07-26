@@ -828,16 +828,7 @@ fn native_call_chunk_036_list_simd_ops(ctx, fn_name, expr, args) {
                 // Reduce and store vector partial sums into out_ptr (row-major).
                 // Keep the results in memory so the scalar tail can update them without needing 16 X regs.
                 push_u32_le(ctx["code"], insn_mov_reg(16, 9)) // X16 = out_ptr cursor
-                var storei = 0
-                while storei < 16 {
-                    push_u32_le(ctx["code"], insn_addp_2d(storei, storei, storei))
-                    push_u32_le(ctx["code"], insn_umov_x_d(17, storei))
-                    push_u32_le(ctx["code"], insn_str_ptr(17, 16))
-                    if storei != 15 {
-                        push_u32_le(ctx["code"], insn_add_imm(16, 16, 8))
-                    }
-                    storei = storei + 1
-                }
+                arm64_emit_addp_store_d_regs_0_15_to_cursor(ctx, 17, 16)
 
                 // rem = n - (groups_saved * 4)
                 //

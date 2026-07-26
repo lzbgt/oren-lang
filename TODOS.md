@@ -78,6 +78,9 @@ design evidence lives under `project-doc/`.
   use direct row chunks instead of dynamic 16-cell loops; the attempted direct
   norm-sum rewrite was rejected after native backend fixtures disagreed, so
   numerically sensitive norm accumulation remains on the proven loop path.
+- ARM64 native SIMD/GEMM result-store emission now shares straight-line V0..V15
+  cursor-store helpers for i32/f32/f64 4x4 GEMM paths instead of keeping
+  duplicated fixed compiler loops in individual lowering chunks.
 - OBC linker NIL constant tags now route through byte-builder zero-extension
   rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix

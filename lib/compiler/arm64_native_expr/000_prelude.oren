@@ -1047,6 +1047,56 @@ fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_id
 fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 fn insn_br(rn) { return core.insn_br(rn) }
 
+fn arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, vreg, advance) {
+    push_u32_le(ctx["code"], insn_umov_x_d(tmp_reg, vreg))
+    push_u32_le(ctx["code"], insn_str_ptr(tmp_reg, cursor_reg))
+    if advance { push_u32_le(ctx["code"], insn_add_imm(cursor_reg, cursor_reg, 8)) }
+    return 0
+}
+
+fn arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, vreg, advance) {
+    push_u32_le(ctx["code"], insn_addp_2d(vreg, vreg, vreg))
+    return arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, vreg, advance)
+}
+
+fn arm64_emit_store_d_regs_0_15_to_cursor(ctx, tmp_reg, cursor_reg) {
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 0, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 1, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 2, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 3, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 4, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 5, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 6, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 7, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 8, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 9, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 10, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 11, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 12, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 13, true)
+    arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 14, true)
+    return arm64_emit_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 15, false)
+}
+
+fn arm64_emit_addp_store_d_regs_0_15_to_cursor(ctx, tmp_reg, cursor_reg) {
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 0, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 1, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 2, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 3, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 4, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 5, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 6, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 7, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 8, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 9, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 10, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 11, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 12, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 13, true)
+    arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 14, true)
+    return arm64_emit_addp_store_d_reg_to_cursor(ctx, tmp_reg, cursor_reg, 15, false)
+}
+
 fn native_emit_panic(ctx, msg) {
     // Emit a runtime panic with a stable message string literal.
     //
