@@ -3708,6 +3708,12 @@
 </ul>
 <p>  ASCII byte directly instead of scanning an uppercase alphabet string per name.</p>
 <ul>
+<li>ARM64 native <code>g_storage</code> resolution now uses shared byte-suffix helpers plus</li>
+</ul>
+<p>  cached resolver calls instead of duplicated <code>oren_string_char_at</code> suffix scans</p>
+<p>  across expression lowering, tail boolean normalization, and runtime statement</p>
+<p>  helpers.</p>
+<ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>

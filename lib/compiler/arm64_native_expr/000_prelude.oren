@@ -293,6 +293,22 @@ fn native_emit_named_bl_expr(ctx, callee_name) {
     return nil
 }
 
+fn _arm64_expr_name_ends_with_g_storage(k) {
+    if k == nil { return false }
+    var klen = oren_string_len(k)
+    if klen < 9 { return false }
+    var off = klen - 9
+    return (oren_string_byte_at_unchecked(k, off) & 255) == 103 &&
+        (oren_string_byte_at_unchecked(k, off + 1) & 255) == 95 &&
+        (oren_string_byte_at_unchecked(k, off + 2) & 255) == 115 &&
+        (oren_string_byte_at_unchecked(k, off + 3) & 255) == 116 &&
+        (oren_string_byte_at_unchecked(k, off + 4) & 255) == 111 &&
+        (oren_string_byte_at_unchecked(k, off + 5) & 255) == 114 &&
+        (oren_string_byte_at_unchecked(k, off + 6) & 255) == 97 &&
+        (oren_string_byte_at_unchecked(k, off + 7) & 255) == 103 &&
+        (oren_string_byte_at_unchecked(k, off + 8) & 255) == 101
+}
+
 fn _arm64_expr_resolve_g_storage_name(ctx) {
     if ctx == nil { return nil }
     var gname = ctx["rt_g_storage_name"]
@@ -301,20 +317,10 @@ fn _arm64_expr_resolve_g_storage_name(ctx) {
     var match = nil
     var match_count = 0
     for k in ctx["globals"] {
-        var klen = oren_string_len(k)
-        var slen = 9
-        if klen >= slen {
-            var ok = true
-            var j = 0
-            while j < slen {
-                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at("g_storage", j) { ok = false; break }
-                j = j + 1
-            }
-            if ok {
-                match = k
-                match_count = match_count + 1
-                if match_count > 1 { break }
-            }
+        if _arm64_expr_name_ends_with_g_storage(k) {
+            match = k
+            match_count = match_count + 1
+            if match_count > 1 { break }
         }
     }
     if match_count == 1 {

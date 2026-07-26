@@ -931,6 +931,19 @@ if ! grep -Fq 'var b = oren_string_byte_at_unchecked(name, 0) & 255' <<<"$runtim
   echo "ERROR: native runtime bundle uppercase-name classifier must use direct first-byte ASCII range checks" >&2
   exit 1
 fi
+arm64_expr_g_storage_impl="$(sed -n '/fn _arm64_expr_name_ends_with_g_storage/,/fn _arm64_expr_emit_load_g_storage_ptr/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
+arm64_rt_g_storage_impl="$(sed -n '/fn _arm64_rt_name_ends_with_g_storage/,/fn _arm64_emit_load_g_storage_ptr/p' lib/compiler/arm64_native_stmt_runtime.oren)"
+if ! grep -Fq 'fn _arm64_expr_name_ends_with_g_storage(k)' <<<"$arm64_expr_g_storage_impl" ||
+  ! grep -Fq 'fn _arm64_rt_name_ends_with_g_storage(k)' <<<"$arm64_rt_g_storage_impl" ||
+  [[ "$(grep -F 'oren_string_byte_at_unchecked(k, off + 8) & 255' <<<"$arm64_expr_g_storage_impl"$'\n'"$arm64_rt_g_storage_impl" | wc -l | tr -d ' ')" != "2" ]] ||
+  [[ "$(grep -F '_arm64_expr_resolve_g_storage_name(ctx)' lib/compiler/arm64_native_expr/015_lowering_a_noncall.oren lib/compiler/arm64_native_expr/090_tail.oren | wc -l | tr -d ' ')" -lt "10" ]] ||
+  grep -Fq 'oren_string_char_at("g_storage"' lib/compiler/arm64_native_expr/000_prelude.oren lib/compiler/arm64_native_expr/015_lowering_a_noncall.oren lib/compiler/arm64_native_expr/090_tail.oren lib/compiler/arm64_native_stmt_runtime.oren ||
+  grep -Fq 'oren_string_char_at(k, klen - slen + j)' lib/compiler/arm64_native_expr/000_prelude.oren lib/compiler/arm64_native_stmt_runtime.oren ||
+  grep -Fq 'match_count_cmp' lib/compiler/arm64_native_expr/015_lowering_a_noncall.oren ||
+  grep -Fq 'match_count_sc' lib/compiler/arm64_native_expr/015_lowering_a_noncall.oren; then
+  echo "ERROR: ARM64 native g_storage resolution must use shared byte-suffix helpers and cached resolver calls, not duplicated char-at suffix scans" >&2
+  exit 1
+fi
 
 base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||

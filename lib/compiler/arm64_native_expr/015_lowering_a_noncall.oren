@@ -248,32 +248,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
         if expr["type"] == "Boolean" {
             // Native backend: bool values are represented by runtime singletons stored in globals.
             // This preserves type-strict semantics (`0 != false`) and truthiness rules (`0` is truthy).
-            var gname = ctx["rt_g_storage_name"]
-            if gname == nil {
-                var match = nil
-                var match_count = 0
-                if ctx != nil && ctx["globals"] != nil {
-                    for k in ctx["globals"] {
-                        // ends_with(k, "g_storage")
-                        var klen = oren_string_len(k)
-                        var slen = 9
-                        if klen >= slen {
-                            var ok = true
-                            var j = 0
-                            while j < slen {
-                                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at("g_storage", j) { ok = false; break }
-                                j = j + 1
-                            }
-                            if ok {
-                                match = k
-                                match_count = match_count + 1
-                                if match_count > 1 { break }
-                            }
-                        }
-                    }
-                }
-                if match_count == 1 { gname = match; ctx["rt_g_storage_name"] = match }
-            }
+            var gname = _arm64_expr_resolve_g_storage_name(ctx)
             if gname == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
                 native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool singletons)")
                 push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -301,31 +276,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
         if expr["type"] == "Nil" {
             // Native backend: `nil` is a runtime singleton stored in globals (not raw 0).
             // This preserves type-strict equality and avoids `0 == nil` hazards.
-            var gname2 = ctx["rt_g_storage_name"]
-            if gname2 == nil {
-                var match2 = nil
-                var match_count2 = 0
-                if ctx != nil && ctx["globals"] != nil {
-                    for k2 in ctx["globals"] {
-                        var klen2 = oren_string_len(k2)
-                        var slen2 = 9
-                        if klen2 >= slen2 {
-                            var ok2 = true
-                            var j2 = 0
-                            while j2 < slen2 {
-                                if oren_string_char_at(k2, klen2 - slen2 + j2) != oren_string_char_at("g_storage", j2) { ok2 = false; break }
-                                j2 = j2 + 1
-                            }
-                            if ok2 {
-                                match2 = k2
-                                match_count2 = match_count2 + 1
-                                if match_count2 > 1 { break }
-                            }
-                        }
-                    }
-                }
-                if match_count2 == 1 { gname2 = match2; ctx["rt_g_storage_name"] = match2 }
-            }
+            var gname2 = _arm64_expr_resolve_g_storage_name(ctx)
             if gname2 == nil || ctx["globals"] == nil || ctx["globals"][gname2] == nil {
                 native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for nil singleton)")
                 push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -485,31 +436,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
 
                     // Load runtime singletons into scratch regs.
                     // Scratch: X9..X12.
-                    var gname_not = ctx["rt_g_storage_name"]
-                    if gname_not == nil {
-                        var match_not = nil
-                        var match_count_not = 0
-                        if ctx != nil && ctx["globals"] != nil {
-                            for k_not in ctx["globals"] {
-                                var klen_not = oren_string_len(k_not)
-                                var slen_not = 9
-                                if klen_not >= slen_not {
-                                    var ok_not = true
-                                    var j_not = 0
-                                    while j_not < slen_not {
-                                        if oren_string_char_at(k_not, klen_not - slen_not + j_not) != oren_string_char_at("g_storage", j_not) { ok_not = false; break }
-                                        j_not = j_not + 1
-                                    }
-                                    if ok_not {
-                                        match_not = k_not
-                                        match_count_not = match_count_not + 1
-                                        if match_count_not > 1 { break }
-                                    }
-                                }
-                            }
-                        }
-                        if match_count_not == 1 { gname_not = match_not; ctx["rt_g_storage_name"] = match_not }
-                    }
+                    var gname_not = _arm64_expr_resolve_g_storage_name(ctx)
                     if gname_not == nil || ctx["globals"] == nil || ctx["globals"][gname_not] == nil {
                         native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for ! truthiness)")
                         push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -789,31 +716,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     if op == ">=" { fcond = 10 }
                     // Return a real boolean value (native runtime singleton), not raw 0/1.
                     // This keeps `&&/||/if` semantics consistent with `docs/LANGUAGE.md`.
-                    var gname_cmp0 = ctx["rt_g_storage_name"]
-                    if gname_cmp0 == nil {
-                        var match_cmp0 = nil
-                        var match_count_cmp0 = 0
-                        if ctx != nil && ctx["globals"] != nil {
-                            for kk0 in ctx["globals"] {
-                                var kklen0 = oren_string_len(kk0)
-                                var slen0 = 9
-                                if kklen0 >= slen0 {
-                                    var okk0 = true
-                                    var jj0 = 0
-                                    while jj0 < slen0 {
-                                        if oren_string_char_at(kk0, kklen0 - slen0 + jj0) != oren_string_char_at("g_storage", jj0) { okk0 = false; break }
-                                        jj0 = jj0 + 1
-                                    }
-                                    if okk0 {
-                                        match_cmp0 = kk0
-                                        match_count_cmp0 = match_count_cmp0 + 1
-                                        if match_count_cmp0 > 1 { break }
-                                    }
-                                }
-                            }
-                        }
-                        if match_count_cmp0 == 1 { gname_cmp0 = match_cmp0; ctx["rt_g_storage_name"] = match_cmp0 }
-                    }
+                    var gname_cmp0 = _arm64_expr_resolve_g_storage_name(ctx)
                     if gname_cmp0 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp0] == nil {
                         native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
                         push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -940,31 +843,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     if op == "<=" { scond = 13 }
                     if op == ">=" { scond = 10 }
                     // Convert cond flags to runtime boolean singleton.
-                    var gname_cmp1 = ctx["rt_g_storage_name"]
-                    if gname_cmp1 == nil {
-                        var match_cmp1 = nil
-                        var match_count_cmp1 = 0
-                        if ctx != nil && ctx["globals"] != nil {
-                            for kk1 in ctx["globals"] {
-                                var kklen1 = oren_string_len(kk1)
-                                var slen1 = 9
-                                if kklen1 >= slen1 {
-                                    var okk1 = true
-                                    var jj1 = 0
-                                    while jj1 < slen1 {
-                                        if oren_string_char_at(kk1, kklen1 - slen1 + jj1) != oren_string_char_at("g_storage", jj1) { okk1 = false; break }
-                                        jj1 = jj1 + 1
-                                    }
-                                    if okk1 {
-                                        match_cmp1 = kk1
-                                        match_count_cmp1 = match_count_cmp1 + 1
-                                        if match_count_cmp1 > 1 { break }
-                                    }
-                                }
-                            }
-                        }
-                        if match_count_cmp1 == 1 { gname_cmp1 = match_cmp1; ctx["rt_g_storage_name"] = match_cmp1 }
-                    }
+                    var gname_cmp1 = _arm64_expr_resolve_g_storage_name(ctx)
                     if gname_cmp1 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp1] == nil {
                         native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
                         push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -1001,31 +880,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     set_u32_le(ctx["code"], br_lt_right, insn_b_cond((int_pos - br_lt_right) / 4, 11)) // LT
                     push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
                     // Convert flags to runtime boolean singleton.
-                    var gname_cmp2 = ctx["rt_g_storage_name"]
-                    if gname_cmp2 == nil {
-                        var match_cmp2 = nil
-                        var match_count_cmp2 = 0
-                        if ctx != nil && ctx["globals"] != nil {
-                            for kk2 in ctx["globals"] {
-                                var kklen2 = oren_string_len(kk2)
-                                var slen2 = 9
-                                if kklen2 >= slen2 {
-                                    var okk2 = true
-                                    var jj2 = 0
-                                    while jj2 < slen2 {
-                                        if oren_string_char_at(kk2, kklen2 - slen2 + jj2) != oren_string_char_at("g_storage", jj2) { okk2 = false; break }
-                                        jj2 = jj2 + 1
-                                    }
-                                    if okk2 {
-                                        match_cmp2 = kk2
-                                        match_count_cmp2 = match_count_cmp2 + 1
-                                        if match_count_cmp2 > 1 { break }
-                                    }
-                                }
-                            }
-                        }
-                        if match_count_cmp2 == 1 { gname_cmp2 = match_cmp2; ctx["rt_g_storage_name"] = match_cmp2 }
-                    }
+                    var gname_cmp2 = _arm64_expr_resolve_g_storage_name(ctx)
                     if gname_cmp2 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp2] == nil {
                         native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
                         push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -1095,31 +950,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
 
                 // Convert cond flags to runtime boolean singleton (not raw 0/1).
-                var gname_cmp3 = ctx["rt_g_storage_name"]
-                if gname_cmp3 == nil {
-                    var match_cmp3 = nil
-                    var match_count_cmp3 = 0
-                    if ctx != nil && ctx["globals"] != nil {
-                        for kk3 in ctx["globals"] {
-                            var kklen3 = oren_string_len(kk3)
-                            var slen3 = 9
-                            if kklen3 >= slen3 {
-                                var okk3 = true
-                                var jj3 = 0
-                                while jj3 < slen3 {
-                                    if oren_string_char_at(kk3, kklen3 - slen3 + jj3) != oren_string_char_at("g_storage", jj3) { okk3 = false; break }
-                                    jj3 = jj3 + 1
-                                }
-                                if okk3 {
-                                    match_cmp3 = kk3
-                                    match_count_cmp3 = match_count_cmp3 + 1
-                                    if match_count_cmp3 > 1 { break }
-                                }
-                            }
-                        }
-                    }
-                    if match_count_cmp3 == 1 { gname_cmp3 = match_cmp3; ctx["rt_g_storage_name"] = match_cmp3 }
-                }
+                var gname_cmp3 = _arm64_expr_resolve_g_storage_name(ctx)
                 if gname_cmp3 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp3] == nil {
                     native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
                     push_u32_le(ctx["code"], insn_movz(0, 0))
@@ -1162,31 +993,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
 
                     // Load runtime singletons into scratch regs for falsey checks.
                     // Scratch: X9..X12.
-                    var gname_sc = ctx["rt_g_storage_name"]
-                    if gname_sc == nil {
-                        var match_sc = nil
-                        var match_count_sc = 0
-                        if ctx != nil && ctx["globals"] != nil {
-                            for k_sc in ctx["globals"] {
-                                var klen_sc = oren_string_len(k_sc)
-                                var slen_sc = 9
-                                if klen_sc >= slen_sc {
-                                    var ok_sc = true
-                                    var j_sc = 0
-                                    while j_sc < slen_sc {
-                                        if oren_string_char_at(k_sc, klen_sc - slen_sc + j_sc) != oren_string_char_at("g_storage", j_sc) { ok_sc = false; break }
-                                        j_sc = j_sc + 1
-                                    }
-                                    if ok_sc {
-                                        match_sc = k_sc
-                                        match_count_sc = match_count_sc + 1
-                                        if match_count_sc > 1 { break }
-                                    }
-                                }
-                            }
-                        }
-                        if match_count_sc == 1 { gname_sc = match_sc; ctx["rt_g_storage_name"] = match_sc }
-                    }
+                    var gname_sc = _arm64_expr_resolve_g_storage_name(ctx)
                     if gname_sc == nil || ctx["globals"] == nil || ctx["globals"][gname_sc] == nil {
                         native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for &&/|| truthiness)")
                         push_u32_le(ctx["code"], insn_movz(0, 0))

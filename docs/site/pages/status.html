@@ -119,6 +119,12 @@
 </ul>
 <p>  ASCII byte directly instead of scanning an uppercase alphabet string per name.</p>
 <ul>
+<li>ARM64 native expression/runtime <code>g_storage</code> resolution now uses shared</li>
+</ul>
+<p>  byte-suffix helpers and cached resolver calls instead of duplicated</p>
+<p>  <code>oren_string_char_at</code> suffix scans in boolean singleton, tail normalization,</p>
+<p>  and runtime helper paths.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

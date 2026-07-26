@@ -59,6 +59,10 @@ surfaces, but the following blockers remain:
   strings and concatenating one character at a time.
 - Native runtime bundle constant-global name classification now checks the first
   ASCII byte directly instead of scanning an uppercase alphabet string per name.
+- ARM64 native expression/runtime `g_storage` resolution now uses shared
+  byte-suffix helpers and cached resolver calls instead of duplicated
+  `oren_string_char_at` suffix scans in boolean singleton, tail normalization,
+  and runtime helper paths.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

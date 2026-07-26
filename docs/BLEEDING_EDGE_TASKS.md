@@ -64,6 +64,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current native runtime bundle constant-global name classification checks the
      first ASCII byte directly instead of scanning an uppercase alphabet string
      per name.
+   - Current ARM64 native `g_storage` resolution uses shared byte-suffix helpers
+     and cached resolver calls instead of duplicated `oren_string_char_at` suffix
+     scans in boolean singleton, tail normalization, and runtime helper paths.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
