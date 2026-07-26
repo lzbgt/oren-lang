@@ -215,6 +215,9 @@ This file is the concise task view. Detailed implementation status lives in
      receive argument loading across `WSARecv` and `WSARecvFrom`, and current
      LIST/LIST_INT fast-push loops share split entry, value-store, and advance
      helpers while preserving label order.
+   - Current Windows x64 stat/fstat/IOCP cleanup separates stat attribute
+     normalization/failure handling, fstat body orchestration, and CancelIoEx
+     success/error result normalization into focused helpers.
    - Current x64 string/function cleanup separates string-batch count/item
      collection, callee-save and parameter spill emission, function phase start
      logging, and compiled-entry call-depth gating.

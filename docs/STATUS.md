@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 Windows stat/fstat/IOCP helper cleanup now separates stat attribute
+  normalization/failure paths, fstat body orchestration, and CancelIoEx
+  success/error result normalization into focused helpers.
 - X64 system/data helper cleanup now separates GC-root sorted insertion, C-string
   sentinel normalization, debug-info entry field emission, Linux `fcntl_getfl`
   flag translation, Windows read-handle selection, and Windows open state setup.

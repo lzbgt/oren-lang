@@ -919,31 +919,45 @@ fn _x64_cancel_io_ex_emit_call(ctx, state) {
     return nil
 }
 
+fn _x64_cancel_io_ex_result_labels(ctx) {
+    return {
+        "ok": _new_label(ctx, "iocp_cancel_ok"),
+        "not_found": _new_label(ctx, "iocp_cancel_not_found"),
+        "done": _new_label(ctx, "iocp_cancel_done")
+    }
+}
+
+fn _x64_cancel_io_ex_emit_failure(ctx, labels, fixups, lab) {
+    var l_not_found = lab["not_found"]
+    var l_done = lab["done"]
+    _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
+    // ERROR_NOT_FOUND(1168): nothing to cancel (treat as success for idempotent cancellation).
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 1168))
+    _emit_jcc_to_label(ctx, fixups, "e", l_not_found)
+    _x64_iocp_emit_invalid_param_handle_eio(ctx, labels, fixups, l_done, "iocp_cancel_err")
+    return nil
+}
+
+fn _x64_cancel_io_ex_emit_success_labels(ctx, labels, fixups, lab) {
+    var l_done = lab["done"]
+    _emit_label(ctx, labels, lab["not_found"])
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, lab["ok"])
+    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
+    return nil
+}
+
 fn _x64_cancel_io_ex_emit_result(ctx) {
     // BOOL in eax (0 => failure)
     var labels = {}
     var fixups = []
-    var l_ok = _new_label(ctx, "iocp_cancel_ok")
-    var l_done = _new_label(ctx, "iocp_cancel_done")
-
+    var lab = _x64_cancel_io_ex_result_labels(ctx)
+    var l_done = lab["done"]
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
-
-    _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
-    // ERROR_NOT_FOUND(1168): nothing to cancel (treat as success for idempotent cancellation).
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 1168))
-    var l_not_found = _new_label(ctx, "iocp_cancel_not_found")
-    _emit_jcc_to_label(ctx, fixups, "e", l_not_found)
-
-    _x64_iocp_emit_invalid_param_handle_eio(ctx, labels, fixups, l_done, "iocp_cancel_err")
-
-    _emit_label(ctx, labels, l_not_found)
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
-    _emit_jmp_to_label(ctx, fixups, l_done)
-
-    _emit_label(ctx, labels, l_ok)
-    bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
-
+    _emit_jcc_to_label(ctx, fixups, "ne", lab["ok"])
+    _x64_cancel_io_ex_emit_failure(ctx, labels, fixups, lab)
+    _x64_cancel_io_ex_emit_success_labels(ctx, labels, fixups, lab)
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
     return nil

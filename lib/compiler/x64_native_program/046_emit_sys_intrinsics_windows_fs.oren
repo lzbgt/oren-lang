@@ -416,6 +416,25 @@ fn _x64_windows_stat_labels(ctx) {
     }
 }
 
+fn _x64_windows_stat_emit_attr_prepare(ctx) {
+    _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+    _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
+    return nil
+}
+
+fn _x64_windows_stat_emit_attr_call(ctx) {
+    _emit_call_iat_x64(ctx, "IAT_GetFileAttributesA")
+    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
+    return nil
+}
+
+fn _x64_windows_stat_emit_attr_fail(ctx, fixups, l_done) {
+    _emit_win32_last_error_to_neg_errno_common_x64(ctx)
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    return nil
+}
+
 fn _x64_windows_stat_emit_attr_probe(ctx, lab) {
     var labels = lab["labels"]
     var fixups = lab["fixups"]
@@ -430,18 +449,13 @@ fn _x64_windows_stat_emit_attr_probe(ctx, lab) {
     //
     // CreateFileA(path, GENERIC_READ, share=7, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
     // rcx already holds path pointer.
-    _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
-    _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
-
+    _x64_windows_stat_emit_attr_prepare(ctx)
     // attrs = GetFileAttributesA(path)
     // This is a cheap directory probe, and avoids relying on CreateFileA to open directories.
     // INVALID_FILE_ATTRIBUTES (0xFFFFFFFF) indicates failure.
-    _emit_call_iat_x64(ctx, "IAT_GetFileAttributesA")
-    bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
+    _x64_windows_stat_emit_attr_call(ctx)
     _emit_jcc_to_label(ctx, fixups, "ne", l_attr_ok)
-    _emit_win32_last_error_to_neg_errno_common_x64(ctx)
-    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _x64_windows_stat_emit_attr_fail(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_attr_ok)
     return nil
 }
@@ -646,21 +660,10 @@ fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done) {
     return nil
 }
 
-fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
-    if ctx == nil { return nil }
-    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_fstat expects 2 args"); return nil }
-    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_fstat does not support spread"); return nil }
-
-    var capsule = _x64_capsule_enabled(ctx)
-    var state = _x64_windows_fstat_spill_args(ctx, locals, args, capsule)
-    if state == nil { return nil }
+fn _x64_windows_fstat_emit_body(ctx, locals, state, flab, labels, fixups) {
     var base = state["base"]
     var tmp_fd = state["tmp_fd"]
     var tmp_st = state["tmp_st"]
-
-    var labels = {}
-    var fixups = []
-    var flab = _x64_windows_fstat_labels(ctx)
     var l_have_handle = flab["have_handle"]
     var l_ok = flab["ok"]
     var l_fail = flab["fail"]
@@ -671,7 +674,24 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
+    return true
+}
 
+fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_fstat expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_fstat does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
+    var state = _x64_windows_fstat_spill_args(ctx, locals, args, capsule)
+    if state == nil { return nil }
+    var base = state["base"]
+    var labels = {}
+    var fixups = []
+    var flab = _x64_windows_fstat_labels(ctx)
+    var l_done = flab["done"]
+
+    if _x64_windows_fstat_emit_body(ctx, locals, state, flab, labels, fixups) != true { return nil }
     _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)
     return nil
 }

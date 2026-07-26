@@ -1114,8 +1114,8 @@ $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepa
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_win_wait_single_object_result_labels/,/fn _emit_intrinsic_sys_win_wait_single_object_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_threads.oren)
 $(sed -n '/fn _x64_linux_epoll_create1_state/,/fn _x64_linux_epoll_ctl_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren)
-$(sed -n '/fn _x64_wsa_store_wsabuf_local/,/fn _x64_wsarecv_normalize_result/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren)
-$(sed -n '/fn _emit_win64_stat_regular_file_mode_x64/,/fn _emit_win64_stat_capsule_post_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
+$(sed -n '/fn _x64_wsa_store_wsabuf_local/,/fn _x64_wsarecv_normalize_result/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren) $(sed -n '/fn _x64_cancel_io_ex_result_labels/,/fn _emit_intrinsic_sys_cancel_io_ex_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren)
+$(sed -n '/fn _emit_win64_stat_regular_file_mode_x64/,/fn _x64_windows_stat_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _x64_windows_fstat_labels/,/fn _x64_unlink_rmdir_windows_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _emit_nanosleep_timespec_syscall_x64/,/fn _x64_linux_nanosleep_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren) $(sed -n '/fn _x64_windows_open_alloc_state/,/fn _x64_windows_open_labels/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _emit_windows_write_ptr_len/,/fn _emit_panic_preserve_msg_reg/p' lib/compiler/x64_native_program/071_panic.oren)
@@ -1135,7 +1135,7 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_win_wait_single_object_result_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_linux_epoll_create1_state(ctx, locals, args)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_linux_epoll_create1_syscall(ctx, st)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_store_wsabuf_local(ctx, state)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _x64_wsa_load_common_receive_args(ctx, state)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_labels(ctx, label_prefix)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_emit_error_path(ctx, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_wsa_load_common_receive_args(ctx, state)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_labels(ctx, label_prefix)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_emit_error_path(ctx, lab)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_cancel_io_ex_emit_failure(ctx, labels, fixups, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, l_ret0)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_sys_read_windows_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_read_windows_body(ctx, locals, state, lab)' <<<"$x64_sys_data_split_impl" ||
@@ -1146,9 +1146,9 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_fcntl_setfl_windows_labels()' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_fcntl_setfl_windows_body(ctx, state, capsule, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_finish_fcntl_setfl_windows(ctx, state, lab)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_windows_stat_emit_attr_prepare(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_windows_fstat_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_windows_fstat_emit_body(ctx, locals, state, flab, labels, fixups)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_nanosleep_timespec_on_stack_x64(ctx, tmp_ns)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_windows_open_alloc_state(ctx, locals)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_windows_open_spill_args(ctx, locals, args, state)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _data_cstr0_normalize_sentinel(s)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _data_dbginfo_entry_offsets(entries, i, code_len)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_windows_writefile_stdout_handle(ctx, ptr_reg, len_reg)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_reserve_u64_table_region(ctx, count)' <<<"$x64_sys_data_split_impl" ||

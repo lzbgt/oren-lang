@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- X64 Windows stat/fstat/IOCP cleanup now separates stat attribute normalization,
+  attribute failure handling, fstat handle/success orchestration, and CancelIoEx
+  success/error normalization into focused helper bodies.
 - X64 system/data helper cleanup now separates GC-root sorted insertion, C-string
   sentinel normalization, debug-info entry field emission, Linux `fcntl_getfl`
   flag translation, Windows read-handle selection, and Windows open state setup.
