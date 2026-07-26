@@ -315,13 +315,8 @@ fn _astbin_dyn_push_string(b, s) {
     _astbin_dyn_push_uvarint(b, n)
     var used = b["len"]
     _astbin_dyn_ensure(b, used + n)
-    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
-    if dstp == 0 { oren_fail(1, "astbin dyn: data ptr is nil") }
-    var i = 0
-    while i < n {
-        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
+    var rc = oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)
+    if oren_is_err(rc) { oren_fail(1, "astbin dyn: string copy failed") }
     b["len"] = used + n
     return nil
 }

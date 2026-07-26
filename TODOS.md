@@ -41,6 +41,9 @@ design evidence lives under `project-doc/`.
   string-read loops, and the central byte-builder string/NUL-string extension
   helpers now bulk-copy validated string spans directly into builder `u8_buf`
   storage with the byte-hotpath guard pinning those shapes.
+- Compiler ASTBIN dyn writers and scan-cache save strings now bulk-copy
+  validated string spans directly into reserved `u8_buf` storage instead of
+  looping through per-byte string reads.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now use exact byte-builder zero-extension spans instead of repeated zero-byte
   push loops in the context and data I/O helpers.

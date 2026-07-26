@@ -73,6 +73,11 @@
 <p>     instead of residual per-byte string-read loops, and that central helper now</p>
 <p>     bulk-copies validated string spans into builder <code>u8_buf</code> storage.</p>
 <ul>
+<li>Current ASTBIN and scan-cache save cleanup bulk-copies validated strings</li>
+</ul>
+<p>     directly into reserved <code>u8_buf</code> spans instead of per-byte string-read</p>
+<p>     loops in those compiler cache writers.</p>
+<ul>
 <li>Current PE/ELF and native compiler C-string output cleanup routes</li>
 </ul>
 <p>     NUL-terminated string appends through shared byte-builder string+zero</p>

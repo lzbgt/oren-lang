@@ -29,6 +29,9 @@ This file is the concise task view. Detailed implementation status lives in
      and ARM64 Mach-O string-table names through byte-builder string extension
      instead of residual per-byte string-read loops, and that central helper now
      bulk-copies validated string spans into builder `u8_buf` storage.
+   - Current ASTBIN and scan-cache save cleanup bulk-copies validated strings
+     directly into reserved `u8_buf` spans instead of per-byte string-read
+     loops in those compiler cache writers.
    - Current PE/ELF and native compiler C-string output cleanup routes
      NUL-terminated string appends through shared byte-builder string+zero
      extension.

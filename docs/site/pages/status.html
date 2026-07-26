@@ -63,6 +63,11 @@
 <p>  central byte-builder string and NUL-string extension helpers now bulk-copy</p>
 <p>  validated string spans directly into builder <code>u8_buf</code> storage.</p>
 <ul>
+<li>ASTBIN v2 dyn writers and scan-cache save strings now bulk-copy validated</li>
+</ul>
+<p>  string spans directly into their reserved <code>u8_buf</code> storage instead of looping</p>
+<p>  through per-byte <code>oren_string_byte_at_unchecked</code> reads.</p>
+<ul>
 <li>Compiler byte output now also routes PE/ELF and native C-string append helpers</li>
 </ul>
 <p>  through shared byte-builder NUL-terminated string extension, preserving offsets</p>

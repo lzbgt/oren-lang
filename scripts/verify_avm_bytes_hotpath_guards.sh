@@ -22,6 +22,9 @@ fi
 bytecode_emit_u64_impl="$(sed -n '/fn emit_u64_le/,/fn emit_u32_le/p' lib/compiler/codegen_bytecode/030_tail.oren)"
 astbin_u64_impl="$(sed -n '/fn _astbin_write_u64_le_ptr/,/fn _astbin_write_string_ptr/p;/fn _astbin_write_u64_le_v1_ptr/,/Growable v1 writer/p;/fn _astbin_dyn_push_u64_le/,/fn _astbin_dyn_push_string/p;/fn _astbin_read_u64_le/,/fn _astbin_unzigzag/p;/fn _astbin_g_read_u64_le/,/^}/p' lib/compiler/compiler/015_astbin.oren)"
 astbin_module_u64_impl="$(sed -n '/fn _astbin_module_dyn_push_u64_le/,/fn _astbin_module_dyn_push_string_raw/p' lib/compiler/compiler/016_astbin_module.oren)"
+astbin_string_impl="$(sed -n '/fn _astbin_dyn_push_string/,/fn _astbin_dyn_extend_u8_buf/p' lib/compiler/compiler/015_astbin.oren)"
+astbin_module_string_impl="$(sed -n '/fn _astbin_module_dyn_push_string_raw/,/fn _astbin_module_dyn_extend_u8_buf/p' lib/compiler/compiler/016_astbin_module.oren)"
+scan_cache_string_impl="$(sed -n '/fn _scan_cache_bytes_push_str/,/fn _scan_cache_bytes_finalize/p' lib/compiler/compiler/012_build_cache.oren)"
 if ! grep -Fq 'bytes.bytes_push(out, (n >> 56) & 255)' <<<"$bytecode_emit_u64_impl" ||
   grep -Fq 'while i < 8' <<<"$bytecode_emit_u64_impl" ||
   ! grep -Fq 'off = _astbin_write_u8_ptr(data_ptr, off, (x0 >> 56) & 255)' <<<"$astbin_u64_impl" ||
@@ -30,6 +33,16 @@ if ! grep -Fq 'bytes.bytes_push(out, (n >> 56) & 255)' <<<"$bytecode_emit_u64_im
   ! grep -Fq '_astbin_module_dyn_push_u8(b, (x0 >> 56) & 255)' <<<"$astbin_module_u64_impl" ||
   grep -Fq 'while i < 8' <<<"$astbin_module_u64_impl"; then
   echo "ERROR: compiler bytecode/ASTBIN u64 helpers must use straight-line little-endian byte operations, not fixed Oren loops" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <<<"$astbin_string_impl" ||
+  ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <<<"$astbin_module_string_impl" ||
+  ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <<<"$scan_cache_string_impl" ||
+  grep -Fq 'ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)' <<<"$astbin_string_impl" ||
+  grep -Fq 'ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)' <<<"$astbin_module_string_impl" ||
+  grep -Fq 'ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)' <<<"$scan_cache_string_impl"; then
+  echo "ERROR: compiler ASTBIN/scan-cache string append helpers must bulk-copy validated string spans, not loop per byte" >&2
   exit 1
 fi
 
