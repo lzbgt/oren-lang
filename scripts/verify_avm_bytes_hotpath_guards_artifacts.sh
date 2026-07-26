@@ -30,6 +30,8 @@ if ! grep -Fq 'import artifact "artifact_bytes.oren"' lib/compiler/elf_artifact.
   ! grep -Fq 'return elfart.push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'return elfart.build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, 183, 0, 0)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'return elfart.build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, 62, 4, 3)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' lib/compiler/arm64_elf.oren ||
@@ -105,8 +107,9 @@ arm64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' 
 x64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/x64_elf.oren)"
 arm64_elf_dynmeta_impl="$(sed -n '/fn _elf_arm64_append_dyn_metadata/,/fn elf_build_prefix_arm64/p' lib/compiler/arm64_elf.oren)"
 x64_elf_dynmeta_impl="$(sed -n '/fn _elf_x64_append_dyn_metadata/,/fn elf_build_prefix_x64/p' lib/compiler/x64_elf.oren)"
-arm64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: AArch64/p' lib/compiler/arm64_elf.oren)"
-x64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: x86-64/p' lib/compiler/x64_elf.oren)"
+arm64_elf_prefix_impl="$(sed -n '/fn elf_build_prefix_arm64/,/^}/p' lib/compiler/arm64_elf.oren)"
+x64_elf_prefix_impl="$(sed -n '/fn elf_build_prefix_x64/,/^}/p' lib/compiler/x64_elf.oren)"
+elf_artifact_header_impl="$(sed -n '/fn build_prefix/,/fn bytes_align/p' lib/compiler/elf_artifact.oren)"
 elf_artifact_align_impl="$(sed -n '/fn bytes_align/,/^}/p' lib/compiler/elf_artifact.oren)"
 elf_artifact_dyn_impl="$(cat lib/compiler/elf_artifact.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
@@ -125,6 +128,13 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'sym_dynstr_offs[nm3] = bytes_add_str0(dynstr, nm3)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn push_rela(rela, r_offset, sym_idx, rela_type, addend)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.push_u64_le(rela, sym_idx * 4294967296 + rela_type)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, machine, shnum, shstrndx)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'artifact.bytes_push(p, 127); artifact.bytes_push(p, 69); artifact.bytes_push(p, 76); artifact.bytes_push(p, 70) // .ELF' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'artifact.push_u16_le(p, machine)' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'artifact.push_u16_le(p, oren_list_len(phdrs))' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'artifact.push_u16_le(p, shnum)' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'artifact.push_u16_le(p, shstrndx)' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'push_phdr(p,' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'fn build_sysv_hash(nchain)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(hash, (nbucket + nchain) * 4)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn append_dyn_tables(data, hash, dynstr, dynsym, rela)' <<<"$elf_artifact_dyn_impl" ||
@@ -151,8 +161,6 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'var table_offsets = elfart.append_dyn_tables(data, hash, dynstr, dynsym, rela)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn = elfart.build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn = elfart.build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off)' <<<"$x64_elf_dynmeta_impl" ||
-  ! grep -Fq 'bytes_extend_zeros(p, 1); // OS ABI: System V' <<<"$arm64_elf_header_impl" ||
-  ! grep -Fq 'bytes_extend_zeros(p, 1) // System V' <<<"$x64_elf_header_impl" ||
   ! grep -Fq 'var rem = artifact.int_mod(artifact.bytes_len(buf), align)' <<<"$elf_artifact_align_impl" ||
   ! grep -Fq 'if rem != 0 { artifact.bytes_extend_zeros(buf, align - rem) }' <<<"$elf_artifact_align_impl" ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' <<<"$arm64_elf_align_impl" ||
@@ -172,8 +180,9 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'while ci < nchain' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'push_u64_le(dyn, 1)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'push_u64_le(dyn, 0); push_u64_le(dyn, 0)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
-  grep -Fq 'bytes_push(p, 0); // OS ABI: System V' <<<"$arm64_elf_header_impl" ||
-  grep -Fq 'bytes_push(p, 0) // System V' <<<"$x64_elf_header_impl" ||
+  grep -Fq 'bytes_push(p, 127)' <<<"$arm64_elf_prefix_impl$x64_elf_prefix_impl" ||
+  grep -Fq 'push_u16_le(p, 183)' <<<"$arm64_elf_prefix_impl" ||
+  grep -Fq 'push_u16_le(p, 62)' <<<"$x64_elf_prefix_impl" ||
   test "$(grep -Fc '_bytes_align(prefix, 16)' <<<"$x64_elf_shstr_layout_impl")" != "2" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl" ||

@@ -27,6 +27,56 @@ fn push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, 
     return nil
 }
 
+fn build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, machine, shnum, shstrndx) {
+    var p = artifact.bytes_new()
+
+    artifact.bytes_push(p, 127); artifact.bytes_push(p, 69); artifact.bytes_push(p, 76); artifact.bytes_push(p, 70) // .ELF
+    artifact.bytes_push(p, 2) // ELFCLASS64
+    artifact.bytes_push(p, 1) // little endian
+    artifact.bytes_push(p, 1) // EV_CURRENT
+    artifact.bytes_extend_zeros(p, 1) // System V OS ABI
+    artifact.push_u64_le(p, 0) // EI_PAD + rest
+
+    if is_shared_lib == true {
+        artifact.push_u16_le(p, 3) // ET_DYN
+    } else {
+        artifact.push_u16_le(p, 2) // ET_EXEC
+    }
+    artifact.push_u16_le(p, machine)
+    artifact.push_u32_le(p, 1) // EV_CURRENT
+
+    if is_shared_lib == true {
+        artifact.push_u64_le(p, 0)
+    } else {
+        artifact.push_u64_le(p, base + hdr_size + entry_off)
+    }
+    artifact.push_u64_le(p, 64) // e_phoff
+    artifact.push_u64_le(p, 0) // e_shoff
+    artifact.push_u32_le(p, 0) // e_flags
+    artifact.push_u16_le(p, 64) // e_ehsize
+    artifact.push_u16_le(p, 56) // e_phentsize
+    artifact.push_u16_le(p, oren_list_len(phdrs))
+    artifact.push_u16_le(p, 64) // e_shentsize
+    artifact.push_u16_le(p, shnum)
+    artifact.push_u16_le(p, shstrndx)
+
+    var i = 0
+    while i < oren_list_len(phdrs) {
+        var ph = phdrs[i]
+        push_phdr(p,
+                  ph["type"],
+                  ph["flags"],
+                  ph["offset"],
+                  ph["vaddr"],
+                  ph["paddr"],
+                  ph["filesz"],
+                  ph["memsz"],
+                  ph["align"])
+        i = i + 1
+    }
+    return p
+}
+
 fn bytes_align(buf, align) {
     if buf == nil { return nil }
     if align == nil || align <= 1 { return nil }

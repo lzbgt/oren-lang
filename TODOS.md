@@ -45,8 +45,9 @@ design evidence lives under `project-doc/`.
   `artifact_bytes.oren` semantic helper while leaving ISA instruction and ABI
   lowering in x64/ARM64-specific modules.
 - X64/ARM64 ELF emitters now share `elf_artifact.oren` for identical ELF64
-  program-header emission, byte alignment, UTF-8/debug string packing,
-  NUL-terminated string-table insertion, and unique DT_NEEDED collection.
+  file-header and program-header emission, byte alignment, UTF-8/debug string
+  packing, NUL-terminated string-table insertion, and unique DT_NEEDED
+  collection.
 - ARM64 ELF and Mach-O emitters now share `native_debug_artifact.oren` for
   stable native debug user-function records, aligned UTF-8 fields, and zeroed
   runtime record slots while leaving object-format placement and fixup/patch

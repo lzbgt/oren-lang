@@ -333,55 +333,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
 }
 
 fn elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off, is_shared_lib) {
-    var p = bytes_new()
-    
-    // ELF Header (64 bytes)
-    bytes_push(p, 127); bytes_push(p, 69); bytes_push(p, 76); bytes_push(p, 70); // .ELF
-    bytes_push(p, 2); // Class: 64-bit
-    bytes_push(p, 1); // Data: Little endian
-    bytes_push(p, 1); // Version
-    bytes_extend_zeros(p, 1); // OS ABI: System V
-    push_u64_le(p, 0) // Padding
-    
-    if is_shared_lib == true {
-        push_u16_le(p, 3)   // Type: DYN
-    } else {
-        push_u16_le(p, 2)   // Type: EXEC
-    }
-    push_u16_le(p, 183) // Machine: AArch64
-    push_u32_le(p, 1) // Version
-
-    if is_shared_lib == true {
-        push_u64_le(p, 0) // e_entry (unused for shared libs; init via DT_INIT_ARRAY)
-    } else {
-        push_u64_le(p, base + hdr_size + entry_off) // Entry point
-    }
-    push_u64_le(p, 64) // Phdr offset
-    push_u64_le(p, 0) // Shdr offset
-    push_u32_le(p, 0) // Flags
-    push_u16_le(p, 64) // Ehdr size
-    push_u16_le(p, 56) // Phdr size
-    push_u16_le(p, oren_list_len(phdrs)) // Phdr count
-    push_u16_le(p, 64) // Shdr size
-    push_u16_le(p, 0) // Shdr count
-    push_u16_le(p, 0) // String index
-
-    // Program headers
-    var i = 0
-    while i < oren_list_len(phdrs) {
-        var ph = phdrs[i]
-        _elf_push_phdr(p,
-                       ph["type"],
-                       ph["flags"],
-                       ph["offset"],
-                       ph["vaddr"],
-                       ph["paddr"],
-                       ph["filesz"],
-                       ph["memsz"],
-                       ph["align"])
-        i = i + 1
-    }
-    return p
+    return elfart.build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, 183, 0, 0)
 }
 
 fn _data_add_u64(data, val) {
