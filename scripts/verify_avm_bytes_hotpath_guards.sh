@@ -1028,7 +1028,7 @@ if ! grep -Fq 'fn _x64_string_batch_input_lists(op)' <<<"$x64_string_batch_input
   echo "ERROR: x64 string-batch input state must keep list extraction and count derivation split" >&2; exit 1
 fi
 x64_string_batch_trace_split_impl="$(sed -n '/fn _x64_string_batch_trace_state/,/fn _x64_string_batch_collect_items/p' lib/compiler/x64_native_program/060_emit_ops_string_batch.oren)"
-if ! grep -Fq 'fn _x64_string_batch_trace_phase(ctx)' <<<"$x64_string_batch_trace_split_impl" || ! grep -Fq 'fn _x64_string_batch_trace_progress_enabled(phase_log, phase_name)' <<<"$x64_string_batch_trace_split_impl" || ! grep -Fq 'fn _x64_string_batch_trace_start(phase_log, phase_name, j, batch_n, batch_names_n, batch_items_n, batch_off_encs_n, batch_slot_offs_src_n)' <<<"$x64_string_batch_trace_split_impl"; then
+if ! grep -Fq 'fn _x64_string_batch_trace_phase(ctx)' <<<"$x64_string_batch_trace_split_impl" || ! grep -Fq 'fn _x64_string_batch_trace_progress_enabled(phase_log, phase_name)' <<<"$x64_string_batch_trace_split_impl" || ! grep -Fq 'fn _x64_string_batch_trace_start(phase_log, phase_name, j, batch_n, batch_names_n, batch_items_n, batch_off_encs_n, batch_slot_offs_src_n)' <<<"$x64_string_batch_trace_split_impl" || ! grep -Fq 'fn _x64_string_batch_collect_counts(batch_names, batch_values, batch_off_encs, batch_slot_offs_src)' <<<"$x64_string_batch_trace_split_impl" || ! grep -Fq 'fn _x64_string_batch_collect_one(batch_collect_i, batch_names, batch_values, batch_off_encs, batch_slot_offs_src, counts)' <<<"$x64_string_batch_trace_split_impl"; then
   echo "ERROR: x64 string-batch trace state must keep phase lookup, env gating, and start logging split" >&2; exit 1
 fi
 x64_assign_i32_split_impl="$(sed -n '/fn _x64_assign_i32_state/,/fn _x64_emit_ops_trace_progress/p' lib/compiler/x64_native_program/060_emit_ops.oren)"
@@ -1160,13 +1160,13 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)' <<<"$x64_sys_data_split_impl"; then
   echo "ERROR: x64 system read/write/fcntl/stat/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2; exit 1
 fi
-x64_function_frame_split_impl="$(sed -n '/fn _x64_frame_align_unit/,/fn _x64_emit_function_spills/p' lib/compiler/x64_native_program/080_functions_compile.oren)"
+x64_function_frame_split_impl="$(sed -n '/fn _x64_frame_align_unit/,/fn _x64_emit_compiled_function_body/p' lib/compiler/x64_native_program/080_functions_compile.oren)"
 if ! grep -Fq 'fn _x64_frame_align_unit(ctx)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_frame_align_bytes(n, align, step)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_frame_call_area(ctx, max_call_argc, align)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_frame_save_state(ctx, align)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_prepare_function_base_slots(ctx, fn_node, name, ops)' <<<"$x64_function_frame_split_impl" ||
-  ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl"; then
+  ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_emit_function_save_regs(ctx, save_regs, save_n, locals_size)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_emit_function_param_spill(ctx, locals, params, i, regc, shadow)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_begin_function_phase_start(phase_log, name, phase_this, phase_summary_only)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_emit_compiled_function_call_depth(ctx, fn_node, name, compile_opts, phase_state)' <<<"$x64_function_frame_split_impl"; then
   echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2; exit 1
 fi
 x64_ffi_attr_split_impl="$(sed -n '/fn _x64_collect_ffi_dll_attrs/,/fn _x64_ffi_ret_maps_init/p' lib/compiler/x64_native_program/072_ffi.oren)"

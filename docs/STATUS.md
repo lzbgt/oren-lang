@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 string-batch and function-entry parser/codegen cleanup now separates
+  batch count/item collection, callee-save and parameter spills, phase-start
+  logging, and compiled-entry call-depth gating into focused helpers.
 - X64 parser/codegen cleanup now shares `WSARecv`/`WSARecvFrom` WSABUF/common
   argument setup and LIST/LIST_INT fast-push loop entry/value/advance helpers,
   reducing duplicated fixed emission bodies while preserving instruction order.

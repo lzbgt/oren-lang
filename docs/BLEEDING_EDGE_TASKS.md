@@ -215,6 +215,9 @@ This file is the concise task view. Detailed implementation status lives in
      receive argument loading across `WSARecv` and `WSARecvFrom`, and current
      LIST/LIST_INT fast-push loops share split entry, value-store, and advance
      helpers while preserving label order.
+   - Current x64 string/function cleanup separates string-batch count/item
+     collection, callee-save and parameter spill emission, function phase start
+     logging, and compiled-entry call-depth gating.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

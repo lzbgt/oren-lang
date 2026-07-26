@@ -407,7 +407,7 @@ fn _x64_prepare_function_frame_v0(ctx, fn_node, name, ops, max_call_argc, needs_
     return _x64_pack_function_frame(ctx, slot_state, layout)
 }
 
-fn _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, save_n, locals_size) {
+fn _x64_emit_function_save_regs(ctx, save_regs, save_n, locals_size) {
     var si = 0
     while si < save_n {
         var reg_save = save_regs[si]
@@ -415,27 +415,39 @@ fn _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, s
         _emit_mov_mrbp_r64(ctx, 0 - off_save, reg_save)
         si = si + 1
     }
+    return true
+}
 
+fn _x64_emit_function_param_spill(ctx, locals, params, i, regc, shadow) {
+    var p2 = params[i]
+    var pnm2 = p2["value"]
+    var off = locals[pnm2]
+    if off <= 0 { err(ctx, "x64 native v0: missing param slot"); return false }
+    if i < regc {
+        var reg_enc = abi.int_arg_reg(ctx["abi"], i)
+        if oren_type_tag(reg_enc) == 0 { err(ctx, "x64 native v0: unsupported param index"); return false }
+        _emit_mov_mrbp_r64(ctx, 0 - off, reg_enc - 1)
+        return true
+    }
+    var stack_base = 16 + shadow
+    var disp = stack_base + 8 * (i - regc)
+    _emit_mov_r64_mrbp(ctx, 0, disp)
+    _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+    return true
+}
+
+fn _x64_emit_function_param_spills(ctx, locals, params, pc, regc, shadow) {
     var i = 0
     while i < pc {
-        var p2 = params[i]
-        var pnm2 = p2["value"]
-        var off = locals[pnm2]
-        if off <= 0 { err(ctx, "x64 native v0: missing param slot"); return nil }
-
-        if i < regc {
-            var reg_enc = abi.int_arg_reg(ctx["abi"], i)
-            if oren_type_tag(reg_enc) == 0 { err(ctx, "x64 native v0: unsupported param index"); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - off, reg_enc - 1)
-        } else {
-            var stack_base = 16 + shadow
-            var disp = stack_base + 8 * (i - regc)
-            _emit_mov_r64_mrbp(ctx, 0, disp)
-            _emit_mov_mrbp_r64(ctx, 0 - off, 0)
-        }
+        if _x64_emit_function_param_spill(ctx, locals, params, i, regc, shadow) != true { return nil }
         i = i + 1
     }
     return true
+}
+
+fn _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, save_n, locals_size) {
+    _x64_emit_function_save_regs(ctx, save_regs, save_n, locals_size)
+    return _x64_emit_function_param_spills(ctx, locals, params, pc, regc, shadow)
 }
 
 fn _x64_function_call_depth_enabled(fn_node, name, user_fn_fast_call_depth, call_depth_default_enabled) {
@@ -774,21 +786,35 @@ fn _x64_emit_function_done_phase(phase_log, name, ops, locals, local_fixups, pha
     return nil
 }
 
-fn _x64_begin_function_compile_phase(ctx, name) {
-    var trace_this = _x64_function_trace_enabled(name)
+fn _x64_function_phase_log(ctx) {
     var phase_log = nil
     if ctx != nil { phase_log = ctx["phase_log"] }
+    return phase_log
+}
+
+fn _x64_begin_function_phase_start(phase_log, name, phase_this, phase_summary_only) {
+    if phase_this != true { return 0 }
+    var phase_start = oren_time_now_ns()
+    if phase_summary_only != true {
+        _x64_program_phase_log_append(phase_log, "x64.codegen.function.start", "name=" + name)
+    }
+    return phase_start
+}
+
+fn _x64_begin_function_trace_stage(name, trace_this) {
+    if trace_this != true { return 0 }
+    var trace_stage = oren_time_now_ns()
+    print("[x64_fn] start name=" + name)
+    return trace_stage
+}
+
+fn _x64_begin_function_compile_phase(ctx, name) {
+    var trace_this = _x64_function_trace_enabled(name)
+    var phase_log = _x64_function_phase_log(ctx)
     var phase_summary_only = _x64_function_phase_summary_only(ctx, name, trace_this)
     var phase_this = _x64_function_phase_enabled(ctx, name, trace_this, phase_summary_only)
-    var phase_start = 0
-    if phase_this {
-        phase_start = oren_time_now_ns()
-        if phase_summary_only != true {
-            _x64_program_phase_log_append(phase_log, "x64.codegen.function.start", "name=" + name)
-        }
-    }
-    var trace_stage = 0
-    if trace_this { trace_stage = oren_time_now_ns(); print("[x64_fn] start name=" + name) }
+    var phase_start = _x64_begin_function_phase_start(phase_log, name, phase_this, phase_summary_only)
+    var trace_stage = _x64_begin_function_trace_stage(name, trace_this)
     return {
         "log": phase_log,
         "enabled": phase_this,
@@ -821,24 +847,21 @@ fn _x64_register_function_entry(ctx, name) {
     return fn_off
 }
 
-fn _x64_emit_compiled_function_entry_runtime(ctx, name, fn_state, compile_opts, phase_state) {
-    var fn_node = fn_state["fn_node"]
-    var frame = fn_state["frame"]
-    var locals = frame["locals"]
-    var params = frame["params"]
-    var pc = frame["pc"]
-    var regc = frame["regc"]
-    var shadow = frame["shadow"]
-    var save_regs = frame["save_regs"]
-    var save_n = frame["save_n"]
-    var locals_size = frame["locals_size"]
-    var frame_size = frame["frame_size"]
-
-    if _x64_emit_function_spills(ctx, locals, params, pc, regc, shadow, save_regs, save_n, locals_size) == nil {
-        return nil
+fn _x64_compiled_function_frame_emit_state(frame) {
+    return {
+        "locals": frame["locals"],
+        "params": frame["params"],
+        "pc": frame["pc"],
+        "regc": frame["regc"],
+        "shadow": frame["shadow"],
+        "save_regs": frame["save_regs"],
+        "save_n": frame["save_n"],
+        "locals_size": frame["locals_size"],
+        "frame_size": frame["frame_size"]
     }
-    _x64_mark_function_phase_after(phase_state, "after_spill_ns")
+}
 
+fn _x64_emit_compiled_function_call_depth(ctx, fn_node, name, compile_opts, phase_state) {
     var call_depth_enabled = _x64_function_call_depth_enabled(fn_node, name,
         compile_opts["user_fn_fast_call_depth"], compile_opts["call_depth_default_enabled"])
     _x64_mark_function_phase_after(phase_state, "after_call_depth_gate_ns")
@@ -847,7 +870,20 @@ fn _x64_emit_compiled_function_entry_runtime(ctx, name, fn_state, compile_opts, 
     // once multithreading disables the single-thread fast-path.
     _x64_emit_function_call_depth_enter(ctx, call_depth_enabled)
     _x64_mark_function_phase_after(phase_state, "after_call_depth_emit_ns")
-    if _x64_emit_function_gc_tick_init(ctx, locals) == nil { return nil }
+    return call_depth_enabled
+}
+
+fn _x64_emit_compiled_function_entry_runtime(ctx, name, fn_state, compile_opts, phase_state) {
+    var fn_node = fn_state["fn_node"]
+    var frame = _x64_compiled_function_frame_emit_state(fn_state["frame"])
+
+    if _x64_emit_function_spills(ctx, frame["locals"], frame["params"], frame["pc"], frame["regc"], frame["shadow"], frame["save_regs"], frame["save_n"], frame["locals_size"]) == nil {
+        return nil
+    }
+    _x64_mark_function_phase_after(phase_state, "after_spill_ns")
+
+    var call_depth_enabled = _x64_emit_compiled_function_call_depth(ctx, fn_node, name, compile_opts, phase_state)
+    if _x64_emit_function_gc_tick_init(ctx, frame["locals"]) == nil { return nil }
     _x64_mark_function_phase_after(phase_state, "after_tick_ns")
 
     return { "call_depth_enabled": call_depth_enabled }

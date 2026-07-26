@@ -47,33 +47,47 @@ fn _x64_string_batch_trace_start(phase_log, phase_name, j, batch_n, batch_names_
     return nil
 }
 
-fn _x64_string_batch_collect_items(batch_n, batch_items, batch_items_n, batch_names, batch_values, batch_off_encs, batch_slot_offs_src) {
-    if batch_items_n > 0 { return batch_items }
+fn _x64_string_batch_collect_counts(batch_names, batch_values, batch_off_encs, batch_slot_offs_src) {
     var batch_names_n = 0
     if batch_names != nil { batch_names_n = oren_list_len(batch_names) }
+    var batch_values_n = 0
+    if batch_values != nil { batch_values_n = oren_list_len(batch_values) }
     var batch_off_encs_n = 0
     if batch_off_encs != nil { batch_off_encs_n = oren_list_len(batch_off_encs) }
     var batch_slot_offs_src_n = 0
     if batch_slot_offs_src != nil { batch_slot_offs_src_n = oren_list_len(batch_slot_offs_src) }
+    return {
+        "names_n": batch_names_n,
+        "values_n": batch_values_n,
+        "off_encs_n": batch_off_encs_n,
+        "slot_offs_src_n": batch_slot_offs_src_n
+    }
+}
+
+fn _x64_string_batch_collect_one(batch_collect_i, batch_names, batch_values, batch_off_encs, batch_slot_offs_src, counts) {
+    var collect_name = nil
+    if batch_collect_i < counts["names_n"] { collect_name = batch_names[batch_collect_i] }
+    var collect_value = nil
+    if batch_collect_i < counts["values_n"] { collect_value = batch_values[batch_collect_i] }
+    var collect_off_enc = nil
+    if batch_collect_i < counts["off_encs_n"] { collect_off_enc = batch_off_encs[batch_collect_i] }
+    var collect_slot_off = nil
+    if batch_collect_i < counts["slot_offs_src_n"] { collect_slot_off = batch_slot_offs_src[batch_collect_i] }
+    return {
+        "name": collect_name,
+        "value": collect_value,
+        "off_enc": collect_off_enc,
+        "slot_off": collect_slot_off,
+    }
+}
+
+fn _x64_string_batch_collect_items(batch_n, batch_items, batch_items_n, batch_names, batch_values, batch_off_encs, batch_slot_offs_src) {
+    if batch_items_n > 0 { return batch_items }
+    var counts = _x64_string_batch_collect_counts(batch_names, batch_values, batch_off_encs, batch_slot_offs_src)
     var out = []
     var batch_collect_i = 0
     while batch_collect_i < batch_n {
-        var collect_name = nil
-        if batch_collect_i < batch_names_n { collect_name = batch_names[batch_collect_i] }
-        var collect_value = nil
-        if batch_values != nil && batch_collect_i < oren_list_len(batch_values) {
-            collect_value = batch_values[batch_collect_i]
-        }
-        var collect_off_enc = nil
-        if batch_collect_i < batch_off_encs_n { collect_off_enc = batch_off_encs[batch_collect_i] }
-        var collect_slot_off = nil
-        if batch_collect_i < batch_slot_offs_src_n { collect_slot_off = batch_slot_offs_src[batch_collect_i] }
-        oren_list_push(out, {
-            "name": collect_name,
-            "value": collect_value,
-            "off_enc": collect_off_enc,
-            "slot_off": collect_slot_off,
-        })
+        oren_list_push(out, _x64_string_batch_collect_one(batch_collect_i, batch_names, batch_values, batch_off_encs, batch_slot_offs_src, counts))
         batch_collect_i = batch_collect_i + 1
     }
     return out
