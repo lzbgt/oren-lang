@@ -1030,6 +1030,17 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   echo "ERROR: x64 temp, list-sum, and Windows process preparation must stay split into focused parser helpers" >&2
   exit 1
 fi
+x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)
+$(sed -n '/fn _x64_collect_lambda_stmt_list/,/fn _x64_debug_print_lambda_collection/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)
+$(sed -n '/fn _x64_synth_lambda_wrapper_expr/,/fn _x64_compile_lambda_wrappers/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)"
+if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"$x64_literal_callable_split_impl" ||
+  ! grep -Fq 'fn _x64_collect_lambda_stmt_list(ctx, stmts_all)' <<<"$x64_literal_callable_split_impl" ||
+  ! grep -Fq 'fn _x64_collect_lambda_type_ctors(ctx, type_ctors)' <<<"$x64_literal_callable_split_impl" ||
+  ! grep -Fq 'fn _x64_log_lambda_collection_done(ctx, phase_log, lambda_scan_skipped)' <<<"$x64_literal_callable_split_impl" ||
+  ! grep -Fq 'fn _x64_build_lambda_wrappers(ctx)' <<<"$x64_literal_callable_split_impl"; then
+  echo "ERROR: x64 hash literal and callable lambda preparation must stay split into focused parser helpers" >&2
+  exit 1
+fi
 arm64_gemm_store_helper_impl="$(sed -n '/fn arm64_emit_store_d_reg_to_cursor/,/fn native_emit_panic/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 if ! grep -Fq 'fn arm64_emit_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
   ! grep -Fq 'fn arm64_emit_addp_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||

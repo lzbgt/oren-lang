@@ -121,6 +121,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 parser-body cleanup also splits intrinsic temp resolution,
      fast list-sum state preparation, and Windows CreateProcess temp/layout
      preparation into focused helper bodies.
+   - Current x64 literal/callable cleanup splits hash literal insertion and
+     lambda scanning/wrapper synthesis into focused helper loops while
+     preserving source-order map insertion and lambda phase logging.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

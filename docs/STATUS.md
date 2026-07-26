@@ -125,6 +125,9 @@ surfaces, but the following blockers remain:
 - X64 temp-slot resolution, fast list-sum preparation, and Windows
   CreateProcess preparation now separate register/local/layout state setup into
   focused helper bodies while preserving validation and returned-state shape.
+- X64 hash literal insertion and callable lambda scanning/wrapper synthesis now
+  use focused helper loops, keeping parser bodies bounded while preserving
+  literal insertion order and lambda phase logging.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

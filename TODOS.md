@@ -111,6 +111,9 @@ design evidence lives under `project-doc/`.
 - X64 temp-slot resolution, fast list-sum preparation, and Windows
   CreateProcess preparation now separate register/local/layout state setup into
   focused helper bodies while preserving validation and returned-state shape.
+- X64 hash literal insertion and callable lambda scanning/wrapper synthesis now
+  use focused helper loops, keeping parser bodies bounded while preserving
+  literal insertion order and lambda phase logging.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

@@ -237,6 +237,11 @@
 <p>  CreateProcess preparation now separate register/local/layout state setup into</p>
 <p>  focused helper bodies while preserving validation and returned-state shape.</p>
 <ul>
+<li>X64 hash literal insertion and callable lambda scanning/wrapper synthesis now</li>
+</ul>
+<p>  use focused helper loops, keeping parser bodies bounded while preserving</p>
+<p>  literal insertion order and lambda phase logging.</p>
+<ul>
 <li>iOS Metal retained image/text/model upload helpers now guard Objective-C</li>
 </ul>
 <p>  resource allocation before CF dictionary insertion, and prepared image/text</p>

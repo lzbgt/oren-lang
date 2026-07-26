@@ -1,3 +1,32 @@
+fn _x64_collect_lambda_stmt_list(ctx, stmts_all) {
+    var li = 0
+    var n = oren_list_len(stmts_all)
+    while li < n {
+        callable.collect_lambdas_in_statement(ctx, stmts_all[li])
+        li = li + 1
+    }
+    return nil
+}
+
+fn _x64_collect_lambda_type_ctors(ctx, type_ctors) {
+    var ltc = 0
+    var n = oren_list_len(type_ctors)
+    while ltc < n {
+        callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
+        ltc = ltc + 1
+    }
+    return nil
+}
+
+fn _x64_log_lambda_collection_done(ctx, phase_log, lambda_scan_skipped) {
+    if phase_log == nil { return nil }
+    var lambda_extra = ""
+    if lambda_scan_skipped { lambda_extra = " skipped=1" }
+    _x64_program_phase_log_append(phase_log, "x64.codegen.lambdas.done",
+        "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])) + lambda_extra)
+    return nil
+}
+
 fn _x64_collect_lambda_uses(ctx, stmts_all, top_info, type_ctors, trace_prog, phase_log) {
     // Collect lambdas (anonymous Function nodes with name="") from the full statement set
     // that will actually be compiled.
@@ -13,32 +42,19 @@ fn _x64_collect_lambda_uses(ctx, stmts_all, top_info, type_ctors, trace_prog, ph
     var lambda_scan_skipped = false
     if ctx["_native_has_lambda_candidates"] == true {
         if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
-        var li = 0
-        while li < oren_list_len(stmts_all) {
-            callable.collect_lambdas_in_statement(ctx, stmts_all[li])
-            li = li + 1
-        }
+        _x64_collect_lambda_stmt_list(ctx, stmts_all)
         // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
         if top_info["top_level_fn"] != nil {
             callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
         }
         // Also scan synthesized type constructors (not present in `linked2["statements"]`).
-        var ltc = 0
-        while ltc < oren_list_len(type_ctors) {
-            callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
-            ltc = ltc + 1
-        }
+        _x64_collect_lambda_type_ctors(ctx, type_ctors)
     } else {
         lambda_scan_skipped = true
         if trace_prog { print("[x64_compile] collect lambdas skipped (no candidates)") }
     }
     if trace_prog { print("[x64_compile] collect lambdas done defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
-    if phase_log != nil {
-        var lambda_extra = ""
-        if lambda_scan_skipped { lambda_extra = " skipped=1" }
-        _x64_program_phase_log_append(phase_log, "x64.codegen.lambdas.done",
-            "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])) + lambda_extra)
-    }
+    _x64_log_lambda_collection_done(ctx, phase_log, lambda_scan_skipped)
     return nil
 }
 
@@ -92,6 +108,28 @@ fn _x64_collect_callable_uses(ctx, linked2, top_info, type_ctors, trace_prog, ph
     return stmts_all
 }
 
+fn _x64_synth_lambda_wrapper_expr(ctx, def) {
+    var st = callable.synth_lambda_wrapper(def)
+    if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+        return st["expr"]
+    }
+    err(ctx, "x64 native v0: failed to synthesize lambda wrapper")
+    return nil
+}
+
+fn _x64_build_lambda_wrappers(ctx) {
+    var wrappers = []
+    var lj = 0
+    var n = oren_list_len(ctx["lambda_defs"])
+    while lj < n {
+        var wexpr = _x64_synth_lambda_wrapper_expr(ctx, ctx["lambda_defs"][lj])
+        if wexpr == nil { return nil }
+        oren_list_push(wrappers, wexpr)
+        lj = lj + 1
+    }
+    return wrappers
+}
+
 fn _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log) {
     // --- Callable wrappers (Tier‑1 convergence) ---
     //
@@ -104,24 +142,12 @@ fn _x64_prepare_lambda_wrappers(ctx, trace_prog, phase_log) {
     //
     // Lambda wrappers are still synthesized eagerly because each lambda literal needs a
     // concrete callable entrypoint.
-    var wrappers = []
-
     // Lambda wrappers are named `__oren_lambda_N` and already implement the uniform call ABI:
     //   fn __oren_lambda_N(__env, __args_list) { ... }
     // They inline the original lambda body and bind captures/params from env/args.
     if trace_prog { print("[x64_compile] lambda wrappers start") }
-    var lj = 0
-    while lj < oren_list_len(ctx["lambda_defs"]) {
-        var def = ctx["lambda_defs"][lj]
-        var st = callable.synth_lambda_wrapper(def)
-        if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
-            oren_list_push(wrappers, st["expr"])
-        } else {
-            err(ctx, "x64 native v0: failed to synthesize lambda wrapper")
-            return nil
-        }
-        lj = lj + 1
-    }
+    var wrappers = _x64_build_lambda_wrappers(ctx)
+    if wrappers == nil { return nil }
     if trace_prog { print("[x64_compile] lambda wrappers done count=" + oren_int_to_string(oren_list_len(wrappers))) }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.prepare.done",
