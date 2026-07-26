@@ -1507,8 +1507,9 @@ This file is the concise task view. Detailed implementation status lives in
      plain literal decode now slices the header block directly, while Huffman
      decode trie storage uses unboxed `list_int` tables and Huffman
      string encode/decode, decoded-string boundaries, and full header-block
-     encoding use exact-size `u8_buf` payloads or byte-slice conversion; TLS
-     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client
+	     encoding use exact-size `u8_buf` payloads or byte-slice conversion; TLS
+	     ALPN decoded-byte strings convert through byte slices, and ALPN protocol-list
+	     encoders bulk-copy contiguous protocol IDs. HTTP/2 client
 	     continuation/header-block and DATA response buffering now uses amortized
 		     `u8_buf` accumulators, fragmented outbound HEADERS stream raw spans
 		     across all CONTINUATION frames, inbound single-CONTINUATION header

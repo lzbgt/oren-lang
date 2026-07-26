@@ -3005,8 +3005,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  while Huffman decode trie storage uses unboxed `list_int` tables and Huffman string encode/decode, decoded-string boundaries, and full
 	  header-block encoding use exact-size `u8_buf` payloads, `list_int`
 	  literal-length metadata, or byte-slice conversion instead of building
-	  intermediate Oren byte lists; TLS ALPN
-		  decoded-byte strings also convert through byte slices. HTTP/2 client
+		  intermediate Oren byte lists; TLS ALPN
+			  decoded-byte strings convert through byte slices, and ALPN protocol-list
+			  encoders bulk-copy contiguous protocol IDs. HTTP/2 client
 			  continuation/header-block and unknown-length DATA response buffers now
 			  accumulate through amortized `u8_buf` builders, fragmented outbound
 				  HEADERS writes stream raw header-block spans across all CONTINUATION frames instead of copied split

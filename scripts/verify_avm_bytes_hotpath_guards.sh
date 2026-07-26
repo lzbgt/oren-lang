@@ -1181,6 +1181,21 @@ if ! grep -Fq 'base64.decode_bytes_range(pem_text, body_start, body_end - body_s
   exit 1
 fi
 
+openssl_alpn_client_impl="$(sed -n '/fn _openssl_set_alpn_if_requested/,/fn __oren_tls_openssl_alpn_select_cb/p' lib/std/net/tls_linux_openssl.oren)"
+openssl_alpn_server_impl="$(sed -n '/fn _openssl_set_server_alpn_select_if_requested/,/fn _openssl_ctx_new/p' lib/std/net/tls_linux_openssl.oren)"
+schannel_alpn_impl="$(sed -n '/fn _win_build_alpn_secbuffer_if_requested/,/fn wrap_client/p' lib/std/net/tls_windows_schannel.oren)"
+tls_alpn_impl="$openssl_alpn_client_impl
+$openssl_alpn_server_impl
+$schannel_alpn_impl"
+if ! grep -Fq 'oren_memcpy(buf + off, p2, l2)' <<<"$openssl_alpn_client_impl" ||
+  ! grep -Fq 'oren_memcpy(arg + 4 + off, s, l2)' <<<"$openssl_alpn_server_impl" ||
+  ! grep -Fq 'oren_memcpy(buf + off, s, l2)' <<<"$schannel_alpn_impl" ||
+  grep -Fq 'ptr_set_byte(buf + off + j, oren_string_byte_at_unchecked' <<<"$tls_alpn_impl" ||
+  grep -Fq 'ptr_set_byte(arg + 4 + off + j, oren_string_byte_at_unchecked' <<<"$tls_alpn_impl"; then
+  echo "ERROR: TLS ALPN protocol-list encoders must bulk-copy contiguous string protocol IDs, not loop per byte" >&2
+  exit 1
+fi
+
 vfs_read_bytes_impl="$(sed -n '/static AvmValue avm_vfs_read_bytes_list_value/,/^}/p' lib/avm/avm_native_fs_universe_helpers.inc)"
 if ! grep -Fq 'AvmValue res = avm_list_int_new((int)len)' <<<"$vfs_read_bytes_impl" ||
   ! grep -Fq 'list->items[i] = (int64_t)(unsigned char)(data ? data[i] : 0)' <<<"$vfs_read_bytes_impl" ||

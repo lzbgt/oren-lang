@@ -232,11 +232,7 @@ fn _openssl_set_alpn_if_requested(ssl, opts) {
         var l2 = oren_string_len(p2)
         ptr_set_byte(buf + off, l2 & 255)
         off = off + 1
-        var j = 0
-        while j < l2 {
-            ptr_set_byte(buf + off + j, oren_string_byte_at_unchecked(p2, j) & 255)
-            j = j + 1
-        }
+        oren_memcpy(buf + off, p2, l2)
         off = off + l2
         i = i + 1
     }
@@ -362,11 +358,7 @@ fn _openssl_set_server_alpn_select_if_requested(ctx, opts) {
         var l2 = oren_string_len(s)
         ptr_set_byte(arg + 4 + off, l2 & 255)
         off = off + 1
-        var j = 0
-        while j < l2 {
-            ptr_set_byte(arg + 4 + off + j, oren_string_byte_at_unchecked(s, j) & 255)
-            j = j + 1
-        }
+        oren_memcpy(arg + 4 + off, s, l2)
         off = off + l2
         i = i + 1
     }

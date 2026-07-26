@@ -1641,8 +1641,9 @@
 <p>     plain literal decode now slices the header block directly, while Huffman</p>
 <p>     decode trie storage uses unboxed <code>list_int</code> tables and Huffman</p>
 <p>     string encode/decode, decoded-string boundaries, and full header-block</p>
-<p>     encoding use exact-size <code>u8_buf</code> payloads or byte-slice conversion; TLS</p>
-<p>     ALPN decoded-byte strings also convert through byte slices. HTTP/2 client</p>
+<p>	     encoding use exact-size <code>u8_buf</code> payloads or byte-slice conversion; TLS</p>
+<p>	     ALPN decoded-byte strings convert through byte slices, and ALPN protocol-list</p>
+<p>	     encoders bulk-copy contiguous protocol IDs. HTTP/2 client</p>
 <p>	     continuation/header-block and DATA response buffering now uses amortized</p>
 <p>		     <code>u8_buf</code> accumulators, fragmented outbound HEADERS stream raw spans</p>
 <p>		     across all CONTINUATION frames, inbound single-CONTINUATION header</p>

@@ -624,11 +624,7 @@ fn _win_build_alpn_secbuffer_if_requested(opts) {
         var l2 = oren_string_len(s)
         ptr_set_byte(buf + off, l2 & 255)
         off = off + 1
-        var j = 0
-        while j < l2 {
-            ptr_set_byte(buf + off + j, oren_string_byte_at_unchecked(s, j) & 255)
-            j = j + 1
-        }
+        oren_memcpy(buf + off, s, l2)
         off = off + l2
         i = i + 1
     }

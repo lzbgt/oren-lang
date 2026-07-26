@@ -3295,8 +3295,9 @@
 <p>	  while Huffman decode trie storage uses unboxed <code>list_int</code> tables and Huffman string encode/decode, decoded-string boundaries, and full</p>
 <p>	  header-block encoding use exact-size <code>u8_buf</code> payloads, <code>list_int</code></p>
 <p>	  literal-length metadata, or byte-slice conversion instead of building</p>
-<p>	  intermediate Oren byte lists; TLS ALPN</p>
-<p>		  decoded-byte strings also convert through byte slices. HTTP/2 client</p>
+<p>		  intermediate Oren byte lists; TLS ALPN</p>
+<p>			  decoded-byte strings convert through byte slices, and ALPN protocol-list</p>
+<p>			  encoders bulk-copy contiguous protocol IDs. HTTP/2 client</p>
 <p>			  continuation/header-block and unknown-length DATA response buffers now</p>
 <p>			  accumulate through amortized <code>u8_buf</code> builders, fragmented outbound</p>
 <p>				  HEADERS writes stream raw header-block spans across all CONTINUATION frames instead of copied split</p>
