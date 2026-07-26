@@ -3704,6 +3704,10 @@
 <p>  buffers with byte arithmetic instead of scanning lowercase/uppercase alphabet</p>
 <p>  strings and concatenating per-character output.</p>
 <ul>
+<li>Native runtime bundle constant-global name classification now checks the first</li>
+</ul>
+<p>  ASCII byte directly instead of scanning an uppercase alphabet string per name.</p>
+<ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>

@@ -923,6 +923,14 @@ if ! grep -Fq 'var out = oren_u8_buf_new_uninit(n)' <<<"$compiler_capsule_ascii_
   echo "ERROR: compiler ASCII uppercase helpers must use exact-size u8_buf writes and byte arithmetic, not alphabet scans" >&2
   exit 1
 fi
+runtime_bundle_upper_name_impl="$(sed -n '/fn _bundle_is_upper_name/,/fn _bundle_is_zero_const_expr/p' lib/compiler/native_runtime_bundle.oren)"
+if ! grep -Fq 'var b = oren_string_byte_at_unchecked(name, 0) & 255' <<<"$runtime_bundle_upper_name_impl" ||
+  ! grep -Fq 'return b >= 65 && b <= 90' <<<"$runtime_bundle_upper_name_impl" ||
+  grep -Fq 'var ups = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"' <<<"$runtime_bundle_upper_name_impl" ||
+  grep -Fq 'oren_string_char_at(ups' <<<"$runtime_bundle_upper_name_impl"; then
+  echo "ERROR: native runtime bundle uppercase-name classifier must use direct first-byte ASCII range checks" >&2
+  exit 1
+fi
 
 base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||

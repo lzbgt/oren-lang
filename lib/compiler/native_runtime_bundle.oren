@@ -576,17 +576,8 @@ fn _bundle_split_stmt_list_by_runtime_tag(stmts) {
 
 fn _bundle_is_upper_name(name) {
     if name == nil || name == "" { return false }
-
-    // Avoid ordering comparisons on chars: `oren_string_char_at` returns a single-char value
-    // and the native `>=`/`<=` operators are int-only.
-    var ch = oren_string_char_at(name, 0)
-    var ups = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    var i = 0
-    while i < 26 {
-        if oren_string_char_at(ups, i) == ch { return true }
-        i = i + 1
-    }
-    return false
+    var b = oren_string_byte_at_unchecked(name, 0) & 255
+    return b >= 65 && b <= 90
 }
 
 fn _bundle_is_zero_const_expr(expr) {

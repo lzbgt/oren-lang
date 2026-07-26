@@ -61,6 +61,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current compiler capsule and metadata ASCII uppercasing writes exact-size
      byte buffers with byte arithmetic instead of scanning lowercase/uppercase
      alphabet strings and concatenating per-character output.
+   - Current native runtime bundle constant-global name classification checks the
+     first ASCII byte directly instead of scanning an uppercase alphabet string
+     per name.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

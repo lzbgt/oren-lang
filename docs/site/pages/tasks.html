@@ -129,6 +129,11 @@
 <p>     byte buffers with byte arithmetic instead of scanning lowercase/uppercase</p>
 <p>     alphabet strings and concatenating per-character output.</p>
 <ul>
+<li>Current native runtime bundle constant-global name classification checks the</li>
+</ul>
+<p>     first ASCII byte directly instead of scanning an uppercase alphabet string</p>
+<p>     per name.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

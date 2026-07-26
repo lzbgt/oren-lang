@@ -2667,6 +2667,8 @@ design evidence lives under `project-doc/`.
 - Compiler capsule and metadata ASCII uppercasing now writes exact-size byte
   buffers with byte arithmetic instead of scanning lowercase/uppercase alphabet
   strings and concatenating per-character output.
+- Native runtime bundle constant-global name classification now checks the first
+  ASCII byte directly instead of scanning an uppercase alphabet string per name.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.
