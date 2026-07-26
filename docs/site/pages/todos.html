@@ -127,6 +127,11 @@
 </ul>
 <p>  avoiding fixed string-byte loops while preserving exact eight-byte COFF names.</p>
 <ul>
+<li>ARM64 native compiler data-slot reservations now use the shared byte-builder</li>
+</ul>
+<p>  zero-extension path for fixed eight-byte pointer slots instead of per-byte</p>
+<p>  push loops.</p>
+<ul>
 <li>Scalar <code>std:math.sqrt</code> now keeps its deterministic eight-step Newton</li>
 </ul>
 <p>  refinement as straight-line operations, reducing loop overhead for vector and</p>

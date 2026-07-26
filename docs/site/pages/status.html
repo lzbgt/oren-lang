@@ -239,6 +239,11 @@
 <p>  straight-line literal bytes, avoiding fixed string-byte loops in compiler</p>
 <p>  artifact emission while preserving byte-for-byte section headers.</p>
 <ul>
+<li>ARM64 native compiler context, global, and statement-binding pointer-slot</li>
+</ul>
+<p>  reservations now route fixed eight-byte zero fills through the shared</p>
+<p>  byte-builder zero-extension path instead of per-byte push loops.</p>
+<ul>
 <li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
 </ul>
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>

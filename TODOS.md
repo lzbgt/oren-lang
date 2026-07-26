@@ -68,6 +68,9 @@ design evidence lives under `project-doc/`.
   out of fixed eight-iteration Oren loops.
 - X64 PE section-name header emission now uses straight-line literal bytes,
   avoiding fixed string-byte loops while preserving exact eight-byte COFF names.
+- ARM64 native compiler data-slot reservations now use the shared byte-builder
+  zero-extension path for fixed eight-byte pointer slots instead of per-byte
+  push loops.
 - Scalar `std:math.sqrt` now keeps its deterministic eight-step Newton
   refinement as straight-line operations, reducing loop overhead for vector and
   matrix helpers that call it.

@@ -1065,6 +1065,19 @@ if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/c
   exit 1
 fi
 
+arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
+arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
+arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"
+if ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_ctx_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_global_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_stmt_binding_impl" ||
+  grep -Fq 'while z < 8' <<<"$arm64_ctx_impl" ||
+  grep -Fq 'while k < 8' <<<"$arm64_global_impl" ||
+  grep -Fq 'while k < 8' <<<"$arm64_stmt_binding_impl"; then
+  echo "ERROR: ARM64 compiler 8-byte zero slot reservations must use bytes_extend_zeros, not fixed byte-push loops" >&2
+  exit 1
+fi
+
 if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands.oren; then
     echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
     exit 1

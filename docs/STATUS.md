@@ -149,6 +149,9 @@ surfaces, but the following blockers remain:
 - X64 PE section-name header emission now writes exact eight-byte COFF names as
   straight-line literal bytes, avoiding fixed string-byte loops in compiler
   artifact emission while preserving byte-for-byte section headers.
+- ARM64 native compiler context, global, and statement-binding pointer-slot
+  reservations now route fixed eight-byte zero fills through the shared
+  byte-builder zero-extension path instead of per-byte push loops.
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.

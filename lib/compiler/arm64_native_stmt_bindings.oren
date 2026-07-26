@@ -4,6 +4,7 @@ import basem "arm64_native_stmt_loops_base.oren"
 
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
@@ -202,11 +203,7 @@ fn native_compile_stmt_var(ctx, stmt, native_compile_expr_fn) {
         ctx["stack_size"] = ctx["stack_size"] + 16
     } else {
         var data_off = bytes_len(ctx["data"])
-        var k = 0
-        while k < 8 {
-            bytes_push(ctx["data"], 0)
-            k = k + 1
-        }
+        bytes_extend_zeros(ctx["data"], 8)
         ctx["globals"][name] = data_off + 1
         _arm64_store_static_traits(ctx, false, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
         _arm64_emit_store_x0_to_global(ctx, data_off)

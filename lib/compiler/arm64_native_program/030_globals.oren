@@ -29,8 +29,7 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     // initializers deterministically.
     while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var data_off = bytes_len(ctx["data"])
-    var k = 0
-    while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
+    bytes_extend_zeros(ctx["data"], 8)
     // Store as offset+1 so a real offset of 0 is representable while still using `nil`
     // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     ctx["globals"][nm] = data_off + 1
