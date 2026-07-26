@@ -138,6 +138,8 @@ surfaces, but the following blockers remain:
 - X64 FFI/context setup cleanup now separates Linux `dlsym` resolver naming/GOT
   reservation/body emission and base/runtime context slot setup into focused
   helper bodies while preserving emitted instruction and data-slot order.
+- X64 float compare branch cleanup now shares ordered/unordered conditional
+  jump emission helpers while preserving NaN parity behavior for each operator.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

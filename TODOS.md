@@ -124,6 +124,8 @@ design evidence lives under `project-doc/`.
 - X64 FFI/context setup cleanup now separates Linux `dlsym` resolver naming/GOT
   reservation/body emission and base/runtime context slot setup into focused
   helper bodies while preserving emitted instruction and data-slot order.
+- X64 float compare branch cleanup now shares ordered/unordered conditional
+  jump emission helpers while preserving NaN parity behavior for each operator.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

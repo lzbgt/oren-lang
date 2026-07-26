@@ -1066,6 +1066,13 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   echo "ERROR: x64 system, panic, data-table, FFI, and context setup codegen must keep split focused helper bodies" >&2
   exit 1
 fi
+x64_float_cmp_branch_impl="$(sed -n '/fn _x64_float_cmp_emit_two_jcc_then_done/,/fn _emit_float_cmp_to_bool_x64/p' lib/compiler/x64_native_program/047_emit_float_intrinsics.oren)"
+if ! grep -Fq 'fn _x64_float_cmp_emit_two_jcc_then_done(ctx, local_fixups, cc0, lab0, cc1, lab1, l_done)' <<<"$x64_float_cmp_branch_impl" ||
+  ! grep -Fq 'fn _x64_float_cmp_emit_ordered_true(ctx, local_fixups, cc_true, l_true, l_done)' <<<"$x64_float_cmp_branch_impl" ||
+  ! grep -Fq 'return _x64_float_cmp_emit_two_jcc_then_done(ctx, local_fixups, "p", l_true, "ne", l_true, l_done)' <<<"$x64_float_cmp_branch_impl"; then
+  echo "ERROR: x64 float compare branching must keep shared ordered/unordered helper emission" >&2
+  exit 1
+fi
 arm64_gemm_store_helper_impl="$(sed -n '/fn arm64_emit_store_d_reg_to_cursor/,/fn native_emit_panic/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 if ! grep -Fq 'fn arm64_emit_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
   ! grep -Fq 'fn arm64_emit_addp_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||

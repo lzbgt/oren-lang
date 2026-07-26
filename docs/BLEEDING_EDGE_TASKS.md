@@ -133,6 +133,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 FFI/context cleanup splits Linux `dlsym` resolver setup/body
      emission and base/runtime context slot setup into focused helpers while
      preserving emitted instruction and data-slot order.
+   - Current x64 float-compare branch cleanup shares ordered/unordered
+     conditional-jump emission helpers while preserving NaN behavior.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

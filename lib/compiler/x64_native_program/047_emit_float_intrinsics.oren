@@ -493,42 +493,35 @@ fn _x64_float_binary_load_xmms(ctx, left_expr, right_expr, state) {
     return nil
 }
 
+fn _x64_float_cmp_emit_two_jcc_then_done(ctx, local_fixups, cc0, lab0, cc1, lab1, l_done) {
+    _emit_jcc_to_label(ctx, local_fixups, cc0, lab0)
+    _emit_jcc_to_label(ctx, local_fixups, cc1, lab1)
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    return true
+}
+
+fn _x64_float_cmp_emit_ordered_true(ctx, local_fixups, cc_true, l_true, l_done) {
+    return _x64_float_cmp_emit_two_jcc_then_done(ctx, local_fixups, "p", l_done, cc_true, l_true, l_done)
+}
+
 fn _x64_float_cmp_emit_branch(ctx, op, local_fixups, l_true, l_done) {
     if op == "==" {
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-        return true
+        return _x64_float_cmp_emit_ordered_true(ctx, local_fixups, "e", l_true, l_done)
     }
     if op == "!=" {
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_true)
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-        return true
+        return _x64_float_cmp_emit_two_jcc_then_done(ctx, local_fixups, "p", l_true, "ne", l_true, l_done)
     }
     if op == "<" {
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "b", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-        return true
+        return _x64_float_cmp_emit_ordered_true(ctx, local_fixups, "b", l_true, l_done)
     }
     if op == "<=" {
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "be", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-        return true
+        return _x64_float_cmp_emit_ordered_true(ctx, local_fixups, "be", l_true, l_done)
     }
     if op == ">" {
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "a", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-        return true
+        return _x64_float_cmp_emit_ordered_true(ctx, local_fixups, "a", l_true, l_done)
     }
     if op == ">=" {
-        _emit_jcc_to_label(ctx, local_fixups, "p", l_done)
-        _emit_jcc_to_label(ctx, local_fixups, "ae", l_true)
-        _emit_jmp_to_label(ctx, local_fixups, l_done)
-        return true
+        return _x64_float_cmp_emit_ordered_true(ctx, local_fixups, "ae", l_true, l_done)
     }
     return false
 }
