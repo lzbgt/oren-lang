@@ -1094,9 +1094,22 @@ if ! grep -Fq 'fn _pe_align(buf, align)' lib/compiler/x64_pe.oren ||
 fi
 
 x64_pe_exports_impl="$(sed -n '/Optional PE export table/,/Patch IMAGE_EXPORT_DIRECTORY fields/p' lib/compiler/x64_pe.oren)"
+x64_pe_emit_tail_impl="$(sed -n '/DOS header/,/var w = oren_write_bytes/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'bytes_extend_zeros(rdata, n_exp * 4)' <<<"$x64_pe_exports_impl" ||
-  grep -Fq 'while ei < n_exp { push_u32_le(rdata, 0); ei = ei + 1 }' <<<"$x64_pe_exports_impl"; then
-  echo "ERROR: x64 PE export name-pointer reservations must use byte-builder zero extension, not a fixed u32 loop" >&2
+  test "$(grep -Fc '_pe_align(rdata, 4)' <<<"$x64_pe_exports_impl")" != "3" ||
+  ! grep -Fq 'fn _pe_pad_to_len(buf, target_len)' lib/compiler/x64_pe.oren ||
+  ! grep -Fq 'if target_len > used { bytes_extend_zeros(buf, target_len - used) }' lib/compiler/x64_pe.oren ||
+  ! grep -Fq '_pe_pad_to_len(out, pe_off)' <<<"$x64_pe_emit_tail_impl" ||
+  ! grep -Fq '_pe_pad_to_len(out, opt_start + 240)' <<<"$x64_pe_emit_tail_impl" ||
+  ! grep -Fq '_pe_pad_to_len(out, size_of_headers)' <<<"$x64_pe_emit_tail_impl" ||
+  test "$(grep -Fc '_pe_align(out, file_align)' <<<"$x64_pe_emit_tail_impl")" != "3" ||
+  grep -Fq 'while ei < n_exp { push_u32_le(rdata, 0); ei = ei + 1 }' <<<"$x64_pe_exports_impl" ||
+  grep -Fq 'while int_mod(bytes_len(rdata), 4) != 0' <<<"$x64_pe_exports_impl" ||
+  grep -Fq 'while bytes_len(out) < pe_off' <<<"$x64_pe_emit_tail_impl" ||
+  grep -Fq 'while bytes_len(out) - opt_start < 240' <<<"$x64_pe_emit_tail_impl" ||
+  grep -Fq 'while bytes_len(out) < size_of_headers' <<<"$x64_pe_emit_tail_impl" ||
+  grep -Fq 'while int_mod(bytes_len(out), file_align) != 0' <<<"$x64_pe_emit_tail_impl"; then
+  echo "ERROR: x64 PE export/header/raw-section padding must use byte-builder zero extension helpers" >&2
   exit 1
 fi
 

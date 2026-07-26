@@ -511,6 +511,14 @@ fn _pe_align(buf, align) {
     return nil
 }
 
+fn _pe_pad_to_len(buf, target_len) {
+    if buf == nil { return nil }
+    if target_len == nil { return nil }
+    var used = bytes_len(buf)
+    if target_len > used { bytes_extend_zeros(buf, target_len - used) }
+    return nil
+}
+
 fn _pe_reserve_u64_zeros(buf, count) {
     if buf == nil { return nil }
     if count <= 0 { return nil }
@@ -908,12 +916,12 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         var n_exp = oren_list_len(exps)
         if n_exp != 0 {
             // Align to 4 for export tables.
-            while int_mod(bytes_len(rdata), 4) != 0 { bytes_push(rdata, 0) }
+            _pe_align(rdata, 4)
 
             var off_exp_dir = bytes_len(rdata)
             // IMAGE_EXPORT_DIRECTORY (40 bytes)
             push_u8_n(rdata, 0, 40)
-            while int_mod(bytes_len(rdata), 4) != 0 { bytes_push(rdata, 0) }
+            _pe_align(rdata, 4)
 
             var off_eat = bytes_len(rdata)
             var ei = 0
@@ -937,7 +945,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
             var off_ordinals = bytes_len(rdata)
             ei = 0
             while ei < n_exp { push_u16_le(rdata, ei); ei = ei + 1 }
-            while int_mod(bytes_len(rdata), 4) != 0 { bytes_push(rdata, 0) }
+            _pe_align(rdata, 4)
 
             var off_mod_name = bytes_len(rdata)
             push_ascii_z(rdata, _pe_path_basename(out_path))
@@ -992,7 +1000,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     // Keep it 8-byte aligned for u64 tables.
     var data = bytes_new()
     if user_data != nil { bytes_extend(data, user_data) }
-    while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
+    _pe_align(data, 8)
 
     // ---- Apply code fixups (rel32 call + rip-relative IAT load) ----
     //
@@ -1250,7 +1258,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     // e_lfanew at offset 0x3C
     push_u32_le(out, pe_off)
     // pad to pe_off
-    while bytes_len(out) < pe_off { bytes_push(out, 0) }
+    _pe_pad_to_len(out, pe_off)
 
     // ---- PE signature ----
     bytes_push(out, 80); bytes_push(out, 69); bytes_push(out, 0); bytes_push(out, 0) // "PE\0\0"
@@ -1316,7 +1324,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     bytes_extend_zeros(out, 14 * 8)
 
     // Pad optional header to 240 bytes
-    while bytes_len(out) - opt_start < 240 { bytes_push(out, 0) }
+    _pe_pad_to_len(out, opt_start + 240)
 
     // ---- Section headers (3 * 40 bytes) ----
     // .text
@@ -1350,18 +1358,18 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     push_u32_le(out, 3221225536) // CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE (0xC0000040)
 
     // Pad headers to SizeOfHeaders
-    while bytes_len(out) < size_of_headers { bytes_push(out, 0) }
+    _pe_pad_to_len(out, size_of_headers)
 
     // ---- Section raw data ----
     // .text raw
     bytes_extend(out, code)
-    while int_mod(bytes_len(out), file_align) != 0 { bytes_push(out, 0) }
+    _pe_align(out, file_align)
     // .rdata raw
     bytes_extend(out, rdata)
-    while int_mod(bytes_len(out), file_align) != 0 { bytes_push(out, 0) }
+    _pe_align(out, file_align)
     // .data raw
     bytes_extend(out, data)
-    while int_mod(bytes_len(out), file_align) != 0 { bytes_push(out, 0) }
+    _pe_align(out, file_align)
 
     var w = oren_write_bytes(out_path, bytes_finalize(out))
     if oren_is_err(w) {

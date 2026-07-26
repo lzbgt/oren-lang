@@ -86,6 +86,11 @@
 <p>  alignment now share the same byte-builder zero-extension helper instead of</p>
 <p>  open-coded zero-byte alignment loops.</p>
 <ul>
+<li>x64 PE export-table, DOS/optional/header, and section raw-data padding now</li>
+</ul>
+<p>  routes through <code>_pe_align</code>/<code>_pe_pad_to_len</code> byte-builder zero-extension helpers</p>
+<p>  rather than open-coded zero-byte push loops.</p>
+<ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>
 <p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>

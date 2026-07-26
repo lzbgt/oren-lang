@@ -45,6 +45,9 @@ design evidence lives under `project-doc/`.
 - x64 native string-batch, top-level synthetic global, and debug-root table data
   alignment now share the same byte-builder zero-extension helper instead of
   open-coded zero-byte alignment loops.
+- x64 PE export-table, DOS/optional/header, and section raw-data padding now
+  routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
+  rather than open-coded zero-byte push loops.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

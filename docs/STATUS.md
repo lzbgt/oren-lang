@@ -30,6 +30,8 @@ surfaces, but the following blockers remain:
   repeated zero-byte push loops in context/data I/O helpers.
 - x64 native string-batch, top-level synthetic global, and debug-root table data
   alignment now reuses the shared byte-builder zero-extension alignment helper.
+- x64 PE export, header, and raw-section padding now use exact byte-builder
+  zero-extension helpers instead of open-coded zero-byte push loops.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently
