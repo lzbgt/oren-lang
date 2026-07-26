@@ -544,20 +544,19 @@ fn _x64_emit_function_body_ops(ctx, name, ops, locals, labels, local_fixups, epi
     return phase_body_ms
 }
 
-fn _x64_emit_function_epilogue(ctx, locals, labels, local_fixups, epilogue_label,
-                               call_depth_enabled, save_regs, save_n, locals_size, frame_size) {
-    _emit_label(ctx, labels, epilogue_label)
-    if call_depth_enabled == true {
-        var off_ret = locals["$tmp0"]
-        if oren_type_tag(off_ret) == 0 { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0)
-        var pos_exit = bytes_len(ctx["code"])
-        bytes_push(ctx["code"], 232)
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["call_depth_exit_fixups"], pos_exit)
-        _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret)
-    }
+fn _x64_emit_function_call_depth_exit(ctx, locals) {
+    var off_ret = locals["$tmp0"]
+    if oren_type_tag(off_ret) == 0 { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0)
+    var pos_exit = bytes_len(ctx["code"])
+    bytes_push(ctx["code"], 232)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["call_depth_exit_fixups"], pos_exit)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret)
+    return true
+}
 
+fn _x64_emit_function_restore_regs(ctx, save_regs, save_n, locals_size) {
     var sj = save_n - 1
     while sj >= 0 {
         var reg_restore = save_regs[sj]
@@ -565,12 +564,30 @@ fn _x64_emit_function_epilogue(ctx, locals, labels, local_fixups, epilogue_label
         _emit_mov_r64_mrbp(ctx, reg_restore, 0 - off_restore)
         sj = sj - 1
     }
+    return nil
+}
+
+fn _x64_emit_function_frame_return(ctx, frame_size) {
     if frame_size > 0 { bytes_extend(ctx["code"], core.insn_add_rsp_imm32(frame_size)) }
     bytes_extend(ctx["code"], core.insn_pop_rbp())
     bytes_extend(ctx["code"], core.insn_ret())
+    return nil
+}
 
+fn _x64_finish_function_epilogue(ctx, labels, local_fixups) {
     _patch_local_fixups(ctx, labels, local_fixups)
     return true
+}
+
+fn _x64_emit_function_epilogue(ctx, locals, labels, local_fixups, epilogue_label,
+                               call_depth_enabled, save_regs, save_n, locals_size, frame_size) {
+    _emit_label(ctx, labels, epilogue_label)
+    if call_depth_enabled == true {
+        if _x64_emit_function_call_depth_exit(ctx, locals) != true { return nil }
+    }
+    _x64_emit_function_restore_regs(ctx, save_regs, save_n, locals_size)
+    _x64_emit_function_frame_return(ctx, frame_size)
+    return _x64_finish_function_epilogue(ctx, labels, local_fixups)
 }
 
 fn _x64_function_trace_enabled(name) {

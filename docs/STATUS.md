@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 function epilogue emission now separates call-depth exit patch points,
+  callee-save restores, frame teardown/return, and local-fixup finalization into
+  focused helpers while preserving return-order emission.
 - X64 system-intrinsic cleanup now separates Linux `sys_write` label/body/finish
   lowering, Linux pipe success widening, Linux thread clone setup/syscall, and
   Windows QPC frequency labels/body/finish into focused helpers.

@@ -79,6 +79,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 system-intrinsic cleanup separates Linux `sys_write`
      label/body/finish lowering, Linux pipe success widening, Linux thread
      clone setup/syscall, and Windows QPC frequency labels/body/finish.
+   - Current x64 function epilogue emission separates call-depth exit patch
+     points, callee-save restores, frame teardown/return, and local-fixup
+     finalization into focused helpers while preserving return-order emission.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

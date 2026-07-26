@@ -56,6 +56,11 @@
 <p>  app package.</p>
 <h2 id="recent-evidence">Recent Evidence</h2>
 <ul>
+<li>X64 function epilogue emission now separates call-depth exit patch points,</li>
+</ul>
+<p>  callee-save restores, frame teardown/return, and local-fixup finalization into</p>
+<p>  focused helpers while preserving return-order emission.</p>
+<ul>
 <li>X64 system-intrinsic cleanup now separates Linux <code>sys_write</code> label/body/finish</li>
 </ul>
 <p>  lowering, Linux pipe success widening, Linux thread clone setup/syscall, and</p>
