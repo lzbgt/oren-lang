@@ -194,6 +194,11 @@
 <p>  continuing state boundaries, so an allocation-failed geometry run cannot poison</p>
 <p>  later geometry in the same frame.</p>
 <ul>
+<li>iOS Metal frame-state overflow pushes and mismatched/no-op pops now avoid</li>
+</ul>
+<p>  flushing prepared geometry runs; successful clip/transform/opacity/camera</p>
+<p>  transitions still flush before mutating visible render state.</p>
+<ul>
 <li>iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry</li>
 </ul>
 <p>  clip, translation, opacity, and camera stacks. Overflow pushes are tracked as</p>

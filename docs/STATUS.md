@@ -100,6 +100,9 @@ surfaces, but the following blockers remain:
 - iOS Metal vertex-run flush now resets failed growable vertex builders at
   continuing state boundaries, so an allocation-failed geometry run cannot poison
   later geometry in the same frame.
+- iOS Metal frame-state overflow pushes and mismatched/no-op pops now avoid
+  flushing prepared geometry runs; successful clip/transform/opacity/camera
+  transitions still flush before mutating visible render state.
 - iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry
   clip, translation, opacity, and camera stacks. Overflow pushes are tracked as
   no-op frames and consume matching pops without mutating the nearest real outer

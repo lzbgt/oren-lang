@@ -121,6 +121,9 @@ design evidence lives under `project-doc/`.
 - Metal vertex-run flush now resets failed growable vertex builders at state
   boundaries, so one allocation failure drops only the current run instead of
   poisoning later geometry in the same frame.
+- Metal frame-state overflow pushes and mismatched/no-op pops now avoid flushing
+  prepared geometry runs, while successful state transitions still flush before
+  changing clip/transform/opacity/camera values.
 - Metal and CoreGraphics retained image/text draw handlers now reject malformed
   zero-size/count-mismatched draw payloads before retained resource lookup when
   the command is otherwise a no-op, preserving resource create/destroy paths.

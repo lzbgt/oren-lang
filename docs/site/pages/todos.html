@@ -218,6 +218,11 @@
 <p>  boundaries, so one allocation failure drops only the current run instead of</p>
 <p>  poisoning later geometry in the same frame.</p>
 <ul>
+<li>Metal frame-state overflow pushes and mismatched/no-op pops now avoid flushing</li>
+</ul>
+<p>  prepared geometry runs, while successful state transitions still flush before</p>
+<p>  changing clip/transform/opacity/camera values.</p>
+<ul>
 <li>Metal and CoreGraphics retained image/text draw handlers now reject malformed</li>
 </ul>
 <p>  zero-size/count-mismatched draw payloads before retained resource lookup when</p>

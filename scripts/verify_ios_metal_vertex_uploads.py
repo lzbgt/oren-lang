@@ -1017,6 +1017,38 @@ def main() -> int:
     ):
         if token not in state_command:
             fail(f"Metal frame-state command helper missing expected path: {token}")
+    state_case_markers = ["case 16:", "case 17:", "case 18:", "case 19:", "case 20:", "case 21:", "case 22:", "case 23:", "default:"]
+    state_cases = {}
+    for idx, marker in enumerate(state_case_markers[:-1]):
+        start = state_command.find(marker)
+        end = state_command.find(state_case_markers[idx + 1], start + len(marker))
+        if start < 0 or end < 0:
+            fail(f"missing Metal frame-state case block: {marker}")
+        state_cases[marker] = state_command[start:end]
+    for label, marker in (
+        ("clip push", "case 16:"),
+        ("transform push", "case 18:"),
+        ("opacity push", "case 20:"),
+        ("camera push", "case 22:"),
+    ):
+        require_before(
+            state_cases[marker],
+            "if (OrenAVMMetalPushState(state,",
+            "OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES)",
+            f"Metal {label} must avoid flushing when the typed state stack overflows",
+        )
+    for label, marker in (
+        ("clip pop", "case 17:"),
+        ("transform pop", "case 19:"),
+        ("opacity pop", "case 21:"),
+        ("camera pop", "case 23:"),
+    ):
+        require_before(
+            state_cases[marker],
+            "OrenAVMMetalPopResult pop = OrenAVMMetalPopState(state,",
+            "OrenAVMMetalFlushVertexRun(runsRef, verticesRef, runCapacity, state->clip, YES)",
+            f"Metal {label} must avoid flushing on overflow no-op or mismatched pops",
+        )
     for token in ("clipStack[64]", "txStack[64]", "opacityStack[64]", "depthEnabledStack[64]"):
         if token in text:
             fail("Metal view must not own frame state stacks directly")
