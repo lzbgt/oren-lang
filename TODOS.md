@@ -2669,10 +2669,10 @@ design evidence lives under `project-doc/`.
   strings and concatenating per-character output.
 - Native runtime bundle constant-global name classification now checks the first
   ASCII byte directly instead of scanning an uppercase alphabet string per name.
-- ARM64 native `g_storage` resolution now uses shared byte-suffix helpers plus
+- ARM64/x64 native `g_storage` resolution now uses shared byte-suffix helpers plus
   cached resolver calls instead of duplicated `oren_string_char_at` suffix scans
-  across expression lowering, tail boolean normalization, and runtime statement
-  helpers.
+  across expression lowering, tail boolean normalization, and runtime helper
+  paths.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.

@@ -240,6 +240,22 @@ fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
 // x64 no longer carries bespoke list/map intrinsics in the compiler; container ops are
 // implemented by the injected native runtime (shared with arm64) to keep one semantics set.
 
+fn _x64_rt_name_ends_with_g_storage(k) {
+    if k == nil { return false }
+    var klen = oren_string_len(k)
+    if klen < 9 { return false }
+    var off = klen - 9
+    return (oren_string_byte_at_unchecked(k, off) & 255) == 103 &&
+        (oren_string_byte_at_unchecked(k, off + 1) & 255) == 95 &&
+        (oren_string_byte_at_unchecked(k, off + 2) & 255) == 115 &&
+        (oren_string_byte_at_unchecked(k, off + 3) & 255) == 116 &&
+        (oren_string_byte_at_unchecked(k, off + 4) & 255) == 111 &&
+        (oren_string_byte_at_unchecked(k, off + 5) & 255) == 114 &&
+        (oren_string_byte_at_unchecked(k, off + 6) & 255) == 97 &&
+        (oren_string_byte_at_unchecked(k, off + 7) & 255) == 103 &&
+        (oren_string_byte_at_unchecked(k, off + 8) & 255) == 101
+}
+
 fn _x64_rt_resolve_g_storage_name(ctx) {
     // Resolve the runtime's `g_storage` global symbol name once and cache it in ctx.
     // We use a suffix match because module linking prefixes global names.
@@ -249,22 +265,10 @@ fn _x64_rt_resolve_g_storage_name(ctx) {
     var match = nil
     var match_count = 0
     for k in ctx["globals"] {
-        // ends_with(k, "g_storage")
-        var klen = oren_string_len(k)
-        var suf = "g_storage"
-        var slen = oren_string_len(suf)
-        if klen >= slen {
-            var ok = true
-            var j = 0
-            while j < slen {
-                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at(suf, j) { ok = false; break }
-                j = j + 1
-            }
-            if ok {
-                match = k
-                match_count = match_count + 1
-                if match_count > 1 { break }
-            }
+        if _x64_rt_name_ends_with_g_storage(k) {
+            match = k
+            match_count = match_count + 1
+            if match_count > 1 { break }
         }
     }
     if match_count == 1 {
