@@ -192,21 +192,13 @@ fn _lit_array_emit_elements(ctx, locals, hn, els, depth_enc0) {
     return true
 }
 
-fn _emit_array_literal_expr(ctx, expr, locals) {
-    // Bounded trace for bring-up/debugging:
-    //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
-    // List literal `[a, b, c]` lowered as a sequence of native runtime calls:
-    // - list = oren_new_list(0)
-    // - for each element: oren_list_push(list, elem)
-    //
-    // This matches the arm64 backend behavior and avoids baking list-layout offsets
-    // into the x64 emitter (Tier‑1 arch unification).
-    var els = _lit_array_elements(expr)
-
+fn _lit_array_depth_state(ctx) {
     var depth_enc0 = _lit_enter(ctx)
     if oren_type_tag(depth_enc0) == 0 { return nil }
-    var d0 = depth_enc0 - 1
+    return {"depth_enc0": depth_enc0, "d0": depth_enc0 - 1}
+}
 
+fn _lit_array_header_state(ctx, locals, d0, depth_enc0) {
     // PERF (stage2-native compiler):
     // Avoid allocating `"$tmp_lit_list_hdr" + int_to_string(d0)` in hot literal lowering.
     // `080_functions_compile.oren` pre-populates the name list on `ctx`.
@@ -215,18 +207,33 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
     if tmp_hdr <= 0 {
         return _lit_fail(ctx, depth_enc0, "x64 native v0: missing literal spill slots for array literal")
     }
-    _lit_array_trace(ctx, d0, hn, tmp_hdr, els)
+    return {"hn": hn, "tmp_hdr": tmp_hdr}
+}
 
-    var n = oren_list_len(els)
+fn _lit_array_prepare_state(ctx, expr, locals) {
+    var els = _lit_array_elements(expr)
+    var depth = _lit_array_depth_state(ctx)
+    if depth == nil { return nil }
+    var d0 = depth["d0"]
+    var depth_enc0 = depth["depth_enc0"]
+    var hdr = _lit_array_header_state(ctx, locals, d0, depth_enc0)
+    if hdr == nil { return nil }
+    _lit_array_trace(ctx, d0, hdr["hn"], hdr["tmp_hdr"], els)
+    return {"els": els, "depth_enc0": depth_enc0, "hn": hdr["hn"], "tmp_hdr": hdr["tmp_hdr"], "n": oren_list_len(els)}
+}
 
-    if _lit_alloc_container_to_tmp(ctx, locals, "oren_new_list", n, tmp_hdr, depth_enc0) == nil { return nil }
+fn _emit_array_literal_expr(ctx, expr, locals) {
+    // List literal `[a, b, c]` lowers through runtime list allocation plus LTR pushes,
+    // matching arm64 without baking list-layout offsets into the x64 emitter.
+    var st = _lit_array_prepare_state(ctx, expr, locals)
+    if st == nil { return nil }
 
-    // Push elements in order (LTR).
-    if _lit_array_emit_elements(ctx, locals, hn, els, depth_enc0) == nil { return nil }
+    if _lit_alloc_container_to_tmp(ctx, locals, "oren_new_list", st["n"], st["tmp_hdr"], st["depth_enc0"]) == nil { return nil }
+    if _lit_array_emit_elements(ctx, locals, st["hn"], st["els"], st["depth_enc0"]) == nil { return nil }
 
     // return list
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
-    _lit_exit(ctx, depth_enc0)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["tmp_hdr"])
+    _lit_exit(ctx, st["depth_enc0"])
     return nil
 }
 

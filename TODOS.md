@@ -126,6 +126,12 @@ design evidence lives under `project-doc/`.
   helper bodies while preserving emitted instruction and data-slot order.
 - X64 float compare branch cleanup now shares ordered/unordered conditional
   jump emission helpers while preserving NaN parity behavior for each operator.
+- X64 debug symtab/linetab reservation cleanup now shares the aligned zeroed
+  u64-table reservation path and keeps table metadata setup in focused helpers.
+- X64 array literal cleanup now separates depth/header state preparation from
+  runtime list allocation and left-to-right element push emission.
+- Windows x64 `sys_read` cleanup now isolates the zero-length return/done-label
+  patching and intrinsic-temp cleanup tail from the ReadFile emission path.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

@@ -1037,33 +1037,41 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   exit 1
 fi
 x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)
+$(sed -n '/fn _lit_array_depth_state/,/fn _emit_hash_literal_expr/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _x64_collect_lambda_stmt_list/,/fn _x64_debug_print_lambda_collection/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)
 $(sed -n '/fn _x64_synth_lambda_wrapper_expr/,/fn _x64_compile_lambda_wrappers/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)"
 if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"$x64_literal_callable_split_impl" ||
+  ! grep -Fq 'fn _lit_array_prepare_state(ctx, expr, locals)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_collect_lambda_stmt_list(ctx, stmts_all)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_collect_lambda_type_ctors(ctx, type_ctors)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_log_lambda_collection_done(ctx, phase_log, lambda_scan_skipped)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_build_lambda_wrappers(ctx)' <<<"$x64_literal_callable_split_impl"; then
-  echo "ERROR: x64 hash literal and callable lambda preparation must stay split into focused parser helpers" >&2
+  echo "ERROR: x64 array/hash literal and callable lambda preparation must stay split into focused parser helpers" >&2
   exit 1
 fi
-x64_sys_data_split_impl="$(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
+x64_sys_data_split_impl="$(sed -n '/fn _x64_emit_windows_file_io_result/,/fn _x64_sys_rw_linux_slots/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
+$(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _emit_nanosleep_timespec_syscall_x64/,/fn _x64_linux_nanosleep_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren)
 $(sed -n '/fn _emit_windows_write_ptr_len/,/fn _emit_panic_preserve_msg_reg/p' lib/compiler/x64_native_program/071_panic.oren)
 $(sed -n '/fn _data_cstr0_table_prepare/,/fn _data_add_fnobj/p' lib/compiler/x64_native_program/010_data_io.oren)
+$(sed -n '/fn _data_reserve_u64_table_region/,/fn _x64_data_rtobj_decode_enc0/p' lib/compiler/x64_native_program/010_data_io.oren)
+$(sed -n '/fn _data_store_linetab_reservation/,/fn _data_finalize_linetab/p' lib/compiler/x64_native_program/010_data_io.oren)
 $(sed -n '/fn _data_prepare_dbginfo_table/,/fn _data_finalize_linetab_table/p' lib/compiler/x64_native_program/010_data_io.oren)
 $(sed -n '/fn _x64_ffi_resolver_linux_name/,/fn _x64_ffi_stub_linux_dyn_data/p' lib/compiler/x64_native_program/072_ffi.oren)
 $(sed -n '/fn _x64_new_ctx_base_buffers/,/fn _x64_new_ctx_aliases/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)
 $(sed -n '/fn _x64_new_ctx_runtime_cstr_slot/,/fn _x64_new_ctx_trace_flags/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
 if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_nanosleep_timespec_on_stack_x64(ctx, tmp_ns)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_windows_writefile_stdout_handle(ctx, ptr_reg, len_reg)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _data_reserve_u64_table_region(ctx, count)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _data_store_linetab_reservation(ctx, linetab_off, cap_entries)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_emit_cstr0_table(ctx, state)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_emit_dbginfo_table(ctx, platform, entries)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_base_functions(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)' <<<"$x64_sys_data_split_impl"; then
-  echo "ERROR: x64 system, panic, data-table, FFI, and context setup codegen must keep split focused helper bodies" >&2
+  echo "ERROR: x64 system read/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2
   exit 1
 fi
 x64_float_cmp_branch_impl="$(sed -n '/fn _x64_float_cmp_emit_two_jcc_then_done/,/fn _emit_float_cmp_to_bool_x64/p' lib/compiler/x64_native_program/047_emit_float_intrinsics.oren)"

@@ -452,6 +452,26 @@ fn _emit_linux_write_cstr(ctx, s) {
     return nil
 }
 
+fn _data_reserve_u64_table_region(ctx, count) {
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+
+    // 8-byte align for u64 reads.
+    _data_align8(ctx)
+    var off = bytes_len(ctx["data"])
+    var total = 8 + count * 8
+    bytes_extend_zeros(ctx["data"], total)
+    return off
+}
+
+fn _data_store_symtab_reservation(ctx, symtab_off, count, sym_names) {
+    // Store offsets as `off+1` so offset 0 is representable while still using `nil` as the
+    // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
+    ctx["symtab_off"] = symtab_off + 1
+    ctx["symtab_count"] = count
+    ctx["symtab_names"] = sym_names
+    return symtab_off
+}
+
 fn _data_reserve_symtab(ctx, sym_names) {
     // Reserve a symbol table region in the appended data blob.
     //
@@ -470,21 +490,9 @@ fn _data_reserve_symtab(ctx, sym_names) {
     // during codegen (RIP-relative LEA fixups).
     if ctx == nil { return nil }
     if sym_names == nil { return nil }
-    if ctx["data"] == nil { ctx["data"] = bytes_new() }
-
-    // 8-byte align for u64 reads.
-    _data_align8(ctx)
-    var symtab_off = bytes_len(ctx["data"])
     var count = oren_list_len(sym_names)
-    var total = 8 + count * 8
-    bytes_extend_zeros(ctx["data"], total)
-
-    // Store offsets as `off+1` so offset 0 is representable while still using `nil` as the
-    // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
-    ctx["symtab_off"] = symtab_off + 1
-    ctx["symtab_count"] = count
-    ctx["symtab_names"] = sym_names
-    return symtab_off
+    var symtab_off = _data_reserve_u64_table_region(ctx, count)
+    return _data_store_symtab_reservation(ctx, symtab_off, count, sym_names)
 }
 
 fn _x64_data_rtobj_decode_enc0(enc) {
@@ -658,6 +666,17 @@ fn _data_finalize_symtab(ctx) {
     return nil
 }
 
+fn _data_store_linetab_reservation(ctx, linetab_off, cap_entries) {
+    ctx["linetab_off"] = linetab_off
+    ctx["linetab_cap"] = cap_entries
+    ctx["linetab_entries"] = []
+    ctx["linetab_loc_offs"] = {}
+    // Cheap dedup across sequential ops (keeps size down when many ops share a line).
+    ctx["linetab_last_code_off"] = nil
+    ctx["linetab_last_loc_off"] = nil
+    return linetab_off
+}
+
 fn _data_reserve_linetab(ctx, cap_entries) {
     // Reserve a line table region in the appended data blob for best-effort call-site mapping.
     //
@@ -679,22 +698,8 @@ fn _data_reserve_linetab(ctx, cap_entries) {
     // The table is filled later by `_data_finalize_linetab`, after compilation.
     if ctx == nil { return nil }
     if oren_type_tag(cap_entries) == 0 || cap_entries <= 0 { return nil }
-    if ctx["data"] == nil { ctx["data"] = bytes_new() }
-
-    // 8-byte align for u64 reads.
-    _data_align8(ctx)
-    var linetab_off = bytes_len(ctx["data"])
-    var total = 8 + cap_entries * 8
-    bytes_extend_zeros(ctx["data"], total)
-
-    ctx["linetab_off"] = linetab_off
-    ctx["linetab_cap"] = cap_entries
-    ctx["linetab_entries"] = []
-    ctx["linetab_loc_offs"] = {}
-    // Cheap dedup across sequential ops (keeps size down when many ops share a line).
-    ctx["linetab_last_code_off"] = nil
-    ctx["linetab_last_loc_off"] = nil
-    return linetab_off
+    var linetab_off = _data_reserve_u64_table_region(ctx, cap_entries)
+    return _data_store_linetab_reservation(ctx, linetab_off, cap_entries)
 }
 
 fn _data_finalize_linetab(ctx) {

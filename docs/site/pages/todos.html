@@ -221,6 +221,18 @@
 </ul>
 <p>  jump emission helpers while preserving NaN parity behavior for each operator.</p>
 <ul>
+<li>X64 debug symtab/linetab reservation cleanup now shares the aligned zeroed</li>
+</ul>
+<p>  u64-table reservation path and keeps table metadata setup in focused helpers.</p>
+<ul>
+<li>X64 array literal cleanup now separates depth/header state preparation from</li>
+</ul>
+<p>  runtime list allocation and left-to-right element push emission.</p>
+<ul>
+<li>Windows x64 <code>sys_read</code> cleanup now isolates the zero-length return/done-label</li>
+</ul>
+<p>  patching and intrinsic-temp cleanup tail from the ReadFile emission path.</p>
+<ul>
 <li><code>std:net/url</code> concat helpers plus percent encode/decode unchanged runs now use</li>
 </ul>
 <p>  direct string-slice copies into their exact-size output <code>u8_buf</code>s; <code>%XX</code></p>

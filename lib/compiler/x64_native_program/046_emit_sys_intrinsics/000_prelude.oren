@@ -258,6 +258,16 @@ fn _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_l
     return nil
 }
 
+fn _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base) {
+    _emit_label(ctx, labels, l_ret0)
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], core.insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
 fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     // Windows: ReadFile-based reader.
     // - fd 0 => STD_INPUT_HANDLE (GetStdHandle(-10))
@@ -287,12 +297,7 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle)
     _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done)
 
-    _emit_label(ctx, labels, l_ret0)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-    _intr_tmp_pop(ctx, base)
+    _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)
     return nil
 }
 
