@@ -598,6 +598,7 @@ BOOL OrenAVMMetalHandleTextCommand(CFMutableDictionaryRef* texts,
                     NSString* text = [[NSString alloc] initWithBytes:payload + 16
                                                               length:(NSUInteger)textLen
                                                             encoding:NSUTF8StringEncoding];
+                    if (!text) return YES;
                     if (!OrenAVMMetalAppendTextRun(textRuns,
                                                    runCapacity,
                                                    OrenAVMMetalCreateTextRun(device,

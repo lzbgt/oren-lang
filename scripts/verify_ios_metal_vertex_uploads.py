@@ -469,6 +469,13 @@ def main() -> int:
             fail(f"retained Metal text draw opcode must skip fully transparent texture work: {token}")
     if "if (textLen == (uint32_t)payloadLen - 16u && textLen > 0)" not in text_command:
         fail("Metal immediate text opcodes must reject trailing payload bytes and empty text before texture creation")
+    immediate_text = text_command[text_command.find("case 2:"):text_command.find("case 68:")]
+    require_before(
+        immediate_text,
+        "if (!text) return YES;",
+        "OrenAVMMetalCreateTextRun(device,",
+        "Metal immediate text must reject invalid UTF-8 before texture/run work",
+    )
     if "if (textLen == (uint32_t)payloadLen - 12u && textLen > 0)" not in text_command:
         fail("Metal retained text upload opcodes must reject empty text before resource creation")
     text_batch_start = text_command.find("case 72:")

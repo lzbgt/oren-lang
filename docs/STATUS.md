@@ -2573,7 +2573,8 @@ into caller-owned run buffers instead of allocating tiny `NSData`
 wrappers from stack vertices. Metal text texture cache lookups now use typed
 immutable cache keys instead of formatted strings that copy the full label into
 every lookup key, and Metal image-run construction now guards run allocation before
-inline vertex writes or exact heap vertex allocation. iOS SDK typed GFX input helpers now build
+inline vertex writes or exact heap vertex allocation; immediate Metal text rejects
+invalid UTF-8 before texture-cache, atlas, or run construction. iOS SDK typed GFX input helpers now build
 fixed-size `OGE0` events on stack and enqueue raw bytes directly; CoreGraphics
 and Metal views expose text plus composition forwarding helpers over the same
 runtime encoders; text and composition events use segmented stack-first
