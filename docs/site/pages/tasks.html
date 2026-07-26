@@ -312,6 +312,19 @@
 <li>Current Windows x64 <code>sys_fstat</code> cleanup separates label allocation and final</li>
 </ul>
 <p>     done/posthook/temp-pop emission from the main wrapper.</p>
+<ul>
+<li>Current Windows x64 <code>gettimeofday</code> wall-time cleanup separates filetime IAT</li>
+</ul>
+<p>     call, FILETIME-to-Unix conversion, and <code>timeval</code> storage helpers.</p>
+<ul>
+<li>Current x64 runtime-required call fast-path cleanup separates allocation-free</li>
+</ul>
+<p>     <code>oren_buf_</code> prefix and <code>_buf_new</code> suffix byte checks.</p>
+<ul>
+<li>Current Windows x64 CreateProcess cleanup separates call-area layout</li>
+</ul>
+<p>     constants, call-area validation, cmdline null validation, and</p>
+<p>     <code>STARTUPINFOA</code> emission.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

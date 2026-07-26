@@ -342,7 +342,7 @@ fn _x64_gettimeofday_windows_validate_tv(ctx, labels, fixups, tmp_tv, l_done) {
     return nil
 }
 
-fn _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv) {
+fn _x64_gettimeofday_windows_call_filetime(ctx) {
     // filetime (u64) output at [rsp+0x20]
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(1, 32)) // rcx = &filetime
     var mov_iat0 = bytes_len(ctx["code"])
@@ -352,7 +352,10 @@ fn _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv) {
 
     // rax = filetime (100ns ticks since 1601-01-01 UTC)
     bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp8(0, 32))
+    return nil
+}
 
+fn _x64_gettimeofday_windows_filetime_to_unix(ctx) {
     // unix_100ns = filetime - 116444736000000000 (100ns ticks between 1601-01-01 and 1970-01-01)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(10, 116444736000000000))
     bytes_extend(ctx["code"], core.insn_sub_r64_r64(0, 10))
@@ -361,7 +364,10 @@ fn _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv) {
     bytes_extend(ctx["code"], core.insn_cqo())
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(10, 10000000))
     bytes_extend(ctx["code"], core.insn_idiv_r64(10)) // rax=sec, rdx=rem100ns
+    return nil
+}
 
+fn _x64_gettimeofday_windows_store_wall_time(ctx, tmp_tv) {
     // Store tv_sec at [tv_ptr+0]
     _intr_load_x64(ctx, 11, tmp_tv) // r11 = tv_ptr
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 0))
@@ -375,6 +381,13 @@ fn _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv) {
     // Store tv_usec at [tv_ptr+8]
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 8))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 0))
+    return nil
+}
+
+fn _x64_gettimeofday_windows_emit_wall_time(ctx, tmp_tv) {
+    _x64_gettimeofday_windows_call_filetime(ctx)
+    _x64_gettimeofday_windows_filetime_to_unix(ctx)
+    _x64_gettimeofday_windows_store_wall_time(ctx, tmp_tv)
     return nil
 }
 

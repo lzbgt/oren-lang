@@ -1,9 +1,5 @@
-fn _x64_call_name_is_buf_runtime(nm, nm_len) {
-    if nm == nil { return false }
-    // Detect `oren_buf_*` and `*_buf_new` helpers.
-    // Avoid `oren_string_slice` in this hot path (it allocates).
-    if nm_len >= 9 {
-        if (oren_string_byte_at_unchecked(nm, 0) & 255) == 111 && // o
+fn _x64_call_name_has_oren_buf_prefix(nm) {
+    return (oren_string_byte_at_unchecked(nm, 0) & 255) == 111 && // o
            (oren_string_byte_at_unchecked(nm, 1) & 255) == 114 && // r
            (oren_string_byte_at_unchecked(nm, 2) & 255) == 101 && // e
            (oren_string_byte_at_unchecked(nm, 3) & 255) == 110 && // n
@@ -11,24 +7,27 @@ fn _x64_call_name_is_buf_runtime(nm, nm_len) {
            (oren_string_byte_at_unchecked(nm, 5) & 255) == 98 &&  // b
            (oren_string_byte_at_unchecked(nm, 6) & 255) == 117 && // u
            (oren_string_byte_at_unchecked(nm, 7) & 255) == 102 && // f
-           (oren_string_byte_at_unchecked(nm, 8) & 255) == 95 {   // _
-            return true
-        }
-    }
-    if nm_len >= 8 {
-        // Suffix match: "_buf_new"
-        var off = nm_len - 8
-        if (oren_string_byte_at_unchecked(nm, off + 0) & 255) == 95 &&  // _
+           (oren_string_byte_at_unchecked(nm, 8) & 255) == 95     // _
+}
+
+fn _x64_call_name_has_buf_new_suffix(nm, nm_len) {
+    var off = nm_len - 8
+    return (oren_string_byte_at_unchecked(nm, off + 0) & 255) == 95 &&  // _
            (oren_string_byte_at_unchecked(nm, off + 1) & 255) == 98 &&  // b
            (oren_string_byte_at_unchecked(nm, off + 2) & 255) == 117 && // u
            (oren_string_byte_at_unchecked(nm, off + 3) & 255) == 102 && // f
            (oren_string_byte_at_unchecked(nm, off + 4) & 255) == 95 &&  // _
            (oren_string_byte_at_unchecked(nm, off + 5) & 255) == 110 && // n
            (oren_string_byte_at_unchecked(nm, off + 6) & 255) == 101 && // e
-           (oren_string_byte_at_unchecked(nm, off + 7) & 255) == 119 {  // w
-            return true
-        }
-    }
+           (oren_string_byte_at_unchecked(nm, off + 7) & 255) == 119    // w
+}
+
+fn _x64_call_name_is_buf_runtime(nm, nm_len) {
+    if nm == nil { return false }
+    // Detect `oren_buf_*` and `*_buf_new` helpers.
+    // Avoid `oren_string_slice` in this hot path (it allocates).
+    if nm_len >= 9 && _x64_call_name_has_oren_buf_prefix(nm) { return true }
+    if nm_len >= 8 && _x64_call_name_has_buf_new_suffix(nm, nm_len) { return true }
     if nm == "oren_u8_buf_wrap_ptr" { return true }
     return false
 }

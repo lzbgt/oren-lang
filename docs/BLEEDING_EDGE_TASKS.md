@@ -163,6 +163,13 @@ This file is the concise task view. Detailed implementation status lives in
      slot reservation helpers.
    - Current Windows x64 `sys_fstat` cleanup separates label allocation and final
      done/posthook/temp-pop emission from the main wrapper.
+   - Current Windows x64 `gettimeofday` wall-time cleanup separates filetime IAT
+     call, FILETIME-to-Unix conversion, and `timeval` storage helpers.
+   - Current x64 runtime-required call fast-path cleanup separates allocation-free
+     `oren_buf_` prefix and `_buf_new` suffix byte checks.
+   - Current Windows x64 CreateProcess cleanup separates call-area layout
+     constants, call-area validation, cmdline null validation, and
+     `STARTUPINFOA` emission.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

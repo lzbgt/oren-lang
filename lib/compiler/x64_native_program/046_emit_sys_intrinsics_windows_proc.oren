@@ -34,14 +34,7 @@ fn _x64_win_cp_prepare_tmp_slots(ctx, locals, base) {
     return {"tmp_app": tmp_app, "tmp_cmd": tmp_cmd, "tmp_env": tmp_env, "tmp_to": tmp_to}
 }
 
-fn _x64_win_cp_prepare_layout(ctx, base) {
-    // Win64 ABI call-area invariants:
-    // sys_win_createprocess uses stack args (CreateProcessA has 6 stack args) and keeps its
-    // scratch structs in the per-function outgoing call area so we don't rely on large
-    // RBP-relative frames / stack probing behavior.
-    var call_area = ctx["cur_call_area_bytes"]
-    if oren_type_tag(call_area) == 0 { err(ctx, "x64 native v0: missing cur_call_area_bytes"); _intr_tmp_pop(ctx, base); return nil }
-
+fn _x64_win_cp_layout_offsets() {
     // Call-area layout (RSP-relative, before the `call` instruction):
     // - [rsp+0x00..0x1F]  32B Win64 shadow space (callee homes rcx/rdx/r8/r9 here)
     // - [rsp+0x20..0x4F]  6 stack args for CreateProcessA
@@ -53,19 +46,43 @@ fn _x64_win_cp_prepare_layout(ctx, base) {
     var EXIT_OFF = PROC_OFF + PROC_Q * 8
     var RET_OFF = EXIT_OFF + 8
     var NEED_CALL_AREA = RET_OFF + 8
-    if call_area < NEED_CALL_AREA {
-        err(ctx, "x64 native v0: sys_win_createprocess needs call_area >= " + oren_int_to_string(NEED_CALL_AREA))
-        _intr_tmp_pop(ctx, base)
-        return nil
-    }
-
     return {
         "startup_q": STARTUP_Q,
         "proc_q": PROC_Q,
         "startup_off": STARTUP_OFF,
         "proc_off": PROC_OFF,
         "exit_off": EXIT_OFF,
-        "ret_off": RET_OFF
+        "ret_off": RET_OFF,
+        "need_call_area": NEED_CALL_AREA
+    }
+}
+
+fn _x64_win_cp_check_call_area(ctx, base, need_call_area) {
+    var call_area = ctx["cur_call_area_bytes"]
+    if oren_type_tag(call_area) == 0 { err(ctx, "x64 native v0: missing cur_call_area_bytes"); _intr_tmp_pop(ctx, base); return false }
+    if call_area < need_call_area {
+        err(ctx, "x64 native v0: sys_win_createprocess needs call_area >= " + oren_int_to_string(need_call_area))
+        _intr_tmp_pop(ctx, base)
+        return false
+    }
+    return true
+}
+
+fn _x64_win_cp_prepare_layout(ctx, base) {
+    // Win64 ABI call-area invariants:
+    // sys_win_createprocess uses stack args (CreateProcessA has 6 stack args) and keeps its
+    // scratch structs in the per-function outgoing call area so we don't rely on large
+    // RBP-relative frames / stack probing behavior.
+    var layout = _x64_win_cp_layout_offsets()
+    if _x64_win_cp_check_call_area(ctx, base, layout["need_call_area"]) != true { return nil }
+
+    return {
+        "startup_q": layout["startup_q"],
+        "proc_q": layout["proc_q"],
+        "startup_off": layout["startup_off"],
+        "proc_off": layout["proc_off"],
+        "exit_off": layout["exit_off"],
+        "ret_off": layout["ret_off"]
     }
 }
 
@@ -120,9 +137,8 @@ fn _x64_win_cp_spill_args_and_zero(ctx, locals, args, st) {
     return true
 }
 
-fn _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup) {
+fn _x64_win_cp_emit_validate_cmd(ctx, st, labels, fixups, l_cleanup) {
     var tmp_cmd = st["tmp_cmd"]
-    var STARTUP_OFF = st["startup_off"]
     // Validate cmdline != 0.
     var l_fail = _new_label(ctx, "win_cp_fail")
     var l_after_validate = _new_label(ctx, "win_cp_after_validate")
@@ -137,7 +153,11 @@ fn _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup) {
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_after_validate)
+    return nil
+}
 
+fn _x64_win_cp_emit_startup_info(ctx, st) {
+    var STARTUP_OFF = st["startup_off"]
     // startup = rsp + STARTUP_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 4)) // r10 = rsp
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, STARTUP_OFF))
@@ -152,6 +172,12 @@ fn _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup) {
     // CreateProcessA fail with ERROR_INVALID_PARAMETER.
     //
     // Instead, default to bInheritHandles=FALSE and let the host decide stdio wiring.
+    return nil
+}
+
+fn _x64_win_cp_emit_validate_and_startup(ctx, st, labels, fixups, l_cleanup) {
+    _x64_win_cp_emit_validate_cmd(ctx, st, labels, fixups, l_cleanup)
+    _x64_win_cp_emit_startup_info(ctx, st)
     return nil
 }
 

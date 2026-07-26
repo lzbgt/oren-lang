@@ -92,6 +92,12 @@ surfaces, but the following blockers remain:
   reservation helpers.
 - Windows x64 `sys_fstat` lowering now separates label allocation and final
   done/posthook/temp-pop emission from the main wrapper.
+- Windows x64 `gettimeofday` wall-time lowering now separates filetime IAT call,
+  FILETIME-to-Unix conversion, and `timeval` storage helpers.
+- X64 runtime-required call fast-path classification now separates
+  allocation-free `oren_buf_` prefix and `_buf_new` suffix byte checks.
+- Windows x64 CreateProcess lowering now separates call-area layout constants,
+  call-area validation, cmdline null validation, and `STARTUPINFOA` emission.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

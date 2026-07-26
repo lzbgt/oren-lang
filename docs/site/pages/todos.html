@@ -139,6 +139,18 @@
 </ul>
 <p>  done/posthook/temp-pop emission from the main wrapper.</p>
 <ul>
+<li>Windows x64 <code>gettimeofday</code> wall-time lowering now separates filetime IAT call,</li>
+</ul>
+<p>  FILETIME-to-Unix conversion, and <code>timeval</code> storage helpers.</p>
+<ul>
+<li>x64 runtime-required call fast-path classification now separates allocation-free</li>
+</ul>
+<p>  <code>oren_buf_</code> prefix and <code>_buf_new</code> suffix byte checks.</p>
+<ul>
+<li>Windows x64 CreateProcess lowering now separates call-area layout constants,</li>
+</ul>
+<p>  call-area validation, cmdline null validation, and <code>STARTUPINFOA</code> emission.</p>
+<ul>
 <li>x64 PE export-table, DOS/optional/header, and section raw-data padding now</li>
 </ul>
 <p>  routes through <code>_pe_align</code>/<code>_pe_pad_to_len</code> byte-builder zero-extension helpers</p>

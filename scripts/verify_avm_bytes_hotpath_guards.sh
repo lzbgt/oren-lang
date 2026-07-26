@@ -1029,6 +1029,7 @@ fi
 x64_parser_helper_split_impl="$(sed -n '/fn _intr_tmp_pool_off/,/fn _x64_tmp_intr_name/p' lib/compiler/x64_native_program/035_intr_temps.oren)
 $(sed -n '/fn _x64_fast_list_get_sum_abi_regs/,/fn _x64_fast_list_get_sum_emit_sum_flag/p' lib/compiler/x64_native_program/057_emit_ops_while_list_get_sum.oren)
 $(sed -n '/fn _x64_win_cp_prepare_tmp_slots/,/fn _x64_win_cp_spill_args_and_zero/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)
+$(sed -n '/fn _x64_win_cp_emit_validate_cmd/,/fn _x64_win_cp_emit_create_register_args/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)
 $(sed -n '/fn _x64_call_obj_list_intrinsic_state/,/fn _x64_call_obj_list_abi_regs/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_indirect_call_runtime_ready/,/fn _x64_spawn_spill_explicit_args/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_varargs_named_call_emit_prepared/,/fn _x64_emit_named_call_statement_only_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
@@ -1039,7 +1040,11 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   ! grep -Fq 'fn _x64_fast_list_get_sum_local_offsets(info, locals)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_fast_list_get_sum_info_parts(info)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_win_cp_prepare_tmp_slots(ctx, locals, base)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_layout_offsets()' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_check_call_area(ctx, base, need_call_area)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_win_cp_prepare_layout(ctx, base)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_emit_validate_cmd(ctx, st, labels, fixups, l_cleanup)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_emit_startup_info(ctx, st)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_call_obj_list_intrinsic_spill_fn(ctx, locals, fn_obj_expr, st)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_spawn_call_parts(ctx, expr)' <<<"$x64_parser_helper_split_impl" ||
@@ -1063,6 +1068,7 @@ if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"
   exit 1
 fi
 x64_sys_data_split_impl="$(sed -n '/fn _x64_emit_windows_file_io_result/,/fn _x64_sys_rw_linux_slots/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
+$(sed -n '/fn _x64_gettimeofday_windows_call_filetime/,/fn _x64_gettimeofday_windows_new_labels/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_win_wait_single_object_result_labels/,/fn _emit_intrinsic_sys_win_wait_single_object_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_threads.oren)
@@ -1078,6 +1084,9 @@ $(sed -n '/fn _x64_ffi_resolver_linux_name/,/fn _x64_ffi_stub_linux_dyn_data/p' 
 $(sed -n '/fn _x64_new_ctx_base_buffers/,/fn _x64_new_ctx_aliases/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)
 $(sed -n '/fn _x64_new_ctx_runtime_cstr_slot/,/fn _x64_new_ctx_trace_flags/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
 if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_gettimeofday_windows_call_filetime(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_gettimeofday_windows_filetime_to_unix(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_gettimeofday_windows_store_wall_time(ctx, tmp_tv)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_len_guard(ctx, state)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_call(ctx, state)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_result_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
@@ -1106,6 +1115,13 @@ if ! grep -Fq 'fn _x64_frame_align_unit(ctx)' <<<"$x64_function_frame_split_impl
   ! grep -Fq 'fn _x64_prepare_function_base_slots(ctx, fn_node, name, ops)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl"; then
   echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2
+  exit 1
+fi
+x64_call_fast_path_split_impl="$(sed -n '/fn _x64_call_name_has_oren_buf_prefix/,/fn _x64_emit_internal_fast_core_or_push/p' lib/compiler/x64_native_program/040_emit_call_fast_paths.oren)"
+if ! grep -Fq 'fn _x64_call_name_has_oren_buf_prefix(nm)' <<<"$x64_call_fast_path_split_impl" ||
+  ! grep -Fq 'fn _x64_call_name_has_buf_new_suffix(nm, nm_len)' <<<"$x64_call_fast_path_split_impl" ||
+  ! grep -Fq 'fn _x64_call_name_is_buf_runtime(nm, nm_len)' <<<"$x64_call_fast_path_split_impl"; then
+  echo "ERROR: x64 call fast-path runtime-name classification must keep prefix/suffix checks split and allocation-free" >&2
   exit 1
 fi
 x64_float_cmp_branch_impl="$(sed -n '/fn _x64_float_cmp_emit_two_jcc_then_done/,/fn _emit_float_cmp_to_bool_x64/p' lib/compiler/x64_native_program/047_emit_float_intrinsics.oren)"
