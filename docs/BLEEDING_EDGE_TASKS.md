@@ -48,6 +48,8 @@ This file is the concise task view. Detailed implementation status lives in
      instead of indexing a digit string for each output nibble.
    - Current `std:bytes.from_hex` parses ASCII hex nibbles inline while writing
      directly into the exact-size output `u8_buf`.
+   - Current Scene3D generated color hex strings write directly into exact-size
+     byte buffers instead of composing tiny digit strings.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

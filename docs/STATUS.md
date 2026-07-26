@@ -2800,7 +2800,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   plain `text` commands instead of final list-to-byte packing,
   `std:ui/color` parses hex colors directly from ASCII string bytes,
   `std:ui/scene3d` lowers coordinate/face/quad/color package assets through
-  exact-size `u8_buf` builders and emits color hex digits through string slices,
+  exact-size `u8_buf` builders and emits generated color hex strings through
+  exact-size byte buffers instead of tiny digit slices,
   `std:net/avm/http` has request/response helpers, pure `std:net/url` shares
   byte-level percent/query parsing, authority extraction, query-only target
   handling, canonical origin comparison, host/port authority construction, and

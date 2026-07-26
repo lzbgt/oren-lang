@@ -1335,11 +1335,14 @@ fn _json_to_plain(jv) {
 }
 
 fn _hex_digit(n) {
-    return oren_string_slice("0123456789abcdef", n, n + 1)
+    var d = n & 15
+    if d < 10 { return 48 + d }
+    return 87 + d
 }
 
-fn _hex_byte(v) {
-    return _hex_digit(v / 16) + _hex_digit(v % 16)
+fn _write_hex_byte(p, off, v) {
+    ptr_set_byte(p + off, _hex_digit((v >> 4) & 15))
+    ptr_set_byte(p + off + 1, _hex_digit(v & 15))
 }
 
 fn _color_hex(rgba) {
@@ -1347,7 +1350,15 @@ fn _color_hex(rgba) {
     var g = (rgba / 65536) % 256
     var b = (rgba / 256) % 256
     var a = rgba % 256
-    return "#" + _hex_byte(r) + _hex_byte(g) + _hex_byte(b) + _hex_byte(a)
+    var out = raw.u8_new_uninit(9)
+    if oren_is_err(out) { return out }
+    var p = oren_buf_data_ptr_unchecked(out)
+    ptr_set_byte(p, 35)
+    _write_hex_byte(p, 1, r)
+    _write_hex_byte(p, 3, g)
+    _write_hex_byte(p, 5, b)
+    _write_hex_byte(p, 7, a)
+    return oren_string_from_bytes_slice(out, 0, 9)
 }
 
 fn _asset_color(m, ctx) {

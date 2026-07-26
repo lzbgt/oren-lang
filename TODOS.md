@@ -93,6 +93,8 @@ design evidence lives under `project-doc/`.
   the exact-size output buffer instead of indexing a digit string per nibble.
 - `std:bytes.from_hex` now parses ASCII hex nibbles inline while writing
   directly into the exact-size output `u8_buf`, avoiding helper calls per output byte.
+- Scene3D generated color hex strings now write directly into exact-size byte
+  buffers instead of composing tiny digit slices and concatenation chains.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

@@ -99,6 +99,7 @@ if grep -q 'var data = oren_read_bytes(path)' lib/std/ui/scene3d.oren; then
   exit 1
 fi
 scene3d_binary_impl="$(cat lib/std/ui/scene3d_binary.oren)"
+scene3d_impl="$(cat lib/std/ui/scene3d.oren)"
 if ! grep -Fq 'var bin_data = _bin_data(bv)' <<<"$scene3d_binary_impl" ||
   ! grep -Fq 'var bin_ptr = _bin_ptr(bv)' <<<"$scene3d_binary_impl" ||
   ! grep -Fq 'bytes.view_get_u32_le_from(bin_data, bin_ptr, off)' <<<"$scene3d_binary_impl" ||
@@ -106,6 +107,16 @@ if ! grep -Fq 'var bin_data = _bin_data(bv)' <<<"$scene3d_binary_impl" ||
   ! grep -Fq 'bytes.view_get_u8_from(bin_data, bin_ptr, off)' <<<"$scene3d_binary_impl" ||
   grep -Fq 'bytes.view_get_u8_unchecked(' <<<"$scene3d_binary_impl"; then
   echo "ERROR: std:ui/scene3d_binary must hoist byte-view backing storage for .os3d reads" >&2
+  exit 1
+fi
+if ! grep -Fq 'var out = raw.u8_new_uninit(9)' <<<"$scene3d_impl" ||
+  ! grep -Fq 'ptr_set_byte(p, 35)' <<<"$scene3d_impl" ||
+  ! grep -Fq 'return oren_string_from_bytes_slice(out, 0, 9)' <<<"$scene3d_impl" ||
+  ! grep -Fq 'var out = raw.u8_new_uninit(9)' <<<"$scene3d_binary_impl" ||
+  ! grep -Fq 'return oren_string_from_bytes_slice(out, 0, 9)' <<<"$scene3d_binary_impl" ||
+  grep -Fq 'oren_string_slice("0123456789abcdef"' <<<"$scene3d_impl$scene3d_binary_impl" ||
+  grep -Fq 'return "#" + _hex_byte' <<<"$scene3d_impl$scene3d_binary_impl"; then
+  echo "ERROR: std:ui/scene3d color hex emission must write exact-size u8_buf output, not compose tiny digit strings" >&2
   exit 1
 fi
 
