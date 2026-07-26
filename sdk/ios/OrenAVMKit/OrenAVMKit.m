@@ -852,19 +852,27 @@ static int OrenAVMRuntimeNetSessionReadTyped(void* userData, uint32_t sessionId,
         *outLen = payloadLen;
         return 0;
     }
-    uint8_t* buf = (uint8_t*)malloc(maxLen);
+    uint8_t inlineBuf[2048];
+    BOOL heapBuf = maxLen > sizeof(inlineBuf);
+    uint8_t* buf = heapBuf ? (uint8_t*)malloc(maxLen) : inlineBuf;
     if (!buf) return -1;
     OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
     ssize_t n = recv(fd, buf, maxLen, 0);
     if (n < 0) {
-        free(buf);
+        if (heapBuf) free(buf);
         return -1;
     }
     if (n == 0) {
-        free(buf);
+        if (heapBuf) free(buf);
         return 0;
     }
     OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)n);
+    if (!heapBuf) {
+        uint8_t* out = (uint8_t*)malloc((size_t)n);
+        if (!out) return -1;
+        memcpy(out, inlineBuf, (size_t)n);
+        buf = out;
+    }
     *outData = buf;
     *outLen = (size_t)n;
     return 0;

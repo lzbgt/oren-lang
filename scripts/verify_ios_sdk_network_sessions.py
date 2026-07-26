@@ -37,6 +37,7 @@ def main() -> int:
         "initWithData:response",
         "uint8_t* frame = (uint8_t*)malloc(frameLen)",
         "char** ips = (char**)calloc(cap, sizeof(char*))",
+        "uint8_t* buf = (uint8_t*)malloc(maxLen)",
     ]
     for needle in forbidden:
         if needle in text:
@@ -85,6 +86,11 @@ def main() -> int:
         "char** ips = NULL",
         "if (!ips) {\n            ips = (char**)malloc(cap * sizeof(char*));",
         "if (count == 0) {\n        return -1;\n    }",
+        "uint8_t inlineBuf[2048]",
+        "BOOL heapBuf = maxLen > sizeof(inlineBuf)",
+        "uint8_t* buf = heapBuf ? (uint8_t*)malloc(maxLen) : inlineBuf",
+        "if (heapBuf) free(buf)",
+        "memcpy(out, inlineBuf, (size_t)n)",
     ]
     for needle in required:
         if needle not in text:

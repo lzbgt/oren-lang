@@ -3265,7 +3265,8 @@ design evidence lives under `project-doc/`.
 - iOS runtime live-network session and scalar session maps are now allocated
   lazily on first live fetch or network-session registration instead of at
   runtime startup, and live DNS resolve avoids allocating the callback result
-  table on empty/no-usable-address paths.
+  table on empty/no-usable-address paths. Non-WebSocket session reads now use a
+  stack-first small-read buffer before returning heap-owned payload bytes to AVM.
 - CoreGraphics retained resource models, scalar map keys/lookups, raw payload
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.

@@ -220,7 +220,8 @@ surfaces, but the following blockers remain:
 - iOS `OrenAVMRuntime` now leaves the live-network `NSURLSession` and scalar
   session maps nil until the first live fetch or network-session registration;
   live DNS resolve now also delays allocating the returned `char**` table until
-  a unique address is found.
+  a unique address is found, and non-WebSocket session reads use a stack-first
+  small-read buffer before returning heap-owned payload bytes to AVM.
 - iOS Metal image runs now track initialized inline-quad vertex count
   explicitly, so encoding and coalescing bind only actual inline or heap-backed
   vertex spans.
