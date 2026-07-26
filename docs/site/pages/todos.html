@@ -157,7 +157,8 @@
 <li><code>std:net/url</code> concat helpers plus percent encode/decode unchanged runs now use</li>
 </ul>
 <p>  direct string-slice copies into their exact-size output <code>u8_buf</code>s; <code>%XX</code></p>
-<p>  transformed bytes and query <code>+</code> spaces remain explicit scalar writes.</p>
+<p>  transformed bytes and query <code>+</code> spaces remain explicit scalar writes, with</p>
+<p>  uppercase percent-encode hex digits emitted arithmetically.</p>
 <ul>
 <li><code>std:bytes.to_hex</code> now writes lowercase hex digit bytes arithmetically into</li>
 </ul>

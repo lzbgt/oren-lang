@@ -47,7 +47,9 @@ fn _hex_value(b) {
 }
 
 fn _hex_digit(n) {
-    return oren_string_byte_at_unchecked("0123456789ABCDEF", n & 15) & 255
+    var d = n & 15
+    if d < 10 { return 48 + d }
+    return 55 + d
 }
 
 fn _is_unreserved(b) {

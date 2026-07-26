@@ -87,7 +87,8 @@ design evidence lives under `project-doc/`.
   extension instead of repeated zero-byte pushes.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
-  transformed bytes and query `+` spaces remain explicit scalar writes.
+  transformed bytes and query `+` spaces remain explicit scalar writes, with
+  uppercase percent-encode hex digits emitted arithmetically.
 - `std:bytes.to_hex` now writes lowercase hex digit bytes arithmetically into
   the exact-size output buffer instead of indexing a digit string per nibble.
 - `std:bytes.from_hex` now parses ASCII hex nibbles inline while writing

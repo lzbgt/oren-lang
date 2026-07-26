@@ -95,7 +95,8 @@
 <li>Current <code>std:net/url</code> output uses direct string-slice copies for concat</li>
 </ul>
 <p>     spans plus percent encode/decode unchanged runs, leaving only transformed</p>
-<p>     <code>%XX</code> bytes and query <code>+</code> spaces explicit.</p>
+<p>     <code>%XX</code> bytes and query <code>+</code> spaces explicit; percent-encode uppercase hex</p>
+<p>     digits are emitted arithmetically instead of indexing a digit string.</p>
 <ul>
 <li>Current <code>std:bytes.to_hex</code> emits lowercase digit bytes arithmetically</li>
 </ul>

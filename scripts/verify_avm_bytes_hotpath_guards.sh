@@ -966,6 +966,14 @@ if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out, j, s, start, run_n)' <
   echo "ERROR: std:net/url percent encode/decode must copy unchanged string runs directly, not byte-by-byte" >&2
   exit 1
 fi
+net_url_hex_digit_impl="$(sed -n '/fn _hex_digit/,/fn _is_unreserved/p' lib/std/net/url.oren)"
+if ! grep -Fq 'if d < 10 { return 48 + d }' <<<"$net_url_hex_digit_impl" ||
+  ! grep -Fq 'return 55 + d' <<<"$net_url_hex_digit_impl" ||
+  grep -Fq '0123456789ABCDEF' <<<"$net_url_hex_digit_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked' <<<"$net_url_hex_digit_impl"; then
+  echo "ERROR: std:net/url percent encode must emit uppercase hex digits arithmetically, not index a digit string per nibble" >&2
+  exit 1
+fi
 
 http2_client_impl="$(sed -n '/fn _parse_content_length_value/,/fn _request_value/p' lib/std/net/http2_client.oren)"
 http2_read_header_impl="$(sed -n '/fn _read_header_block/,/fn _send_headers_fragmented/p' lib/std/net/http2_client.oren)"

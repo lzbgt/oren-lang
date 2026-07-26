@@ -39,7 +39,8 @@ surfaces, but the following blockers remain:
   strings into the output `u8_buf`; Huffman literals keep the existing bit writer.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now
   copy string spans directly into output `u8_buf`s, keeping scalar writes only
-  for `%XX` transformed bytes and query `+` spaces.
+  for `%XX` transformed bytes and query `+` spaces; percent-encode uppercase
+  hex digits are emitted arithmetically instead of indexing a digit string.
 - `std:bytes.to_hex` now emits lowercase hex digits arithmetically into its
   exact-size output buffer instead of indexing a digit string for every nibble.
 - `std:bytes.from_hex` now parses ASCII hex nibbles inline while writing into its
