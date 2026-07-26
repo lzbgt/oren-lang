@@ -1,4 +1,5 @@
 import artifact "artifact_bytes.oren"
+import debugart "native_debug_artifact.oren"
 
 // Shared ELF64 artifact helpers.
 //
@@ -7,20 +8,11 @@ import artifact "artifact_bytes.oren"
 // relocation semantics stay in the architecture-specific ELF emitters.
 
 fn push_utf8_aligned(p, s) {
-    if s == nil { s = "" }
-    var n = oren_string_len(s)
-    artifact.push_u64_le(p, n)
-    artifact.bytes_extend_string(p, s)
-    bytes_align(p, 8)
-    return nil
+    return debugart.push_utf8_aligned(p, s)
 }
 
 fn push_u64_zero4(p) {
-    artifact.push_u64_le(p, 0)
-    artifact.push_u64_le(p, 0)
-    artifact.push_u64_le(p, 0)
-    artifact.push_u64_le(p, 0)
-    return nil
+    return debugart.push_u64_zero4(p)
 }
 
 fn push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {

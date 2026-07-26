@@ -4735,6 +4735,11 @@ make docs-site
   program-header emission, byte alignment, UTF-8/debug string packing,
   NUL-terminated string-table insertion, and unique DT_NEEDED collection while
   leaving machine IDs, relocations, codegen, and ABI rules in the arch emitters.
+- ARM64 ELF and Mach-O emitters now share `native_debug_artifact.oren` for
+  stable native debug user-function record bytes, aligned UTF-8 fields, and
+  32-byte zeroed runtime record slots while keeping object-format placement,
+  relocation/fixup attachment, and Mach-O runtime-object patching local to the
+  format emitters.
 
 ## Documentation Guardrail
 

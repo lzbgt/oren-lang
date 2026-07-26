@@ -1,6 +1,7 @@
 import codegen "codegen_arm64.oren"
 import artifact "artifact_bytes.oren"
 import elfart "elf_artifact.oren"
+import debugart "native_debug_artifact.oren"
 import core "arm64_core.oren"
 
 fn _elf_decode_rtobj_int_enc(enc) {
@@ -121,42 +122,9 @@ fn emit_debug_info(ctx, text_base, header_size) {
     else if rt_funcs != nil { rt_funcs_count = oren_list_len(rt_funcs) }
     push_u64_le(p, funcs_count + rt_funcs_count)
     
-    var i = 0
-    while i < funcs_count {
-        var f = funcs[i]
-        // Absolute __TEXT addresses (for debug tooling) are based on the final load address.
-        // Keep this derived from the current layout (no magic constants).
-        var base = text_base + header_size
-        push_u64_le(p, base + f["start"])
-        push_u64_le(p, base + f["end"])
-        
-        _elf_push_utf8_aligned(p, f["name"])
-
-        // Optional source location for deterministic "panic" diagnostics.
-        // File stored as UTF-8; line/col are 1-based (0 means unknown).
-        var ffile = f["file"]
-        if ffile == nil { ffile = "" }
-        _elf_push_utf8_aligned(p, ffile)
-        var line = f["line"]
-        var col = f["col"]
-        if line == nil { line = 0 }
-        if col == nil { col = 0 }
-        push_u64_le(p, line)
-        push_u64_le(p, col)
-        
-        var params = f["params"]
-        push_u64_le(p, oren_list_len(params))
-        var j = 0
-        while j < oren_list_len(params) {
-            var param = params[j]
-            _elf_push_utf8_aligned(p, param["name"])
-            push_u64_le(p, param["offset"])
-            j = j + 1
-        }
-        i = i + 1
-    }
+    var base = text_base + header_size
+    debugart.emit_user_func_records(p, funcs, base)
     if rt_names != nil && rt_starts != nil && rt_ends != nil {
-        var base = text_base + header_size
         var ri1 = 0
         while ri1 < rt_funcs_count {
             var rt_name = rt_names[ri1]
@@ -171,7 +139,6 @@ fn emit_debug_info(ctx, text_base, header_size) {
             ri1 = ri1 + 1
         }
     } else if rt_funcs != nil {
-        var base = text_base + header_size
         var ri1 = 0
         while ri1 < oren_list_len(rt_funcs) {
             var rf1 = rt_funcs[ri1]

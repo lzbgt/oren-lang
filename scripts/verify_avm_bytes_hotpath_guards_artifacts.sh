@@ -14,6 +14,7 @@ done
 
 if ! grep -Fq 'import bb "bytes_builder.oren"' lib/compiler/artifact_bytes.oren ||
   ! grep -Fq 'fn bytes_extend_zeros(b, n) { return bb.bytes_extend_zeros(b, n) }' lib/compiler/artifact_bytes.oren ||
+  ! grep -Fq 'fn bytes_extend_u8_buf(b, ubuf) { return bb.bytes_extend_u8_buf(b, ubuf) }' lib/compiler/artifact_bytes.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return bb.bytes_extend_string_z(b, s) }' lib/compiler/artifact_bytes.oren ||
   ! grep -Fq 'fn bytes_extend_string_slice(b, s, off, n) { return bb.bytes_extend_string_slice(b, s, off, n) }' lib/compiler/artifact_bytes.oren ||
   ! grep -Fq 'fn push_u16_le(buf, n) { return bb.bytes_push_u16_le(buf, n) }' lib/compiler/artifact_bytes.oren ||
@@ -142,6 +143,7 @@ arm64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compi
 x64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/x64_elf.oren)"
 arm64_elf_data_cstr_impl="$(sed -n '/fn _data_add_cstr0/,/^}/p' lib/compiler/arm64_elf.oren)"
 elf_artifact_string_impl="$(sed -n '/fn push_utf8_aligned/,/fn bytes_align/p; /fn push_string_bytes/,/fn push_unique/p' lib/compiler/elf_artifact.oren)"
+native_debug_artifact_string_impl="$(sed -n '/fn push_utf8_aligned/,/fn push_u64_zero4/p; /fn emit_user_func_records/,/^}/p' lib/compiler/native_debug_artifact.oren)"
 arm64_macho_bind_impl="$(sed -n '/fn macho_build_bind_opcodes/,/fn macho_build_prefix_arm64/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
@@ -151,7 +153,10 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   ! grep -Fq 'fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/x64_pe.oren ||
-  ! grep -Fq 'artifact.bytes_extend_string(p, s)' <<<"$elf_artifact_string_impl" ||
+  ! grep -Fq 'debugart.push_utf8_aligned(p, s)' <<<"$elf_artifact_string_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string(p, s)' <<<"$native_debug_artifact_string_impl" ||
+  ! grep -Fq 'var rem = artifact.int_mod(artifact.bytes_len(p), 8)' <<<"$native_debug_artifact_string_impl" ||
+  ! grep -Fq 'if rem != 0 { artifact.bytes_extend_zeros(p, 8 - rem) }' <<<"$native_debug_artifact_string_impl" ||
   ! grep -Fq 'artifact.bytes_extend_string(buf, s)' <<<"$elf_artifact_string_impl" ||
   ! grep -Fq 'artifact.bytes_extend_string_z(buf, s)' <<<"$elf_artifact_string_impl" ||
   ! grep -Fq 'return elfart.push_string_bytes(buf, s)' <<<"$arm64_elf_string_impl" ||
@@ -167,8 +172,7 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   test "$(grep -Fc 'bytes_extend_string_z(shstr,' <<<"$x64_elf_build_shstr_impl")" != "3" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_macho_string_impl" ||
-  ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
-  ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
+  ! grep -Fq 'return debugart.push_utf8_aligned(p, s)' <<<"$arm64_macho_string_impl" ||
   test "$(grep -Fc '_macho_push_string_z(strtab,' <<<"$arm64_macho_file_impl")" != "2" ||
   ! grep -Fq 'bytes_extend_zeros(strtab, 1)' <<<"$arm64_macho_file_impl" ||
   ! grep -Fq 'bytes_extend_zeros(symtab, 1) // n_sect' <<<"$arm64_macho_file_impl" ||

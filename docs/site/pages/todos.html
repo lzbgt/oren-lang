@@ -88,6 +88,12 @@
 <p>  program-header emission, byte alignment, UTF-8/debug string packing,</p>
 <p>  NUL-terminated string-table insertion, and unique DT_NEEDED collection.</p>
 <ul>
+<li>ARM64 ELF and Mach-O emitters now share <code>native_debug_artifact.oren</code> for</li>
+</ul>
+<p>  stable native debug user-function records, aligned UTF-8 fields, and zeroed</p>
+<p>  runtime record slots while leaving object-format placement and fixup/patch</p>
+<p>  paths in the format emitters.</p>
+<ul>
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>

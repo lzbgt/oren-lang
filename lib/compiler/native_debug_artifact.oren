@@ -1,0 +1,60 @@
+import artifact "artifact_bytes.oren"
+
+// Shared native debug payload writer.
+//
+// Scope: stable debug-record bytes consumed by the native panic/debug tooling.
+// Object-format placement, relocation/fixup attachment, and runtime-object
+// fast-patch paths stay in the ELF/Mach-O emitters.
+
+fn push_utf8_aligned(p, s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    artifact.push_u64_le(p, n)
+    artifact.bytes_extend_string(p, s)
+    var rem = artifact.int_mod(artifact.bytes_len(p), 8)
+    if rem != 0 { artifact.bytes_extend_zeros(p, 8 - rem) }
+    return nil
+}
+
+fn push_u64_zero4(p) {
+    artifact.bytes_extend_zeros(p, 32)
+    return nil
+}
+
+fn emit_user_func_records(p, funcs, base) {
+    if p == nil || funcs == nil { return 0 }
+    var funcs_count = oren_list_len(funcs)
+    var params_total = 0
+    var i = 0
+    while i < funcs_count {
+        var f = funcs[i]
+        artifact.push_u64_le(p, base + f["start"])
+        artifact.push_u64_le(p, base + f["end"])
+        push_utf8_aligned(p, f["name"])
+
+        var ffile = f["file"]
+        if ffile == nil { ffile = "" }
+        push_utf8_aligned(p, ffile)
+
+        var line = f["line"]
+        var col = f["col"]
+        if line == nil { line = 0 }
+        if col == nil { col = 0 }
+        artifact.push_u64_le(p, line)
+        artifact.push_u64_le(p, col)
+
+        var params = f["params"]
+        var params_count = oren_list_len(params)
+        artifact.push_u64_le(p, params_count)
+        var j = 0
+        while j < params_count {
+            var param = params[j]
+            params_total = params_total + 1
+            push_utf8_aligned(p, param["name"])
+            artifact.push_u64_le(p, param["offset"])
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return params_total
+}

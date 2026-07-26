@@ -187,6 +187,12 @@
 <p>     helpers through <code>elf_artifact.oren</code> while keeping machine IDs,</p>
 <p>     relocations, codegen, and ABI rules in the arch emitters.</p>
 <ul>
+<li>Current native debug artifact abstraction shares stable ARM64 ELF/Mach-O</li>
+</ul>
+<p>     user-function debug record packing, aligned UTF-8 fields, and 32-byte</p>
+<p>     zeroed runtime record slots through <code>native_debug_artifact.oren</code> while</p>
+<p>     keeping object-format placement and fixup/patch semantics format-local.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

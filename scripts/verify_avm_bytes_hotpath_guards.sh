@@ -1476,21 +1476,29 @@ if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <
   exit 1
 fi
 
+native_debug_artifact_impl="$(cat lib/compiler/native_debug_artifact.oren)"
 arm64_elf_runtime_debug_impl="$(sed -n '/fn emit_debug_info/,/fn _elf_push_utf8_aligned/p' lib/compiler/arm64_elf.oren)"
 arm64_elf_runtime_debug_zero4_calls="$(grep -Fc '_elf_push_u64_zero4(p)' <<<"$arm64_elf_runtime_debug_impl")"
-if ! grep -Fq 'fn _elf_push_u64_zero4(p)' lib/compiler/arm64_elf.oren ||
+if ! grep -Fq 'fn push_u64_zero4(p)' lib/compiler/native_debug_artifact.oren ||
+  ! grep -Fq 'fn emit_user_func_records(p, funcs, base)' lib/compiler/native_debug_artifact.oren ||
+  ! grep -Fq 'artifact.bytes_extend_zeros(p, 32)' <<<"$native_debug_artifact_impl" ||
+  ! grep -Fq 'debugart.emit_user_func_records(p, funcs, base)' <<<"$arm64_elf_runtime_debug_impl" ||
+  ! grep -Fq 'fn _elf_push_u64_zero4(p)' lib/compiler/arm64_elf.oren ||
   test "$arm64_elf_runtime_debug_zero4_calls" != "2" ||
-  grep -Fq 'push_u64_le(p, 0)' <<<"$arm64_elf_runtime_debug_impl"; then
-  echo "ERROR: ARM64 ELF runtime debug reserved u64 fields must use the shared zero-word helper" >&2
+  grep -Fq 'push_u64_le(p, 0)' <<<"$arm64_elf_runtime_debug_impl" ||
+  grep -Fq 'push_u64_le(p, 0)' <<<"$native_debug_artifact_impl"; then
+  echo "ERROR: ARM64 ELF runtime debug records must use the shared native debug artifact helpers" >&2
   exit 1
 fi
 
 arm64_macho_runtime_debug_impl="$(sed -n '/fn emit_debug_info/,/fn macho_inject_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_runtime_debug_zero4_calls="$(grep -Fc '_macho_push_u64_zero4(p)' <<<"$arm64_macho_runtime_debug_impl")"
-if ! grep -Fq 'fn _macho_push_u64_zero4(p)' lib/compiler/arm64_macho.oren ||
+if ! grep -Fq 'debugart.emit_user_func_records(p, funcs, base)' <<<"$arm64_macho_runtime_debug_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_u8_buf(p, rt_blob)' <<<"$arm64_macho_runtime_debug_impl" ||
+  ! grep -Fq 'fn _macho_push_u64_zero4(p)' lib/compiler/arm64_macho.oren ||
   test "$arm64_macho_runtime_debug_zero4_calls" != "2" ||
   grep -Fq 'push_u64_le(p, 0)' <<<"$arm64_macho_runtime_debug_impl"; then
-  echo "ERROR: ARM64 Mach-O runtime debug reserved u64 fields must use the shared zero-word helper" >&2
+  echo "ERROR: ARM64 Mach-O runtime debug records must use the shared native debug artifact helpers" >&2
   exit 1
 fi
 
