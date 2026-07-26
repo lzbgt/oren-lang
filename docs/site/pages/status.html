@@ -3825,6 +3825,12 @@
 <p>  lives in <code>pkg/transpiler/transpiler_expr.go</code>, reducing</p>
 <p>  <code>pkg/transpiler/transpiler.go</code> to 1391 lines while preserving expression</p>
 <p>  emitter behavior.</p>
+<ul>
+<li><code>std:math/mat4</code> fixed-size validation and equality/closeness predicate helpers</li>
+</ul>
+<p>  now walk direct row chunks instead of dynamic 16-cell loops. Native-focused</p>
+<p>  mat4 verification rejected a direct norm-sum rewrite, so norm accumulation</p>
+<p>  stays on the existing backend-proven loop path.</p>
 <h2 id="key-verification-entrypoints">Key Verification Entrypoints</h2>
 <pre><code>./oretest
 ./oretest --selfhost

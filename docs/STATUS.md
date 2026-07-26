@@ -3487,6 +3487,10 @@ Working evidence:
   lives in `pkg/transpiler/transpiler_expr.go`, reducing
   `pkg/transpiler/transpiler.go` to 1391 lines while preserving expression
   emitter behavior.
+- `std:math/mat4` fixed-size validation and equality/closeness predicate helpers
+  now walk direct row chunks instead of dynamic 16-cell loops. Native-focused
+  mat4 verification rejected a direct norm-sum rewrite, so norm accumulation
+  stays on the existing backend-proven loop path.
 
 ## Key Verification Entrypoints
 

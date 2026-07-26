@@ -1500,8 +1500,12 @@
 <p>												     X64 conditional branch and SETcc builders now decode condition names</p>
 <p>												     through byte-based opcode helpers and central label/compare-not</p>
 <p>												     emission uses direct numeric opcode builders, avoiding repeated</p>
-<p>												     string-equality chains in hot branch lowering.</p>
-<p>		     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
+<p>													     string-equality chains in hot branch lowering.</p>
+<p>			     <code>std:math/mat4</code> fixed validation and equality/closeness predicate helpers</p>
+<p>			     now use direct row chunks instead of dynamic 16-cell loops; direct</p>
+<p>			     norm-sum arithmetic was explicitly left out after native mat4</p>
+<p>			     fixtures disagreed with C/bytecode on the first attempt.</p>
+<p>			     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
 <p>     seed probes. The ARM64 Linux Docker NET leg still keeps the 10s stage1 hang</p>

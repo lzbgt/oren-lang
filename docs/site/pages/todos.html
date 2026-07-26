@@ -135,6 +135,12 @@
 </ul>
 <p>  fields now use zero-extension spans instead of separate zero-byte pushes.</p>
 <ul>
+<li><code>std:math/mat4</code> fixed-size validation and equality/closeness predicates now</li>
+</ul>
+<p>  use direct row chunks instead of dynamic 16-cell loops; the attempted direct</p>
+<p>  norm-sum rewrite was rejected after native backend fixtures disagreed, so</p>
+<p>  numerically sensitive norm accumulation remains on the proven loop path.</p>
+<ul>
 <li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
 </ul>
 <p>  rather than single zero-byte pushes while preserving nonzero constant tags.</p>

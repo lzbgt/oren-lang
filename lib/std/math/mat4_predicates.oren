@@ -13,17 +13,35 @@ fn _shape_cell_ok(v: f64, idx: i64, diag0: f64, diag5: f64, diag10: f64, diag15:
     return chk._close_abs_scalar(v, expect, abs_tol, ctx)
 }
 
+fn _shape_abs4(m, base: i64, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_translation: bool, abs_tol: f64, ctx) {
+    var ok = _shape_cell_ok(m[base], base, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _shape_cell_ok(m[base + 1], base + 1, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _shape_cell_ok(m[base + 2], base + 2, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _shape_cell_ok(m[base + 3], base + 3, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return true
+}
+
 fn _shape_abs(m, diag0: f64, diag5: f64, diag10: f64, diag15: f64, allow_translation: bool, abs_tol: f64, ctx) {
     var ok = chk._check(m, ctx)
     if oren_is_err(ok) { return ok }
-    var i = 0
-    while i < 16 {
-        ok = _shape_cell_ok(m[i], i, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
-        if oren_is_err(ok) { return ok }
-        if !ok { return false }
-        i = i + 1
-    }
-    return true
+    ok = _shape_abs4(m, 0, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _shape_abs4(m, 4, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _shape_abs4(m, 8, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return _shape_abs4(m, 12, diag0, diag5, diag10, diag15, allow_translation, abs_tol, ctx)
 }
 
 fn _basis_dot(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, ctx) {
@@ -87,13 +105,38 @@ fn equals(a, b) {
     if oren_is_err(ca) { return ca }
     var cb = chk._check(b, "mat4.equals")
     if oren_is_err(cb) { return cb }
-    var i = 0
-    while i < 16 {
-        var av: f64 = a[i]
-        var bv: f64 = b[i]
-        if av != bv { return false }
-        i = i + 1
-    }
+    if a[0] != b[0] { return false }
+    if a[1] != b[1] { return false }
+    if a[2] != b[2] { return false }
+    if a[3] != b[3] { return false }
+    if a[4] != b[4] { return false }
+    if a[5] != b[5] { return false }
+    if a[6] != b[6] { return false }
+    if a[7] != b[7] { return false }
+    if a[8] != b[8] { return false }
+    if a[9] != b[9] { return false }
+    if a[10] != b[10] { return false }
+    if a[11] != b[11] { return false }
+    if a[12] != b[12] { return false }
+    if a[13] != b[13] { return false }
+    if a[14] != b[14] { return false }
+    if a[15] != b[15] { return false }
+    return true
+}
+
+fn _allclose_abs4(a0: f64, b0: f64, a1: f64, b1: f64, a2: f64, b2: f64, a3: f64, b3: f64, abs_tol: f64) {
+    var ok = math.isclose_abs(a0, b0, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose_abs(a1, b1, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose_abs(a2, b2, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose_abs(a3, b3, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
     return true
 }
 
@@ -102,15 +145,31 @@ fn allclose_abs(a, b, abs_tol: f64) {
     if oren_is_err(ca) { return ca }
     var cb = chk._check(b, "mat4.allclose_abs")
     if oren_is_err(cb) { return cb }
-    var i = 0
-    while i < 16 {
-        var av: f64 = a[i]
-        var bv: f64 = b[i]
-        var ok = math.isclose_abs(av, bv, abs_tol)
-        if oren_is_err(ok) { return ok }
-        if !ok { return false }
-        i = i + 1
-    }
+    var ok = _allclose_abs4(a[0], b[0], a[1], b[1], a[2], b[2], a[3], b[3], abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _allclose_abs4(a[4], b[4], a[5], b[5], a[6], b[6], a[7], b[7], abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _allclose_abs4(a[8], b[8], a[9], b[9], a[10], b[10], a[11], b[11], abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return _allclose_abs4(a[12], b[12], a[13], b[13], a[14], b[14], a[15], b[15], abs_tol)
+}
+
+fn _allclose4(a0: f64, b0: f64, a1: f64, b1: f64, a2: f64, b2: f64, a3: f64, b3: f64, rel_tol: f64, abs_tol: f64) {
+    var ok = math.isclose(a0, b0, rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose(a1, b1, rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose(a2, b2, rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = math.isclose(a3, b3, rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
     return true
 }
 
@@ -119,16 +178,16 @@ fn allclose(a, b, rel_tol: f64, abs_tol: f64) {
     if oren_is_err(ca) { return ca }
     var cb = chk._check(b, "mat4.allclose")
     if oren_is_err(cb) { return cb }
-    var i = 0
-    while i < 16 {
-        var av: f64 = a[i]
-        var bv: f64 = b[i]
-        var ok = math.isclose(av, bv, rel_tol, abs_tol)
-        if oren_is_err(ok) { return ok }
-        if !ok { return false }
-        i = i + 1
-    }
-    return true
+    var ok = _allclose4(a[0], b[0], a[1], b[1], a[2], b[2], a[3], b[3], rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _allclose4(a[4], b[4], a[5], b[5], a[6], b[6], a[7], b[7], rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    ok = _allclose4(a[8], b[8], a[9], b[9], a[10], b[10], a[11], b[11], rel_tol, abs_tol)
+    if oren_is_err(ok) { return ok }
+    if !ok { return false }
+    return _allclose4(a[12], b[12], a[13], b[13], a[14], b[14], a[15], b[15], rel_tol, abs_tol)
 }
 
 fn is_identity(m) {

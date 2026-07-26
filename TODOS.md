@@ -74,6 +74,10 @@ design evidence lives under `project-doc/`.
   byte-builder helper instead of separate string append plus terminator pushes.
 - ARM64 Mach-O initial string-table terminator and undefined-symbol `n_sect`
   fields now use zero-extension spans instead of separate zero-byte pushes.
+- `std:math/mat4` fixed-size validation and equality/closeness predicates now
+  use direct row chunks instead of dynamic 16-cell loops; the attempted direct
+  norm-sum rewrite was rejected after native backend fixtures disagreed, so
+  numerically sensitive norm accumulation remains on the proven loop path.
 - OBC linker NIL constant tags now route through byte-builder zero-extension
   rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix
