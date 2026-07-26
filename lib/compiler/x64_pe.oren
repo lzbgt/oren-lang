@@ -14,28 +14,24 @@
 // This is intentionally small and self-contained (no external toolchain required).
 
 import codegen "codegen_x64.oren"
+import artifact "artifact_bytes.oren"
 import abi "native_abi.oren"
 import x64 "x64_core.oren"
 
-fn bytes_new() { return codegen.bytes_new() }
-fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
-fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
-fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
-fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
-fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
-fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }
-fn bytes_len(b) { return codegen.bytes_len(b) }
-fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
-fn push_u32_le(b, n) { return codegen.push_u32_le(b, n) }
-fn push_u64_le(b, n) { return codegen.push_u64_le(b, n) }
-fn set_u32_le(b, off, n) { return codegen.set_u32_le(b, off, n) }
-fn int_mod(a, b) { return codegen.int_mod(a, b) }
-
-fn set_u64_le(buf, offset, n) {
-    // Patch u64 into a byte buffer (little-endian) using two u32 writes.
-    set_u32_le(buf, offset, int_mod(n, 4294967296))
-    set_u32_le(buf, offset + 4, int_mod(n / 4294967296, 4294967296))
-}
+fn bytes_new() { return artifact.bytes_new() }
+fn bytes_push(b, v) { return artifact.bytes_push(b, v) }
+fn bytes_extend(b, other) { return artifact.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }
+fn bytes_extend_list(b, xs) { return artifact.bytes_extend_list(b, xs) }
+fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }
+fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }
+fn bytes_len(b) { return artifact.bytes_len(b) }
+fn bytes_finalize(b) { return artifact.bytes_finalize(b) }
+fn push_u32_le(b, n) { return artifact.push_u32_le(b, n) }
+fn push_u64_le(b, n) { return artifact.push_u64_le(b, n) }
+fn set_u32_le(b, off, n) { return artifact.set_u32_le(b, off, n) }
+fn set_u64_le(buf, offset, n) { return artifact.set_u64_le(buf, offset, n) }
+fn int_mod(a, b) { return artifact.int_mod(a, b) }
 
 fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7) {
     bytes_push(b, b0)
@@ -486,8 +482,7 @@ fn _pe_emit_export_wrappers_x64(code, fixups, functions, export_names, heap_limi
 }
 
 fn push_u16_le(buf, n) {
-    bytes_push(buf, int_mod(n, 256))
-    bytes_push(buf, int_mod(n / 256, 256))
+    return artifact.push_u16_le(buf, n)
 }
 
 fn push_u8_n(buf, v, n) {

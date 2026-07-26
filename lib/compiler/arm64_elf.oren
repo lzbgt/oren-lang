@@ -1,4 +1,5 @@
 import codegen "codegen_arm64.oren"
+import artifact "artifact_bytes.oren"
 import core "arm64_core.oren"
 
 fn _elf_decode_rtobj_int_enc(enc) {
@@ -46,23 +47,23 @@ fn elf_diag_escape(msg) {
 // Single responsibility: take a linked program, call the arm64 native codegen,
 // apply fixups, and write an ELF executable.
 
-// ---- Thin wrappers into core codegen module (minimize churn) ----
-fn bytes_new() { return codegen.bytes_new() }
-fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
-fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
-fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
-fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
-fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
-fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }
-fn bytes_len(b) { return codegen.bytes_len(b) }
-fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
+// ---- Thin wrappers into shared artifact-byte helpers (minimize churn) ----
+fn bytes_new() { return artifact.bytes_new() }
+fn bytes_push(b, v) { return artifact.bytes_push(b, v) }
+fn bytes_extend(b, other) { return artifact.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }
+fn bytes_extend_list(b, xs) { return artifact.bytes_extend_list(b, xs) }
+fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }
+fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }
+fn bytes_len(b) { return artifact.bytes_len(b) }
+fn bytes_finalize(b) { return artifact.bytes_finalize(b) }
 
-fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
-fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
-fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
+fn push_u32_le(buf, n) { return artifact.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return artifact.push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return artifact.set_u32_le(buf, offset, n) }
 
-fn align_up(n, align) { return codegen.align_up(n, align) }
-fn int_mod(a, b) { return codegen.int_mod(a, b) }
+fn align_up(n, align) { return artifact.align_up(n, align) }
+fn int_mod(a, b) { return artifact.int_mod(a, b) }
 
 fn insn_movz(reg, imm16) { return codegen.insn_movz(reg, imm16) }
 fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift_idx) }
@@ -97,8 +98,7 @@ fn u64_2_32() { return 4294967296 } // 2^32, used for MOVK lane extraction
 fn u64_2_48() { return 281474976710656 } // 2^48, used for MOVK lane extraction
 
 fn push_u16_le(buf, n) {
-    bytes_push(buf, int_mod(n, 256))
-    bytes_push(buf, int_mod(n / 256, 256))
+    return artifact.push_u16_le(buf, n)
 }
 
 fn emit_debug_info(ctx, text_base, header_size) {

@@ -1,0 +1,33 @@
+import bb "bytes_builder.oren"
+
+// Shared byte-packing helpers for native artifact emitters.
+//
+// Scope: format-neutral byte builders, little-endian scalar writes, and small
+// alignment math shared by ELF/PE/Mach-O emitters across CPU backends. Keep ISA
+// instruction encoders, register/stack contracts, and platform ABI lowering in
+// arch-specific modules.
+
+fn bytes_new() { return bb.bytes_new() }
+fn bytes_push(b, v) { return bb.bytes_push(b, v) }
+fn bytes_extend(b, other) { return bb.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return bb.bytes_extend_zeros(b, n) }
+fn bytes_extend_list(b, xs) { return bb.bytes_extend_list(b, xs) }
+fn bytes_extend_string(b, s) { return bb.bytes_extend_string(b, s) }
+fn bytes_extend_string_slice(b, s, off, n) { return bb.bytes_extend_string_slice(b, s, off, n) }
+fn bytes_extend_string_z(b, s) { return bb.bytes_extend_string_z(b, s) }
+fn bytes_len(b) { return bb.bytes_len(b) }
+fn bytes_finalize(b) { return bb.bytes_finalize(b) }
+
+fn push_u16_le(buf, n) { return bb.bytes_push_u16_le(buf, n) }
+fn push_u32_le(buf, n) { return bb.bytes_push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return bb.bytes_push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return bb.bytes_set_u32_le(buf, offset, n) }
+fn set_u64_le(buf, offset, n) { return bb.bytes_set_u64_le(buf, offset, n) }
+
+fn align_up(n, align) {
+    return (n + align - 1) / align * align
+}
+
+fn int_mod(a, b) {
+    return a - (a / b) * b
+}

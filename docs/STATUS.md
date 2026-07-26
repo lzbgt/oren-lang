@@ -4727,6 +4727,10 @@ make docs-site
   dedicated guard scripts, preserving the public
   `verify-avm-bytes-hotpath-guards` entrypoint while moving the top-level guard
   below the source-line cap.
+- Native ELF/PE/Mach-O artifact emitters now share `artifact_bytes.oren` for
+  format-neutral byte builders, little-endian scalar writes, and alignment math
+  across x64 and ARM64. Instruction encoding, register/stack contracts, and
+  platform ABI lowering remain architecture-specific.
 
 ## Documentation Guardrail
 

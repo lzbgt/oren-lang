@@ -1,4 +1,5 @@
 import codegen "codegen_arm64.oren"
+import artifact "artifact_bytes.oren"
 import core "arm64_core.oren"
 import abi "arm64_abi_macos.oren"
 import resolve "arm64_macho_resolve.oren"
@@ -290,23 +291,23 @@ fn bind_set_symbol_flags_0() { return 64 } // 0x40|0 (BIND_OPCODE_SET_SYMBOL_TRA
 fn bind_do_bind() { return 144 } // 0x90 (BIND_OPCODE_DO_BIND)
 fn bind_done() { return 0 } // BIND_OPCODE_DONE
 
-// ---- Thin wrappers into core codegen module (minimize churn) ----
-fn bytes_new() { return codegen.bytes_new() }
-fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
-fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
-fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
-fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
-fn bytes_extend_string_slice(b, s, off, n) { return codegen.bytes_extend_string_slice(b, s, off, n) }
-fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }
-fn bytes_len(b) { return codegen.bytes_len(b) }
-fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
+// ---- Thin wrappers into shared artifact-byte helpers (minimize churn) ----
+fn bytes_new() { return artifact.bytes_new() }
+fn bytes_push(b, v) { return artifact.bytes_push(b, v) }
+fn bytes_extend(b, other) { return artifact.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }
+fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }
+fn bytes_extend_string_slice(b, s, off, n) { return artifact.bytes_extend_string_slice(b, s, off, n) }
+fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }
+fn bytes_len(b) { return artifact.bytes_len(b) }
+fn bytes_finalize(b) { return artifact.bytes_finalize(b) }
 
-fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
-fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
-fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
+fn push_u32_le(buf, n) { return artifact.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return artifact.push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return artifact.set_u32_le(buf, offset, n) }
 
-fn align_up(n, align) { return codegen.align_up(n, align) }
-fn int_mod(a, b) { return codegen.int_mod(a, b) }
+fn align_up(n, align) { return artifact.align_up(n, align) }
+fn int_mod(a, b) { return artifact.int_mod(a, b) }
 
 fn insn_movz(reg, imm16) { return codegen.insn_movz(reg, imm16) }
 fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift_idx) }
@@ -322,8 +323,7 @@ fn native_emit_errors_and_exit(ctx) { return codegen.native_emit_errors_and_exit
 
 // Local helper (moved out of codegen_arm64.oren)
 fn push_u16_le(buf, n) {
-    bytes_push(buf, int_mod(n, 256))
-    bytes_push(buf, int_mod(n / 256, 256))
+    return artifact.push_u16_le(buf, n)
 }
 
 fn push_str_fixed16(buf, s) {
@@ -984,7 +984,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     _macho_align(data, 8)
     var got_offset = bytes_len(data)
     // PERF: avoid per-byte `bytes_push` loops when the import list is large.
-    codegen.bytes_extend_zeros(data, oren_list_len(imports) * 8)
+    bytes_extend_zeros(data, oren_list_len(imports) * 8)
     if trace_emit { print("[emit] macho arm64: GOT placeholder done") }
 
     // dyld binding must use the *external* symbol names, not the internal module-prefixed labels.

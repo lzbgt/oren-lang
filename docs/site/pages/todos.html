@@ -77,6 +77,12 @@
 <p>  dedicated guard scripts, keeping the public guard entrypoint below the</p>
 <p>  source-line cap with room for future focused checks.</p>
 <ul>
+<li>Native ELF/PE/Mach-O artifact emitters now route cross-architecture byte</li>
+</ul>
+<p>  packing, little-endian scalar writes, and alignment math through the shared</p>
+<p>  <code>artifact_bytes.oren</code> semantic helper while leaving ISA instruction and ABI</p>
+<p>  lowering in x64/ARM64-specific modules.</p>
+<ul>
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>

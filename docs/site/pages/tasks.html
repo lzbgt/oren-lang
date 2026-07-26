@@ -175,6 +175,12 @@
 <p>     checks to dedicated scripts while preserving the public</p>
 <p>     <code>verify-avm-bytes-hotpath-guards</code> entrypoint below the source-line cap.</p>
 <ul>
+<li>Current native artifact-byte abstraction routes ELF/PE/Mach-O byte</li>
+</ul>
+<p>     builders, little-endian scalar writes, and alignment math through shared</p>
+<p>     <code>artifact_bytes.oren</code> across x64/ARM64 while keeping ISA and ABI lowering</p>
+<p>     architecture-local.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

@@ -7,6 +7,7 @@
 //   - uses R_X86_64_RELATIVE relocations for internal function pointers embedded in `.data`
 
 import codegen "codegen_x64.oren"
+import artifact "artifact_bytes.oren"
 import abi "native_abi.oren"
 import x64 "x64_core.oren"
 
@@ -24,24 +25,23 @@ fn _elf_phase_log_append(path, phase, detail) {
     return nil
 }
 
-fn bytes_new() { return codegen.bytes_new() }
-fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
-fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
-fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
-fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
-fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
-fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }
-fn bytes_len(b) { return codegen.bytes_len(b) }
-fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
+fn bytes_new() { return artifact.bytes_new() }
+fn bytes_push(b, v) { return artifact.bytes_push(b, v) }
+fn bytes_extend(b, other) { return artifact.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }
+fn bytes_extend_list(b, xs) { return artifact.bytes_extend_list(b, xs) }
+fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }
+fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }
+fn bytes_len(b) { return artifact.bytes_len(b) }
+fn bytes_finalize(b) { return artifact.bytes_finalize(b) }
 
 fn push_u16_le(buf, n) {
-    bytes_push(buf, codegen.int_mod(n, 256))
-    bytes_push(buf, codegen.int_mod(n / 256, 256))
+    return artifact.push_u16_le(buf, n)
 }
-fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
-fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
-fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
-fn int_mod(a, b) { return codegen.int_mod(a, b) }
+fn push_u32_le(buf, n) { return artifact.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return artifact.push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return artifact.set_u32_le(buf, offset, n) }
+fn int_mod(a, b) { return artifact.int_mod(a, b) }
 
 fn _elf_push_shdr(sh, name_off, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize) {
     // Emit one ELF64_Shdr (64 bytes) into `sh`.
@@ -59,13 +59,11 @@ fn _elf_push_shdr(sh, name_off, sh_type, sh_flags, sh_addr, sh_offset, sh_size, 
 }
 
 fn set_u64_le(buf, offset, n) {
-    // Patch u64 into a byte buffer (little-endian) using two u32 writes.
-    set_u32_le(buf, offset, int_mod(n, 4294967296))
-    set_u32_le(buf, offset + 4, int_mod(n / 4294967296, 4294967296))
+    return artifact.set_u64_le(buf, offset, n)
 }
 
 fn align_up(n, align) {
-    return (n + align - 1) / align * align
+    return artifact.align_up(n, align)
 }
 
 fn _elf_decode_data_off(enc) {

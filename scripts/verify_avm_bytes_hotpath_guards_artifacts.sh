@@ -4,6 +4,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+for artifact_emitter in lib/compiler/x64_pe.oren lib/compiler/x64_elf.oren lib/compiler/arm64_elf.oren lib/compiler/arm64_macho.oren; do
+  if ! grep -Fq 'import artifact "artifact_bytes.oren"' "$artifact_emitter" ||
+    grep -Eq 'codegen\.bytes_|codegen\.push_u(16|32|64)_le|codegen\.set_u32_le|codegen\.align_up|codegen\.int_mod' "$artifact_emitter"; then
+    echo "ERROR: native artifact emitters must route shared byte-packing helpers through artifact_bytes.oren, not arch codegen facades" >&2
+    exit 1
+  fi
+done
+
+if ! grep -Fq 'import bb "bytes_builder.oren"' lib/compiler/artifact_bytes.oren ||
+  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return bb.bytes_extend_zeros(b, n) }' lib/compiler/artifact_bytes.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return bb.bytes_extend_string_z(b, s) }' lib/compiler/artifact_bytes.oren ||
+  ! grep -Fq 'fn bytes_extend_string_slice(b, s, off, n) { return bb.bytes_extend_string_slice(b, s, off, n) }' lib/compiler/artifact_bytes.oren ||
+  ! grep -Fq 'fn push_u16_le(buf, n) { return bb.bytes_push_u16_le(buf, n) }' lib/compiler/artifact_bytes.oren ||
+  ! grep -Fq 'fn set_u64_le(buf, offset, n) { return bb.bytes_set_u64_le(buf, offset, n) }' lib/compiler/artifact_bytes.oren; then
+  echo "ERROR: artifact_bytes.oren must expose shared bytes_builder-backed artifact byte helpers" >&2
+  exit 1
+fi
+
 x64_pe_sections_impl="$(sed -n '/Section headers/,/Pad headers to SizeOfHeaders/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'push_pe_section_name(out, 46, 116, 101, 120, 116, 0, 0, 0)' <<<"$x64_pe_sections_impl" ||
@@ -16,8 +34,7 @@ if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/c
 fi
 
 x64_pe_data_dirs_impl="$(sed -n '/DataDirectory\[16\]/,/Pad optional header to 240 bytes/p' lib/compiler/x64_pe.oren)"
-if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_pe.oren ||
-  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }' lib/compiler/codegen_x64.oren ||
+if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'bytes_extend_zeros(out, 14 * 8)' <<<"$x64_pe_data_dirs_impl" ||
   grep -Fq 'while ddi < 14' <<<"$x64_pe_data_dirs_impl"; then
   echo "ERROR: x64 PE zero data directories must use byte-builder zero extension, not a fixed u32 loop" >&2
@@ -72,8 +89,8 @@ arm64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' 
 x64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/x64_elf.oren)"
 arm64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: AArch64/p' lib/compiler/arm64_elf.oren)"
 x64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: x86-64/p' lib/compiler/x64_elf.oren)"
-if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
-  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
+if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
   test "$(grep -Fc 'bytes_extend_zeros(dynsym, 1) // st_other' <<<"$arm64_elf_dynsym_impl")" != "2" ||
   test "$(grep -Fc 'bytes_extend_zeros(dynsym, 1) // st_other' <<<"$x64_elf_dynsym_impl")" != "2" ||
   ! grep -Fq 'bytes_extend_zeros(p, 1); // OS ABI: System V' <<<"$arm64_elf_header_impl" ||
@@ -112,11 +129,11 @@ arm64_macho_bind_impl="$(sed -n '/fn macho_build_bind_opcodes/,/fn macho_build_p
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
 x64_pe_ascii_impl="$(sed -n '/fn push_ascii_z/,/fn _pe_path_basename/p' lib/compiler/x64_pe.oren)"
-if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/arm64_elf.oren ||
-  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/x64_elf.oren ||
-  ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
-  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/arm64_macho.oren ||
-  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/x64_pe.oren ||
+if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/arm64_macho.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_elf_string_impl" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_elf_string_impl" ||
   ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_elf_cstr_impl" ||

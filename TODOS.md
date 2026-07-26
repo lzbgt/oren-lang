@@ -40,6 +40,10 @@ design evidence lives under `project-doc/`.
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, keeping the public guard entrypoint below the
   source-line cap with room for future focused checks.
+- Native ELF/PE/Mach-O artifact emitters now route cross-architecture byte
+  packing, little-endian scalar writes, and alignment math through the shared
+  `artifact_bytes.oren` semantic helper while leaving ISA instruction and ABI
+  lowering in x64/ARM64-specific modules.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

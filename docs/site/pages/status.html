@@ -5551,6 +5551,12 @@ make docs-site</code></pre>
 <p>  dedicated guard scripts, preserving the public</p>
 <p>  <code>verify-avm-bytes-hotpath-guards</code> entrypoint while moving the top-level guard</p>
 <p>  below the source-line cap.</p>
+<ul>
+<li>Native ELF/PE/Mach-O artifact emitters now share <code>artifact_bytes.oren</code> for</li>
+</ul>
+<p>  format-neutral byte builders, little-endian scalar writes, and alignment math</p>
+<p>  across x64 and ARM64. Instruction encoding, register/stack contracts, and</p>
+<p>  platform ABI lowering remain architecture-specific.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
