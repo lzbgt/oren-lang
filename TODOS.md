@@ -2691,6 +2691,9 @@ design evidence lives under `project-doc/`.
 - Argparse, compiler prelude, and native runtime-bundle string helper loops now
   cache immutable string lengths before iteration instead of calling
   `oren_string_len` in every loop condition.
+- Module-linking path-prefix/cache sanitizers, compiler metadata format parsing,
+  C string escaping, CFG CSV parsing, and backend diagnostic escaping now use
+  the same cached immutable string length pattern.
 - ARM64/x64 native `g_storage` resolution now uses shared byte-suffix helpers plus
   cached resolver calls instead of duplicated `oren_string_char_at` suffix scans
   across expression lowering, tail boolean normalization, and runtime helper

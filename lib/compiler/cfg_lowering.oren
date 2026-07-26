@@ -76,10 +76,11 @@ fn _cfg_split_csv(s) {
     // Minimal CSV splitter (no quoting). Ignores spaces around tokens.
     var out = []
     if s == nil { return out }
-    if oren_string_len(s) == 0 { return out }
+    var n = oren_string_len(s)
+    if n == 0 { return out }
     var cur = ""
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_byte_at_unchecked(s, i) & 255
         if ch == 44 { // ','
             if oren_string_len(cur) != 0 { oren_list_push(out, cur) }

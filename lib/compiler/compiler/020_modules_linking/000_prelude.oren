@@ -73,9 +73,10 @@ fn _stable_std_prefix(path) {
         key = oren_string_slice(spec, 4, oren_string_len(spec))
     }
     if key == nil { key = "" }
+    var key_len = oren_string_len(key)
     var out = "STD_"
     var i = 0
-    while i < oren_string_len(key) {
+    while i < key_len {
         var c = oren_string_char_at(key, i)
         // Keep [A-Za-z0-9_], map everything else to '_'
         var ok = false
@@ -346,8 +347,9 @@ fn _ml_fingerprint2_string(s) {
 fn _ml_sanitize_path_component(s) {
     if s == nil { return "" }
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at_unchecked(s, i)
         var ok = false
         if ch != "" {

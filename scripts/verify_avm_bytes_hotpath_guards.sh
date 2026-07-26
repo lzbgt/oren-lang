@@ -941,10 +941,18 @@ $(sed -n '/Chain remaining chars/,/return {\"ok\": true/p' lib/std/argparse.oren
 $(sed -n '/fn diag_escape/,/fn emit_diag/p' lib/compiler/compiler/000_prelude_body.oren)
 $(sed -n '/fn _path_to_windows_sep/,/fn host_is_windows/p' lib/compiler/compiler/000_prelude_body.oren)
 $(sed -n '/fn _cmd_quote/,/fn _ensure_stage1_exe/p' lib/compiler/compiler/000_prelude_body.oren)
-$(sed -n '/fn _rt_bundle_path_to_windows_sep/,/fn _rt_bundle_host_is_windows/p' lib/compiler/native_runtime_bundle.oren)"
+$(sed -n '/fn _rt_bundle_path_to_windows_sep/,/fn _rt_bundle_host_is_windows/p' lib/compiler/native_runtime_bundle.oren)
+$(sed -n '/fn _stable_std_prefix/,/fn _ml_modcache_build_tag/p' lib/compiler/compiler/020_modules_linking/000_prelude.oren)
+$(sed -n '/fn parse_capability_formats/,/fn json_string_array/p' lib/compiler/metadata.oren)
+$(sed -n '/fn c_escape_string/,/fn c_ident/p' lib/compiler/transpiler_c_utils.oren)
+$(sed -n '/fn _cfg_split_csv/,/fn _cfg_any_eq/p' lib/compiler/cfg_lowering.oren)
+$(sed -n '/fn macho_diag_escape/,/fn _arm64_rewrite_got_loads_if_needed/p' lib/compiler/arm64_macho.oren)
+$(sed -n '/fn elf_diag_escape/,/fn arm64_ctx_fixup_got_load/p' lib/compiler/arm64_elf.oren)
+$(sed -n '/fn bc_diag_escape/,/fn list_push/p' lib/compiler/codegen_bytecode/000_prelude.oren)"
 if ! grep -Fq 'var tail_len = oren_string_len(tail)' <<<"$compiler_string_len_cached_impl" ||
   ! grep -Fq 'var n = oren_string_len(msg)' <<<"$compiler_string_len_cached_impl" ||
   ! grep -Fq 'var n = oren_string_len(s)' <<<"$compiler_string_len_cached_impl" ||
+  ! grep -Fq 'var key_len = oren_string_len(key)' <<<"$compiler_string_len_cached_impl" ||
   grep -Fq 'while i < oren_string_len(' <<<"$compiler_string_len_cached_impl" ||
   grep -Fq 'while ci < oren_string_len(' <<<"$compiler_string_len_cached_impl"; then
   echo "ERROR: selected compiler/tooling string loops must cache immutable string lengths before iteration" >&2

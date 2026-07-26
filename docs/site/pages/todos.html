@@ -3746,6 +3746,11 @@
 <p>  cache immutable string lengths before iteration instead of calling</p>
 <p>  <code>oren_string_len</code> in every loop condition.</p>
 <ul>
+<li>Module-linking path-prefix/cache sanitizers, compiler metadata format parsing,</li>
+</ul>
+<p>  C string escaping, CFG CSV parsing, and backend diagnostic escaping now use</p>
+<p>  the same cached immutable string length pattern.</p>
+<ul>
 <li>ARM64/x64 native <code>g_storage</code> resolution now uses shared byte-suffix helpers plus</li>
 </ul>
 <p>  cached resolver calls instead of duplicated <code>oren_string_char_at</code> suffix scans</p>

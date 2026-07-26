@@ -186,8 +186,9 @@ fn contains_curly_braces(s) {
 
 fn c_escape_string(s) {
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
         var piece = ""
         if ch == CH_BACKSLASH { piece = "\\\\" }
