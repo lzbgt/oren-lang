@@ -503,6 +503,21 @@ fn push_ascii_z(buf, s) {
     return nil
 }
 
+fn _pe_align(buf, align) {
+    if buf == nil { return nil }
+    if align <= 1 { return nil }
+    var rem = int_mod(bytes_len(buf), align)
+    if rem != 0 { bytes_extend_zeros(buf, align - rem) }
+    return nil
+}
+
+fn _pe_reserve_u64_zeros(buf, count) {
+    if buf == nil { return nil }
+    if count <= 0 { return nil }
+    bytes_extend_zeros(buf, count * 8)
+    return nil
+}
+
 fn _pe_path_basename(p) {
     if p == nil { return "oren.exe" }
     var n = oren_string_len(p)
@@ -707,57 +722,49 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     var n_s32 = oren_list_len(shell32_funcs)
 
     // Align to 8 for thunk arrays.
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_ilt_k32 = bytes_len(rdata)
     // ILT(KERNEL32): imports + null entry
-    var i0 = 0
-    while i0 < n_k32 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_k32 + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_ilt_kb = bytes_len(rdata)
     // ILT(KERNELBASE): imports + null entry
-    i0 = 0
-    while i0 < n_kb + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_kb + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_ilt_ws2 = bytes_len(rdata)
     // ILT(WS2_32): imports + null entry
-    i0 = 0
-    while i0 < n_ws2 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_ws2 + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_ilt_s32 = bytes_len(rdata)
     // ILT(SHELL32): imports + null entry
-    i0 = 0
-    while i0 < n_s32 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_s32 + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_iat_k32 = bytes_len(rdata)
     // IAT(KERNEL32): imports + null entry
-    var i1 = 0
-    while i1 < n_k32 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_k32 + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_iat_kb = bytes_len(rdata)
     // IAT(KERNELBASE): imports + null entry
-    i1 = 0
-    while i1 < n_kb + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_kb + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_iat_ws2 = bytes_len(rdata)
     // IAT(WS2_32): imports + null entry
-    i1 = 0
-    while i1 < n_ws2 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_ws2 + 1)
 
-    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    _pe_align(rdata, 8)
     var off_iat_s32 = bytes_len(rdata)
     // IAT(SHELL32): imports + null entry
-    i1 = 0
-    while i1 < n_s32 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
+    _pe_reserve_u64_zeros(rdata, n_s32 + 1)
 
     // Hint/Name entries (collect offsets by symbol name).
     var hn_offs = {}
-    i0 = 0
+    var i0 = 0
     while i0 < n_k32 {
         var nm = kernel32_funcs[i0]
         hn_offs[nm] = bytes_len(rdata)

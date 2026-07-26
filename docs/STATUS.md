@@ -151,6 +151,8 @@ surfaces, but the following blockers remain:
   artifact emission while preserving byte-for-byte section headers.
 - X64 PE unused data-directory entries now emit their exact 112 zero bytes
   through shared byte-builder zero extension instead of a fixed u32 pair loop.
+- X64 PE import lookup/address thunk tables now reserve their exact zero-entry
+  spans through byte-builder zero extension instead of repeated u64 zero loops.
 - ARM64 and x64 ELF alignment helpers now compute the required padding span
   once and extend zeros through the shared byte-builder path instead of pushing
   one zero byte per alignment step.

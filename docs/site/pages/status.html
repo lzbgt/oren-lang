@@ -243,6 +243,10 @@
 </ul>
 <p>  through shared byte-builder zero extension instead of a fixed u32 pair loop.</p>
 <ul>
+<li>X64 PE import lookup/address thunk tables now reserve their exact zero-entry</li>
+</ul>
+<p>  spans through byte-builder zero extension instead of repeated u64 zero loops.</p>
+<ul>
 <li>ARM64 and x64 ELF alignment helpers now compute the required padding span</li>
 </ul>
 <p>  once and extend zeros through the shared byte-builder path instead of pushing</p>

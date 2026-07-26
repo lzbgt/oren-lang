@@ -70,6 +70,8 @@ design evidence lives under `project-doc/`.
   avoiding fixed string-byte loops while preserving exact eight-byte COFF names.
 - X64 PE unused data-directory zero padding now uses shared byte-builder
   zero-extension instead of a fixed u32 pair loop.
+- X64 PE import thunk tables now reserve ILT/IAT zero entries with exact
+  byte-builder zero-extension spans instead of fixed u64 zero loops.
 - ARM64 and x64 ELF alignment padding now computes one padding span and uses
   shared byte-builder zero extension instead of per-byte alignment loops.
 - ARM64/x64 ELF, ARM64 Mach-O, and x64 PE whole-string artifact append helpers
