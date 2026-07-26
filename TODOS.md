@@ -61,7 +61,8 @@ design evidence lives under `project-doc/`.
   `code_pad` builder.
 - ARM64 native expression C-string literals now align and append through
   byte-builder span helpers while preserving original long-string dedupe keys;
-  ARM64 global slots and C-string tables reuse the shared data-alignment helper.
+  ARM64 panic strings, global slots, and C-string tables reuse the shared
+  data-alignment helper.
 - Runtime-object debug-name sidecar blobs now align with byte-builder zero-span
   extension instead of repeated zero-byte pushes.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use

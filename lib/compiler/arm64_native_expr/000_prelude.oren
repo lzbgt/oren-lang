@@ -1046,9 +1046,7 @@ fn native_emit_panic(ctx, msg) {
     //
     // We ensure the message is tracked so it can be safely used in string concatenations
     // inside `oren_diag_emit` even if allocations are tight.
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 {
-        bytes_push(ctx["data"], 0)
-    }
+    _native_expr_data_align8(ctx)
     var data_off = bytes_len(ctx["data"])
     bytes_extend_string_z(ctx["data"], msg)
 

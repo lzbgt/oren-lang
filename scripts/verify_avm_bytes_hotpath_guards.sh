@@ -1257,14 +1257,17 @@ if ! grep -Fq 'fn _arm64_data_align8(ctx)' lib/compiler/arm64_native_program/010
 fi
 
 arm64_native_expr_cstr_impl="$(sed -n '/fn native_data_add_cstr0(ctx, s)/,/^}/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
+arm64_native_expr_panic_impl="$(sed -n '/fn native_emit_panic(ctx, msg)/,/var data_off = bytes_len(ctx\["data"\])/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }' lib/compiler/arm64_native_expr/000_prelude.oren ||
   ! grep -Fq 'fn _native_expr_data_align8(ctx)' lib/compiler/arm64_native_expr/000_prelude.oren ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }' lib/compiler/arm64_native_expr/000_prelude.oren ||
+  ! grep -Fq '_native_expr_data_align8(ctx)' <<<"$arm64_native_expr_panic_impl" ||
   ! grep -Fq 'var key_s = s' <<<"$arm64_native_expr_cstr_impl" ||
   ! grep -Fq 's = oren_string_slice(s, 0, 1048576)' <<<"$arm64_native_expr_cstr_impl" ||
   ! grep -Fq 'bytes_extend_string_z(ctx["data"], s)' <<<"$arm64_native_expr_cstr_impl" ||
   ! grep -Fq 'ctx["cstr0_offs"][key_s] = off + 1' <<<"$arm64_native_expr_cstr_impl" ||
   grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_native_expr_cstr_impl" ||
+  grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_native_expr_panic_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(s, i)' <<<"$arm64_native_expr_cstr_impl"; then
   echo "ERROR: ARM64 native expr C-string literals must align and append through byte-builder span helpers" >&2
   exit 1

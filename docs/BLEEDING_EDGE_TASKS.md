@@ -56,8 +56,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current ELF page-padding cleanup extends the output prefix directly with
      exact zero spans instead of allocating and copying a temporary `code_pad`
      builder.
-   - Current ARM64 native data cleanup routes C-string literal append, global
-     slots, and C-string table alignment through byte-builder span helpers.
+   - Current ARM64 native data cleanup routes C-string literal append, panic
+     string alignment, global slots, and C-string table alignment through
+     byte-builder span helpers.
    - Current runtime-object sidecar cleanup routes debug-name alignment through
      byte-builder zero-extension instead of per-byte zero pushes.
 

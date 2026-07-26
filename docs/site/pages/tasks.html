@@ -124,9 +124,10 @@
 <p>     exact zero spans instead of allocating and copying a temporary <code>code_pad</code></p>
 <p>     builder.</p>
 <ul>
-<li>Current ARM64 native data cleanup routes C-string literal append, global</li>
+<li>Current ARM64 native data cleanup routes C-string literal append, panic</li>
 </ul>
-<p>     slots, and C-string table alignment through byte-builder span helpers.</p>
+<p>     string alignment, global slots, and C-string table alignment through</p>
+<p>     byte-builder span helpers.</p>
 <ul>
 <li>Current runtime-object sidecar cleanup routes debug-name alignment through</li>
 </ul>
