@@ -3259,6 +3259,9 @@ design evidence lives under `project-doc/`.
   lazily allocated storage back to the view-owned strong references.
 - iOS runtime multicast graphics-frame observer storage is now allocated lazily
   on first observer registration instead of at runtime startup.
+- iOS runtime live-network session and scalar session maps are now allocated
+  lazily on first live fetch or network-session registration instead of at
+  runtime startup.
 - CoreGraphics retained resource models, scalar map keys/lookups, raw payload
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.

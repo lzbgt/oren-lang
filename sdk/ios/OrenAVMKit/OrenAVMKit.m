@@ -202,6 +202,39 @@ static void OrenAVMRuntimeCheckNetworkByteLimit(const void* key, const void* val
     if (OrenAVMRuntimeNetworkByteCount(value) > check->limit) check->ok = NO;
 }
 
+static BOOL OrenAVMRuntimeEnsureNetworkSessionMaps(OrenAVMRuntime* runtime) {
+    if (!runtime) return NO;
+    if (runtime->_networkSockets && runtime->_networkSessionKinds && runtime->_networkSessionByteCounts) return YES;
+    CFMutableDictionaryRef sockets = runtime->_networkSockets ?: CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    CFMutableDictionaryRef kinds = runtime->_networkSessionKinds ?: CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
+    CFMutableDictionaryRef byteCounts = runtime->_networkSessionByteCounts ?: CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    if (!sockets || !kinds || !byteCounts) {
+        if (!runtime->_networkSockets && sockets) CFRelease(sockets);
+        if (!runtime->_networkSessionKinds && kinds) CFRelease(kinds);
+        if (!runtime->_networkSessionByteCounts && byteCounts) CFRelease(byteCounts);
+        return NO;
+    }
+    runtime->_networkSockets = sockets;
+    runtime->_networkSessionKinds = kinds;
+    runtime->_networkSessionByteCounts = byteCounts;
+    return YES;
+}
+
+static NSURLSession* OrenAVMRuntimeEnsureNetworkSession(OrenAVMRuntime* runtime,
+                                                        NSTimeInterval timeoutSeconds) {
+    if (!runtime) return nil;
+    @synchronized (runtime) {
+        if (runtime->_networkSession) return runtime->_networkSession;
+        NSTimeInterval effectiveTimeout = timeoutSeconds > 0.0 ? timeoutSeconds : 15.0;
+        NSURLSessionConfiguration* sessionConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+        sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+        sessionConfig.timeoutIntervalForRequest = effectiveTimeout;
+        sessionConfig.timeoutIntervalForResource = effectiveTimeout;
+        runtime->_networkSession = [NSURLSession sessionWithConfiguration:sessionConfig];
+        return runtime->_networkSession;
+    }
+}
+
 static uint32_t OrenAVMRuntimeRegisterNetworkSession(OrenAVMRuntime* runtime, int fd, NSString* kind) {
     if (!runtime || fd < 0 || kind.length == 0) return 0;
     @synchronized (runtime) {
@@ -209,13 +242,14 @@ static uint32_t OrenAVMRuntimeRegisterNetworkSession(OrenAVMRuntime* runtime, in
             (uint32_t)CFDictionaryGetCount(runtime->_networkSockets) >= runtime->_liveNetworkMaxSessions) {
             return 0;
         }
+        if (!OrenAVMRuntimeEnsureNetworkSessionMaps(runtime)) return 0;
         runtime->_nextNetworkSessionId += 1u;
         if (runtime->_nextNetworkSessionId == 0) runtime->_nextNetworkSessionId = 1u;
         uint32_t sid = runtime->_nextNetworkSessionId;
         const void* key = OrenAVMRuntimeNetworkSessionKey(sid);
-        if (runtime->_networkSockets) CFDictionarySetValue(runtime->_networkSockets, key, OrenAVMRuntimeNetworkSocketValue(fd));
-        if (runtime->_networkSessionKinds) CFDictionarySetValue(runtime->_networkSessionKinds, key, (__bridge const void*)kind);
-        if (runtime->_networkSessionByteCounts) CFDictionarySetValue(runtime->_networkSessionByteCounts, key, OrenAVMRuntimeNetworkByteCountValue(0));
+        CFDictionarySetValue(runtime->_networkSockets, key, OrenAVMRuntimeNetworkSocketValue(fd));
+        CFDictionarySetValue(runtime->_networkSessionKinds, key, (__bridge const void*)kind);
+        CFDictionarySetValue(runtime->_networkSessionByteCounts, key, OrenAVMRuntimeNetworkByteCountValue(0));
         return sid;
     }
 }
@@ -618,11 +652,13 @@ static int OrenAVMRuntimeLiveNetFetch(void* userData, const char* url, uint8_t**
     if (!requestURL) return -1;
     NSError* error = nil;
     NSData* data = nil;
+    NSURLSession* session = OrenAVMRuntimeEnsureNetworkSession(runtime, runtime->_liveNetworkTimeoutSeconds);
+    if (!session) return -1;
     if (!OrenAVMRuntimeFetchURLData(requestURL,
                                     runtime->_liveNetworkAllowedHosts,
                                     runtime->_liveNetworkTimeoutSeconds,
                                     runtime->_ioLimitBytes,
-                                    runtime->_networkSession,
+                                    session,
                                     &data,
                                     &error)) {
         (void)error;
@@ -972,23 +1008,6 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     _handle = avm_embed_open(&embedConfig, &result);
     if (!_handle || result.status != AVM_EMBED_OK) return nil;
     avm_embed_set_output_capture(_handle, 1, &result);
-    NSURLSessionConfiguration* sessionConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
-    sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
-    _networkSession = [NSURLSession sessionWithConfiguration:sessionConfig];
-    _networkSockets = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    _networkSessionKinds = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    _networkSessionByteCounts = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    if (!_networkSockets || !_networkSessionKinds || !_networkSessionByteCounts) {
-        if (_networkSockets) CFRelease(_networkSockets);
-        if (_networkSessionKinds) CFRelease(_networkSessionKinds);
-        if (_networkSessionByteCounts) CFRelease(_networkSessionByteCounts);
-        _networkSockets = NULL;
-        _networkSessionKinds = NULL;
-        _networkSessionByteCounts = NULL;
-        avm_embed_close(_handle);
-        _handle = NULL;
-        return nil;
-    }
     _nextNetworkSessionId = 0;
     if (effective.liveNetworkEnabled) {
         _liveNetworkAllowedHosts = [effective.liveNetworkAllowedHosts copy];
@@ -1368,7 +1387,9 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
                 timeoutSeconds:(NSTimeInterval)timeoutSeconds
                           error:(NSError**)error {
     NSData* responseData = nil;
-    if (!OrenAVMRuntimeFetchURLData(url, allowedHosts, timeoutSeconds, _ioLimitBytes, _networkSession, &responseData, error)) return NO;
+    NSURLSession* session = OrenAVMRuntimeEnsureNetworkSession(self, timeoutSeconds);
+    if (!session) return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM, @"failed to create network session");
+    if (!OrenAVMRuntimeFetchURLData(url, allowedHosts, timeoutSeconds, _ioLimitBytes, session, &responseData, error)) return NO;
     return [self putVirtualNetResponseForURL:url.absoluteString data:(responseData ?: [NSData data]) error:error];
 }
 

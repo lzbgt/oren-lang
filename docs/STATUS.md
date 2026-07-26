@@ -217,6 +217,8 @@ surfaces, but the following blockers remain:
   shared input/resource/text helpers allocate those caches lazily.
 - iOS `OrenAVMRuntime` now leaves the multicast graphics-frame observer table
   nil until the first `addGraphicsFrameHandler:` registration.
+- iOS `OrenAVMRuntime` now leaves the live-network `NSURLSession` and scalar
+  session maps nil until the first live fetch or network-session registration.
 - iOS Metal image runs now track initialized inline-quad vertex count
   explicitly, so encoding and coalescing bind only actual inline or heap-backed
   vertex spans.

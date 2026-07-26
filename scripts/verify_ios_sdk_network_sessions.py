@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,12 +40,35 @@ def main() -> int:
     for needle in forbidden:
         if needle in text:
             fail(f"iOS VNET session path must not box session state via `{needle}`")
+    init_match = re.search(
+        r"- \(instancetype\)initWithConfig:\(OrenAVMRuntimeConfig\*\)config \{(?P<body>.*?)\n\}",
+        text,
+        re.S,
+    )
+    if not init_match:
+        fail("missing OrenAVMRuntime initWithConfig body")
+    init_body = init_match.group("body")
+    eager_init_forbidden = [
+        "_networkSession = [NSURLSession sessionWithConfiguration:sessionConfig]",
+        "_networkSockets = CFDictionaryCreateMutable",
+        "_networkSessionKinds = CFDictionaryCreateMutable",
+        "_networkSessionByteCounts = CFDictionaryCreateMutable",
+    ]
+    for needle in eager_init_forbidden:
+        if needle in init_body:
+            fail(f"iOS runtime startup must not eagerly allocate network state via `{needle}`")
     required = [
         "OrenAVMRuntimeNetworkSessionKey",
         "OrenAVMRuntimeNetworkSocketValue",
         "OrenAVMRuntimeNetworkByteCountValue",
+        "static BOOL OrenAVMRuntimeEnsureNetworkSessionMaps",
+        "static NSURLSession* OrenAVMRuntimeEnsureNetworkSession",
+        "if (!OrenAVMRuntimeEnsureNetworkSessionMaps(runtime)) return 0",
         "CFDictionarySetValue(runtime->_networkSockets, key, OrenAVMRuntimeNetworkSocketValue(fd))",
+        "CFDictionarySetValue(runtime->_networkSessionKinds, key, (__bridge const void*)kind)",
         "CFDictionarySetValue(runtime->_networkSessionByteCounts, key, OrenAVMRuntimeNetworkByteCountValue(0))",
+        "NSURLSession* session = OrenAVMRuntimeEnsureNetworkSession(runtime, runtime->_liveNetworkTimeoutSeconds)",
+        "NSURLSession* session = OrenAVMRuntimeEnsureNetworkSession(self, timeoutSeconds)",
         "OrenAVMRuntimeNetworkSessionBytes(runtime->_networkSessionByteCounts, sessionId)",
         "CFDictionaryApplyFunction(_networkSockets, OrenAVMRuntimeCloseNetworkSocketValue, NULL)",
         "CFDictionaryApplyFunction(_networkSessionByteCounts, OrenAVMRuntimeCheckNetworkByteLimit, &check)",
@@ -61,7 +85,7 @@ def main() -> int:
     for needle in required:
         if needle not in text:
             fail(f"missing scalar iOS VNET session map evidence: `{needle}`")
-    print("OK: iOS VNET session maps use scalar CF storage and raw WebSocket handshake buffers")
+    print("OK: iOS VNET session maps use scalar CF storage, lazy network state, and raw WebSocket handshake buffers")
     return 0
 
 
