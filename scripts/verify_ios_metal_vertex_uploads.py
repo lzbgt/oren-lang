@@ -983,8 +983,10 @@ def main() -> int:
         "float lastFragmentOpacity = 0.0f;",
         "OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture)",
         "OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity)",
+        "BOOL hasBoundGeometryPipeline = NO;",
         "if (geometryPipeline && vertexRuns.count > 0)",
         "BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;",
+        "BOOL hasBoundTexturePipeline = NO;",
         "if (textPipeline && hasTextureRuns)",
         "for (OrenAVMMetalImageRun* run in imageRuns)",
         "for (OrenAVMMetalTextRun* run in textRuns)",
@@ -1013,6 +1015,12 @@ def main() -> int:
         fail("Metal prepared-run encoding must set fragment textures only through the cached helper")
     if frame_text.count("[encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0]") != 1:
         fail("Metal prepared-run encoding must set fragment opacity only through the cached helper")
+    for pipeline_token in (
+        "if (!hasBoundGeometryPipeline) {\n                [encoder setRenderPipelineState:geometryPipeline];\n                hasBoundGeometryPipeline = YES;\n            }",
+        "if (!hasBoundTexturePipeline) {\n                [encoder setRenderPipelineState:textPipeline];\n                hasBoundTexturePipeline = YES;\n            }",
+    ):
+        if pipeline_token not in encode_runs:
+            fail("Metal prepared-run encoding must bind render pipelines lazily after validating drawable runs")
     if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:

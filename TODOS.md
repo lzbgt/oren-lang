@@ -2908,8 +2908,9 @@ design evidence lives under `project-doc/`.
   `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
   MTKView lifecycle, prepared-run orchestration, and input forwarding in the view;
   pure-clear frames skip unused geometry/texture pipeline binding when no
-  prepared runs exist, and repeated same-scissor/texture/opacity prepared runs
-  skip redundant encoder state writes.
+  prepared runs exist, invalid or fully clipped prepared runs defer pipeline
+  binding until a vertex payload is bound, and repeated same-scissor/texture/opacity
+  prepared runs skip redundant encoder state writes.
 - Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
   context struct that carries view-owned caches and retained resource maps,
   reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,

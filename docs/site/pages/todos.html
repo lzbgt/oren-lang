@@ -4068,8 +4068,9 @@
 <p>  <code>OrenAVMMetalFrame</code>, reducing <code>OrenAVMMetalView.m</code> to 628 lines while keeping</p>
 <p>  MTKView lifecycle, prepared-run orchestration, and input forwarding in the view;</p>
 <p>  pure-clear frames skip unused geometry/texture pipeline binding when no</p>
-<p>  prepared runs exist, and repeated same-scissor/texture/opacity prepared runs</p>
-<p>  skip redundant encoder state writes.</p>
+<p>  prepared runs exist, invalid or fully clipped prepared runs defer pipeline</p>
+<p>  binding until a vertex payload is bound, and repeated same-scissor/texture/opacity</p>
+<p>  prepared runs skip redundant encoder state writes.</p>
 <ul>
 <li>Metal OGF0 command traversal now lives in <code>OrenAVMMetalFrame</code> behind a</li>
 </ul>

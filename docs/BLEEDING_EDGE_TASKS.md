@@ -1448,9 +1448,9 @@ This file is the concise task view. Detailed implementation status lives in
 									     active empty-scissor/empty-clip spans skip Metal and CoreGraphics draw-only
 												     opcodes before frame-prep or CGContext/resource/text draw work, Metal
 												     full-frame clear shortcuts require unclipped, untranslated, fully opaque state
-												     and skip duplicate leading fill vertices before prepared drawable work
-										     plus unused pipeline binding when no prepared runs exist, and repeated
-										     same-scissor/texture/opacity Metal prepared runs skip redundant encoder state writes,
+													     and skip duplicate leading fill vertices before prepared drawable work
+											     plus unused pipeline binding when no prepared runs exist or no valid prepared run
+											     reaches vertex binding, and repeated same-scissor/texture/opacity Metal prepared runs skip redundant encoder state writes,
 											     malformed zero-size/count-mismatched retained image/text draws reject before retained
 									     resource lookup when the command is otherwise a no-op, CoreGraphics truncated OGF0 payloads break traversal after restoring saved CGContext state, immediate text opcodes reject empty or trailing-byte payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area
 					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,

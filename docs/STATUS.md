@@ -3109,17 +3109,18 @@ Working evidence:
   windows, and vertex output in the view. Metal clip/transform/opacity/camera
   state stacks and opcodes now live in `OrenAVMMetalFrame`, reducing
   `OrenAVMMetalView.m` to 676 lines while keeping per-frame resource/text/image
-	  command routing in the view. Metal full-frame clear-color detection now lives
-	  in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
-	  keeping per-frame resource/text/image command routing in the view; it only
-	  promotes unclipped, untranslated, fully opaque fills to render-pass clear and skips
-	  duplicate leading fill vertices before any prepared drawable work. Metal
-	  prepared geometry/image/text draw submission now lives in
-	  `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
-	  MTKView lifecycle, prepared-run orchestration, and input forwarding in the
-	  view; pure-clear frames skip unused geometry/texture pipeline binding when no
-	  prepared runs exist, and repeated same-scissor/texture/opacity prepared runs
-	  skip redundant encoder state writes. Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
+  command routing in the view. Metal full-frame clear-color detection now lives
+  in `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 663 lines while
+  keeping per-frame resource/text/image command routing in the view; it only
+  promotes unclipped, untranslated, fully opaque fills to render-pass clear and
+  skips duplicate leading fill vertices before any prepared drawable work.
+  Metal prepared geometry/image/text draw submission now lives in
+  `OrenAVMMetalFrame`, reducing `OrenAVMMetalView.m` to 628 lines while keeping
+  MTKView lifecycle, prepared-run orchestration, and input forwarding in the
+  view; pure-clear frames skip unused geometry/texture pipeline binding when no
+  prepared runs exist, invalid or fully clipped prepared runs defer pipeline
+  binding until a vertex payload is bound, and repeated same-scissor/texture/opacity
+  prepared runs skip redundant encoder state writes. Metal OGF0 command traversal now lives in `OrenAVMMetalFrame` behind a
   context struct that carries view-owned caches and retained resource maps,
   reducing `OrenAVMMetalView.m` to 544 lines while keeping MTKView lifecycle,
   prepared-run orchestration, and input forwarding in the view. CoreGraphics

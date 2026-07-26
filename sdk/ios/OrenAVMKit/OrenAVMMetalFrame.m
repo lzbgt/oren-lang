@@ -605,14 +605,18 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
     MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawableTexture.width, (NSUInteger)drawableTexture.height};
     BOOL hasLastScissor = NO;
     MTLScissorRect lastScissor = {0, 0, 0, 0};
+    BOOL hasBoundGeometryPipeline = NO;
     if (geometryPipeline && vertexRuns.count > 0) {
-        [encoder setRenderPipelineState:geometryPipeline];
         for (OrenAVMMetalVertexRun* run in vertexRuns) {
             if (!run.vertices || run.vertexBytes == 0) continue;
             MTLScissorRect scissor = run.hasScissor ? run.scissor : fullScissor;
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, run.vertices, run.vertexBytes)) continue;
+            if (!hasBoundGeometryPipeline) {
+                [encoder setRenderPipelineState:geometryPipeline];
+                hasBoundGeometryPipeline = YES;
+            }
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
                          vertexCount:run.vertexBytes / sizeof(OrenAVMMetalVertex)];
@@ -620,7 +624,7 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
     }
     BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;
     if (textPipeline && hasTextureRuns) {
-        [encoder setRenderPipelineState:textPipeline];
+        BOOL hasBoundTexturePipeline = NO;
         id<MTLTexture> lastFragmentTexture = nil;
         BOOL hasLastFragmentOpacity = NO;
         float lastFragmentOpacity = 0.0f;
@@ -631,6 +635,10 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalImageRunVertexBytes(run), vertexBytes)) continue;
+            if (!hasBoundTexturePipeline) {
+                [encoder setRenderPipelineState:textPipeline];
+                hasBoundTexturePipeline = YES;
+            }
             OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture);
             OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
@@ -644,6 +652,10 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalTextRunVertexBytes(run), vertexBytes)) continue;
+            if (!hasBoundTexturePipeline) {
+                [encoder setRenderPipelineState:textPipeline];
+                hasBoundTexturePipeline = YES;
+            }
             OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture);
             OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
