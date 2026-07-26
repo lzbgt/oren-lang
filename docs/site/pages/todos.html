@@ -4481,6 +4481,12 @@
 <p>  <code>std:math/vec4</code> helpers for homogeneous/vector algebra including component rounding, interpolation, range-mapping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, backed by native/C/</p>
 <p>  bytecode and AVM fixtures.</p>
 <ul>
+<li><code>std:math/mat4</code> determinant, adjugate/cofactor, inverse, condition-number,</li>
+</ul>
+<p>  affine-inverse, and normal-matrix implementations now live in a focused helper</p>
+<p>  module while the public <code>mat4</code> facade keeps stable wrappers below the</p>
+<p>  source-line guardrail.</p>
+<ul>
 <li><code>std:bytes</code>, <code>std:buffer</code>, <code>std:strings</code>, <code>std:list</code>, <code>std:linalg</code>,</li>
 </ul>
 <p>  <code>std:iter</code>, <code>std:crypto</code>, <code>std:ui</code>, and checked</p>

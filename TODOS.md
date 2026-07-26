@@ -3166,6 +3166,10 @@ design evidence lives under `project-doc/`.
   pure `std:math/vec3` helpers for common 3D vector operations including component rounding, interpolation, range-mapping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, and pure finite
   `std:math/vec4` helpers for homogeneous/vector algebra including component rounding, interpolation, range-mapping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, backed by native/C/
   bytecode and AVM fixtures.
+- `std:math/mat4` determinant, adjugate/cofactor, inverse, condition-number,
+  affine-inverse, and normal-matrix implementations now live in a focused helper
+  module while the public `mat4` facade keeps stable wrappers below the
+  source-line guardrail.
 - `std:bytes`, `std:buffer`, `std:strings`, `std:list`, `std:linalg`,
   `std:iter`, `std:crypto`, `std:ui`, and checked
   `std:ints` / `std:casts` helpers now expose canonical

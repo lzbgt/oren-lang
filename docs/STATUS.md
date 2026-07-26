@@ -137,7 +137,9 @@ surfaces, but the following blockers remain:
   CGContext state is restored before the draw pass returns.
 - `std:math/mat4` now includes checked cofactor/adjugate/minor helpers
   (`cofactor`, `adjugate`, `adjoint`, `minor3`, and `minor`) that share the
-  inverse cofactor formula while keeping singular finite matrices inspectable.
+  inverse cofactor formula while keeping singular finite matrices inspectable;
+  determinant/inverse/condition/affine-inverse/normal-matrix implementations now
+  live in a focused helper module behind stable public wrappers.
 - `std:math/mat4` now includes tolerance-aware affine/perspective predicates
   plus exact and tolerance-aware symmetric, upper/lower triangular, diagonal,
   translation, scale, uniform-scale, invertible, and singular predicates backed
@@ -148,7 +150,7 @@ surfaces, but the following blockers remain:
   `norm_frobenius`, `norm`, `norm_one`, `one_norm`, `norm_inf`,
   `infinity_norm`, `condition_number_one`, `cond_one`, `condition_number_inf`,
   and `cond_inf`) with native/C/bytecode, AVM, and stdlib OBC bundle coverage;
-  trace and norm implementations now live in a focused helper module while the
+  trace and norm implementations now live in focused helper modules while the
   public `mat4` facade keeps stable wrappers.
 - X64 PE section-name header emission now writes exact eight-byte COFF names as
   straight-line literal bytes, avoiding fixed string-byte loops in compiler
@@ -196,7 +198,7 @@ surfaces, but the following blockers remain:
   `window_to_ndc`) and routes project/unproject through the same depth clamp
   semantics; the implementation lives in a focused viewport helper module so
   `mat4.oren` stays below the source-line guardrail with room for future math
-  expansion alongside the focused predicate/check/norm helper modules.
+  expansion alongside the focused predicate/check/norm/inverse helper modules.
 - `std:math/mat4` now includes checked translation editing helpers
   (`with_translation`, `set_translation`, `with_translation_vec`,
   `set_translation_vec`, and `without_translation`) that preserve existing
