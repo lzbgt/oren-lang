@@ -215,6 +215,8 @@ surfaces, but the following blockers remain:
 - iOS CoreGraphics and Metal renderer startup now leaves retained-resource,
   touch scalar, and Metal text texture/attribute caches nil until first use;
   shared input/resource/text helpers allocate those caches lazily.
+- iOS `OrenAVMRuntime` now leaves the multicast graphics-frame observer table
+  nil until the first `addGraphicsFrameHandler:` registration.
 - iOS Metal image runs now track initialized inline-quad vertex count
   explicitly, so encoding and coalescing bind only actual inline or heap-backed
   vertex spans.
@@ -2511,9 +2513,9 @@ Facts from the 2026-05-28 implementation pass:
 	  events with logical size, native drawable size, device scale, target refresh,
 	  and host flags. OBC reads screen attributes with `std:ui/avm.screen(0)` without
 		  consuming an input event. `OrenAVMRuntime.graphicsFrameHandler` bridges the
-		  C frame callback to iOS hosts, `addGraphicsFrameHandler:` provides multicast
-		  frame wakeups so renderers and host diagnostics do not steal callbacks from
-		  each other, the native GFX mailbox is mutex-protected for worker-thread
+			  C frame callback to iOS hosts, `addGraphicsFrameHandler:` provides multicast
+			  frame wakeups through a lazily allocated observer table so renderers and host diagnostics do not steal callbacks from
+			  each other, the native GFX mailbox is mutex-protected for worker-thread
 		  publication plus main-thread rendering, both SDK renderers expose
 		  `hasValidFrameData`, and `reloadFrameWithError:` is no-op success when the
 		  runtime mailbox is empty, so event-driven render loops can keep the last

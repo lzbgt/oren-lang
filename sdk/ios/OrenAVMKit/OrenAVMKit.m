@@ -989,7 +989,6 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
         _handle = NULL;
         return nil;
     }
-    _graphicsFrameObservers = [NSMutableDictionary dictionary];
     _nextNetworkSessionId = 0;
     if (effective.liveNetworkEnabled) {
         _liveNetworkAllowedHosts = [effective.liveNetworkAllowedHosts copy];
@@ -1082,6 +1081,8 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     if (!handler) return nil;
     NSUUID* token = [NSUUID UUID];
     @synchronized (self) {
+        if (!_graphicsFrameObservers) _graphicsFrameObservers = [NSMutableDictionary dictionary];
+        if (!_graphicsFrameObservers) return nil;
         _graphicsFrameObservers[token] = [handler copy];
     }
     [self orenRefreshGraphicsFrameCallback];

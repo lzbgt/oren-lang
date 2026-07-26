@@ -3257,6 +3257,8 @@ design evidence lives under `project-doc/`.
 - Metal renderer startup now leaves text texture and attribute cache storage nil
   until valid text work reaches rendering; the frame/text helper path writes
   lazily allocated storage back to the view-owned strong references.
+- iOS runtime multicast graphics-frame observer storage is now allocated lazily
+  on first observer registration instead of at runtime startup.
 - CoreGraphics retained resource models, scalar map keys/lookups, raw payload
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.

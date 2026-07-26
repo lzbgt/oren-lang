@@ -4644,6 +4644,10 @@
 <p>  until valid text work reaches rendering; the frame/text helper path writes</p>
 <p>  lazily allocated storage back to the view-owned strong references.</p>
 <ul>
+<li>iOS runtime multicast graphics-frame observer storage is now allocated lazily</li>
+</ul>
+<p>  on first observer registration instead of at runtime startup.</p>
+<ul>
 <li>CoreGraphics retained resource models, scalar map keys/lookups, raw payload</li>
 </ul>
 <p>  copy, and retained-3D painter ordering helpers now live in</p>

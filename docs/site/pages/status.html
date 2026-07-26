@@ -359,6 +359,10 @@
 <p>  touch scalar, and Metal text texture/attribute caches nil until first use;</p>
 <p>  shared input/resource/text helpers allocate those caches lazily.</p>
 <ul>
+<li>iOS <code>OrenAVMRuntime</code> now leaves the multicast graphics-frame observer table</li>
+</ul>
+<p>  nil until the first <code>addGraphicsFrameHandler:</code> registration.</p>
+<ul>
 <li>iOS Metal image runs now track initialized inline-quad vertex count</li>
 </ul>
 <p>  explicitly, so encoding and coalescing bind only actual inline or heap-backed</p>
@@ -2789,9 +2793,9 @@
 <p>	  events with logical size, native drawable size, device scale, target refresh,</p>
 <p>	  and host flags. OBC reads screen attributes with <code>std:ui/avm.screen(0)</code> without</p>
 <p>		  consuming an input event. <code>OrenAVMRuntime.graphicsFrameHandler</code> bridges the</p>
-<p>		  C frame callback to iOS hosts, <code>addGraphicsFrameHandler:</code> provides multicast</p>
-<p>		  frame wakeups so renderers and host diagnostics do not steal callbacks from</p>
-<p>		  each other, the native GFX mailbox is mutex-protected for worker-thread</p>
+<p>			  C frame callback to iOS hosts, <code>addGraphicsFrameHandler:</code> provides multicast</p>
+<p>			  frame wakeups through a lazily allocated observer table so renderers and host diagnostics do not steal callbacks from</p>
+<p>			  each other, the native GFX mailbox is mutex-protected for worker-thread</p>
 <p>		  publication plus main-thread rendering, both SDK renderers expose</p>
 <p>		  <code>hasValidFrameData</code>, and <code>reloadFrameWithError:</code> is no-op success when the</p>
 <p>		  runtime mailbox is empty, so event-driven render loops can keep the last</p>

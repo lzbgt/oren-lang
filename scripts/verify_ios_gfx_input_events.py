@@ -30,6 +30,23 @@ def main() -> int:
         fail("raw-byte GFX input helper must call the C queue API directly")
     if "return [self orenPutGraphicsInputEventBytes:data.bytes length:data.length error:error];" not in sdk_text:
         fail("public NSData GFX input API must delegate to the raw-byte helper")
+    init_start = sdk_text.find("- (instancetype)initWithConfig:")
+    init_end = sdk_text.find("- (void)dealloc", init_start)
+    add_start = sdk_text.find("- (id)addGraphicsFrameHandler:")
+    add_end = sdk_text.find("- (void)removeGraphicsFrameHandler:", add_start)
+    if min(init_start, init_end, add_start, add_end) < 0:
+        fail("missing iOS runtime lifecycle or graphics frame observer methods")
+    init_body = sdk_text[init_start:init_end]
+    add_body = sdk_text[add_start:add_end]
+    if "_graphicsFrameObservers = [NSMutableDictionary dictionary]" in init_body:
+        fail("graphics frame observer table must be allocated lazily on first observer registration")
+    for token in (
+        "if (!_graphicsFrameObservers) _graphicsFrameObservers = [NSMutableDictionary dictionary];",
+        "if (!_graphicsFrameObservers) return nil;",
+        "_graphicsFrameObservers[token] = [handler copy];",
+    ):
+        if token not in add_body:
+            fail(f"graphics frame observer registration must lazily allocate checked storage: {token}")
 
     if "static NSData* OrenAVMGFXInputMakeEvent" in input_text:
         fail("typed GFX input helpers must not allocate NSData events")
