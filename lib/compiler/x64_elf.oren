@@ -27,6 +27,7 @@ fn _elf_phase_log_append(path, phase, detail) {
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
@@ -511,7 +512,8 @@ fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_me
 fn _bytes_align(buf, align) {
     if buf == nil { return nil }
     if align == nil || align <= 1 { return nil }
-    while int_mod(bytes_len(buf), align) != 0 { bytes_push(buf, 0) }
+    var rem = int_mod(bytes_len(buf), align)
+    if rem != 0 { bytes_extend_zeros(buf, align - rem) }
     return nil
 }
 

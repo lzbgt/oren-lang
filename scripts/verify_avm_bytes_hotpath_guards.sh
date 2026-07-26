@@ -1074,6 +1074,20 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b
   exit 1
 fi
 
+arm64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/arm64_elf.oren)"
+x64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/x64_elf.oren)"
+if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$arm64_elf_align_impl" ||
+  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$arm64_elf_align_impl" ||
+  ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$x64_elf_align_impl" ||
+  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$x64_elf_align_impl" ||
+  grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
+  grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl"; then
+  echo "ERROR: ELF alignment padding must use byte-builder zero extension, not per-byte loops" >&2
+  exit 1
+fi
+
 arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"

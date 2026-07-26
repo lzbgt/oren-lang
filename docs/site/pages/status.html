@@ -243,6 +243,11 @@
 </ul>
 <p>  through shared byte-builder zero extension instead of a fixed u32 pair loop.</p>
 <ul>
+<li>ARM64 and x64 ELF alignment helpers now compute the required padding span</li>
+</ul>
+<p>  once and extend zeros through the shared byte-builder path instead of pushing</p>
+<p>  one zero byte per alignment step.</p>
+<ul>
 <li>ARM64 native compiler context, global, and statement-binding pointer-slot</li>
 </ul>
 <p>  reservations now route fixed eight-byte zero fills through the shared</p>

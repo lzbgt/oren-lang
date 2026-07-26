@@ -151,6 +151,9 @@ surfaces, but the following blockers remain:
   artifact emission while preserving byte-for-byte section headers.
 - X64 PE unused data-directory entries now emit their exact 112 zero bytes
   through shared byte-builder zero extension instead of a fixed u32 pair loop.
+- ARM64 and x64 ELF alignment helpers now compute the required padding span
+  once and extend zeros through the shared byte-builder path instead of pushing
+  one zero byte per alignment step.
 - ARM64 native compiler context, global, and statement-binding pointer-slot
   reservations now route fixed eight-byte zero fills through the shared
   byte-builder zero-extension path instead of per-byte push loops.
