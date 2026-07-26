@@ -794,6 +794,26 @@ fn cross(ax: f64, ay: f64, bx: f64, by: f64) {
     return out
 }
 
+fn perpendicular(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.perpendicular")
+    if oren_is_err(ok) { return ok }
+    return [0.0 - y, x]
+}
+
+fn perp(x: f64, y: f64) {
+    return perpendicular(x, y)
+}
+
+fn perpendicular_right(x: f64, y: f64) {
+    var ok = _finite2(x, y, "vec2.perpendicular_right")
+    if oren_is_err(ok) { return ok }
+    return [y, 0.0 - x]
+}
+
+fn perp_right(x: f64, y: f64) {
+    return perpendicular_right(x, y)
+}
+
 fn normalize(x: f64, y: f64) {
     var l0 = length(x, y)
     if oren_is_err(l0) { return l0 }
@@ -929,6 +949,39 @@ fn angle(x: f64, y: f64) {
     var ok = _finite2(x, y, "vec2.angle")
     if oren_is_err(ok) { return ok }
     return math.atan2(y, x)
+}
+
+fn angle_between(ax: f64, ay: f64, bx: f64, by: f64) {
+    var la0 = length(ax, ay)
+    if oren_is_err(la0) { return la0 }
+    var lb0 = length(bx, by)
+    if oren_is_err(lb0) { return lb0 }
+    var la: f64 = la0
+    var lb: f64 = lb0
+    if la == 0.0 || lb == 0.0 { return oren_err(4, "vec2.angle_between: zero length") }
+    var d0 = dot(ax, ay, bx, by)
+    if oren_is_err(d0) { return d0 }
+    var d: f64 = d0
+    var c = math.clamp(d / (la * lb), 0.0 - 1.0, 1.0)
+    if oren_is_err(c) { return c }
+    return math.acos(c)
+}
+
+fn signed_angle_between(ax: f64, ay: f64, bx: f64, by: f64) {
+    var la0 = length(ax, ay)
+    if oren_is_err(la0) { return la0 }
+    var lb0 = length(bx, by)
+    if oren_is_err(lb0) { return lb0 }
+    var la: f64 = la0
+    var lb: f64 = lb0
+    if la == 0.0 || lb == 0.0 { return oren_err(4, "vec2.signed_angle_between: zero length") }
+    var d0 = dot(ax, ay, bx, by)
+    if oren_is_err(d0) { return d0 }
+    var c0 = cross(ax, ay, bx, by)
+    if oren_is_err(c0) { return c0 }
+    var d: f64 = d0
+    var c: f64 = c0
+    return math.atan2(c, d)
 }
 
 fn from_angle(rad: f64) {

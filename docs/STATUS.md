@@ -3336,7 +3336,7 @@ Working evidence:
   `lerp`, range mapping helpers `inverse_lerp`/`remap`/`remap_clamped`,
   graphics scalar/interpolation helpers `sign`/`step`/`fract`/`clamp`/`saturate`/`smoothstep`/`smootherstep`,
   angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
-	  pure `std:math/vec2` helpers including squared-length aliases, zero-normalize, length clamping, direction/move-toward navigation, segment projection/distance, and vector angle conversion/wrapping/interpolation,
+	  pure `std:math/vec2` helpers including squared-length aliases, zero-normalize, perpendicular vectors, unsigned/signed angle-between helpers, length clamping, direction/move-toward navigation, segment projection/distance, and vector angle conversion/wrapping/interpolation,
 	  pure `std:math/vec3` helpers including squared-length aliases, zero-normalize, length clamping, direction/move-toward navigation, segment projection/distance, and vector angle conversion/wrapping/interpolation,
 	  pure `std:math/vec4` helpers including squared-length aliases, zero-normalize, length clamping, direction/move-toward navigation, segment projection/distance, and vector angle conversion/wrapping/interpolation,
   overflow-aware `midpoint`, public ties-to-even rounding aliases, degree/radian conversion,

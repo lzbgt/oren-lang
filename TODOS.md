@@ -3258,7 +3258,7 @@ design evidence lives under `project-doc/`.
   helpers `isclose`, `isclose_abs`, `sign`, `step`, `fract`, `clamp`, `saturate`, `lerp`, `inverse_lerp`, `remap`,
   `remap_clamped`, `smoothstep`, `smootherstep`, angle wrapping, shortest-angle
   delta, shortest-path angle interpolation helpers, pure `std:math/vec2`
-	  helpers for common 2D graphics/vector operations including component rounding, interpolation, range-mapping, length clamping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers,
+	  helpers for common 2D graphics/vector operations including component rounding, interpolation, range-mapping, perpendicular vectors, unsigned/signed angle-between helpers, length clamping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers,
 	  pure `std:math/vec3` helpers for common 3D vector operations including component rounding, interpolation, range-mapping, length clamping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, and pure finite
 	  `std:math/vec4` helpers for homogeneous/vector algebra including component rounding, interpolation, range-mapping, length clamping, direction/move-toward navigation, segment projection/distance, angle wrapping/interpolation, trig/sin_cos, and inverse-trig helpers, backed by native/C/
   bytecode and AVM fixtures.

@@ -1714,7 +1714,7 @@ This file is the concise task view. Detailed implementation status lives in
      `remap_clamped`, graphics scalar/interpolation helpers `sign`, `step`,
      `fract`, `clamp`, `saturate`, `smoothstep`, and `smootherstep`,
      angle wrapping, shortest-angle delta, and shortest-path angle interpolation,
-	     pure finite `std:math/vec2` helpers including length clamping and projection/rejection/reflection,
+	     pure finite `std:math/vec2` helpers including perpendicular vectors, unsigned/signed angle-between helpers, length clamping, and projection/rejection/reflection,
 	     pure finite `std:math/vec3` helpers including length clamping and projection/rejection/reflection,
 	     pure finite `std:math/vec4` helpers including length clamping and projection/rejection/reflection,
      pure finite `std:math/quat` helpers for axis-angle rotation, inverse, and interpolation,
