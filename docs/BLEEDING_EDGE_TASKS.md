@@ -177,6 +177,12 @@ This file is the concise task view. Detailed implementation status lives in
    - Current Windows x64 CreateProcess stack-argument cleanup separates zeroed
      BOOL/DWORD slots, envblock slot, current-directory slot, and output-struct
      pointer slots.
+   - Current x64 hash-literal cleanup mirrors array literal state preparation
+     through a focused map-literal state helper before allocation/insertion.
+   - Current x64 map-index cleanup separates known-map magic validation from
+     typed/dynamic runtime map-get dispatch.
+   - Current x64 pointer C-string length cleanup separates label allocation,
+     pointer/destination setup, byte loop emission, and fixup patching.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

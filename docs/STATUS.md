@@ -105,6 +105,12 @@ surfaces, but the following blockers remain:
 - Windows x64 CreateProcess stack-argument lowering now separates zeroed BOOL/
   DWORD slots, envblock slot, current-directory slot, and output-struct pointer
   slots.
+- X64 hash literal lowering now mirrors array literal state preparation through
+  a focused map-literal state helper before allocation and pair insertion.
+- X64 map-index lowering now separates known-map magic validation from typed/
+  dynamic runtime map-get dispatch.
+- X64 pointer C-string length emission now separates label allocation, pointer/
+  destination setup, byte loop emission, and fixup patching.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

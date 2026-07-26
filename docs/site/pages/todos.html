@@ -164,6 +164,18 @@
 <p>  DWORD slots, envblock slot, current-directory slot, and output-struct pointer</p>
 <p>  slots.</p>
 <ul>
+<li>X64 hash literal lowering now mirrors array literal state preparation through</li>
+</ul>
+<p>  a focused map-literal state helper before allocation and pair insertion.</p>
+<ul>
+<li>X64 map-index lowering now separates known-map magic validation from typed/</li>
+</ul>
+<p>  dynamic runtime map-get dispatch.</p>
+<ul>
+<li>X64 pointer C-string length emission now separates label allocation, pointer/</li>
+</ul>
+<p>  destination setup, byte loop emission, and fixup patching.</p>
+<ul>
 <li>x64 PE export-table, DOS/optional/header, and section raw-data padding now</li>
 </ul>
 <p>  routes through <code>_pe_align</code>/<code>_pe_pad_to_len</code> byte-builder zero-extension helpers</p>

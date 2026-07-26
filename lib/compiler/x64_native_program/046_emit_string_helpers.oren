@@ -13,29 +13,47 @@ fn _emit_string_len_from_ptr_x64(ctx, ptr_reg, dst_reg) {
     //
     // Clobbers: R10, R11, RAX
     if ctx == nil { return nil }
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "str_len_done")
-    var l_loop = _new_label(ctx, "str_len_loop")
+    var state = _x64_strlen_ptr_labels(ctx)
+    _x64_strlen_ptr_prepare(ctx, ptr_reg, dst_reg, state)
+    _x64_strlen_ptr_emit_loop(ctx, dst_reg, state)
+    _x64_strlen_ptr_finish(ctx, state)
+    return nil
+}
 
+fn _x64_strlen_ptr_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "done": _new_label(ctx, "str_len_done"),
+        "loop": _new_label(ctx, "str_len_loop")
+    }
+}
+
+fn _x64_strlen_ptr_prepare(ctx, ptr_reg, dst_reg, state) {
     // r11 = ptr
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, ptr_reg))
     // dst = 0  (must happen after capturing ptr, because ptr_reg may alias dst_reg)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(dst_reg, 0))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    _emit_jcc_to_label(ctx, state["local_fixups"], "e", state["done"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_loop)
+fn _x64_strlen_ptr_emit_loop(ctx, dst_reg, state) {
+    _emit_label(ctx, state["labels"], state["loop"])
     // Use EAX/AL as the loaded-byte temp to avoid clobbering common ABI arg regs.
     bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 11))
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    _emit_jcc_to_label(ctx, state["local_fixups"], "e", state["done"])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(dst_reg, 1))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 1))
-    _emit_jmp_to_label(ctx, local_fixups, l_loop)
+    _emit_jmp_to_label(ctx, state["local_fixups"], state["loop"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+fn _x64_strlen_ptr_finish(ctx, state) {
+    _emit_label(ctx, state["labels"], state["done"])
+    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
     return nil
 }
 

@@ -338,6 +338,18 @@
 </ul>
 <p>     BOOL/DWORD slots, envblock slot, current-directory slot, and output-struct</p>
 <p>     pointer slots.</p>
+<ul>
+<li>Current x64 hash-literal cleanup mirrors array literal state preparation</li>
+</ul>
+<p>     through a focused map-literal state helper before allocation/insertion.</p>
+<ul>
+<li>Current x64 map-index cleanup separates known-map magic validation from</li>
+</ul>
+<p>     typed/dynamic runtime map-get dispatch.</p>
+<ul>
+<li>Current x64 pointer C-string length cleanup separates label allocation,</li>
+</ul>
+<p>     pointer/destination setup, byte loop emission, and fixup patching.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

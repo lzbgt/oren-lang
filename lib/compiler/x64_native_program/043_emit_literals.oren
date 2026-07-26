@@ -245,6 +245,21 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
     // Key kinds (rolling x64 v0):
     // - Integer keys => kind=0
     // - String keys  => kind=1 (C-string pointer)
+    var st = _lit_hash_prepare_state(ctx, expr, locals)
+    if st == nil { return nil }
+
+    if _lit_alloc_container_to_tmp(ctx, locals, "oren_new_map", st["n"], st["tmp_hdr"], st["depth_enc0"]) == nil { return nil }
+
+    // Insert pairs in source order (LTR).
+    if _lit_hash_emit_pairs(ctx, locals, st["hn"], st["pairs"], st["depth_enc0"]) == nil { return nil }
+
+    // return map
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st["tmp_hdr"])
+    _lit_exit(ctx, st["depth_enc0"])
+    return nil
+}
+
+fn _lit_hash_prepare_state(ctx, expr, locals) {
     var pairs = _lit_hash_pairs(expr)
 
     var depth_enc0 = _lit_enter(ctx)
@@ -260,14 +275,5 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
     }
 
     var n = oren_list_len(pairs)
-
-    if _lit_alloc_container_to_tmp(ctx, locals, "oren_new_map", n, tmp_hdr, depth_enc0) == nil { return nil }
-
-    // Insert pairs in source order (LTR).
-    if _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0) == nil { return nil }
-
-    // return map
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
-    _lit_exit(ctx, depth_enc0)
-    return nil
+    return {"pairs": pairs, "depth_enc0": depth_enc0, "hn": hn, "tmp_hdr": tmp_hdr, "n": n}
 }

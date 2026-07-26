@@ -89,6 +89,12 @@ design evidence lives under `project-doc/`.
 - Windows x64 CreateProcess stack-argument lowering now separates zeroed BOOL/
   DWORD slots, envblock slot, current-directory slot, and output-struct pointer
   slots.
+- X64 hash literal lowering now mirrors array literal state preparation through
+  a focused map-literal state helper before allocation and pair insertion.
+- X64 map-index lowering now separates known-map magic validation from typed/
+  dynamic runtime map-get dispatch.
+- X64 pointer C-string length emission now separates label allocation, pointer/
+  destination setup, byte loop emission, and fixup patching.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops, and PE import hint/name alignment

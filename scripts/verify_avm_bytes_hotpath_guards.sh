@@ -1061,9 +1061,11 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
 fi
 x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _lit_array_depth_state/,/fn _emit_hash_literal_expr/p' lib/compiler/x64_native_program/043_emit_literals.oren)
+$(sed -n '/fn _emit_hash_literal_expr/,/fn _lit_hash_prepare_state/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _x64_collect_lambda_stmt_list/,/fn _x64_debug_print_lambda_collection/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)
 $(sed -n '/fn _x64_synth_lambda_wrapper_expr/,/fn _x64_compile_lambda_wrappers/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)"
 if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"$x64_literal_callable_split_impl" ||
+  ! grep -Fq 'fn _lit_hash_prepare_state(ctx, expr, locals)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _lit_array_prepare_state(ctx, expr, locals)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_collect_lambda_stmt_list(ctx, stmts_all)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_collect_lambda_type_ctors(ctx, type_ctors)' <<<"$x64_literal_callable_split_impl" ||
@@ -1143,6 +1145,20 @@ if ! grep -Fq 'fn _x64_call_name_has_oren_buf_prefix(nm)' <<<"$x64_call_fast_pat
   ! grep -Fq 'fn _x64_call_name_has_buf_new_suffix(nm, nm_len)' <<<"$x64_call_fast_path_split_impl" ||
   ! grep -Fq 'fn _x64_call_name_is_buf_runtime(nm, nm_len)' <<<"$x64_call_fast_path_split_impl"; then
   echo "ERROR: x64 call fast-path runtime-name classification must keep prefix/suffix checks split and allocation-free" >&2
+  exit 1
+fi
+x64_index_map_split_impl="$(sed -n '/fn _x64_index_emit_map_path/,/fn _x64_index_dynamic_labels/p' lib/compiler/x64_native_program/045_emit_index_expr.oren)"
+if ! grep -Fq 'fn _x64_index_emit_map_magic_if_known(ctx, recv_kind, labels, local_fixups)' <<<"$x64_index_map_split_impl" ||
+  ! grep -Fq 'fn _x64_index_emit_map_runtime_get(ctx, locals, known_kk, tmp0, tmp_idx, local_fixups, l_idx_done)' <<<"$x64_index_map_split_impl"; then
+  echo "ERROR: x64 map-index lowering must keep magic validation and runtime get dispatch split" >&2
+  exit 1
+fi
+x64_strlen_ptr_split_impl="$(sed -n '/fn _emit_string_len_from_ptr_x64/,/fn _x64_emit_known_int_add_x64/p' lib/compiler/x64_native_program/046_emit_string_helpers.oren)"
+if ! grep -Fq 'fn _x64_strlen_ptr_labels(ctx)' <<<"$x64_strlen_ptr_split_impl" ||
+  ! grep -Fq 'fn _x64_strlen_ptr_prepare(ctx, ptr_reg, dst_reg, state)' <<<"$x64_strlen_ptr_split_impl" ||
+  ! grep -Fq 'fn _x64_strlen_ptr_emit_loop(ctx, dst_reg, state)' <<<"$x64_strlen_ptr_split_impl" ||
+  ! grep -Fq 'fn _x64_strlen_ptr_finish(ctx, state)' <<<"$x64_strlen_ptr_split_impl"; then
+  echo "ERROR: x64 pointer strlen emission must keep labels, setup, loop, and finish helpers split" >&2
   exit 1
 fi
 x64_float_cmp_branch_impl="$(sed -n '/fn _x64_float_cmp_emit_two_jcc_then_done/,/fn _emit_float_cmp_to_bool_x64/p' lib/compiler/x64_native_program/047_emit_float_intrinsics.oren)"
