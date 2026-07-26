@@ -229,6 +229,14 @@
 </ul>
 <p>  helpers while keeping read/write label allocation and body emission split.</p>
 <ul>
+<li>X64 string-batch trace setup now separates phase-log lookup, progress-env</li>
+</ul>
+<p>  gating, and start-event emission.</p>
+<ul>
+<li>Windows x64 <code>sys_fcntl_setfl</code> lowering now separates label/fixup state, body</li>
+</ul>
+<p>  emission, and final patch/temp cleanup.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

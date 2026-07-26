@@ -3436,3 +3436,6 @@ design evidence lives under `project-doc/`.
   buffers, bytes, JSON/CBOR/YAML/regex, crypto helpers, linalg, math, time/timer,
   `std:net/url`, `std:path`, `std:net/avm` DNS/TCP/UDP/WebSocket facades, `std:ui/avm`,
   `std:avm/events`, and `std:avm/permission`.
+- X64 string-batch trace setup now separates phase-log lookup, progress-env
+  gating, and start-event emission; Windows x64 `sys_fcntl_setfl` lowering now
+  separates label/fixup state, body emission, and final patch/temp cleanup.

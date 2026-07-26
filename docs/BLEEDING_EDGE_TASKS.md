@@ -192,6 +192,10 @@ This file is the concise task view. Detailed implementation status lives in
    - Current Windows x64 `sys_read`/`sys_write` wrapper cleanup shares
      zero-length and cleanup helpers while keeping read/write label allocation
      and body emission split.
+   - Current x64 string-batch trace cleanup separates phase-log lookup,
+     progress-env gating, and start-event emission.
+   - Current Windows x64 `sys_fcntl_setfl` wrapper cleanup separates label/fixup
+     state, body emission, and final patch/temp cleanup.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

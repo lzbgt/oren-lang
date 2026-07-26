@@ -119,6 +119,10 @@ surfaces, but the following blockers remain:
   per-label fixup application, and phase-log completion.
 - Windows x64 `sys_read`/`sys_write` wrappers now share zero-length and cleanup
   helpers while keeping read/write label allocation and body emission split.
+- X64 string-batch trace setup now separates phase-log lookup, progress-env
+  gating, and start-event emission.
+- Windows x64 `sys_fcntl_setfl` lowering now separates label/fixup state, body
+  emission, and final patch/temp cleanup.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

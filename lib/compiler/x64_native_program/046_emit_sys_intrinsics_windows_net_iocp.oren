@@ -551,15 +551,30 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
     var state = _x64_fcntl_setfl_windows_state(ctx, locals, args)
     if state == nil { return nil }
+    var lab = _x64_fcntl_setfl_windows_labels()
+    _x64_emit_fcntl_setfl_windows_body(ctx, state, capsule, lab)
+    _x64_finish_fcntl_setfl_windows(ctx, state, lab)
+    return nil
+}
 
-    var labels = {}
-    var fixups = []
+fn _x64_fcntl_setfl_windows_labels() {
+    return {"labels": {}, "fixups": []}
+}
+
+fn _x64_emit_fcntl_setfl_windows_body(ctx, state, capsule, lab) {
+    var labels = lab["labels"]
+    var fixups = lab["fixups"]
     _x64_emit_fcntl_setfl_windows_prehook(ctx, state, capsule)
     _x64_emit_fcntl_setfl_windows_mode(ctx, labels, fixups, state)
     _x64_emit_fcntl_setfl_windows_ioctl(ctx, state)
     _x64_emit_fcntl_setfl_windows_result(ctx, labels, fixups)
     _x64_emit_fcntl_setfl_windows_posthook(ctx, state, capsule)
+    return nil
+}
 
+fn _x64_finish_fcntl_setfl_windows(ctx, state, lab) {
+    var labels = lab["labels"]
+    var fixups = lab["fixups"]
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, state["base"])
     return nil

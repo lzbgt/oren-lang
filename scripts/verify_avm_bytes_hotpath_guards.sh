@@ -1027,6 +1027,13 @@ if ! grep -Fq 'fn _x64_string_batch_input_lists(op)' <<<"$x64_string_batch_input
   echo "ERROR: x64 string-batch input state must keep list extraction and count derivation split" >&2
   exit 1
 fi
+x64_string_batch_trace_split_impl="$(sed -n '/fn _x64_string_batch_trace_state/,/fn _x64_string_batch_collect_items/p' lib/compiler/x64_native_program/060_emit_ops_string_batch.oren)"
+if ! grep -Fq 'fn _x64_string_batch_trace_phase(ctx)' <<<"$x64_string_batch_trace_split_impl" ||
+  ! grep -Fq 'fn _x64_string_batch_trace_progress_enabled(phase_log, phase_name)' <<<"$x64_string_batch_trace_split_impl" ||
+  ! grep -Fq 'fn _x64_string_batch_trace_start(phase_log, phase_name, j, batch_n, batch_names_n, batch_items_n, batch_off_encs_n, batch_slot_offs_src_n)' <<<"$x64_string_batch_trace_split_impl"; then
+  echo "ERROR: x64 string-batch trace state must keep phase lookup, env gating, and start logging split" >&2
+  exit 1
+fi
 x64_envblock_capture_split_impl="$(sed -n '/fn _emit_entry_capture_envblock_windows_x64/,/fn _x64_win_entry_args_state/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
 if ! grep -Fq 'fn _x64_emit_get_environment_strings_call(ctx)' <<<"$x64_envblock_capture_split_impl" ||
   ! grep -Fq 'fn _x64_store_envblock_in_entry_scratch(ctx, scratch_base)' <<<"$x64_envblock_capture_split_impl"; then
@@ -1092,6 +1099,7 @@ if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"
 fi
 x64_sys_data_split_impl="$(sed -n '/fn _x64_emit_windows_file_io_result/,/fn _x64_sys_rw_linux_slots/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
 $(sed -n '/fn _x64_emit_sys_write_windows_writefile/,/fn _emit_intrinsic_sys_write_linux_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
+$(sed -n '/fn _x64_emit_fcntl_setfl_windows_prehook/,/fn _x64_iocp_emit_invalid_param_handle_eio/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren)
 $(sed -n '/fn _x64_gettimeofday_windows_call_filetime/,/fn _x64_gettimeofday_windows_new_labels/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
@@ -1122,6 +1130,9 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_sys_write_windows_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_write_windows_body(ctx, locals, state, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_write_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_fcntl_setfl_windows_labels()' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_fcntl_setfl_windows_body(ctx, state, capsule, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_finish_fcntl_setfl_windows(ctx, state, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_windows_fstat_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)' <<<"$x64_sys_data_split_impl" ||
@@ -1134,7 +1145,7 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_base_functions(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)' <<<"$x64_sys_data_split_impl"; then
-  echo "ERROR: x64 system read/stat/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2
+  echo "ERROR: x64 system read/write/fcntl/stat/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2
   exit 1
 fi
 x64_function_frame_split_impl="$(sed -n '/fn _x64_frame_align_unit/,/fn _x64_emit_function_spills/p' lib/compiler/x64_native_program/080_functions_compile.oren)"

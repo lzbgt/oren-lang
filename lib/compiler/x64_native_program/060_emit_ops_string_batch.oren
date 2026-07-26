@@ -1,27 +1,12 @@
 fn _x64_string_batch_trace_state(ctx, j, op_slow_ms, batch_n, batch_names_n, batch_items_n, batch_off_encs_n, batch_slot_offs_src_n) {
-    var phase_log = nil
-    var phase_name = nil
-    if ctx != nil {
-        phase_log = ctx["emit_ops_phase_log"]
-        phase_name = ctx["emit_ops_phase_name"]
-    }
+    var phase = _x64_string_batch_trace_phase(ctx)
+    var phase_log = phase["log"]
+    var phase_name = phase["name"]
     var trace_op_slow = false
     if phase_log != nil && phase_name != nil && op_slow_ms > 0 { trace_op_slow = true }
-    var trace_batch_progress = false
-    var v_trace_batch = oren_env("OREN_TRACE_X64_STRING_BATCH_PROGRESS")
-    if phase_log != nil && phase_name != nil &&
-       v_trace_batch != nil && v_trace_batch != "" &&
-       x64_env_str_eq(v_trace_batch, "0") != true &&
-       x64_env_str_eq(v_trace_batch, "false") != true {
-        trace_batch_progress = true
-        _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.start",
-            "name=" + phase_name +
-                " i=" + oren_int_to_string(j) +
-                " count=" + oren_int_to_string(batch_n) +
-                " names=" + oren_int_to_string(batch_names_n) +
-                " items=" + oren_int_to_string(batch_items_n) +
-                " off_encs=" + oren_int_to_string(batch_off_encs_n) +
-                " slot_offs=" + oren_int_to_string(batch_slot_offs_src_n))
+    var trace_batch_progress = _x64_string_batch_trace_progress_enabled(phase_log, phase_name)
+    if trace_batch_progress {
+        _x64_string_batch_trace_start(phase_log, phase_name, j, batch_n, batch_names_n, batch_items_n, batch_off_encs_n, batch_slot_offs_src_n)
     }
     return {
         "phase_log": phase_log,
@@ -29,6 +14,37 @@ fn _x64_string_batch_trace_state(ctx, j, op_slow_ms, batch_n, batch_names_n, bat
         "trace_op_slow": trace_op_slow,
         "trace_batch_progress": trace_batch_progress
     }
+}
+
+fn _x64_string_batch_trace_phase(ctx) {
+    var phase_log = nil
+    var phase_name = nil
+    if ctx != nil {
+        phase_log = ctx["emit_ops_phase_log"]
+        phase_name = ctx["emit_ops_phase_name"]
+    }
+    return {"log": phase_log, "name": phase_name}
+}
+
+fn _x64_string_batch_trace_progress_enabled(phase_log, phase_name) {
+    var v_trace_batch = oren_env("OREN_TRACE_X64_STRING_BATCH_PROGRESS")
+    if phase_log == nil || phase_name == nil { return false }
+    if v_trace_batch == nil || v_trace_batch == "" { return false }
+    if x64_env_str_eq(v_trace_batch, "0") == true { return false }
+    if x64_env_str_eq(v_trace_batch, "false") == true { return false }
+    return true
+}
+
+fn _x64_string_batch_trace_start(phase_log, phase_name, j, batch_n, batch_names_n, batch_items_n, batch_off_encs_n, batch_slot_offs_src_n) {
+    _x64_program_phase_log_append(phase_log, "x64.codegen.function.string_batch.start",
+        "name=" + phase_name +
+            " i=" + oren_int_to_string(j) +
+            " count=" + oren_int_to_string(batch_n) +
+            " names=" + oren_int_to_string(batch_names_n) +
+            " items=" + oren_int_to_string(batch_items_n) +
+            " off_encs=" + oren_int_to_string(batch_off_encs_n) +
+            " slot_offs=" + oren_int_to_string(batch_slot_offs_src_n))
+    return nil
 }
 
 fn _x64_string_batch_collect_items(batch_n, batch_items, batch_items_n, batch_names, batch_values, batch_off_encs, batch_slot_offs_src) {
