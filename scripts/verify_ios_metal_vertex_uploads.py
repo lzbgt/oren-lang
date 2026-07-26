@@ -978,6 +978,11 @@ def main() -> int:
         "BOOL hasLastScissor = NO;",
         "MTLScissorRect lastScissor = {0, 0, 0, 0};",
         "OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor)",
+        "id<MTLTexture> lastFragmentTexture = nil;",
+        "BOOL hasLastFragmentOpacity = NO;",
+        "float lastFragmentOpacity = 0.0f;",
+        "OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture)",
+        "OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity)",
         "if (geometryPipeline && vertexRuns.count > 0)",
         "BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;",
         "if (textPipeline && hasTextureRuns)",
@@ -1000,6 +1005,14 @@ def main() -> int:
         fail("Metal prepared-run encoding must cache repeated scissor state")
     if frame_text.count("[encoder setScissorRect:scissor]") != 1:
         fail("Metal prepared-run encoding must set scissor only through the cached helper")
+    if "static void OrenAVMMetalApplyFragmentTextureIfNeeded" not in frame_text:
+        fail("Metal prepared-run encoding must cache repeated fragment texture state")
+    if "static void OrenAVMMetalApplyFragmentOpacityIfNeeded" not in frame_text:
+        fail("Metal prepared-run encoding must cache repeated fragment opacity state")
+    if frame_text.count("[encoder setFragmentTexture:texture atIndex:0]") != 1:
+        fail("Metal prepared-run encoding must set fragment textures only through the cached helper")
+    if frame_text.count("[encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0]") != 1:
+        fail("Metal prepared-run encoding must set fragment opacity only through the cached helper")
     if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:

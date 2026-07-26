@@ -534,6 +534,25 @@ static void OrenAVMMetalApplyScissorIfNeeded(id<MTLRenderCommandEncoder> encoder
     *hasLastScissor = YES;
 }
 
+static void OrenAVMMetalApplyFragmentTextureIfNeeded(id<MTLRenderCommandEncoder> encoder,
+                                                     id<MTLTexture> texture,
+                                                     id<MTLTexture>* lastTexture) {
+    if (!encoder || !texture || !lastTexture || *lastTexture == texture) return;
+    [encoder setFragmentTexture:texture atIndex:0];
+    *lastTexture = texture;
+}
+
+static void OrenAVMMetalApplyFragmentOpacityIfNeeded(id<MTLRenderCommandEncoder> encoder,
+                                                     float opacity,
+                                                     BOOL* hasLastOpacity,
+                                                     float* lastOpacity) {
+    if (!encoder || !hasLastOpacity || !lastOpacity) return;
+    if (*hasLastOpacity && *lastOpacity == opacity) return;
+    [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
+    *lastOpacity = opacity;
+    *hasLastOpacity = YES;
+}
+
 NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns(NSArray<OrenAVMMetalVertexRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalVertexRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
@@ -602,6 +621,9 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
     BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;
     if (textPipeline && hasTextureRuns) {
         [encoder setRenderPipelineState:textPipeline];
+        id<MTLTexture> lastFragmentTexture = nil;
+        BOOL hasLastFragmentOpacity = NO;
+        float lastFragmentOpacity = 0.0f;
         for (OrenAVMMetalImageRun* run in imageRuns) {
             NSUInteger vertexBytes = OrenAVMMetalImageRunVertexBytesLength(run);
             if (!run.texture || vertexBytes == 0) continue;
@@ -609,9 +631,8 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalImageRunVertexBytes(run), vertexBytes)) continue;
-            [encoder setFragmentTexture:run.texture atIndex:0];
-            float opacity = run.opacity;
-            [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
+            OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture);
+            OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
                          vertexCount:OrenAVMMetalImageRunVertexCount(run)];
@@ -623,9 +644,8 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalTextRunVertexBytes(run), vertexBytes)) continue;
-            [encoder setFragmentTexture:run.texture atIndex:0];
-            float opacity = run.opacity;
-            [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
+            OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture);
+            OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
                          vertexCount:OrenAVMMetalTextRunVertexCount(run)];
