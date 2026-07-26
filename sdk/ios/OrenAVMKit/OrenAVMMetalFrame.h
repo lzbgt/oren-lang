@@ -79,6 +79,7 @@ static inline BOOL OrenAVMMetalSubrectInTexture(uint32_t sx, uint32_t sy, uint32
 
 BOOL OrenAVMMetalFrameDataIsValid(NSData* frame);
 NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame);
+NSUInteger OrenAVMMetalRunArrayInitialCapacity(NSUInteger capacity);
 NSMutableArray* OrenAVMMetalEnsureRunArray(NSMutableArray** runs, NSUInteger capacity);
 uint64_t OrenAVMMetalNowNs(void);
 uint64_t OrenAVMMetalTargetBudgetNs(uint32_t hzMilli);

@@ -99,6 +99,7 @@ def main() -> int:
     for token in (
         "OrenAVMMetalVertexRunScissorEqual(pending, run)",
         "OrenAVMMetalVertexRunAppendBytes(pending, run.vertices, run.vertexBytes)",
+        "[NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(runs.count)]",
         "if (!out) return runs;",
         "pending = run;",
         "[out addObject:pending]",
@@ -243,6 +244,8 @@ def main() -> int:
         fail("text coalescing must keep the first run in each compatible group")
     if "if (!out) return runs;" not in coalesce_body:
         fail("text coalescing must preserve original prepared runs if the optional output array cannot be allocated")
+    if "[NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(runs.count)]" not in coalesce_body:
+        fail("text coalescing must cap optional output-array reservation")
     cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
     attrs_lookup = text_source.find("OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba)")
     if cache_lookup < 0 or attrs_lookup < 0 or cache_lookup > attrs_lookup:
@@ -881,6 +884,7 @@ def main() -> int:
     for token in (
         "pending = run;",
         "if (!out) return runs;",
+        "[NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(runs.count)]",
         "pending.texture == run.texture",
         "pending.opacity == run.opacity",
         "OrenAVMMetalImageScissorEqual(pending, run)",
@@ -1178,9 +1182,12 @@ def main() -> int:
     if (
         "OrenAVMMetalRunArrayMaxInitialCapacity = 4096u" not in frame_text
         or "OrenAVMMetalRunArrayInitialCapacity(capacity)" not in frame_text
+        or "NSUInteger OrenAVMMetalRunArrayInitialCapacity(NSUInteger capacity)" not in frame_text
         or "[NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(capacity)]" not in frame_text
     ):
         fail("lazy Metal run arrays must cap initial reservation instead of using full frame-derived capacity")
+    if "[NSMutableArray arrayWithCapacity:runs.count]" in metal_text:
+        fail("Metal coalescing must not reserve full run-list capacity")
     eager_run_arrays = [
         "NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
         "NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray arrayWithCapacity:runCapacity]",

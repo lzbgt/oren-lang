@@ -1,4 +1,5 @@
 #import "OrenAVMMetalText.h"
+#import "OrenAVMMetalFrame.h"
 
 #if TARGET_OS_IPHONE
 
@@ -572,7 +573,7 @@ static BOOL OrenAVMMetalEnsureHeapTextVerticesForCoalescing(OrenAVMMetalTextRun*
 
 NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetalTextRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
-    NSMutableArray<OrenAVMMetalTextRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    NSMutableArray<OrenAVMMetalTextRun*>* out = [NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(runs.count)];
     if (!out) return runs;
     OrenAVMMetalTextRun* pending = nil;
     for (OrenAVMMetalTextRun* run in runs) {

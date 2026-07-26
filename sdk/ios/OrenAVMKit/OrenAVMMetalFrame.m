@@ -30,7 +30,7 @@ NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame) {
 
 static const NSUInteger OrenAVMMetalRunArrayMaxInitialCapacity = 4096u;
 
-static NSUInteger OrenAVMMetalRunArrayInitialCapacity(NSUInteger capacity) {
+NSUInteger OrenAVMMetalRunArrayInitialCapacity(NSUInteger capacity) {
     return capacity > OrenAVMMetalRunArrayMaxInitialCapacity ? OrenAVMMetalRunArrayMaxInitialCapacity : capacity;
 }
 
@@ -582,7 +582,7 @@ static void OrenAVMMetalApplyPipelineIfNeeded(id<MTLRenderCommandEncoder> encode
 
 NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns(NSArray<OrenAVMMetalVertexRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
-    NSMutableArray<OrenAVMMetalVertexRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    NSMutableArray<OrenAVMMetalVertexRun*>* out = [NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(runs.count)];
     if (!out) return runs;
     OrenAVMMetalVertexRun* pending = nil;
     for (OrenAVMMetalVertexRun* run in runs) {

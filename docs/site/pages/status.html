@@ -350,7 +350,9 @@
 <p>  sharing texture, scissor, and opacity into one raw vertex span, reducing</p>
 <p>  sprite draw calls while preserving single-quad inline storage; prepared</p>
 <p>  geometry/image/text coalescing falls back to the original run lists if the</p>
-<p>  optional coalesced output array cannot be allocated.</p>
+<p>  optional coalesced output array cannot be allocated, and coalesced output</p>
+<p>  arrays reuse the shared 4096-entry initial-capacity cap instead of reserving</p>
+<p>  the full input run count.</p>
 <ul>
 <li>iOS Metal image runs now track initialized inline-quad vertex count</li>
 </ul>

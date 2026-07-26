@@ -120,6 +120,8 @@ design evidence lives under `project-doc/`.
   fail explicitly if lazy run-array allocation fails.
 - Metal prepared geometry/image/text run coalescing now preserves the original
   prepared run lists if the optional coalesced output array cannot be allocated.
+- Metal prepared geometry/image/text coalesced output arrays now reuse the shared
+  4096-entry initial-capacity cap instead of reserving the full input run count.
 - Metal prepared draw submission now caches the currently bound render pipeline
   object across geometry/image/text runs, while still binding lazily only after a
   valid vertex payload reaches the encoder.

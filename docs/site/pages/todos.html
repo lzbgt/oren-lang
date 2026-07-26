@@ -215,6 +215,10 @@
 </ul>
 <p>  prepared run lists if the optional coalesced output array cannot be allocated.</p>
 <ul>
+<li>Metal prepared geometry/image/text coalesced output arrays now reuse the shared</li>
+</ul>
+<p>  4096-entry initial-capacity cap instead of reserving the full input run count.</p>
+<ul>
 <li>Metal prepared draw submission now caches the currently bound render pipeline</li>
 </ul>
 <p>  object across geometry/image/text runs, while still binding lazily only after a</p>
