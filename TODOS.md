@@ -52,8 +52,9 @@ design evidence lives under `project-doc/`.
   runtime record slots while leaving object-format placement and fixup/patch
   paths in the format emitters.
 - X64/ARM64 ELF emitters now share `elf_artifact.oren` for common dynamic-link
-  scaffold emission: default DT_NEEDED libs, dynsym function entries, one-bucket
-  SysV hash tables, dynamic table blob placement, and stable DT_DYNAMIC tags.
+  scaffold emission: default DT_NEEDED libs, dynamic string-table/name-offset
+  assembly, dynsym function entries, one-bucket SysV hash tables, dynamic table
+  blob placement, and stable DT_DYNAMIC tags.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

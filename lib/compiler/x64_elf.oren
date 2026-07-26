@@ -689,43 +689,11 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         push_u64_le(data, 0)
     }
 
-    // --- Build dynstr (DT_STRTAB) ---
-    var dynstr = bytes_new()
-    bytes_extend_zeros(dynstr, 1) // leading NUL
-
     var needed = _elf_x64_dyn_needed_libs(user_link_libs)
-    var needed_dynstr_offs = {}
-    var i_need = 0
-    while i_need < oren_list_len(needed) {
-        var lib = needed[i_need]
-        needed_dynstr_offs[lib] = _bytes_add_str0(dynstr, lib)
-        i_need = i_need + 1
-    }
-
-    var sym_dynstr_offs = {}
-    var i_imp = 0
-    while i_imp < oren_list_len(imports) {
-        var imp = imports[i_imp]
-        var nm = imp["name"]
-        if nm == nil || nm == "" {
-            print("x64 elf: internal: dyn import missing name")
-            oren_exit(1)
-            return nil
-        }
-        if sym_dynstr_offs[nm] == nil {
-            sym_dynstr_offs[nm] = _bytes_add_str0(dynstr, nm)
-        }
-        i_imp = i_imp + 1
-    }
-    var i_exp = 0
-    while i_exp < oren_list_len(exports) {
-        var nm3 = exports[i_exp]
-        if nm3 == nil || nm3 == "" { i_exp = i_exp + 1; continue }
-        if sym_dynstr_offs[nm3] == nil {
-            sym_dynstr_offs[nm3] = _bytes_add_str0(dynstr, nm3)
-        }
-        i_exp = i_exp + 1
-    }
+    var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, "x64 elf: internal: dyn import missing name", nil)
+    var dynstr = dyn_names["dynstr"]
+    var needed_dynstr_offs = dyn_names["needed_dynstr_offs"]
+    var sym_dynstr_offs = dyn_names["sym_dynstr_offs"]
 
     // --- Build dynsym (DT_SYMTAB) ---
     // Elf64_Sym is 24 bytes.
