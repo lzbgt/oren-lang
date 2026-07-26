@@ -142,6 +142,9 @@ static BOOL OrenAVMGFXInputPutEventParts(OrenAVMRuntime* runtime,
                                          uint16_t suffixLen,
                                          NSError** error) {
     enum { stackCap = 12 + 256 };
+    if ((uint32_t)prefixLen + (uint32_t)suffixLen > UINT16_MAX) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"GFX input event is too large");
+    }
     uint16_t payloadLen = (uint16_t)(prefixLen + suffixLen);
     NSUInteger totalLen = (NSUInteger)12u + (NSUInteger)payloadLen;
     if (totalLen <= stackCap) {
@@ -185,6 +188,9 @@ static BOOL OrenAVMGFXInputPutUTF8EventParts(OrenAVMRuntime* runtime,
                                              NSError** error) {
     if (!text) return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, invalidMessage);
     enum { stackCap = 12 + 256 };
+    if (utf8Len > (NSUInteger)(UINT16_MAX - prefixLen)) {
+        return OrenAVMGFXInputSDKError(error, AVM_EMBED_ERR_INVALID_ARG, @"GFX input event is too large");
+    }
     uint16_t suffixLen = (uint16_t)utf8Len;
     uint16_t payloadLen = (uint16_t)(prefixLen + suffixLen);
     NSUInteger totalLen = (NSUInteger)12u + (NSUInteger)payloadLen;

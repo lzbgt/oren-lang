@@ -61,6 +61,8 @@ design evidence lives under `project-doc/`.
   the command is otherwise a no-op, preserving resource create/destroy paths.
 - CoreGraphics OGF0 frame traversal now breaks on truncated payloads and still
   restores saved CGContext state instead of returning before state cleanup.
+- iOS GFX input event helpers now reject segmented or UTF-8 payload length
+  overflow before encoding the `OGE0` payload length into 16-bit fields.
 - `std:math/mat4` trace/Frobenius/one/infinity norm implementations now live in
   a focused norm helper module while the public `mat4` facade keeps stable
   wrappers for the same API.

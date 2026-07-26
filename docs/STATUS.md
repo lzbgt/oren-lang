@@ -2577,7 +2577,7 @@ fixed-size `OGE0` events on stack and enqueue raw bytes directly; CoreGraphics
 and Metal views expose text plus composition forwarding helpers over the same
 runtime encoders; text and composition events use segmented stack-first
 construction, encode UTF-8 directly into the final event buffer, and use one
-raw heap event fallback, not an Objective-C data wrapper, only for large payloads; CoreGraphics plus Metal touch tracking
+raw heap event fallback, not an Objective-C data wrapper, only for large payloads; segmented and UTF-8 event helpers now reject oversized payloads before 16-bit length casts; CoreGraphics plus Metal touch tracking
 keep active pointer IDs in scalar pointer maps instead of retaining per-touch
 `NSNumber` boxes, and both renderers share `OrenAVMGFXInput` touch forwarding
 helpers while keeping per-view maps. CoreGraphics retained resource models,

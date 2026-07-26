@@ -43,6 +43,10 @@ def main() -> int:
         fail("missing stack-first GFX input event construction helper")
     if "OrenAVMGFXInputPutUTF8EventParts" not in input_text or "OrenAVMGFXInputWriteUTF8" not in input_text:
         fail("missing direct UTF-8 GFX input event helper")
+    if "(uint32_t)prefixLen + (uint32_t)suffixLen > UINT16_MAX" not in input_text:
+        fail("segmented GFX input event helper must reject payload length overflow before uint16 casts")
+    if "utf8Len > (NSUInteger)(UINT16_MAX - prefixLen)" not in input_text:
+        fail("UTF-8 GFX input event helper must reject oversized text before uint16 casts")
     if "NSMutableData* event" in input_text or "[NSMutableData dataWithLength:totalLen]" in input_text:
         fail("large variable GFX input events must use raw heap buffers, not NSMutableData wrappers")
     if input_text.count("uint8_t* event = (uint8_t*)malloc(totalLen)") != 2 or input_text.count("free(event)") < 3:
