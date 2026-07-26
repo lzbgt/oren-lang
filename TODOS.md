@@ -124,6 +124,9 @@ design evidence lives under `project-doc/`.
 - X64 PE, ARM64/x64 ELF, and ARM64/x64 native C-string append helpers now use
   shared byte-builder NUL-terminated string extension instead of appending the
   terminator through a second byte-builder operation.
+- HPACK raw string-literal header-block encoding now copies directly from
+  validated strings into the final `u8_buf`, and the RFC C.2.1 fixture pins the
+  non-Huffman literal bytes.
 - ARM64 ELF runtime debug-record reserved u64 fields now use a shared straight-line
   zero-word helper instead of repeating four zero pushes at each record site.
 - ARM64 Mach-O runtime debug-record reserved u64 fields now use the same shared

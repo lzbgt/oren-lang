@@ -1,10 +1,10 @@
 // HPACK (RFC 7541) encode regression (rolling)
 //
-// Proves our encoder can reproduce RFC 7541 Appendix C.4.1 "First Request"
-// encoded bytes exactly (Huffman literal for www.example.com).
+// Proves our encoder can reproduce RFC 7541 Appendix C.2.1 and C.4.1 encoded
+// bytes exactly, covering both raw and Huffman string literal writes.
 //
 // Reference:
-// - `project-doc/web/rfc/rfc7541.txt` (Appendix C.4.1)
+// - `project-doc/web/rfc/rfc7541.txt` (Appendix C.2.1 and C.4.1)
 
 import hpack "std:net/hpack"
 
@@ -64,6 +64,19 @@ fn main() {
     if dr["ok"] != 1 { _fail("decode_header_block err") }
     if oren_list_len(dr["headers"]) != 4 { _fail("decode_header_block header count") }
     if _str_eq_bytes(dr["headers"][3]["value"], "www.example.com") != true { _fail("decode_header_block authority") }
+
+    var raw_expected = "400a637573746f6d2d6b65790d637573746f6d2d686561646572"
+    var raw_headers = [
+        {"name": "custom-key", "value": "custom-header", "index": "inc"}
+    ]
+    var raw = hpack.encode_header_block(hpack.table_new(4096), raw_headers, {"huffman": 0})
+    if raw["ok"] != 1 { _fail("encode_header_block raw literal failed") }
+    var raw_got = oren_bytes_to_hex(raw["b"])
+    if _str_eq_bytes(raw_got, raw_expected) != true {
+        print("expected=" + raw_expected)
+        print("got     =" + raw_got)
+        _fail("raw literal hex mismatch")
+    }
 
     var bad = hpack.decode_header_block(hpack.table_new(4096), oren_bytes_pack([255]))
     if bad["ok"] != 0 { _fail("decode_header_block invalid should have ok=0") }

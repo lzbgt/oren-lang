@@ -28,6 +28,8 @@ surfaces, but the following blockers remain:
 - Compiler byte output now also routes PE/ELF and native C-string append helpers
   through shared byte-builder NUL-terminated string extension, preserving offsets
   while avoiding separate terminator growth/write paths.
+- HPACK raw string-literal encoding now bulk-copies directly from validated
+  strings into the output `u8_buf`; Huffman literals keep the existing bit writer.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

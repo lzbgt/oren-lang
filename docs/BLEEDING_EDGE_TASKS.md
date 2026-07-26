@@ -31,6 +31,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current PE/ELF and native compiler C-string output cleanup routes
      NUL-terminated string appends through shared byte-builder string+zero
      extension.
+   - Current HPACK raw string-literal output uses direct string-slice copies into
+     the encoded header-block `u8_buf`, with RFC raw-literal fixture coverage.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
    - Current x64 split-module cleanup also routes string-batch, top-level

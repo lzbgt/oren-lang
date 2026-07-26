@@ -66,6 +66,10 @@
 <p>  through shared byte-builder NUL-terminated string extension, preserving offsets</p>
 <p>  while avoiding separate terminator growth/write paths.</p>
 <ul>
+<li>HPACK raw string-literal encoding now bulk-copies directly from validated</li>
+</ul>
+<p>  strings into the output <code>u8_buf</code>; Huffman literals keep the existing bit writer.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>
