@@ -49,6 +49,9 @@ design evidence lives under `project-doc/`.
   the command is otherwise a no-op, preserving resource create/destroy paths.
 - CoreGraphics OGF0 frame traversal now breaks on truncated payloads and still
   restores saved CGContext state instead of returning before state cleanup.
+- `std:math/mat4` trace/Frobenius/one/infinity norm implementations now live in
+  a focused norm helper module while the public `mat4` facade keeps stable
+  wrappers for the same API.
 - `std:bytes.copy_into` now routes validated non-overlapping `u8_buf` spans
   through bounded `oren_memcpy` in native and bytecode, while fixtures cover both
   overlapping self-copy directions across AVM and native quick integration.

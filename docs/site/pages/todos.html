@@ -94,6 +94,11 @@
 </ul>
 <p>  restores saved CGContext state instead of returning before state cleanup.</p>
 <ul>
+<li><code>std:math/mat4</code> trace/Frobenius/one/infinity norm implementations now live in</li>
+</ul>
+<p>  a focused norm helper module while the public <code>mat4</code> facade keeps stable</p>
+<p>  wrappers for the same API.</p>
+<ul>
 <li><code>std:bytes.copy_into</code> now routes validated non-overlapping <code>u8_buf</code> spans</li>
 </ul>
 <p>  through bounded <code>oren_memcpy</code> in native and bytecode, while fixtures cover both</p>

@@ -1,5 +1,6 @@
 import math "std:math"
 import chk "std:math/mat4_checks"
+import norms "std:math/mat4_norms"
 import pred "std:math/mat4_predicates"
 import quat "std:math/quat"
 import viewport "std:math/mat4_viewport"
@@ -598,114 +599,39 @@ fn without_diagonal(m) {
 }
 
 fn trace(m) {
-    var ok = chk._check(m, "mat4.trace")
-    if oren_is_err(ok) { return ok }
-    var m0: f64 = m[0]
-    var m5: f64 = m[5]
-    var m10: f64 = m[10]
-    var m15: f64 = m[15]
-    var out: f64 = m0 + m5 + m10 + m15
-    if !math.is_finite(out) { return oren_err(4, "mat4.trace: non-finite") }
-    return out
+    return norms.trace(m)
 }
 
 fn frobenius_norm_sq(m) {
-    var ok = chk._check(m, "mat4.frobenius_norm_sq")
-    if oren_is_err(ok) { return ok }
-    var out: f64 = 0.0
-    var i = 0
-    while i < 16 {
-        var v: f64 = m[i]
-        out = out + v * v
-        if !math.is_finite(out) { return oren_err(4, "mat4.frobenius_norm_sq: non-finite") }
-        i = i + 1
-    }
-    return out
+    return norms.frobenius_norm_sq(m)
 }
 
 fn frobenius_norm(m) {
-    var ok = chk._check(m, "mat4.frobenius_norm")
-    if oren_is_err(ok) { return ok }
-    var scale: f64 = 0.0
-    var ssq: f64 = 1.0
-    var i = 0
-    while i < 16 {
-        var v: f64 = m[i]
-        if v < 0.0 { v = 0.0 - v }
-        if v != 0.0 {
-            if scale < v {
-                var r: f64 = scale / v
-                ssq = 1.0 + ssq * r * r
-                scale = v
-            } else {
-                var r2: f64 = v / scale
-                ssq = ssq + r2 * r2
-            }
-        }
-        i = i + 1
-    }
-    if scale == 0.0 { return 0.0 }
-    var out: f64 = scale * math.sqrt(ssq)
-    if !math.is_finite(out) { return oren_err(4, "mat4.frobenius_norm: non-finite") }
-    return out
+    return norms.frobenius_norm(m)
 }
 
 fn norm_frobenius(m) {
-    return frobenius_norm(m)
+    return norms.norm_frobenius(m)
 }
 
 fn norm(m) {
-    return frobenius_norm(m)
+    return norms.norm(m)
 }
 
 fn norm_one(m) {
-    var ok = chk._check(m, "mat4.norm_one")
-    if oren_is_err(ok) { return ok }
-    var best: f64 = 0.0
-    var c = 0
-    while c < 4 {
-        var sum: f64 = 0.0
-        var r = 0
-        while r < 4 {
-            var v: f64 = m[r * 4 + c]
-            if v < 0.0 { v = 0.0 - v }
-            sum = sum + v
-            r = r + 1
-        }
-        if !math.is_finite(sum) { return oren_err(4, "mat4.norm_one: non-finite") }
-        if sum > best { best = sum }
-        c = c + 1
-    }
-    return best
+    return norms.norm_one(m)
 }
 
 fn one_norm(m) {
-    return norm_one(m)
+    return norms.one_norm(m)
 }
 
 fn norm_inf(m) {
-    var ok = chk._check(m, "mat4.norm_inf")
-    if oren_is_err(ok) { return ok }
-    var best: f64 = 0.0
-    var r = 0
-    while r < 4 {
-        var sum: f64 = 0.0
-        var c = 0
-        while c < 4 {
-            var v: f64 = m[r * 4 + c]
-            if v < 0.0 { v = 0.0 - v }
-            sum = sum + v
-            c = c + 1
-        }
-        if !math.is_finite(sum) { return oren_err(4, "mat4.norm_inf: non-finite") }
-        if sum > best { best = sum }
-        r = r + 1
-    }
-    return best
+    return norms.norm_inf(m)
 }
 
 fn infinity_norm(m) {
-    return norm_inf(m)
+    return norms.infinity_norm(m)
 }
 
 fn identity() {
