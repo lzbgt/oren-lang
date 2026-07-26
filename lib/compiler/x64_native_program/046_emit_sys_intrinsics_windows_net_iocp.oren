@@ -76,7 +76,7 @@ fn _x64_wsarecv_capsule_pre(ctx, state, capsule) {
     return nil
 }
 
-fn _x64_wsarecv_emit_call(ctx, state) {
+fn _x64_wsa_store_wsabuf_local(ctx, state) {
     // Build WSABUF as two 8-byte locals so we can take a stable address without
     // requiring extra Win64 outgoing stack space beyond the ABI argument area.
     //
@@ -87,22 +87,36 @@ fn _x64_wsarecv_emit_call(ctx, state) {
     _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_len"], 0)
     _intr_load_x64(ctx, 0, state["tmp_buf"])
     _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_buf"], 0)
+    return nil
+}
 
-    // Call WSARecv:
-    // rcx=s, rdx=&wsabuf, r8=1, r9=bytes_ptr,
-    // [rsp+32]=flags_ptr, [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
+fn _x64_wsa_load_common_receive_args(ctx, state) {
     _intr_load_x64(ctx, 1, state["tmp_s"])
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state["tmp_wsabuf_len"]))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
     _intr_load_x64(ctx, 9, state["tmp_bytes"])               // r9  = bytes_ptr
+    return nil
+}
+
+fn _x64_wsarecv_emit_stack_args(ctx, state) {
     _intr_load_x64(ctx, 10, state["tmp_flags"])
     _emit_mov_mrsp_r64(ctx, 32, 10) // flags_ptr
     _intr_load_x64(ctx, 10, state["tmp_ov"])
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
+    return nil
+}
+
+fn _x64_wsarecv_emit_call(ctx, state) {
+    // Call WSARecv:
+    // rcx=s, rdx=&wsabuf, r8=1, r9=bytes_ptr,
+    // [rsp+32]=flags_ptr, [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
+    _x64_wsa_store_wsabuf_local(ctx, state)
+    _x64_wsa_load_common_receive_args(ctx, state)
+    _x64_wsarecv_emit_stack_args(ctx, state)
 
     _emit_call_iat_x64(ctx, "IAT_WSARecv")
     return nil
@@ -247,20 +261,13 @@ fn _x64_wsarecvfrom_capsule_pre(ctx, state, capsule) {
 
 fn _x64_wsarecvfrom_emit_call(ctx, state) {
     // Build WSABUF as two 8-byte locals (see wsarecv above).
-    _intr_load_x64(ctx, 0, state["tmp_len"])
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_len"], 0)
-    _intr_load_x64(ctx, 0, state["tmp_buf"])
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_buf"], 0)
+    _x64_wsa_store_wsabuf_local(ctx, state)
 
     // Call WSARecvFrom:
     // rcx=s, rdx=&wsabuf, r8=1, r9=bytes_ptr,
     // [rsp+32]=flags_ptr, [rsp+40]=sa_out, [rsp+48]=sa_lenp,
     // [rsp+56]=ov_ptr, [rsp+64]=NULL(completionRoutine)
-    _intr_load_x64(ctx, 1, state["tmp_s"])
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state["tmp_wsabuf_len"]))
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1)) // r8d = 1
-    _intr_load_x64(ctx, 9, state["tmp_bytes"]) // r9 = bytes_ptr
+    _x64_wsa_load_common_receive_args(ctx, state)
     _intr_load_x64(ctx, 10, state["tmp_flags"])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _intr_load_x64(ctx, 10, state["tmp_sa"])

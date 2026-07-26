@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 parser/codegen cleanup now shares `WSARecv`/`WSARecvFrom` WSABUF/common
+  argument setup and LIST/LIST_INT fast-push loop entry/value/advance helpers,
+  reducing duplicated fixed emission bodies while preserving instruction order.
 - Compiler byte output now routes bytecode constant strings and ARM64 Mach-O
   import/export string-table names through byte-builder string extension,
   removing residual per-byte string-read loops from those hot emitters. The

@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- X64 parser/codegen cleanup now shares `WSARecv`/`WSARecvFrom` WSABUF setup
+  and common receive-argument lowering, and LIST/LIST_INT fast-push loops share
+  split entry, value-store, and advance helpers while preserving emitted order.
 - Compiler bytecode constant strings and ARM64 Mach-O import/export string-table
   names now append through byte-builder string extension instead of per-byte
   string-read loops, and the central byte-builder string/NUL-string extension

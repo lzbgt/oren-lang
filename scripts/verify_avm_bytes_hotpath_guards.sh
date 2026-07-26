@@ -1090,6 +1090,8 @@ x64_list_int_set_split_impl="$(sed -n '/fn _x64_list_int_set_alloc_spill_state/,
 if ! grep -Fq 'fn _x64_list_int_set_eval_spill_arg(ctx, locals, expr, base, off)' <<<"$x64_list_int_set_split_impl" || ! grep -Fq 'fn _x64_emit_list_int_set_slow_path(ctx, locals, state)' <<<"$x64_list_int_set_split_impl" || ! grep -Fq 'fn _x64_emit_list_int_set_fast_path(ctx, state)' <<<"$x64_list_int_set_split_impl"; then
   echo "ERROR: x64 LIST_INT set lowering must keep arg spill, slow path, and fast path helpers split" >&2; exit 1
 fi
+x64_fast_push_loop_split_impl="$(sed -n '/fn _x64_fast_push_emit_loop_entry/,/fn _x64_fast_list_push_update_counts/p' lib/compiler/x64_native_program/057_emit_ops_while_emit.oren)"
+if ! grep -Fq 'fn _x64_fast_push_emit_loop_entry(ctx, prep, locals, labels, label_names, local_fixups)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_values(ctx, prep, locals)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_common(ctx, prep, locals, labels, label_names, local_fixups)' <<<"$x64_fast_push_loop_split_impl"; then echo "ERROR: x64 LIST/LIST_INT fast-push loops must share split entry/value/body helpers" >&2; exit 1; fi
 x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _lit_array_depth_state/,/fn _emit_hash_literal_expr/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _emit_hash_literal_expr/,/fn _lit_hash_prepare_state/p' lib/compiler/x64_native_program/043_emit_literals.oren)
@@ -1112,7 +1114,7 @@ $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepa
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_win_wait_single_object_result_labels/,/fn _emit_intrinsic_sys_win_wait_single_object_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_threads.oren)
 $(sed -n '/fn _x64_linux_epoll_create1_state/,/fn _x64_linux_epoll_ctl_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren)
-$(sed -n '/fn _x64_wsa_overlapped_labels/,/fn _x64_wsarecv_normalize_result/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren)
+$(sed -n '/fn _x64_wsa_store_wsabuf_local/,/fn _x64_wsarecv_normalize_result/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren)
 $(sed -n '/fn _emit_win64_stat_regular_file_mode_x64/,/fn _emit_win64_stat_capsule_post_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _x64_windows_fstat_labels/,/fn _x64_unlink_rmdir_windows_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _emit_nanosleep_timespec_syscall_x64/,/fn _x64_linux_nanosleep_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren)
@@ -1132,8 +1134,8 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_call(ctx, state)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_result_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _x64_linux_epoll_create1_state(ctx, locals, args)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_linux_epoll_create1_syscall(ctx, st)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _x64_wsa_overlapped_labels(ctx, label_prefix)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_emit_error_path(ctx, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_linux_epoll_create1_state(ctx, locals, args)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_linux_epoll_create1_syscall(ctx, st)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_store_wsabuf_local(ctx, state)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_wsa_load_common_receive_args(ctx, state)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_labels(ctx, label_prefix)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_emit_error_path(ctx, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, l_ret0)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_sys_read_windows_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_read_windows_body(ctx, locals, state, lab)' <<<"$x64_sys_data_split_impl" ||
@@ -1905,7 +1907,6 @@ if ! grep -Fq 'var input_ptr = bytem.view_ptr(bv)' lib/std/cbor.oren ||
   echo "ERROR: std:cbor decode must hoist shared byte-view backing storage for header and argument reads" >&2
   exit 1
 fi
-
 buffer_view_impl="$(sed -n '/fn _slice_copy_from_u8_buf_direct/,/fn _strided_load_i32_unchecked/p' lib/std/buffer/view.oren)"
 if ! grep -Fq 'bytesm.copy_into(s[0], s[1], src, 0, ns)' <<<"$buffer_view_impl" ||
   ! grep -Fq 'return oren_u8_buf_copy_from_string_slice_at(s[0], s[1], text, off, n)' <<<"$buffer_view_impl" ||

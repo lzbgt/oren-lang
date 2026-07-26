@@ -211,6 +211,10 @@ This file is the concise task view. Detailed implementation status lives in
      capsule pre/post hooks, and syscall emission.
    - Current Windows x64 overlapped WSA result cleanup separates label/fixup
      allocation, immediate-result dispatch, error mapping, and success paths.
+   - Current Windows x64 WSA receive cleanup shares WSABUF local setup and common
+     receive argument loading across `WSARecv` and `WSARecvFrom`, and current
+     LIST/LIST_INT fast-push loops share split entry, value-store, and advance
+     helpers while preserving label order.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

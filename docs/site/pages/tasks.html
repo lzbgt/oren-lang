@@ -404,6 +404,12 @@
 <li>Current Windows x64 overlapped WSA result cleanup separates label/fixup</li>
 </ul>
 <p>     allocation, immediate-result dispatch, error mapping, and success paths.</p>
+<ul>
+<li>Current Windows x64 WSA receive cleanup shares WSABUF local setup and common</li>
+</ul>
+<p>     receive argument loading across <code>WSARecv</code> and <code>WSARecvFrom</code>, and current</p>
+<p>     LIST/LIST_INT fast-push loops share split entry, value-store, and advance</p>
+<p>     helpers while preserving label order.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

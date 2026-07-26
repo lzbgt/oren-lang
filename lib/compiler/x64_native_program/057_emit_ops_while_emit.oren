@@ -426,6 +426,16 @@ fn _x64_fast_push_emit_indexed_buffer_store(ctx, prep, slots) {
     return nil
 }
 
+fn _x64_fast_push_emit_loop_entry(ctx, prep, locals, labels, label_names, local_fixups) {
+    _emit_label(ctx, labels, label_names["cond"])
+    _emit_mov_r64_mrbp(ctx, 0, 0 - prep["off_idx"])
+    _emit_mov_r64_mrbp(ctx, 9, 0 - prep["off_n"])
+    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", label_names["end"])
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
+    return nil
+}
+
 fn _x64_fast_push_emit_value_store(ctx, prep, locals, push) {
     var slots = _x64_fast_push_value_store_slots(ctx, prep, locals, push)
     if slots == nil { return false }
@@ -434,36 +444,36 @@ fn _x64_fast_push_emit_value_store(ctx, prep, locals, push) {
     return true
 }
 
-fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
+fn _x64_fast_push_emit_loop_values(ctx, prep, locals) {
     var pushes = prep["pushes"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var l_fast_cond = label_names["cond"]
-    var l_fast_end = label_names["end"]
-
-    _emit_label(ctx, labels, l_fast_cond)
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
-
-    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
-
+    var push_count = oren_list_len(pushes)
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    while pi < push_count {
         if _x64_fast_push_emit_value_store(ctx, prep, locals, pushes[pi]) != true { return false }
         pi = pi + 1
     }
-
-    // i++
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
-    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
-
-    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
-
-    _emit_label(ctx, labels, l_fast_end)
     return true
+}
+
+fn _x64_fast_push_emit_loop_advance(ctx, prep, local_fixups, l_fast_cond) {
+    // i++
+    _emit_mov_r64_mrbp(ctx, 0, 0 - prep["off_idx"])
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
+    _emit_mov_mrbp_r64(ctx, 0 - prep["off_idx"], 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+    return nil
+}
+
+fn _x64_fast_push_emit_loop_common(ctx, prep, locals, labels, label_names, local_fixups) {
+    _x64_fast_push_emit_loop_entry(ctx, prep, locals, labels, label_names, local_fixups)
+    if _x64_fast_push_emit_loop_values(ctx, prep, locals) != true { return false }
+    _x64_fast_push_emit_loop_advance(ctx, prep, local_fixups, label_names["cond"])
+    _emit_label(ctx, labels, label_names["end"])
+    return true
+}
+
+fn _x64_fast_list_int_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
+    return _x64_fast_push_emit_loop_common(ctx, prep, locals, labels, label_names, local_fixups)
 }
 
 fn _x64_fast_list_int_push_update_counts(ctx, prep, locals) {
@@ -643,35 +653,7 @@ fn _x64_fast_list_push_validate_lists(ctx, prep, locals, labels, label_names, lo
 }
 
 fn _x64_fast_list_push_emit_loop(ctx, prep, locals, labels, label_names, local_fixups) {
-    var pushes = prep["pushes"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var l_fast_cond = label_names["cond"]
-    var l_fast_end = label_names["end"]
-
-    _emit_label(ctx, labels, l_fast_cond)
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
-
-    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
-
-    var pi = 0
-    while pi < oren_list_len(pushes) {
-        if _x64_fast_push_emit_value_store(ctx, prep, locals, pushes[pi]) != true { return false }
-        pi = pi + 1
-    }
-
-    // i++
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
-    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
-
-    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
-
-    _emit_label(ctx, labels, l_fast_end)
-    return true
+    return _x64_fast_push_emit_loop_common(ctx, prep, locals, labels, label_names, local_fixups)
 }
 
 fn _x64_fast_list_push_update_counts(ctx, prep, locals) {

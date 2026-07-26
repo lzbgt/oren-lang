@@ -71,6 +71,11 @@
 </table>
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
+<li>X64 parser/codegen cleanup now shares <code>WSARecv</code>/<code>WSARecvFrom</code> WSABUF setup</li>
+</ul>
+<p>  and common receive-argument lowering, and LIST/LIST_INT fast-push loops share</p>
+<p>  split entry, value-store, and advance helpers while preserving emitted order.</p>
+<ul>
 <li>Compiler bytecode constant strings and ARM64 Mach-O import/export string-table</li>
 </ul>
 <p>  names now append through byte-builder string extension instead of per-byte</p>
