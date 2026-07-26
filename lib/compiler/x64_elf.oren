@@ -1170,29 +1170,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     if trace_sum { t_fix_done = oren_time_now_ns() }
     if phase_log != nil { _elf_phase_log_append(phase_log, "x64.elf.fixups.done", "") }
 
-    // Build program headers based on the final layout.
-    //
-    // text_filesz is the full size of the RX PT_LOAD, which ends at the start of data.
-    var text_filesz = data_file_off
-    var phdrs = []
-    if dyn {
-        // PT_PHDR (header table itself)
-        oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64, "vaddr": base + 64, "paddr": base + 64, "filesz": phnum * 56, "memsz": phnum * 56, "align": 8})
-        if is_shared_lib != true {
-            // PT_INTERP (executables only)
-            oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
-        }
-    }
-    // PT_LOAD RX: headers + code + padding
-    oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0, "vaddr": base, "paddr": base, "filesz": text_filesz, "memsz": text_filesz, "align": 4096})
-    // PT_LOAD RW: data blob
-    oren_list_push(phdrs, {"type": 1, "flags": 6, "offset": data_file_off, "vaddr": base + data_file_off, "paddr": base + data_file_off, "filesz": bytes_len(data), "memsz": bytes_len(data), "align": 4096})
-    if dyn {
-        // PT_DYNAMIC
-        oren_list_push(phdrs, {"type": 2, "flags": 6, "offset": data_file_off + dyn_meta["dynamic_off"], "vaddr": base + data_file_off + dyn_meta["dynamic_off"], "paddr": base + data_file_off + dyn_meta["dynamic_off"], "filesz": dyn_meta["dynamic_len"], "memsz": dyn_meta["dynamic_len"], "align": 8})
-        // PT_GNU_STACK (RW, no execute)
-        oren_list_push(phdrs, {"type": 1685382481, "flags": 6, "offset": 0, "vaddr": 0, "paddr": 0, "filesz": 0, "memsz": 0, "align": 16})
-    }
+    var phdrs = elfart.build_program_headers(base, phnum, dyn, is_shared_lib, data_file_off, bytes_len(data), dyn_meta)
 
     var prefix = elf_build_prefix_x64(base, hdr_size, phdrs, ctx["entry_off"], is_shared_lib)
     bytes_extend(prefix, code)

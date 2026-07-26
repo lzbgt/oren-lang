@@ -32,6 +32,8 @@ if ! grep -Fq 'import artifact "artifact_bytes.oren"' lib/compiler/elf_artifact.
   ! grep -Fq 'return elfart.push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, 183, 0, 0)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'return elfart.build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, 62, 4, 3)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'var phdrs = elfart.build_program_headers(base, phnum, dyn, is_shared == true, data_file_off, bytes_len(data), dyn_meta)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'var phdrs = elfart.build_program_headers(base, phnum, dyn, is_shared_lib, data_file_off, bytes_len(data), dyn_meta)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' lib/compiler/arm64_elf.oren ||
@@ -135,6 +137,13 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'artifact.push_u16_le(p, shnum)' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'artifact.push_u16_le(p, shstrndx)' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'push_phdr(p,' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'fn build_program_headers(base, phnum, dyn, is_shared_lib, data_file_off, data_len, dyn_meta)' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": interp_off' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'oren_list_push(phdrs, {"type": 1, "flags": 6, "offset": data_file_off' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'oren_list_push(phdrs, {"type": 2, "flags": 6, "offset": dynamic_off' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'oren_list_push(phdrs, {"type": 1685382481, "flags": 6' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'fn build_sysv_hash(nchain)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(hash, (nbucket + nchain) * 4)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn append_dyn_tables(data, hash, dynstr, dynsym, rela)' <<<"$elf_artifact_dyn_impl" ||
@@ -183,6 +192,10 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'bytes_push(p, 127)' <<<"$arm64_elf_prefix_impl$x64_elf_prefix_impl" ||
   grep -Fq 'push_u16_le(p, 183)' <<<"$arm64_elf_prefix_impl" ||
   grep -Fq 'push_u16_le(p, 62)' <<<"$x64_elf_prefix_impl" ||
+  grep -Fq 'oren_list_push(phdrs, {"type": 6' lib/compiler/arm64_elf.oren ||
+  grep -Fq 'oren_list_push(phdrs, {"type": 6' lib/compiler/x64_elf.oren ||
+  grep -Fq 'oren_list_push(phdrs, {"type": 1685382481' lib/compiler/arm64_elf.oren ||
+  grep -Fq 'oren_list_push(phdrs, {"type": 1685382481' lib/compiler/x64_elf.oren ||
   test "$(grep -Fc '_bytes_align(prefix, 16)' <<<"$x64_elf_shstr_layout_impl")" != "2" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl" ||

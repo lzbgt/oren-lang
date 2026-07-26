@@ -94,10 +94,10 @@ This file is the concise task view. Detailed implementation status lives in
      `artifact_bytes.oren` across x64/ARM64 while keeping ISA and ABI lowering
      architecture-local.
    - Current ELF artifact abstraction shares identical ELF64 file-header,
-     program-header, byte-alignment, UTF-8/debug-string, string-table, and
-     DT_NEEDED unique-list helpers through `elf_artifact.oren` while keeping
-     machine IDs, section-table policy, relocations, codegen, and ABI rules in
-     the arch emitters.
+     program-header table, final PHDR list, byte-alignment, UTF-8/debug-string,
+     string-table, and DT_NEEDED unique-list helpers through `elf_artifact.oren`
+     while keeping machine IDs, section-table policy, relocation policy,
+     codegen, and ABI rules in the arch emitters.
    - Current native debug artifact abstraction shares stable ARM64 ELF/Mach-O
      user-function debug record packing, aligned UTF-8 fields, and 32-byte
      zeroed runtime record slots through `native_debug_artifact.oren` while

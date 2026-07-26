@@ -1167,27 +1167,7 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     // Entry point is start of code (startup shim).
     var entry_off = 0
 
-    // Build program headers based on the final layout.
-    var text_filesz = data_file_off
-    var phdrs = []
-    if dyn {
-        // PT_PHDR (header table itself)
-        oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64, "vaddr": base + 64, "paddr": base + 64, "filesz": phnum * 56, "memsz": phnum * 56, "align": 8})
-        // PT_INTERP (dynamic executables only)
-        if is_shared != true {
-            oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
-        }
-    }
-    // PT_LOAD RX: headers + code + padding
-    oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0, "vaddr": base, "paddr": base, "filesz": text_filesz, "memsz": text_filesz, "align": 4096})
-    // PT_LOAD RW: data blob
-    oren_list_push(phdrs, {"type": 1, "flags": 6, "offset": data_file_off, "vaddr": base + data_file_off, "paddr": base + data_file_off, "filesz": bytes_len(data), "memsz": bytes_len(data), "align": 4096})
-    if dyn {
-        // PT_DYNAMIC
-        oren_list_push(phdrs, {"type": 2, "flags": 6, "offset": data_file_off + dyn_meta["dynamic_off"], "vaddr": base + data_file_off + dyn_meta["dynamic_off"], "paddr": base + data_file_off + dyn_meta["dynamic_off"], "filesz": dyn_meta["dynamic_len"], "memsz": dyn_meta["dynamic_len"], "align": 8})
-        // PT_GNU_STACK (RW, no execute)
-        oren_list_push(phdrs, {"type": 1685382481, "flags": 6, "offset": 0, "vaddr": 0, "paddr": 0, "filesz": 0, "memsz": 0, "align": 16})
-    }
+    var phdrs = elfart.build_program_headers(base, phnum, dyn, is_shared == true, data_file_off, bytes_len(data), dyn_meta)
 
     var prefix = elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off, is_shared == true)
     bytes_extend(prefix, code)

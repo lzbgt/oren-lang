@@ -183,10 +183,10 @@
 <ul>
 <li>Current ELF artifact abstraction shares identical ELF64 file-header,</li>
 </ul>
-<p>     program-header, byte-alignment, UTF-8/debug-string, string-table, and</p>
-<p>     DT_NEEDED unique-list helpers through <code>elf_artifact.oren</code> while keeping</p>
-<p>     machine IDs, section-table policy, relocations, codegen, and ABI rules in</p>
-<p>     the arch emitters.</p>
+<p>     program-header table, final PHDR list, byte-alignment, UTF-8/debug-string,</p>
+<p>     string-table, and DT_NEEDED unique-list helpers through <code>elf_artifact.oren</code></p>
+<p>     while keeping machine IDs, section-table policy, relocation policy,</p>
+<p>     codegen, and ABI rules in the arch emitters.</p>
 <ul>
 <li>Current native debug artifact abstraction shares stable ARM64 ELF/Mach-O</li>
 </ul>

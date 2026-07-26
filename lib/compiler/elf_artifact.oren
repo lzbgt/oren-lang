@@ -77,6 +77,27 @@ fn build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, machine, shnum,
     return p
 }
 
+fn build_program_headers(base, phnum, dyn, is_shared_lib, data_file_off, data_len, dyn_meta) {
+    var phdrs = []
+    var text_filesz = data_file_off
+    if dyn {
+        // PT_PHDR covers the ELF64 file header plus program-header table.
+        oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64, "vaddr": base + 64, "paddr": base + 64, "filesz": phnum * 56, "memsz": phnum * 56, "align": 8})
+        if is_shared_lib != true {
+            var interp_off = data_file_off + dyn_meta["interp_off"]
+            oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": interp_off, "vaddr": base + interp_off, "paddr": base + interp_off, "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
+        }
+    }
+    oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0, "vaddr": base, "paddr": base, "filesz": text_filesz, "memsz": text_filesz, "align": 4096})
+    oren_list_push(phdrs, {"type": 1, "flags": 6, "offset": data_file_off, "vaddr": base + data_file_off, "paddr": base + data_file_off, "filesz": data_len, "memsz": data_len, "align": 4096})
+    if dyn {
+        var dynamic_off = data_file_off + dyn_meta["dynamic_off"]
+        oren_list_push(phdrs, {"type": 2, "flags": 6, "offset": dynamic_off, "vaddr": base + dynamic_off, "paddr": base + dynamic_off, "filesz": dyn_meta["dynamic_len"], "memsz": dyn_meta["dynamic_len"], "align": 8})
+        oren_list_push(phdrs, {"type": 1685382481, "flags": 6, "offset": 0, "vaddr": 0, "paddr": 0, "filesz": 0, "memsz": 0, "align": 16})
+    }
+    return phdrs
+}
+
 fn bytes_align(buf, align) {
     if buf == nil { return nil }
     if align == nil || align <= 1 { return nil }
