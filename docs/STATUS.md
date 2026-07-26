@@ -38,6 +38,8 @@ surfaces, but the following blockers remain:
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
+- ARM64 native local-function code alignment now uses byte-builder zero-extension
+  spans instead of repeated zero-byte code padding.
 - x64 native string-batch, top-level synthetic global, and debug-root table data
   alignment now reuses the shared byte-builder zero-extension alignment helper.
 - x64 PE export, header, and raw-section padding now use exact byte-builder

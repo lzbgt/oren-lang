@@ -1233,8 +1233,11 @@ arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal tabl
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
 arm64_program_cstr_table_impl="$(sed -n '/arm64.codegen.cstr_table.start/,/Layout: \\[table_off\\]/p' lib/compiler/arm64_native_program/090_program.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"
+arm64_stmt_function_impl="$(sed -n '/if expr\["type"\] == "Function"/,/var jump_skip_pos = bytes_len(ctx\["code"\])/p' lib/compiler/arm64_native_stmt_inner.oren)"
 if ! grep -Fq 'fn _arm64_data_align8(ctx)' lib/compiler/arm64_native_program/010_ctx.oren ||
+  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }' lib/compiler/arm64_native_stmt.oren ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }' lib/compiler/arm64_native_program/010_ctx.oren ||
+  ! grep -Fq 'if code_rem != 0 { bytes_extend_zeros(ctx["code"], 4 - code_rem) }' <<<"$arm64_stmt_function_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 512)' <<<"$arm64_ctx_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_ctx_impl" ||
   ! grep -Fq '_arm64_data_align8(ctx)' <<<"$arm64_global_impl" ||
@@ -1242,6 +1245,7 @@ if ! grep -Fq 'fn _arm64_data_align8(ctx)' lib/compiler/arm64_native_program/010
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_global_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_stmt_binding_impl" ||
   grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' lib/compiler/arm64_native_program/010_ctx.oren ||
+  grep -Fq 'while int_mod(bytes_len(ctx["code"]), 4) != 0' <<<"$arm64_stmt_function_impl" ||
   grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_global_impl" ||
   grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_program_cstr_table_impl" ||
   grep -Fq 'while z < 8' <<<"$arm64_ctx_impl" ||

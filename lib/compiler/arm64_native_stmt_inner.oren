@@ -592,9 +592,8 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 return nil
             }
 
-            while int_mod(bytes_len(ctx["code"]), 4) != 0 {
-                bytes_push(ctx["code"], 0)
-            }
+            var code_rem = int_mod(bytes_len(ctx["code"]), 4)
+            if code_rem != 0 { bytes_extend_zeros(ctx["code"], 4 - code_rem) }
 
             var jump_skip_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)

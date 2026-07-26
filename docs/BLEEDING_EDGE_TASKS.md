@@ -39,6 +39,8 @@ This file is the concise task view. Detailed implementation status lives in
      `%XX` bytes and query `+` spaces explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
+   - Current ARM64 native local-function code alignment uses byte-builder
+     zero-extension spans instead of repeated zero-byte code padding.
    - Current x64 split-module cleanup also routes string-batch, top-level
      synthetic global, and debug-root table alignment through the same helper.
    - Current PE byte-output cleanup routes export/header/raw-section padding

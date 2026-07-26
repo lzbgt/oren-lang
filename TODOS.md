@@ -44,6 +44,8 @@ design evidence lives under `project-doc/`.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now use exact byte-builder zero-extension spans instead of repeated zero-byte
   push loops in the context and data I/O helpers.
+- ARM64 native local-function code alignment now uses byte-builder zero-extension
+  spans instead of repeated zero-byte code padding.
 - x64 native string-batch, top-level synthetic global, and debug-root table data
   alignment now share the same byte-builder zero-extension helper instead of
   open-coded zero-byte alignment loops.

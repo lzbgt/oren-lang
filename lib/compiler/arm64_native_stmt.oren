@@ -14,6 +14,7 @@ import termm "arm64_native_stmt_terminators.oren"
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_finalize(b) { return core.bytes_finalize(b) }
