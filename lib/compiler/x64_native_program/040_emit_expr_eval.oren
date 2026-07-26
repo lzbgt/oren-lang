@@ -545,33 +545,43 @@ fn _emit_intr_tmp_expr_to_rax(ctx, expr, locals) {
     return nil
 }
 
-fn _x64_resolve_fn_value_name(ctx, fn_name) {
-    if ctx["func_arity"] != nil {
-        if ctx["func_arity"][fn_name] == nil {
-            if fn_name != nil && oren_string_len(fn_name) >= 2 &&
-               oren_string_char_at(fn_name, 0) == "_" && oren_string_char_at(fn_name, 1) == "_" {
-                var match = nil
-                var match_count = 0
-                for k in ctx["func_arity"] {
-                    var klen = oren_string_len(k)
-                    var nlen = oren_string_len(fn_name)
-                    if klen >= nlen {
-                        var ok = true
-                        var j = 0
-                        while j < nlen {
-                            if oren_string_char_at(k, klen - nlen + j) != oren_string_char_at(fn_name, j) { ok = false; break }
-                            j = j + 1
-                        }
-                        if ok {
-                            match = k
-                            match_count = match_count + 1
-                            if match_count > 1 { break }
-                        }
-                    }
-                }
-                if match_count == 1 && match != nil { fn_name = match }
-            }
+fn _x64_fn_value_needs_suffix_lookup(ctx, fn_name) {
+    if ctx["func_arity"] == nil { return false }
+    if ctx["func_arity"][fn_name] != nil { return false }
+    if fn_name == nil { return false }
+    if oren_string_len(fn_name) < 2 { return false }
+    return oren_string_char_at(fn_name, 0) == "_" && oren_string_char_at(fn_name, 1) == "_"
+}
+
+fn _x64_fn_value_suffix_match(k, fn_name, nlen) {
+    var klen = oren_string_len(k)
+    if klen < nlen { return false }
+    var j = 0
+    while j < nlen {
+        if oren_string_char_at(k, klen - nlen + j) != oren_string_char_at(fn_name, j) { return false }
+        j = j + 1
+    }
+    return true
+}
+
+fn _x64_resolve_unique_fn_suffix(ctx, fn_name) {
+    var match = nil
+    var match_count = 0
+    var nlen = oren_string_len(fn_name)
+    for k in ctx["func_arity"] {
+        if _x64_fn_value_suffix_match(k, fn_name, nlen) == true {
+            match = k
+            match_count = match_count + 1
+            if match_count > 1 { break }
         }
+    }
+    if match_count == 1 && match != nil { return match }
+    return fn_name
+}
+
+fn _x64_resolve_fn_value_name(ctx, fn_name) {
+    if _x64_fn_value_needs_suffix_lookup(ctx, fn_name) == true {
+        return _x64_resolve_unique_fn_suffix(ctx, fn_name)
     }
     return fn_name
 }

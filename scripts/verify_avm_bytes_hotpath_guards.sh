@@ -1057,7 +1057,7 @@ $(sed -n '/fn _x64_call_obj_list_intrinsic_state/,/fn _x64_call_obj_list_abi_reg
 $(sed -n '/fn _x64_load_direct_call_reg_arg_v0/,/fn _x64_emit_direct_call_fixup_and_return_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_indirect_call_runtime_ready/,/fn _x64_spawn_spill_explicit_args/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_varargs_named_call_emit_prepared/,/fn _x64_emit_named_call_statement_only_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
-$(sed -n '/fn _x64_member_emit_namespace_value/,/fn _emit_member_expr_v0/p' lib/compiler/x64_native_program/045_emit_member_expr.oren)"
+$(sed -n '/fn _x64_member_emit_namespace_value/,/fn _emit_member_expr_v0/p' lib/compiler/x64_native_program/045_emit_member_expr.oren) $(sed -n '/fn _x64_local_var_offset/,/fn _emit_load_var_to_reg_x64/p' lib/compiler/x64_native_program/036_emit_var_helpers.oren) $(sed -n '/fn _x64_fn_value_needs_suffix_lookup/,/fn _emit_named_function_value_to_rax/p' lib/compiler/x64_native_program/040_emit_expr_eval.oren) $(sed -n '/fn _x64_emit_cmp_string_ptr_check_one/,/fn _x64_cmp_string_labels/p' lib/compiler/x64_native_program/050_emit_cmp_labels.oren)"
 if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _intr_tmp_named_off(ctx, locals, idx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_fast_list_get_sum_abi_regs(ctx)' <<<"$x64_parser_helper_split_impl" ||
@@ -1079,8 +1079,8 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   ! grep -Fq 'fn _x64_spawn_call_parts(ctx, expr)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_spawn_prepare_state(parts, args, argc, spread, has_spread, base)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_varargs_named_call_emit_prepared(ctx, locals, st)' <<<"$x64_parser_helper_split_impl" ||
-  ! grep -Fq 'fn _x64_member_index_expr(ctx, expr)' <<<"$x64_parser_helper_split_impl"; then
-  echo "ERROR: x64 temp, list-sum, Windows process, call-expression, direct-call, and member-expression preparation must stay split into focused parser helpers" >&2; exit 1
+  ! grep -Fq 'fn _x64_member_index_expr(ctx, expr)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_local_var_offset(locals, name)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_emit_load_global_to_reg(ctx, name, dst_reg)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_resolve_unique_fn_suffix(ctx, fn_name)' <<<"$x64_parser_helper_split_impl" || ! grep -Fq 'fn _x64_emit_cmp_string_ptr_check_one(ctx, fixups, off, a0, l_int)' <<<"$x64_parser_helper_split_impl"; then
+  echo "ERROR: x64 temp, list-sum, Windows process, call-expression, direct-call, member, var-load, function-value, and compare preparation must stay split into focused parser helpers" >&2; exit 1
 fi
 x64_data_lookup_split_impl="$(sed -n '/fn _x64_data_lookup_direct_function_offset/,/fn _data_symtab_state/p' lib/compiler/x64_native_program/010_data_io.oren)"
 if ! grep -Fq 'fn _x64_data_lookup_direct_function_offset(ctx, nm)' <<<"$x64_data_lookup_split_impl" || ! grep -Fq 'fn _x64_data_lookup_compact_function_offset(ctx, nm, base)' <<<"$x64_data_lookup_split_impl" || ! grep -Fq 'fn _x64_data_lookup_encoded_function_offset(ctx, nm, base)' <<<"$x64_data_lookup_split_impl"; then
@@ -1090,20 +1090,20 @@ x64_list_int_set_split_impl="$(sed -n '/fn _x64_list_int_set_alloc_spill_state/,
 if ! grep -Fq 'fn _x64_list_int_set_eval_spill_arg(ctx, locals, expr, base, off)' <<<"$x64_list_int_set_split_impl" || ! grep -Fq 'fn _x64_emit_list_int_set_slow_path(ctx, locals, state)' <<<"$x64_list_int_set_split_impl" || ! grep -Fq 'fn _x64_emit_list_int_set_fast_path(ctx, state)' <<<"$x64_list_int_set_split_impl"; then
   echo "ERROR: x64 LIST_INT set lowering must keep arg spill, slow path, and fast path helpers split" >&2; exit 1
 fi
-x64_fast_push_loop_split_impl="$(sed -n '/fn _x64_fast_push_emit_loop_entry/,/fn _x64_fast_list_push_update_counts/p' lib/compiler/x64_native_program/057_emit_ops_while_emit.oren)"
-if ! grep -Fq 'fn _x64_fast_push_emit_loop_entry(ctx, prep, locals, labels, label_names, local_fixups)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_values(ctx, prep, locals)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_common(ctx, prep, locals, labels, label_names, local_fixups)' <<<"$x64_fast_push_loop_split_impl"; then echo "ERROR: x64 LIST/LIST_INT fast-push loops must share split entry/value/body helpers" >&2; exit 1; fi
+x64_fast_push_loop_split_impl="$(sed -n '/fn _x64_fast_list_int_push_emit_cap_check/,/fn _x64_fast_list_push_update_counts/p' lib/compiler/x64_native_program/057_emit_ops_while_emit.oren)"
+if ! grep -Fq 'fn _x64_fast_list_int_push_emit_cap_check(ctx, prep, local_fixups, slot_list, l_cap_ok)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_list_int_push_emit_reserve_call(ctx, prep, slot_list)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_entry(ctx, prep, locals, labels, label_names, local_fixups)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_values(ctx, prep, locals)' <<<"$x64_fast_push_loop_split_impl" || ! grep -Fq 'fn _x64_fast_push_emit_loop_common(ctx, prep, locals, labels, label_names, local_fixups)' <<<"$x64_fast_push_loop_split_impl"; then echo "ERROR: x64 LIST/LIST_INT fast-push loops must share split reserve, entry, value, and body helpers" >&2; exit 1; fi
 x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _lit_array_depth_state/,/fn _emit_hash_literal_expr/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _emit_hash_literal_expr/,/fn _lit_hash_prepare_state/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _x64_collect_lambda_stmt_list/,/fn _x64_debug_print_lambda_collection/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)
-$(sed -n '/fn _x64_synth_lambda_wrapper_expr/,/fn _x64_compile_lambda_wrappers/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)"
+$(sed -n '/fn _x64_synth_lambda_wrapper_expr/,/fn _x64_compile_lambda_wrappers/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren) $(sed -n '/fn _x64_missing_fnwrap_arity_state/,/fn _x64_log_missing_fnwraps_done/p' lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren)"
 if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _lit_hash_prepare_state(ctx, expr, locals)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _lit_array_prepare_state(ctx, expr, locals)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_collect_lambda_stmt_list(ctx, stmts_all)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_collect_lambda_type_ctors(ctx, type_ctors)' <<<"$x64_literal_callable_split_impl" ||
   ! grep -Fq 'fn _x64_log_lambda_collection_done(ctx, phase_log, lambda_scan_skipped)' <<<"$x64_literal_callable_split_impl" ||
-  ! grep -Fq 'fn _x64_build_lambda_wrappers(ctx)' <<<"$x64_literal_callable_split_impl"; then
+  ! grep -Fq 'fn _x64_build_lambda_wrappers(ctx)' <<<"$x64_literal_callable_split_impl" || ! grep -Fq 'fn _x64_missing_fnwrap_arity_state(ctx, fname)' <<<"$x64_literal_callable_split_impl" || ! grep -Fq 'fn _x64_compile_synthesized_fnwrap(ctx, platform, call_depth_default_enabled, fname, wname, state)' <<<"$x64_literal_callable_split_impl"; then
   echo "ERROR: x64 array/hash literal and callable lambda preparation must stay split into focused parser helpers" >&2; exit 1
 fi
 x64_sys_data_split_impl="$(sed -n '/fn _x64_emit_windows_file_io_result/,/fn _x64_sys_rw_linux_slots/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)

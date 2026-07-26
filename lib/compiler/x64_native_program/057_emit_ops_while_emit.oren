@@ -258,13 +258,8 @@ fn _x64_fast_list_int_push_emit_entry_gates(ctx, prep, label_names, local_fixups
     return nil
 }
 
-fn _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, slot_list, l_cap_ok) {
+fn _x64_fast_list_int_push_emit_cap_check(ctx, prep, local_fixups, slot_list, l_cap_ok) {
     var off_n = prep["off_n"]
-    var a0 = prep["a0"]
-    var a1 = prep["a1"]
-    var a2 = prep["a2"]
-    var trace_reserve = prep["trace_reserve"]
-
     // cap >= n (else reserve)
     _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 8))
@@ -273,9 +268,16 @@ fn _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, sl
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
+    return nil
+}
 
+fn _x64_fast_list_int_push_emit_reserve_call(ctx, prep, slot_list) {
+    var off_n = prep["off_n"]
+    var a0 = prep["a0"]
+    var a1 = prep["a1"]
+    var a2 = prep["a2"]
     // list_int_reserve(list, n)
-    if trace_reserve {
+    if prep["trace_reserve"] {
         _emit_mov_r64_mrbp(ctx, a0, 0 - slot_list)
         _emit_mov_r64_mrbp(ctx, a1, 0 - off_n)
         bytes_extend(ctx["code"], core.insn_mov_r64_imm64(a2, 8))
@@ -285,6 +287,12 @@ fn _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, sl
     _emit_mov_r64_mrbp(ctx, a1, 0 - off_n)
     _emit_call_rel32_named_x64(ctx, "oren_list_int_reserve")
 
+    return nil
+}
+
+fn _x64_fast_list_int_push_reserve_if_needed(ctx, prep, labels, local_fixups, slot_list, l_cap_ok) {
+    _x64_fast_list_int_push_emit_cap_check(ctx, prep, local_fixups, slot_list, l_cap_ok)
+    _x64_fast_list_int_push_emit_reserve_call(ctx, prep, slot_list)
     _emit_label(ctx, labels, l_cap_ok)
     return nil
 }

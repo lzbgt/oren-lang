@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 parser/codegen helper cleanup now separates local/global variable loads,
+  function-value suffix resolution, string-compare pointer probes, LIST_INT push
+  reserve emission, and late synthesized fnwrap compilation.
 - X64 runtime-object build cleanup now separates metadata fixup/root/import and
   function-info assembly plus runtime-declaration and wrapper compilation phases
   while preserving trace marks and runtime-object metadata keys.

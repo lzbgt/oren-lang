@@ -221,6 +221,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 runtime-object build cleanup separates metadata fixup/root/import
      and function-info assembly plus runtime-declaration and wrapper compilation
      phases while preserving trace marks and metadata keys.
+   - Current x64 parser/codegen helper cleanup separates local/global variable
+     loads, function-value suffix resolution, string-compare pointer probes,
+     LIST_INT push reserve emission, and late synthesized fnwrap compilation.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

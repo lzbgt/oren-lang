@@ -3,22 +3,15 @@
 // This exists primarily to keep `040_emit_expr.oren` under the repo style limit (<= 2000 lines)
 // while converging semantics with arm64 (globals may be used as "constants" inside runtime code).
 
-fn _emit_load_var_to_reg_x64(ctx, locals, name, dst_reg) {
-    // Loads a variable value into `dst_reg`:
-    // - locals: [rbp - off]
-    // - globals: *(u64*)(&slot) via RIP-relative LEA
-    //
-    // Returns 1 if loaded, otherwise 0 (and records an error).
-    if name == nil { err(ctx, "x64 native v0: unknown var <nil>"); return 0 }
-
+fn _x64_local_var_offset(locals, name) {
     if locals != nil {
         var off = locals[name]
-        if oren_type_tag(off) != 0 {
-            _emit_mov_r64_mrbp(ctx, dst_reg, 0 - off)
-            return 1
-        }
+        if oren_type_tag(off) != 0 { return off }
     }
+    return 0
+}
 
+fn _x64_emit_load_global_to_reg(ctx, name, dst_reg) {
     var goff_enc = nil
     if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
     if oren_type_tag(goff_enc) != 0 {
@@ -30,6 +23,23 @@ fn _emit_load_var_to_reg_x64(ctx, locals, name, dst_reg) {
         bytes_extend(ctx["code"], core.insn_mov_r64_mr64(dst_reg, 10))
         return 1
     }
+    return 0
+}
+
+fn _emit_load_var_to_reg_x64(ctx, locals, name, dst_reg) {
+    // Loads a variable value into `dst_reg`:
+    // - locals: [rbp - off]
+    // - globals: *(u64*)(&slot) via RIP-relative LEA
+    //
+    // Returns 1 if loaded, otherwise 0 (and records an error).
+    if name == nil { err(ctx, "x64 native v0: unknown var <nil>"); return 0 }
+
+    var off = _x64_local_var_offset(locals, name)
+    if off != 0 {
+        _emit_mov_r64_mrbp(ctx, dst_reg, 0 - off)
+        return 1
+    }
+    if _x64_emit_load_global_to_reg(ctx, name, dst_reg) == 1 { return 1 }
 
     err(ctx, "x64 native v0: unknown var " + name)
     return 0

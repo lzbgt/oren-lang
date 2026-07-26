@@ -184,23 +184,21 @@ fn _x64_compile_lambda_wrappers(ctx, wrappers, platform, call_depth_default_enab
     return nil
 }
 
-fn _x64_compile_one_missing_fnwrap(ctx, platform, call_depth_default_enabled, need, fname) {
-    if fname == nil || fname == "" { return nil }
-    if need == nil || need[fname] == nil { return nil }
-    var wname = "__oren_fnwrap_" + fname
-    if ctx["functions"][wname] != nil { return nil }
-
+fn _x64_missing_fnwrap_arity_state(ctx, fname) {
     var ar_enc = nil
     if ctx["func_arity"] != nil { ar_enc = ctx["func_arity"][fname] }
     if oren_type_tag(ar_enc) == 0 { return nil }
 
-    var ar = ar_enc - 1
     var vf = nil
     if ctx["func_varargs_fixed"] != nil {
         var vf_enc = ctx["func_varargs_fixed"][fname]
         if oren_type_tag(vf_enc) != 0 { vf = vf_enc - 1 }
     }
-    var st = callable.synth_fnwrap(fname, ar, vf)
+    return {"arity": ar_enc - 1, "varargs_fixed": vf}
+}
+
+fn _x64_compile_synthesized_fnwrap(ctx, platform, call_depth_default_enabled, fname, wname, state) {
+    var st = callable.synth_fnwrap(fname, state["arity"], state["varargs_fixed"])
     if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
         var wfn = st["expr"]
         // Keep stack traces readable even for late-synthesized wrappers.
@@ -213,6 +211,17 @@ fn _x64_compile_one_missing_fnwrap(ctx, platform, call_depth_default_enabled, ne
 
     err(ctx, "x64 native v0: failed to synthesize fnwrap for " + fname)
     return nil
+}
+
+fn _x64_compile_one_missing_fnwrap(ctx, platform, call_depth_default_enabled, need, fname) {
+    if fname == nil || fname == "" { return nil }
+    if need == nil || need[fname] == nil { return nil }
+    var wname = "__oren_fnwrap_" + fname
+    if ctx["functions"][wname] != nil { return nil }
+
+    var state = _x64_missing_fnwrap_arity_state(ctx, fname)
+    if state == nil { return nil }
+    return _x64_compile_synthesized_fnwrap(ctx, platform, call_depth_default_enabled, fname, wname, state)
 }
 
 fn _x64_log_missing_fnwraps_done(ctx, phase_log, need) {
