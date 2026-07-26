@@ -5574,10 +5574,10 @@ make docs-site</code></pre>
 <li>X64 and ARM64 ELF emitters now share <code>elf_artifact.oren</code> for common</li>
 </ul>
 <p>  dynamic-link scaffolding: default glibc-compatible DT_NEEDED libs, dynamic</p>
-<p>  string-table/name-offset assembly, dynsym function entries, one-bucket SysV</p>
-<p>  hash construction, dynamic table blob placement, and stable DT_DYNAMIC tags</p>
-<p>  while leaving import validation, export resolution, and RELA relocation</p>
-<p>  generation in the arch emitters.</p>
+<p>  string-table/name-offset assembly, dynsym function entries, ELF64 RELA row</p>
+<p>  packing, one-bucket SysV hash construction, dynamic table blob placement, and</p>
+<p>  stable DT_DYNAMIC tags while leaving import validation, export resolution, and</p>
+<p>  RELA relocation selection/generation in the arch emitters.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

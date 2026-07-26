@@ -292,11 +292,8 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     if is_shared_lib == true && init_array_off != nil {
         // Relocate `.init_array[0]` to point to the entry stub.
         var r_offset0 = base + data_file_off + init_array_off
-        var r_info0 = 0 * 4294967296 + rela_type_relative
         var add0 = text_base + init_entry_off
-        push_u64_le(rela, r_offset0)
-        push_u64_le(rela, r_info0)
-        push_u64_le(rela, add0)
+        elfart.push_rela(rela, r_offset0, 0, rela_type_relative, add0)
     }
 
     var rela_type_glob_dat = 1025 // R_AARCH64_GLOB_DAT (from elf.h)
@@ -313,10 +310,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
         // dynsym index: 1 + i_rel (STN_UNDEF is 0)
         var sym_idx = 1 + i_rel
         var r_offset = base + data_file_off + got_off
-        var r_info = sym_idx * 4294967296 + rela_type_glob_dat
-        push_u64_le(rela, r_offset)
-        push_u64_le(rela, r_info)
-        push_u64_le(rela, 0) // r_addend
+        elfart.push_rela(rela, r_offset, sym_idx, rela_type_glob_dat, 0)
         i_rel = i_rel + 1
     }
 

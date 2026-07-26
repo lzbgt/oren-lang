@@ -103,7 +103,7 @@ This file is the concise task view. Detailed implementation status lives in
      keeping object-format placement and fixup/patch semantics format-local.
    - Current ELF dynamic artifact abstraction shares DT_NEEDED default list
      construction, dynamic string-table/name-offset assembly, dynsym
-     import/export function entries, one-bucket SysV hash emission,
+     import/export function entries, ELF64 RELA row packing, one-bucket SysV hash emission,
      dynamic-table blob placement, and common DT_DYNAMIC tags through
      `elf_artifact.oren` while keeping arch import validation and RELA
      relocation semantics local.

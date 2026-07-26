@@ -756,11 +756,8 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         // Relocate `.init_array[0]` to point to the entry stub.
         if init_array_off != nil {
             var r_offset0 = base + data_file_off + init_array_off
-            var r_info0 = 0 * 4294967296 + rela_type_relative
             var add0 = text_base + init_entry_off
-            push_u64_le(rela, r_offset0)
-            push_u64_le(rela, r_info0)
-            push_u64_le(rela, add0)
+            elfart.push_rela(rela, r_offset0, 0, rela_type_relative, add0)
         }
 
         // Relocate fnobj code_ptr fields (emitted by x64_native_program as absolute pointers in ET_EXEC mode).
@@ -779,11 +776,8 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
                 }
                 var rdata_off = _elf_rtobj_decode_enc0(rt_offs[ri])
                 var r_offset_rt = base + data_file_off + rdata_off
-                var r_info_rt = 0 * 4294967296 + rela_type_relative
                 var add_rt = text_base + rfn
-                push_u64_le(rela, r_offset_rt)
-                push_u64_le(rela, r_info_rt)
-                push_u64_le(rela, add_rt)
+                elfart.push_rela(rela, r_offset_rt, 0, rela_type_relative, add_rt)
                 ri = ri + 1
             }
         }
@@ -806,11 +800,8 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
                         oren_exit(1)
                     }
                     var r_offset1 = base + data_file_off + data_off0
-                    var r_info1 = 0 * 4294967296 + rela_type_relative
                     var add1 = text_base + fn_off0
-                    push_u64_le(rela, r_offset1)
-                    push_u64_le(rela, r_info1)
-                    push_u64_le(rela, add1)
+                    elfart.push_rela(rela, r_offset1, 0, rela_type_relative, add1)
                 } else if f0["type"] == "data_data_ptr" {
                     var data_off1 = f0["data_off"]
                     if data_off1 == nil {
@@ -820,11 +811,8 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
                     var target_data_off1 = f0["target_data_off"]
                     if oren_type_tag(target_data_off1) == 0 { target_data_off1 = 0 }
                     var r_offset2 = base + data_file_off + data_off1
-                    var r_info2 = 0 * 4294967296 + rela_type_relative
                     var add2 = base + data_file_off + target_data_off1
-                    push_u64_le(rela, r_offset2)
-                    push_u64_le(rela, r_info2)
-                    push_u64_le(rela, add2)
+                    elfart.push_rela(rela, r_offset2, 0, rela_type_relative, add2)
                 }
             }
             fi = fi + 1
@@ -844,10 +832,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         // dynsym index: 1 + i_rel (STN_UNDEF is 0)
         var sym_idx = 1 + i_rel
         var r_offset = base + data_file_off + got_off
-        var r_info = sym_idx * 4294967296 + rela_type_glob_dat
-        push_u64_le(rela, r_offset)
-        push_u64_le(rela, r_info)
-        push_u64_le(rela, 0) // r_addend
+        elfart.push_rela(rela, r_offset, sym_idx, rela_type_glob_dat, 0)
         i_rel = i_rel + 1
     }
 

@@ -143,6 +143,15 @@ fn push_dynsym_text_func(dynsym, name_off, text_addr) {
     return nil
 }
 
+fn push_rela(rela, r_offset, sym_idx, rela_type, addend) {
+    if r_offset == nil { r_offset = 0 }
+    if addend == nil { addend = 0 }
+    artifact.push_u64_le(rela, r_offset)
+    artifact.push_u64_le(rela, sym_idx * 4294967296 + rela_type)
+    artifact.push_u64_le(rela, addend)
+    return nil
+}
+
 fn build_sysv_hash(nchain) {
     var hash = artifact.bytes_new()
     var nbucket = 1
