@@ -239,6 +239,10 @@
 <p>  straight-line literal bytes, avoiding fixed string-byte loops in compiler</p>
 <p>  artifact emission while preserving byte-for-byte section headers.</p>
 <ul>
+<li>X64 PE unused data-directory entries now emit their exact 112 zero bytes</li>
+</ul>
+<p>  through shared byte-builder zero extension instead of a fixed u32 pair loop.</p>
+<ul>
 <li>ARM64 native compiler context, global, and statement-binding pointer-slot</li>
 </ul>
 <p>  reservations now route fixed eight-byte zero fills through the shared</p>

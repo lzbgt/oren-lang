@@ -20,6 +20,7 @@ import x64 "x64_core.oren"
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
@@ -1310,11 +1311,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     // Import
     push_u32_le(out, import_dir_rva); push_u32_le(out, import_dir_size)
     // Remaining 14 directories
-    var ddi = 0
-    while ddi < 14 {
-        push_u32_le(out, 0); push_u32_le(out, 0)
-        ddi = ddi + 1
-    }
+    bytes_extend_zeros(out, 14 * 8)
 
     // Pad optional header to 240 bytes
     while bytes_len(out) - opt_start < 240 { bytes_push(out, 0) }

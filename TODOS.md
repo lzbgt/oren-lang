@@ -68,6 +68,8 @@ design evidence lives under `project-doc/`.
   out of fixed eight-iteration Oren loops.
 - X64 PE section-name header emission now uses straight-line literal bytes,
   avoiding fixed string-byte loops while preserving exact eight-byte COFF names.
+- X64 PE unused data-directory zero padding now uses shared byte-builder
+  zero-extension instead of a fixed u32 pair loop.
 - ARM64 native compiler data-slot reservations now use the shared byte-builder
   zero-extension path for fixed eight-byte pointer slots instead of per-byte
   push loops.

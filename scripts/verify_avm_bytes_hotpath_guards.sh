@@ -1065,6 +1065,15 @@ if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/c
   exit 1
 fi
 
+x64_pe_data_dirs_impl="$(sed -n '/DataDirectory\[16\]/,/Pad optional header to 240 bytes/p' lib/compiler/x64_pe.oren)"
+if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_pe.oren ||
+  ! grep -Fq 'fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }' lib/compiler/codegen_x64.oren ||
+  ! grep -Fq 'bytes_extend_zeros(out, 14 * 8)' <<<"$x64_pe_data_dirs_impl" ||
+  grep -Fq 'while ddi < 14' <<<"$x64_pe_data_dirs_impl"; then
+  echo "ERROR: x64 PE zero data directories must use byte-builder zero extension, not a fixed u32 loop" >&2
+  exit 1
+fi
+
 arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"
