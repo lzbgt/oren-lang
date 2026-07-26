@@ -198,31 +198,16 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     var data = ctx["data"]
 
-    // --- PT_INTERP payload (dynamic executables only) ---
-    var interp_off = nil
-    var interp_len = nil
-    if is_shared_lib != true {
-        // Use the conventional aarch64 interpreter path on glibc-based distros.
-        var interp = "/lib/ld-linux-aarch64.so.1"
-        _bytes_align(data, 1)
-        interp_off = bytes_len(data)
-        bytes_extend_string_z(data, interp)
-        interp_len = oren_string_len(interp) + 1
-    }
-
-    // --- .init_array (shared libraries) ---
+    // --- Dynamic-link prelude: PT_INTERP payload or shared-library .init_array ---
     // Run the compiled entry stub once at load time so:
     // - runtime init runs
     // - __top_level__ runs (global initializers)
     // - heap spill slots are populated for exported ABI wrappers
-    var init_array_off = nil
-    if is_shared_lib == true {
-        if init_entry_off == nil { init_entry_off = 0 }
-        _bytes_align(data, 8)
-        init_array_off = bytes_len(data)
-        // placeholder u64; filled by R_AARCH64_RELATIVE relocation (RELA addend)
-        push_u64_le(data, 0)
-    }
+    if is_shared_lib == true && init_entry_off == nil { init_entry_off = 0 }
+    var dyn_prelude = elfart.append_dynamic_prelude(data, "/lib/ld-linux-aarch64.so.1", is_shared_lib)
+    var interp_off = dyn_prelude["interp_off"]
+    var interp_len = dyn_prelude["interp_len"]
+    var init_array_off = dyn_prelude["init_array_off"]
 
     var needed = _elf_arm64_dyn_needed_libs(user_link_libs)
 

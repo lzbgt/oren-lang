@@ -123,6 +123,9 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'artifact.bytes_extend_zeros(dynsym, 16) // st_value + st_size' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn push_dynsym_text_func(dynsym, name_off, text_addr)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(dynsym, 8) // unknown size' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn append_dynamic_prelude(data, interp, is_shared_lib)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string_z(data, interp)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'artifact.push_u64_le(data, 0)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn build_dynamic_name_tables(needed, imports, exports, missing_import_msg, missing_import_diag)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(dynstr, 1) // leading NUL' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'needed_dynstr_offs[lib] = bytes_add_str0(dynstr, lib)' <<<"$elf_artifact_dyn_impl" ||
@@ -151,6 +154,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'push_dynamic_entry(dyn, 0, 0) // DT_NULL' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'return elfart.dyn_needed_libs(user_link_libs)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'return elfart.dyn_needed_libs(user_link_libs)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'var dyn_prelude = elfart.append_dynamic_prelude(data, "/lib/ld-linux-aarch64.so.1", is_shared_lib)' <<<"$arm64_elf_dynmeta_impl" ||
+  ! grep -Fq 'var dyn_prelude = elfart.append_dynamic_prelude(data, "/lib64/ld-linux-x86-64.so.2", is_shared_lib)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, missing_import, elf_diag_escape(missing_import))' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, "x64 elf: internal: dyn import missing name", nil)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_dynsym_undef_func(dynsym, name_off)' <<<"$arm64_elf_dynsym_impl" ||
@@ -211,8 +216,8 @@ arm64_elf_string_impl="$(sed -n '/fn _elf_push_utf8_aligned/,/fn _elf_push_phdr/
 arm64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/compiler/arm64_elf.oren)"
 x64_elf_string_impl="$(sed -n '/fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/x64_elf.oren)"
 x64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/compiler/x64_elf.oren)"
-arm64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/Build dynsym (DT_SYMTAB)/p' lib/compiler/arm64_elf.oren)"
-x64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/Build dynsym (DT_SYMTAB)/p' lib/compiler/x64_elf.oren)"
+arm64_elf_dynamic_impl="$(sed -n '/Dynamic-link prelude/,/Build dynsym (DT_SYMTAB)/p' lib/compiler/arm64_elf.oren)"
+x64_elf_dynamic_impl="$(sed -n '/Dynamic-link prelude/,/Build dynsym (DT_SYMTAB)/p' lib/compiler/x64_elf.oren)"
 arm64_elf_data_cstr_impl="$(sed -n '/fn _data_add_cstr0/,/^}/p' lib/compiler/arm64_elf.oren)"
 elf_artifact_string_impl="$(sed -n '/fn push_utf8_aligned/,/fn bytes_align/p; /fn push_string_bytes/,/fn push_unique/p' lib/compiler/elf_artifact.oren)"
 native_debug_artifact_string_impl="$(sed -n '/fn push_utf8_aligned/,/fn push_u64_zero4/p; /fn emit_user_func_records/,/^}/p' lib/compiler/native_debug_artifact.oren)"
@@ -235,8 +240,8 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' <<<"$arm64_elf_cstr_impl" ||
   ! grep -Fq 'return elfart.push_string_bytes(buf, s)' <<<"$x64_elf_string_impl" ||
   ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' <<<"$x64_elf_cstr_impl" ||
-  ! grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$arm64_elf_dynamic_impl" ||
-  ! grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$x64_elf_dynamic_impl" ||
+  ! grep -Fq 'elfart.append_dynamic_prelude(data, "/lib/ld-linux-aarch64.so.1", is_shared_lib)' <<<"$arm64_elf_dynamic_impl" ||
+  ! grep -Fq 'elfart.append_dynamic_prelude(data, "/lib64/ld-linux-x86-64.so.2", is_shared_lib)' <<<"$x64_elf_dynamic_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(dynstr, 1) // leading NUL' <<<"$elf_artifact_string_impl$elf_artifact_dyn_impl" ||
   ! grep -Fq 'bytes_extend_string_z(data, s)' <<<"$arm64_elf_data_cstr_impl" ||
   ! grep -Fq 'bytes_extend_zeros(shstr, 1)' <<<"$x64_elf_build_shstr_impl" ||
@@ -266,6 +271,10 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   grep -Fq '_macho_push_string_bytes(p, id_name)' <<<"$arm64_macho_file_impl" ||
   grep -Fq '_macho_push_string_bytes(strtab,' <<<"$arm64_macho_file_impl" ||
   grep -Fq '_elf_push_string_bytes(data, interp)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
+  grep -Fq 'var interp =' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
+  grep -Fq 'interp_off = bytes_len(data)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
+  grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
+  grep -Fq 'push_u64_le(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
   grep -Fq 'bytes_push(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$arm64_elf_data_cstr_impl" ||
   grep -Fq 'bytes_push(dynstr, 0) // leading NUL' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$elf_artifact_dyn_impl" ||
   grep -Fq 'bytes_push(shstr, 0)' <<<"$x64_elf_build_shstr_impl" ||

@@ -105,9 +105,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current ELF dynamic artifact abstraction shares DT_NEEDED default list
      construction, dynamic string-table/name-offset assembly, dynsym
      import/export function entries, ELF64 RELA row packing, one-bucket SysV hash emission,
-     dynamic-table blob placement, and common DT_DYNAMIC tags through
-     `elf_artifact.oren` while keeping arch import validation and RELA
-     relocation semantics local.
+     PT_INTERP/init-array prelude placement, dynamic-table blob placement, and
+     common DT_DYNAMIC tags through `elf_artifact.oren` while keeping arch import
+     validation and RELA relocation semantics local.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

@@ -121,6 +121,26 @@ fn bytes_add_str0(buf, s) {
     return off
 }
 
+fn append_dynamic_prelude(data, interp, is_shared_lib) {
+    var interp_off = nil
+    var interp_len = nil
+    if is_shared_lib != true {
+        bytes_align(data, 1)
+        interp_off = artifact.bytes_len(data)
+        artifact.bytes_extend_string_z(data, interp)
+        interp_len = oren_string_len(interp) + 1
+    }
+
+    var init_array_off = nil
+    if is_shared_lib == true {
+        bytes_align(data, 8)
+        init_array_off = artifact.bytes_len(data)
+        artifact.push_u64_le(data, 0)
+    }
+
+    return {"interp_off": interp_off, "interp_len": interp_len, "init_array_off": init_array_off}
+}
+
 fn push_unique(out, seen, s) {
     if out == nil || seen == nil { return nil }
     if s == nil || s == "" { return nil }

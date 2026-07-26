@@ -662,32 +662,16 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     if functions == nil { functions = {} }
     if exports == nil { exports = [] }
 
-    // --- PT_INTERP payload (dynamic executables only) ---
-    var interp_off = nil
-    var interp_len = nil
-    if is_shared_lib != true {
-        // Use the conventional x86_64 interpreter path on glibc-based distros.
-        // (WSL2/Ubuntu provides /lib64/ld-linux-x86-64.so.2 as a stable entry point.)
-        var interp = "/lib64/ld-linux-x86-64.so.2"
-        _bytes_align(data, 1)
-        interp_off = bytes_len(data)
-        bytes_extend_string_z(data, interp)
-        interp_len = oren_string_len(interp) + 1
-    }
-
-    // --- .init_array (shared libraries) ---
+    // --- Dynamic-link prelude: PT_INTERP payload or shared-library .init_array ---
     // Run the compiled entry stub once at load time so:
     // - runtime init runs
     // - __top_level__ runs (global initializers)
     // - heap spill slots are populated for exported ABI wrappers
-    var init_array_off = nil
-    if is_shared_lib == true {
-        if init_entry_off == nil { init_entry_off = 0 }
-        _bytes_align(data, 8)
-        init_array_off = bytes_len(data)
-        // placeholder u64; filled by R_X86_64_RELATIVE relocation (RELA addend)
-        push_u64_le(data, 0)
-    }
+    if is_shared_lib == true && init_entry_off == nil { init_entry_off = 0 }
+    var dyn_prelude = elfart.append_dynamic_prelude(data, "/lib64/ld-linux-x86-64.so.2", is_shared_lib)
+    var interp_off = dyn_prelude["interp_off"]
+    var interp_len = dyn_prelude["interp_len"]
+    var init_array_off = dyn_prelude["init_array_off"]
 
     var needed = _elf_x64_dyn_needed_libs(user_link_libs)
     var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, "x64 elf: internal: dyn import missing name", nil)
