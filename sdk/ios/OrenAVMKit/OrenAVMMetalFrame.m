@@ -572,6 +572,14 @@ static void OrenAVMMetalApplyFragmentOpacityIfNeeded(id<MTLRenderCommandEncoder>
     *hasLastOpacity = YES;
 }
 
+static void OrenAVMMetalApplyPipelineIfNeeded(id<MTLRenderCommandEncoder> encoder,
+                                              id<MTLRenderPipelineState> pipeline,
+                                              id<MTLRenderPipelineState>* currentPipeline) {
+    if (!encoder || !pipeline || !currentPipeline || *currentPipeline == pipeline) return;
+    [encoder setRenderPipelineState:pipeline];
+    *currentPipeline = pipeline;
+}
+
 NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns(NSArray<OrenAVMMetalVertexRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalVertexRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
@@ -625,7 +633,7 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
     MTLScissorRect fullScissor = (MTLScissorRect){0, 0, (NSUInteger)drawableTexture.width, (NSUInteger)drawableTexture.height};
     BOOL hasLastScissor = NO;
     MTLScissorRect lastScissor = {0, 0, 0, 0};
-    BOOL hasBoundGeometryPipeline = NO;
+    id<MTLRenderPipelineState> currentPipeline = nil;
     if (geometryPipeline && vertexRuns.count > 0) {
         for (OrenAVMMetalVertexRun* run in vertexRuns) {
             if (!run.vertices || run.vertexBytes == 0) continue;
@@ -633,10 +641,7 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, run.vertices, run.vertexBytes)) continue;
-            if (!hasBoundGeometryPipeline) {
-                [encoder setRenderPipelineState:geometryPipeline];
-                hasBoundGeometryPipeline = YES;
-            }
+            OrenAVMMetalApplyPipelineIfNeeded(encoder, geometryPipeline, &currentPipeline);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                          vertexStart:0
                          vertexCount:run.vertexBytes / sizeof(OrenAVMMetalVertex)];
@@ -644,7 +649,6 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
     }
     BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;
     if (textPipeline && hasTextureRuns) {
-        BOOL hasBoundTexturePipeline = NO;
         id<MTLTexture> lastFragmentTexture = nil;
         BOOL hasLastFragmentOpacity = NO;
         float lastFragmentOpacity = 0.0f;
@@ -655,10 +659,7 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalImageRunVertexBytes(run), vertexBytes)) continue;
-            if (!hasBoundTexturePipeline) {
-                [encoder setRenderPipelineState:textPipeline];
-                hasBoundTexturePipeline = YES;
-            }
+            OrenAVMMetalApplyPipelineIfNeeded(encoder, textPipeline, &currentPipeline);
             OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture);
             OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
@@ -672,10 +673,7 @@ void OrenAVMMetalEncodePreparedRuns(id<MTLRenderCommandEncoder> encoder,
             if (scissor.width == 0 || scissor.height == 0) continue;
             OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor);
             if (!OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalTextRunVertexBytes(run), vertexBytes)) continue;
-            if (!hasBoundTexturePipeline) {
-                [encoder setRenderPipelineState:textPipeline];
-                hasBoundTexturePipeline = YES;
-            }
+            OrenAVMMetalApplyPipelineIfNeeded(encoder, textPipeline, &currentPipeline);
             OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture);
             OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity);
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle

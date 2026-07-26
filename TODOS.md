@@ -103,6 +103,9 @@ design evidence lives under `project-doc/`.
   fail explicitly if lazy run-array allocation fails.
 - Metal prepared geometry/image/text run coalescing now preserves the original
   prepared run lists if the optional coalesced output array cannot be allocated.
+- Metal prepared draw submission now caches the currently bound render pipeline
+  object across geometry/image/text runs, while still binding lazily only after a
+  valid vertex payload reaches the encoder.
 - CoreGraphics retained image/text/model uploads now guard Objective-C resource
   allocation before scalar-map insertion, matching the Metal retained-resource
   failure boundary.

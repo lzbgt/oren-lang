@@ -186,6 +186,11 @@
 </ul>
 <p>  prepared run lists if the optional coalesced output array cannot be allocated.</p>
 <ul>
+<li>Metal prepared draw submission now caches the currently bound render pipeline</li>
+</ul>
+<p>  object across geometry/image/text runs, while still binding lazily only after a</p>
+<p>  valid vertex payload reaches the encoder.</p>
+<ul>
 <li>CoreGraphics retained image/text/model uploads now guard Objective-C resource</li>
 </ul>
 <p>  allocation before scalar-map insertion, matching the Metal retained-resource</p>

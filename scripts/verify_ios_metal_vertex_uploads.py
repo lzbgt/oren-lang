@@ -1112,14 +1112,15 @@ def main() -> int:
         "float lastFragmentOpacity = 0.0f;",
         "OrenAVMMetalApplyFragmentTextureIfNeeded(encoder, run.texture, &lastFragmentTexture)",
         "OrenAVMMetalApplyFragmentOpacityIfNeeded(encoder, run.opacity, &hasLastFragmentOpacity, &lastFragmentOpacity)",
-        "BOOL hasBoundGeometryPipeline = NO;",
+        "id<MTLRenderPipelineState> currentPipeline = nil;",
         "if (geometryPipeline && vertexRuns.count > 0)",
         "BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;",
-        "BOOL hasBoundTexturePipeline = NO;",
         "if (textPipeline && hasTextureRuns)",
         "for (OrenAVMMetalImageRun* run in imageRuns)",
         "for (OrenAVMMetalTextRun* run in textRuns)",
         "OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers",
+        "OrenAVMMetalApplyPipelineIfNeeded(encoder, geometryPipeline, &currentPipeline)",
+        "OrenAVMMetalApplyPipelineIfNeeded(encoder, textPipeline, &currentPipeline)",
         "[encoder drawPrimitives:MTLPrimitiveTypeTriangle",
     ):
         if token not in encode_runs:
@@ -1144,12 +1145,20 @@ def main() -> int:
         fail("Metal prepared-run encoding must set fragment textures only through the cached helper")
     if frame_text.count("[encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0]") != 1:
         fail("Metal prepared-run encoding must set fragment opacity only through the cached helper")
-    for pipeline_token in (
-        "if (!hasBoundGeometryPipeline) {\n                [encoder setRenderPipelineState:geometryPipeline];\n                hasBoundGeometryPipeline = YES;\n            }",
-        "if (!hasBoundTexturePipeline) {\n                [encoder setRenderPipelineState:textPipeline];\n                hasBoundTexturePipeline = YES;\n            }",
-    ):
-        if pipeline_token not in encode_runs:
-            fail("Metal prepared-run encoding must bind render pipelines lazily after validating drawable runs")
+    if "static void OrenAVMMetalApplyPipelineIfNeeded" not in frame_text:
+        fail("Metal prepared-run encoding must cache the currently bound render pipeline")
+    if frame_text.count("[encoder setRenderPipelineState:pipeline]") != 1:
+        fail("Metal prepared-run encoding must set render pipelines only through the cached helper")
+    if "[encoder setRenderPipelineState:geometryPipeline]" in encode_runs or "[encoder setRenderPipelineState:textPipeline]" in encode_runs:
+        fail("Metal prepared-run encoding must not bypass the cached pipeline helper")
+    require_before(encode_runs,
+                   "OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, run.vertices, run.vertexBytes)",
+                   "OrenAVMMetalApplyPipelineIfNeeded(encoder, geometryPipeline, &currentPipeline)",
+                   "Metal geometry pipeline binding must stay lazy until after valid vertex payload binding")
+    require_before(encode_runs,
+                   "OrenAVMMetalBindVertexPayload(encoder, device, transientBuffers, OrenAVMMetalImageRunVertexBytes(run), vertexBytes)",
+                   "OrenAVMMetalApplyPipelineIfNeeded(encoder, textPipeline, &currentPipeline)",
+                   "Metal image pipeline binding must stay lazy until after valid vertex payload binding")
     if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:
