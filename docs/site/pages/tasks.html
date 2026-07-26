@@ -101,6 +101,10 @@
 </ul>
 <p>     instead of indexing a digit string for each output nibble.</p>
 <ul>
+<li>Current <code>std:bytes.from_hex</code> parses ASCII hex nibbles inline while writing</li>
+</ul>
+<p>     directly into the exact-size output <code>u8_buf</code>.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

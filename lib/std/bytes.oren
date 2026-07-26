@@ -468,13 +468,6 @@ fn _copy_u8_ptr_nonoverlap(dstp, srcp, n) {
     return oren_memcpy(dstp, srcp, n)
 }
 
-fn _hex_digit_value(b) {
-    if b >= 48 && b <= 57 { return b - 48 }
-    if b >= 65 && b <= 70 { return b - 55 }
-    if b >= 97 && b <= 102 { return b - 87 }
-    return -1
-}
-
 fn _hex_digit_lower(n) {
     if n < 10 { return 48 + n }
     return 87 + n
@@ -546,10 +539,18 @@ fn from_hex(s): bytes {
     if p == 0 && out_n > 0 { return oren_err(4, "bytes.from_hex: output data ptr is nil") }
     var i = 0
     while i < out_n {
-        var hi = _hex_digit_value(oren_string_byte_at_unchecked(s, i * 2))
-        var lo = _hex_digit_value(oren_string_byte_at_unchecked(s, i * 2 + 1))
+        var c0 = oren_string_byte_at_unchecked(s, i * 2) & 255
+        var c1 = oren_string_byte_at_unchecked(s, i * 2 + 1) & 255
+        var hi = -1
+        var lo = -1
+        if c0 >= 48 && c0 <= 57 { hi = c0 - 48 }
+        if c0 >= 65 && c0 <= 70 { hi = c0 - 55 }
+        if c0 >= 97 && c0 <= 102 { hi = c0 - 87 }
+        if c1 >= 48 && c1 <= 57 { lo = c1 - 48 }
+        if c1 >= 65 && c1 <= 70 { lo = c1 - 55 }
+        if c1 >= 97 && c1 <= 102 { lo = c1 - 87 }
         if hi < 0 || lo < 0 { return oren_err(4, "bytes.from_hex: invalid hex digit") }
-        ptr_set_byte(p + i, hi * 16 + lo)
+        ptr_set_byte(p + i, ((hi << 4) | lo) & 255)
         i = i + 1
     }
     return out

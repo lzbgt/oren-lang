@@ -609,7 +609,7 @@ BOOL OrenAVMMetalBindVertexPayload(id<MTLRenderCommandEncoder> encoder,
         return YES;
     }
     if (!transientBuffers) return NO;
-    if (!*transientBuffers) *transientBuffers = [NSMutableArray array];
+    if (!*transientBuffers) *transientBuffers = [NSMutableArray arrayWithCapacity:4u];
     if (!*transientBuffers) return NO;
     id<MTLBuffer> buffer = [device newBufferWithBytes:bytes
                                                length:length

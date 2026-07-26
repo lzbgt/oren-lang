@@ -459,6 +459,7 @@ fi
 native_byte_helpers="lib/runtime_native/180_bytes_helpers.oren"
 std_strings_to_bytes_impl="$(sed -n '/fn to_bytes(s)/,/fn from_bytes(bs)/p' lib/std/strings.oren)"
 std_bytes_from_string_impl="$(sed -n '/fn from_string(s): bytes/,/fn to_hex(bytes)/p' lib/std/bytes.oren)"
+std_bytes_from_hex_impl="$(sed -n '/fn from_hex(s): bytes/,/fn from_string(s): bytes/p' lib/std/bytes.oren)"
 std_bytes_to_hex_impl="$(sed -n '/fn to_hex(bytes)/,/fn to_string(bytes)/p' lib/std/bytes.oren)"
 buffer_raw_u8_from_string_impl="$(sed -n '/fn u8_from_string(s)/,/fn u8_to_string/p' lib/std/buffer/raw.oren)"
 native_string_impl="$(sed -n '/fn oren_string_from_bytes(bytes)/,/fn string_concat/p' lib/runtime_native/160_iteration.oren)"
@@ -502,6 +503,13 @@ fi
 if ! grep -Fq 'return oren_bytes_from_string(s)' <<<"$std_bytes_from_string_impl" ||
   grep -Fq 'return raw.u8_from_string(s)' <<<"$std_bytes_from_string_impl"; then
   echo "ERROR: std:bytes.from_string must route validated strings through byte-native runtime conversion, not an extra stdlib wrapper" >&2
+  exit 1
+fi
+if ! grep -Fq 'var c0 = oren_string_byte_at_unchecked(s, i * 2) & 255' <<<"$std_bytes_from_hex_impl" ||
+  ! grep -Fq 'var c1 = oren_string_byte_at_unchecked(s, i * 2 + 1) & 255' <<<"$std_bytes_from_hex_impl" ||
+  ! grep -Fq 'ptr_set_byte(p + i, ((hi << 4) | lo) & 255)' <<<"$std_bytes_from_hex_impl" ||
+  grep -Fq '_hex_digit_value' <<<"$std_bytes_from_hex_impl"; then
+  echo "ERROR: std:bytes.from_hex must parse nibbles inline and write exact-size output bytes directly" >&2
   exit 1
 fi
 if ! grep -Fq '_hex_digit_lower((b >> 4) & 15)' <<<"$std_bytes_to_hex_impl" ||

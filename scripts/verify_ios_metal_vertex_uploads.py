@@ -134,7 +134,7 @@ def main() -> int:
         fail("missing Metal vertex payload binding helper")
     bind_body = frame_source[bind_start:bind_end]
     retention_guard = bind_body.find("if (!transientBuffers) return NO;")
-    array_alloc = bind_body.find("if (!*transientBuffers) *transientBuffers = [NSMutableArray array];")
+    array_alloc = bind_body.find("if (!*transientBuffers) *transientBuffers = [NSMutableArray arrayWithCapacity:4u];")
     array_guard = bind_body.find("if (!*transientBuffers) return NO;")
     large_upload = bind_body.find("id<MTLBuffer> buffer = [device newBufferWithBytes:bytes")
     if (
@@ -147,6 +147,8 @@ def main() -> int:
         or array_guard > large_upload
     ):
         fail("large Metal vertex uploads must preflight transient retention storage before allocating MTLBuffer")
+    if "[NSMutableArray array]" in bind_body:
+        fail("large Metal vertex upload retention must use a bounded initial capacity")
     if "OrenAVMMetalInitialVertexBuilderCapacity" not in frame_text or "const NSUInteger maxInitialBytes = 64u * 1024u" not in frame_text:
         fail("geometry vertex builder must cap its lazy initial reservation")
     if (

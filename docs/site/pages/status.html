@@ -90,6 +90,10 @@
 </ul>
 <p>  exact-size output buffer instead of indexing a digit string for every nibble.</p>
 <ul>
+<li><code>std:bytes.from_hex</code> now parses ASCII hex nibbles inline while writing into its</li>
+</ul>
+<p>  exact-size output <code>u8_buf</code>, avoiding per-output-byte helper calls.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>
@@ -342,9 +346,9 @@
 <ul>
 <li>iOS Metal large vertex uploads now allocate transient-buffer retention storage</li>
 </ul>
-<p>  before allocating <code>MTLBuffer</code> objects, keeping invalid helper calls and</p>
-<p>  retention-array allocation failures from briefly allocating GPU memory that</p>
-<p>  cannot be retained through the frame.</p>
+<p>  before allocating <code>MTLBuffer</code> objects, using a small bounded initial capacity</p>
+<p>  so invalid helper calls, retention-array allocation failures, and first</p>
+<p>  growable-array expansions do not add avoidable per-frame overhead.</p>
 <ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>

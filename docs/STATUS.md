@@ -42,6 +42,8 @@ surfaces, but the following blockers remain:
   for `%XX` transformed bytes and query `+` spaces.
 - `std:bytes.to_hex` now emits lowercase hex digits arithmetically into its
   exact-size output buffer instead of indexing a digit string for every nibble.
+- `std:bytes.from_hex` now parses ASCII hex nibbles inline while writing into its
+  exact-size output `u8_buf`, avoiding per-output-byte helper calls.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
@@ -205,9 +207,9 @@ surfaces, but the following blockers remain:
   install, reject null copy sources before `memcpy`, and free earlier staged
   buffers if a later indexed-mesh copy fails.
 - iOS Metal large vertex uploads now allocate transient-buffer retention storage
-  before allocating `MTLBuffer` objects, keeping invalid helper calls and
-  retention-array allocation failures from briefly allocating GPU memory that
-  cannot be retained through the frame.
+  before allocating `MTLBuffer` objects, using a small bounded initial capacity
+  so invalid helper calls, retention-array allocation failures, and first
+  growable-array expansions do not add avoidable per-frame overhead.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

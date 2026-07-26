@@ -90,6 +90,8 @@ design evidence lives under `project-doc/`.
   transformed bytes and query `+` spaces remain explicit scalar writes.
 - `std:bytes.to_hex` now writes lowercase hex digit bytes arithmetically into
   the exact-size output buffer instead of indexing a digit string per nibble.
+- `std:bytes.from_hex` now parses ASCII hex nibbles inline while writing
+  directly into the exact-size output `u8_buf`, avoiding helper calls per output byte.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.
@@ -251,7 +253,7 @@ design evidence lives under `project-doc/`.
   straight-line 64-bit extended-length stores and stream payloads through
   fixed-size masked chunks instead of allocating full payload-sized frame buffers.
 - Native WebSocket binary sends/receives now expose unfragmented opcode-2 payloads as validated byte-backed `u8_buf` values, byte-native ping/pong/close helpers send bounded `u8_buf` control payloads directly with direct `u8_buf` length checks after type validation, and fragmented binary assembly plus ping/pong/close control receives use scratch/accumulator storage until the exact-size returned byte buffer is required; >4096-byte masked binary plus byte ping/pong/close plus fragmented text/binary loopback fixtures guard the byte-native path, and WSS loopback coverage now exercises byte ping/pong over TLS before text echo.
-- iOS Metal large vertex uploads now allocate transient-buffer retention storage before allocating `MTLBuffer`, avoiding unretained GPU-buffer allocation work on invalid helper calls or retention-array allocation failures.
+- iOS Metal large vertex uploads now allocate transient-buffer retention storage before allocating `MTLBuffer`, using a small bounded initial capacity to avoid unretained GPU-buffer work on invalid helper calls, retention-array allocation failures, or first growable-array expansion.
 - `std:buffer` raw `u8_pack_into` now validates the full input list before mutating the destination and writes valid bytes directly into `u8_buf` storage before falling back to compatibility stores.
 - `std:buffer` raw `u8_copy_from_string*` now validates the public destination/string span once, then writes string bytes directly into `u8_buf` storage before falling back to compatibility stores for non-optimized carriers.
 - `std:buffer` u8 matrix pack helpers now write validated row-list/string-row payloads directly into fresh dense `u8_buf` storage; strided u8 view copies from byte carriers, `u8_buf`, and strings now validate the source span once, then write directly into strided `u8_buf` storage before falling back to checked per-element view stores; strided `u8_buf` exports and non-dense u8 matrix exports now gather directly into exact-size `u8_buf` output before string conversion.
