@@ -202,23 +202,39 @@ fn _x64_win_cp_emit_create_stack_args(ctx, st) {
     // (BOOL/DWORD), ensure the high 32 bits are zeroed too; CreateProcessA may load 64-bit
     // values from the stack, and leaving stale high bits can turn NULL pointers into
     // garbage addresses (observed as CreateProcessA failure).
+    _x64_win_cp_emit_create_zero_stack_args(ctx)
+    _x64_win_cp_emit_create_env_arg(ctx, st)
+    _x64_win_cp_emit_create_current_dir_arg(ctx)
+    _x64_win_cp_emit_create_output_args(ctx, st)
+    return nil
+}
 
-    // bInheritHandles = FALSE (BOOL), dwCreationFlags = 0 (DWORD), lpCurrentDirectory = NULL.
+fn _x64_win_cp_emit_create_zero_stack_args(ctx) {
+    // bInheritHandles = FALSE (BOOL), dwCreationFlags = 0 (DWORD).
     //
     // Use 64-bit stores (8-byte slots) to avoid relying on paired 32-bit writes for zeroing:
     // Win64 stack args are always 8-byte slots.
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     _emit_mov_mrsp_r64(ctx, 32, 0) // bInheritHandles
     _emit_mov_mrsp_r64(ctx, 40, 0) // dwCreationFlags
+    return nil
+}
 
+fn _x64_win_cp_emit_create_env_arg(ctx, st) {
     // lpEnvironment = envblock (may be 0)
     _intr_load_x64(ctx, 0, st["tmp_env"])
     _emit_mov_mrsp_r64(ctx, 48, 0)
+    return nil
+}
 
+fn _x64_win_cp_emit_create_current_dir_arg(ctx) {
     // lpCurrentDirectory = NULL (LPSTR)
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     _emit_mov_mrsp_r64(ctx, 56, 0)
+    return nil
+}
 
+fn _x64_win_cp_emit_create_output_args(ctx, st) {
     // lpStartupInfo = rsp + STARTUP_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 4)) // r10 = rsp
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, st["startup_off"]))

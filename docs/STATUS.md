@@ -98,6 +98,13 @@ surfaces, but the following blockers remain:
   allocation-free `oren_buf_` prefix and `_buf_new` suffix byte checks.
 - Windows x64 CreateProcess lowering now separates call-area layout constants,
   call-area validation, cmdline null validation, and `STARTUPINFOA` emission.
+- X64 best-effort stack tracing now separates scratch layout/preparation,
+  platform dispatch, and stack release helpers.
+- X64 FFI DLL attribute collection now separates output map initialization,
+  attribute matching, value validation, and deduplicated DLL insertion.
+- Windows x64 CreateProcess stack-argument lowering now separates zeroed BOOL/
+  DWORD slots, envblock slot, current-directory slot, and output-struct pointer
+  slots.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

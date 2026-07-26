@@ -1030,6 +1030,7 @@ x64_parser_helper_split_impl="$(sed -n '/fn _intr_tmp_pool_off/,/fn _x64_tmp_int
 $(sed -n '/fn _x64_fast_list_get_sum_abi_regs/,/fn _x64_fast_list_get_sum_emit_sum_flag/p' lib/compiler/x64_native_program/057_emit_ops_while_list_get_sum.oren)
 $(sed -n '/fn _x64_win_cp_prepare_tmp_slots/,/fn _x64_win_cp_spill_args_and_zero/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)
 $(sed -n '/fn _x64_win_cp_emit_validate_cmd/,/fn _x64_win_cp_emit_create_register_args/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)
+$(sed -n '/fn _x64_win_cp_emit_create_register_args/,/fn _x64_win_cp_emit_create_result/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)
 $(sed -n '/fn _x64_call_obj_list_intrinsic_state/,/fn _x64_call_obj_list_abi_regs/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_indirect_call_runtime_ready/,/fn _x64_spawn_spill_explicit_args/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
 $(sed -n '/fn _x64_varargs_named_call_emit_prepared/,/fn _x64_emit_named_call_statement_only_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
@@ -1045,6 +1046,10 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   ! grep -Fq 'fn _x64_win_cp_prepare_layout(ctx, base)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_win_cp_emit_validate_cmd(ctx, st, labels, fixups, l_cleanup)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_win_cp_emit_startup_info(ctx, st)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_emit_create_zero_stack_args(ctx)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_emit_create_env_arg(ctx, st)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_emit_create_current_dir_arg(ctx)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_emit_create_output_args(ctx, st)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_call_obj_list_intrinsic_spill_fn(ctx, locals, fn_obj_expr, st)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_spawn_call_parts(ctx, expr)' <<<"$x64_parser_helper_split_impl" ||
@@ -1115,6 +1120,22 @@ if ! grep -Fq 'fn _x64_frame_align_unit(ctx)' <<<"$x64_function_frame_split_impl
   ! grep -Fq 'fn _x64_prepare_function_base_slots(ctx, fn_node, name, ops)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl"; then
   echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2
+  exit 1
+fi
+x64_ffi_attr_split_impl="$(sed -n '/fn _x64_collect_ffi_dll_attrs/,/fn _x64_ffi_ret_maps_init/p' lib/compiler/x64_native_program/072_ffi.oren)"
+if ! grep -Fq 'fn _x64_ffi_dll_outputs(ctx)' <<<"$x64_ffi_attr_split_impl" ||
+  ! grep -Fq 'fn _x64_ffi_attr_is_dll(a)' <<<"$x64_ffi_attr_split_impl" ||
+  ! grep -Fq 'fn _x64_ffi_dll_attr_value(ctx, nm, a)' <<<"$x64_ffi_attr_split_impl" ||
+  ! grep -Fq 'fn _x64_ffi_remember_dll(seen, out, val)' <<<"$x64_ffi_attr_split_impl"; then
+  echo "ERROR: x64 FFI DLL attribute collection must keep validation and dedup helpers split" >&2
+  exit 1
+fi
+x64_stack_trace_split_impl="$(sed -n '/fn _emit_stack_trace_best_effort/,/fn _emit_stack_trace_release_scratch/p' lib/compiler/x64_native_program/071_panic.oren)"
+if ! grep -Fq 'fn _stack_trace_scratch_layout()' <<<"$x64_stack_trace_split_impl" ||
+  ! grep -Fq 'fn _emit_stack_trace_prepare_scratch(ctx)' <<<"$x64_stack_trace_split_impl" ||
+  ! grep -Fq 'fn _emit_stack_trace_for_platform(ctx, platform, scratch)' <<<"$x64_stack_trace_split_impl" ||
+  ! grep -Fq 'fn _emit_stack_trace_release_scratch(ctx)' <<<"$x64_stack_trace_split_impl"; then
+  echo "ERROR: x64 stack-trace best-effort emission must keep scratch setup and platform dispatch split" >&2
   exit 1
 fi
 x64_call_fast_path_split_impl="$(sed -n '/fn _x64_call_name_has_oren_buf_prefix/,/fn _x64_emit_internal_fast_core_or_push/p' lib/compiler/x64_native_program/040_emit_call_fast_paths.oren)"

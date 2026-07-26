@@ -170,6 +170,13 @@ This file is the concise task view. Detailed implementation status lives in
    - Current Windows x64 CreateProcess cleanup separates call-area layout
      constants, call-area validation, cmdline null validation, and
      `STARTUPINFOA` emission.
+   - Current x64 stack-trace cleanup separates scratch layout/preparation,
+     platform dispatch, and stack release helpers.
+   - Current x64 FFI DLL attribute cleanup separates output map initialization,
+     attribute matching, value validation, and deduplicated DLL insertion.
+   - Current Windows x64 CreateProcess stack-argument cleanup separates zeroed
+     BOOL/DWORD slots, envblock slot, current-directory slot, and output-struct
+     pointer slots.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

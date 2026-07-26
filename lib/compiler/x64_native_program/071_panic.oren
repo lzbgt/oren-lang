@@ -791,25 +791,41 @@ fn _emit_stack_trace_best_effort(ctx) {
     //
     // Clobbers: volatile regs; exits soon after anyway.
     var platform = ctx["platform"]
+    var scratch = _stack_trace_scratch_layout()
+    _emit_stack_trace_prepare_scratch(ctx)
+    _emit_stack_trace_for_platform(ctx, platform, scratch)
+    _emit_stack_trace_release_scratch(ctx)
+    return nil
+}
 
-    // Reserve scratch on stack for formatting buffers.
-    // Use >= 128 so Win64 shadow space and our local buffer don't overlap.
-    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(128))
-
-    _emit_hex_table_ptr_to_r13(ctx)
-
+fn _stack_trace_scratch_layout() {
     // Scratch layout (rsp-relative, within the 128B reservation):
     // - [rsp+0x00..0x1F] is Win64 shadow space (not safe across calls).
     // - [rsp+0x20..0x3F] is safe across Win64 calls.
     // Keep persistent values we need across WriteFile calls in this safe region.
-    var scratch_save_off = 48 // 0x30: saved symbol offset
-    var scratch_ret_addr = 56 // 0x38: saved return address
+    return {"save_off": 48, "ret_addr": 56}
+}
 
+fn _emit_stack_trace_prepare_scratch(ctx) {
+    // Reserve scratch on stack for formatting buffers.
+    // Use >= 128 so Win64 shadow space and our local buffer don't overlap.
+    bytes_extend(ctx["code"], core.insn_sub_rsp_imm32(128))
+    _emit_hex_table_ptr_to_r13(ctx)
+    return nil
+}
+
+fn _emit_stack_trace_for_platform(ctx, platform, scratch) {
+    var scratch_save_off = scratch["save_off"]
+    var scratch_ret_addr = scratch["ret_addr"]
     if platform != nil && platform["os"] == "windows" {
         _emit_stack_trace_windows_best_effort(ctx, scratch_save_off, scratch_ret_addr)
     } else {
         _emit_stack_trace_linux_best_effort(ctx, scratch_save_off, scratch_ret_addr)
     }
+    return nil
+}
+
+fn _emit_stack_trace_release_scratch(ctx) {
     bytes_extend(ctx["code"], core.insn_add_rsp_imm32(128))
     return nil
 }

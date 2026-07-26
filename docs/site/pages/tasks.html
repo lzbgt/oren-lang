@@ -325,6 +325,19 @@
 </ul>
 <p>     constants, call-area validation, cmdline null validation, and</p>
 <p>     <code>STARTUPINFOA</code> emission.</p>
+<ul>
+<li>Current x64 stack-trace cleanup separates scratch layout/preparation,</li>
+</ul>
+<p>     platform dispatch, and stack release helpers.</p>
+<ul>
+<li>Current x64 FFI DLL attribute cleanup separates output map initialization,</li>
+</ul>
+<p>     attribute matching, value validation, and deduplicated DLL insertion.</p>
+<ul>
+<li>Current Windows x64 CreateProcess stack-argument cleanup separates zeroed</li>
+</ul>
+<p>     BOOL/DWORD slots, envblock slot, current-directory slot, and output-struct</p>
+<p>     pointer slots.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

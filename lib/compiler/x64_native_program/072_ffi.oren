@@ -55,32 +55,52 @@ fn _x64_collect_ffi_dll_attrs(ctx, st, nm) {
     var attrs = st["attrs"]
     if attrs == nil { return nil }
 
-    if ctx["ffi_dlls_seen"] == nil { ctx["ffi_dlls_seen"] = {} }
-    if ctx["ffi_dlls"] == nil { ctx["ffi_dlls"] = [] }
-    var seen = ctx["ffi_dlls_seen"]
-    var out = ctx["ffi_dlls"]
+    var dlls = _x64_ffi_dll_outputs(ctx)
+    var seen = dlls["seen"]
+    var out = dlls["out"]
 
     var i = 0
     while i < oren_list_len(attrs) {
         var a = attrs[i]
-        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
-        if !_x64_str_eq_bytes(a["name"], "ffi.dll") { i = i + 1; continue }
-
-        var args = a["args"]
-        if args == nil || oren_list_len(args) != 1 || args[0] == nil {
-            err(ctx, "x64 native v0: @" + "ffi.dll" + " on ffi " + nm + " must have exactly 1 string arg")
-            return nil
-        }
-        var val = _x64_lit_string(args[0]["value"])
-        if val == nil || val == "" {
-            err(ctx, "x64 native v0: @" + "ffi.dll" + " on ffi " + nm + " must be a string literal")
-            return nil
-        }
-        if seen[val] == nil {
-            seen[val] = true
-            oren_list_push(out, val)
+        if _x64_ffi_attr_is_dll(a) {
+            var val = _x64_ffi_dll_attr_value(ctx, nm, a)
+            if val == nil { return nil }
+            _x64_ffi_remember_dll(seen, out, val)
         }
         i = i + 1
+    }
+    return nil
+}
+
+fn _x64_ffi_dll_outputs(ctx) {
+    if ctx["ffi_dlls_seen"] == nil { ctx["ffi_dlls_seen"] = {} }
+    if ctx["ffi_dlls"] == nil { ctx["ffi_dlls"] = [] }
+    return {"seen": ctx["ffi_dlls_seen"], "out": ctx["ffi_dlls"]}
+}
+
+fn _x64_ffi_attr_is_dll(a) {
+    if a == nil || a["type"] != "Attr" { return false }
+    return _x64_str_eq_bytes(a["name"], "ffi.dll")
+}
+
+fn _x64_ffi_dll_attr_value(ctx, nm, a) {
+    var args = a["args"]
+    if args == nil || oren_list_len(args) != 1 || args[0] == nil {
+        err(ctx, "x64 native v0: @" + "ffi.dll" + " on ffi " + nm + " must have exactly 1 string arg")
+        return nil
+    }
+    var val = _x64_lit_string(args[0]["value"])
+    if val == nil || val == "" {
+        err(ctx, "x64 native v0: @" + "ffi.dll" + " on ffi " + nm + " must be a string literal")
+        return nil
+    }
+    return val
+}
+
+fn _x64_ffi_remember_dll(seen, out, val) {
+    if seen[val] == nil {
+        seen[val] = true
+        oren_list_push(out, val)
     }
     return nil
 }

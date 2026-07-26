@@ -188,6 +188,19 @@
 </ul>
 <p>  call-area validation, cmdline null validation, and <code>STARTUPINFOA</code> emission.</p>
 <ul>
+<li>X64 best-effort stack tracing now separates scratch layout/preparation,</li>
+</ul>
+<p>  platform dispatch, and stack release helpers.</p>
+<ul>
+<li>X64 FFI DLL attribute collection now separates output map initialization,</li>
+</ul>
+<p>  attribute matching, value validation, and deduplicated DLL insertion.</p>
+<ul>
+<li>Windows x64 CreateProcess stack-argument lowering now separates zeroed BOOL/</li>
+</ul>
+<p>  DWORD slots, envblock slot, current-directory slot, and output-struct pointer</p>
+<p>  slots.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>
