@@ -62,6 +62,8 @@ design evidence lives under `project-doc/`.
 - ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
   data C strings now route through shared string+zero or zero-span byte-builder
   helpers instead of separate string append plus zero-byte pushes.
+- OBC linker NIL constant tags now route through byte-builder zero-extension
+  rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix
   directly with exact zero spans instead of allocating and copying a temporary
   `code_pad` builder.

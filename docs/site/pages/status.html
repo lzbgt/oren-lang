@@ -116,6 +116,10 @@
 <p>  data C strings now use shared string+zero or zero-span byte-builder helpers</p>
 <p>  instead of separate string append plus single-zero pushes.</p>
 <ul>
+<li>OBC linker NIL constant tags now use byte-builder zero-extension instead of</li>
+</ul>
+<p>  single zero-byte pushes, leaving nonzero constant tags unchanged.</p>
+<ul>
 <li>ARM64 Mach-O load-command, string-table, and final text/data prefix padding</li>
 </ul>
 <p>  now route through <code>_macho_pad_to_len</code>/<code>_macho_align</code> helpers.</p>

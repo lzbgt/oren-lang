@@ -56,6 +56,8 @@ surfaces, but the following blockers remain:
 - ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
   data C strings now use shared string+zero or zero-span byte-builder helpers
   instead of separate string append plus single-zero pushes.
+- OBC linker NIL constant tags now use byte-builder zero-extension instead of
+  single zero-byte pushes, leaving nonzero constant tags unchanged.
 - ARM64 Mach-O load-command, string-table, and final text/data prefix padding
   now route through `_macho_pad_to_len`/`_macho_align` helpers.
 - ARM64 Mach-O GOT placeholder alignment now uses `_macho_align(data, 8)`

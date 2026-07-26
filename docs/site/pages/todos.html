@@ -113,6 +113,10 @@
 <p>  data C strings now route through shared string+zero or zero-span byte-builder</p>
 <p>  helpers instead of separate string append plus zero-byte pushes.</p>
 <ul>
+<li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
+</ul>
+<p>  rather than single zero-byte pushes while preserving nonzero constant tags.</p>
+<ul>
 <li>ARM64/x64 ELF final executable page padding now extends the output prefix</li>
 </ul>
 <p>  directly with exact zero spans instead of allocating and copying a temporary</p>

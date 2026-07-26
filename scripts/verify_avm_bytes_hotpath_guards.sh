@@ -47,10 +47,18 @@ if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <
 fi
 
 bytecode_const_string_impl="$(sed -n '/if c\["type"\] == "String" {/,/if c\["type"\] == "Bytes" {/p' lib/compiler/codegen_bytecode/030_tail.oren)"
+obc_link_constant_impl="$(sed -n '/fn _emit_constant/,/fn obc_encode_bytes/p' lib/compiler/obc_link.oren)"
 if ! grep -Fq 'bytes.bytes_push_u16_le(out, len)' <<<"$bytecode_const_string_impl" ||
   ! grep -Fq 'bytes.bytes_extend_string(out, s)' <<<"$bytecode_const_string_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(s, si)' <<<"$bytecode_const_string_impl"; then
   echo "ERROR: bytecode constant string emission must use byte-builder string extension, not a per-byte string loop" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'bytes_builder.bytes_extend_zeros(out, 1)' lib/compiler/obc_link.oren ||
+  ! grep -Fq '_push_zero_byte(out)' <<<"$obc_link_constant_impl" ||
+  grep -Fq 'bytes_builder.bytes_push(out, 0)' <<<"$obc_link_constant_impl"; then
+  echo "ERROR: OBC linker NIL constant tags must use byte-builder zero extension, not single zero-byte pushes" >&2
   exit 1
 fi
 

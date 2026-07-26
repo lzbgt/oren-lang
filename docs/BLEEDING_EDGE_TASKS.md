@@ -42,6 +42,8 @@ This file is the concise task view. Detailed implementation status lives in
      `%XX` bytes and query `+` spaces explicit.
    - Current `std:bytes.to_hex` emits lowercase digit bytes arithmetically
      instead of indexing a digit string for each output nibble.
+   - Current OBC linker cleanup routes NIL constant zero tags through
+     byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
    - Current ARM64 native local-function code alignment uses byte-builder
@@ -1530,7 +1532,7 @@ This file is the concise task view. Detailed implementation status lives in
      append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`/`from_hex`, `std:strings` byte roundtrips,
-	     `std:bytes` u8/endian writes with unrolled u64 `u8_buf` stores, unrolled `std:buffer` raw i64 stores for typed-buffer builders, straight-line CBOR/WebSocket u64 protocol byte operations, compiler bytecode/ASTBIN u64 serializer byte operations, x64 PE section-name literal byte plus data-directory/import-thunk/export-name-pointer zero emission, ARM64/x64 ELF alignment zero extension, compiler artifact whole-string byte-builder extension, ARM64 ELF/Mach-O runtime debug zero helpers, ARM64 compiler fixed pointer-slot zero extension, ARM64 Mach-O fixed UUID zero-word and 16-byte name padding emission, concat/copy u8-buffer spans, overlap-safe
+		    `std:bytes` u8/endian writes with unrolled u64 `u8_buf` stores, unrolled `std:buffer` raw i64 stores for typed-buffer builders, straight-line CBOR/WebSocket u64 protocol byte operations, compiler bytecode/ASTBIN u64 serializer byte operations, x64 PE section-name literal byte plus data-directory/import-thunk/export-name-pointer zero emission, ARM64/x64 ELF alignment zero extension, compiler artifact whole-string byte-builder extension, OBC linker NIL zero tags, ARM64 ELF/Mach-O runtime debug zero helpers, ARM64 compiler fixed pointer-slot zero extension, ARM64 Mach-O fixed UUID zero-word and 16-byte name padding emission, concat/copy u8-buffer spans, overlap-safe
 	     u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
 	     carrier reads through shared checked byte views with hoisted backing pointers for non-contiguous fallbacks,
      contiguous slice/dense-matrix byte/text exports, and

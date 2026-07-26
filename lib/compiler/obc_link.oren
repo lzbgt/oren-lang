@@ -57,6 +57,11 @@ fn _push_ascii(out, s) {
     return nil
 }
 
+fn _push_zero_byte(out) {
+    bytes_builder.bytes_extend_zeros(out, 1)
+    return nil
+}
+
 fn _view_starts_with(v, prefix_str) {
     var pn = oren_string_len(prefix_str)
     if byte_view.view_len(v) < pn { return false }
@@ -294,7 +299,7 @@ fn _sort_strings(xs) {
 
 fn _emit_constant(out, c) {
     if c["type"] == "Nil" {
-        bytes_builder.bytes_push(out, 0)
+        _push_zero_byte(out)
         return nil
     }
     if c["type"] == "Integer" {
@@ -332,7 +337,7 @@ fn _emit_constant(out, c) {
         return nil
     }
     // Unknown constant: encode as NIL (rolling best-effort).
-    bytes_builder.bytes_push(out, 0)
+    _push_zero_byte(out)
     return nil
 }
 
