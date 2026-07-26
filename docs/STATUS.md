@@ -117,6 +117,8 @@ surfaces, but the following blockers remain:
   IAT call from the entry scratch-slot store.
 - X64 runtime-object RIP data32 fixup replay now separates map iteration,
   per-label fixup application, and phase-log completion.
+- Windows x64 `sys_read`/`sys_write` wrappers now share zero-length and cleanup
+  helpers while keeping read/write label allocation and body emission split.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

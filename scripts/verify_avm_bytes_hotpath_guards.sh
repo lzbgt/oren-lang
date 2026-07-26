@@ -1091,6 +1091,7 @@ if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"
   exit 1
 fi
 x64_sys_data_split_impl="$(sed -n '/fn _x64_emit_windows_file_io_result/,/fn _x64_sys_rw_linux_slots/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
+$(sed -n '/fn _x64_emit_sys_write_windows_writefile/,/fn _emit_intrinsic_sys_write_linux_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
 $(sed -n '/fn _x64_gettimeofday_windows_call_filetime/,/fn _x64_gettimeofday_windows_new_labels/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
@@ -1114,7 +1115,13 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_call(ctx, state)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_result_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, l_ret0)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_sys_read_windows_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_sys_read_windows_body(ctx, locals, state, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_sys_write_windows_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_sys_write_windows_body(ctx, locals, state, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_sys_write_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_windows_fstat_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)' <<<"$x64_sys_data_split_impl" ||

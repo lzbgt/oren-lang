@@ -189,6 +189,9 @@ This file is the concise task view. Detailed implementation status lives in
      `GetEnvironmentStringsA` IAT call from the entry scratch-slot store.
    - Current x64 runtime-object RIP data32 fixup cleanup separates map
      iteration, per-label fixup application, and phase-log completion.
+   - Current Windows x64 `sys_read`/`sys_write` wrapper cleanup shares
+     zero-length and cleanup helpers while keeping read/write label allocation
+     and body emission split.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

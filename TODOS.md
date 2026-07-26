@@ -101,6 +101,8 @@ design evidence lives under `project-doc/`.
   IAT call from the entry scratch-slot store.
 - X64 runtime-object RIP data32 fixup replay now separates map iteration,
   per-label fixup application, and phase-log completion.
+- Windows x64 `sys_read`/`sys_write` wrappers now share zero-length and cleanup
+  helpers while keeping read/write label allocation and body emission split.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops, and PE import hint/name alignment

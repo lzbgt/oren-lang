@@ -259,12 +259,46 @@ fn _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_l
 }
 
 fn _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base) {
+    _x64_emit_sys_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)
+    return nil
+}
+
+fn _x64_emit_sys_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base) {
     _emit_label(ctx, labels, l_ret0)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
     _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, l_ret0) {
+    _intr_load_x64(ctx, 0, tmp_len)
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
+    return nil
+}
+
+fn _x64_sys_read_windows_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "ret0": _new_label(ctx, "sys_read_ret0"),
+        "have_handle": _new_label(ctx, "sys_read_have_handle"),
+        "done": _new_label(ctx, "sys_read_done")
+    }
+}
+
+fn _x64_emit_sys_read_windows_body(ctx, locals, state, lab) {
+    var tmp_fd = state["tmp_fd"]
+    var tmp_ptr = state["tmp_ptr"]
+    var tmp_len = state["tmp_len"]
+    var labels = lab["labels"]
+    var local_fixups = lab["local_fixups"]
+    _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, lab["ret0"])
+    _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, lab["have_handle"])
+    _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, lab["done"])
     return nil
 }
 
@@ -278,26 +312,9 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     // - error: return -EIO (rolling)
     var state = _x64_prepare_sys_read_windows_args(ctx, locals, args, capsule)
     if state == nil { return nil }
-    var base = state["base"]
-    var tmp_fd = state["tmp_fd"]
-    var tmp_ptr = state["tmp_ptr"]
-    var tmp_len = state["tmp_len"]
-
-    var labels = {}
-    var local_fixups = []
-    var l_ret0 = _new_label(ctx, "sys_read_ret0")
-    var l_have_handle = _new_label(ctx, "sys_read_have_handle")
-    var l_done = _new_label(ctx, "sys_read_done")
-
-    // if len <= 0 => return 0
-    _intr_load_x64(ctx, 0, tmp_len)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
-
-    _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle)
-    _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done)
-
-    _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)
+    var lab = _x64_sys_read_windows_labels(ctx)
+    _x64_emit_sys_read_windows_body(ctx, locals, state, lab)
+    _x64_emit_sys_read_windows_finish(ctx, lab["labels"], lab["local_fixups"], lab["ret0"], lab["done"], state["base"])
     return nil
 }
 
@@ -449,36 +466,41 @@ fn _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp
     return nil
 }
 
+fn _x64_sys_write_windows_labels(ctx) {
+    return {
+        "labels": {},
+        "local_fixups": [],
+        "ret0": _new_label(ctx, "sys_write_ret0"),
+        "have_handle": _new_label(ctx, "sys_write_have_handle"),
+        "done": _new_label(ctx, "sys_write_done")
+    }
+}
+
+fn _x64_emit_sys_write_windows_body(ctx, locals, state, lab) {
+    var tmp_fd = state["tmp_fd"]
+    var tmp_ptr = state["tmp_ptr"]
+    var tmp_len = state["tmp_len"]
+    var labels = lab["labels"]
+    var local_fixups = lab["local_fixups"]
+    _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, lab["ret0"])
+    _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, lab["have_handle"])
+    _emit_label(ctx, labels, lab["have_handle"])
+    _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, lab["done"])
+    return nil
+}
+
+fn _x64_emit_sys_write_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base) {
+    _x64_emit_sys_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)
+    return nil
+}
+
 fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
     // Windows: WriteFile-based writer. Returns bytes written or -EIO on failure.
     var state = _x64_prepare_sys_write_windows_args(ctx, locals, args, capsule)
     if state == nil { return nil }
-    var base = state["base"]
-    var tmp_fd = state["tmp_fd"]
-    var tmp_ptr = state["tmp_ptr"]
-    var tmp_len = state["tmp_len"]
-
-    var labels = {}
-    var local_fixups = []
-    var l_ret0 = _new_label(ctx, "sys_write_ret0")
-    var l_done = _new_label(ctx, "sys_write_done")
-
-    // if len <= 0 => return 0
-    _intr_load_x64(ctx, 0, tmp_len)
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
-
-    var l_have_handle = _new_label(ctx, "sys_write_have_handle")
-    _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle)
-    _emit_label(ctx, labels, l_have_handle)
-    _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, l_done)
-
-    _emit_label(ctx, labels, l_ret0)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-    _intr_tmp_pop(ctx, base)
+    var lab = _x64_sys_write_windows_labels(ctx)
+    _x64_emit_sys_write_windows_body(ctx, locals, state, lab)
+    _x64_emit_sys_write_windows_finish(ctx, lab["labels"], lab["local_fixups"], lab["ret0"], lab["done"], state["base"])
     return nil
 }
 
