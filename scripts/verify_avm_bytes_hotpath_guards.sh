@@ -1086,6 +1086,10 @@ x64_data_lookup_split_impl="$(sed -n '/fn _x64_data_lookup_direct_function_offse
 if ! grep -Fq 'fn _x64_data_lookup_direct_function_offset(ctx, nm)' <<<"$x64_data_lookup_split_impl" || ! grep -Fq 'fn _x64_data_lookup_compact_function_offset(ctx, nm, base)' <<<"$x64_data_lookup_split_impl" || ! grep -Fq 'fn _x64_data_lookup_encoded_function_offset(ctx, nm, base)' <<<"$x64_data_lookup_split_impl"; then
   echo "ERROR: x64 data function-offset lookup must keep direct, compact, and encoded-map paths split" >&2; exit 1
 fi
+x64_list_int_set_split_impl="$(sed -n '/fn _x64_list_int_set_alloc_spill_state/,/fn _x64_prepare_list_int_reduce_sum_slots_unchecked_intrinsic/p' lib/compiler/x64_native_program/045_emit_list_intrinsics.oren)"
+if ! grep -Fq 'fn _x64_list_int_set_eval_spill_arg(ctx, locals, expr, base, off)' <<<"$x64_list_int_set_split_impl" || ! grep -Fq 'fn _x64_emit_list_int_set_slow_path(ctx, locals, state)' <<<"$x64_list_int_set_split_impl" || ! grep -Fq 'fn _x64_emit_list_int_set_fast_path(ctx, state)' <<<"$x64_list_int_set_split_impl"; then
+  echo "ERROR: x64 LIST_INT set lowering must keep arg spill, slow path, and fast path helpers split" >&2; exit 1
+fi
 x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _lit_array_depth_state/,/fn _emit_hash_literal_expr/p' lib/compiler/x64_native_program/043_emit_literals.oren)
 $(sed -n '/fn _emit_hash_literal_expr/,/fn _lit_hash_prepare_state/p' lib/compiler/x64_native_program/043_emit_literals.oren)
@@ -1107,6 +1111,8 @@ $(sed -n '/fn _x64_gettimeofday_windows_call_filetime/,/fn _x64_gettimeofday_win
 $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_win_wait_single_object_result_labels/,/fn _emit_intrinsic_sys_win_wait_single_object_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_threads.oren)
+$(sed -n '/fn _x64_linux_epoll_create1_state/,/fn _x64_linux_epoll_ctl_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren)
+$(sed -n '/fn _x64_wsa_overlapped_labels/,/fn _x64_wsarecv_normalize_result/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net_iocp.oren)
 $(sed -n '/fn _emit_win64_stat_regular_file_mode_x64/,/fn _emit_win64_stat_capsule_post_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _x64_windows_fstat_labels/,/fn _x64_unlink_rmdir_windows_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _emit_nanosleep_timespec_syscall_x64/,/fn _x64_linux_nanosleep_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren)
@@ -1126,6 +1132,8 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_call(ctx, state)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_result_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_linux_epoll_create1_state(ctx, locals, args)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_linux_epoll_create1_syscall(ctx, st)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_wsa_overlapped_labels(ctx, label_prefix)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_wsa_overlapped_emit_error_path(ctx, lab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, l_ret0)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_sys_read_windows_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_read_windows_body(ctx, locals, state, lab)' <<<"$x64_sys_data_split_impl" ||
@@ -1157,31 +1165,27 @@ if ! grep -Fq 'fn _x64_frame_align_unit(ctx)' <<<"$x64_function_frame_split_impl
   ! grep -Fq 'fn _x64_frame_save_state(ctx, align)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_prepare_function_base_slots(ctx, fn_node, name, ops)' <<<"$x64_function_frame_split_impl" ||
   ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl"; then
-  echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2
-  exit 1
+  echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2; exit 1
 fi
 x64_ffi_attr_split_impl="$(sed -n '/fn _x64_collect_ffi_dll_attrs/,/fn _x64_ffi_ret_maps_init/p' lib/compiler/x64_native_program/072_ffi.oren)"
 if ! grep -Fq 'fn _x64_ffi_dll_outputs(ctx)' <<<"$x64_ffi_attr_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_attr_is_dll(a)' <<<"$x64_ffi_attr_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_dll_attr_value(ctx, nm, a)' <<<"$x64_ffi_attr_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_remember_dll(seen, out, val)' <<<"$x64_ffi_attr_split_impl"; then
-  echo "ERROR: x64 FFI DLL attribute collection must keep validation and dedup helpers split" >&2
-  exit 1
+  echo "ERROR: x64 FFI DLL attribute collection must keep validation and dedup helpers split" >&2; exit 1
 fi
 x64_stack_trace_split_impl="$(sed -n '/fn _emit_stack_trace_best_effort/,/fn _emit_stack_trace_release_scratch/p' lib/compiler/x64_native_program/071_panic.oren)"
 if ! grep -Fq 'fn _stack_trace_scratch_layout()' <<<"$x64_stack_trace_split_impl" ||
   ! grep -Fq 'fn _emit_stack_trace_prepare_scratch(ctx)' <<<"$x64_stack_trace_split_impl" ||
   ! grep -Fq 'fn _emit_stack_trace_for_platform(ctx, platform, scratch)' <<<"$x64_stack_trace_split_impl" ||
   ! grep -Fq 'fn _emit_stack_trace_release_scratch(ctx)' <<<"$x64_stack_trace_split_impl"; then
-  echo "ERROR: x64 stack-trace best-effort emission must keep scratch setup and platform dispatch split" >&2
-  exit 1
+  echo "ERROR: x64 stack-trace best-effort emission must keep scratch setup and platform dispatch split" >&2; exit 1
 fi
 x64_call_fast_path_split_impl="$(sed -n '/fn _x64_call_name_has_oren_buf_prefix/,/fn _x64_emit_internal_fast_core_or_push/p' lib/compiler/x64_native_program/040_emit_call_fast_paths.oren)"
 if ! grep -Fq 'fn _x64_call_name_has_oren_buf_prefix(nm)' <<<"$x64_call_fast_path_split_impl" ||
   ! grep -Fq 'fn _x64_call_name_has_buf_new_suffix(nm, nm_len)' <<<"$x64_call_fast_path_split_impl" ||
   ! grep -Fq 'fn _x64_call_name_is_buf_runtime(nm, nm_len)' <<<"$x64_call_fast_path_split_impl"; then
-  echo "ERROR: x64 call fast-path runtime-name classification must keep prefix/suffix checks split and allocation-free" >&2
-  exit 1
+  echo "ERROR: x64 call fast-path runtime-name classification must keep prefix/suffix checks split and allocation-free" >&2; exit 1
 fi
 x64_index_map_split_impl="$(sed -n '/fn _x64_index_emit_map_path/,/fn _x64_index_dynamic_labels/p' lib/compiler/x64_native_program/045_emit_index_expr.oren)"
 if ! grep -Fq 'fn _x64_index_emit_map_magic_if_known(ctx, recv_kind, labels, local_fixups)' <<<"$x64_index_map_split_impl" ||

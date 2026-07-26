@@ -794,7 +794,7 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     return nil
 }
 
-fn _x64_list_int_set_spill_args(ctx, locals, args) {
+fn _x64_list_int_set_alloc_spill_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
@@ -804,26 +804,29 @@ fn _x64_list_int_set_spill_args(ctx, locals, args) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
+    return {"base": base, "off_list": off_list, "off_idx": off_idx, "off_val": off_val}
+}
+
+fn _x64_list_int_set_eval_spill_arg(ctx, locals, expr, base, off) {
+    _emit_eval_int_to_rax(ctx, expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+    return true
+}
+
+fn _x64_list_int_set_spill_args(ctx, locals, args) {
+    var state = _x64_list_int_set_alloc_spill_state(ctx, locals)
+    if state == nil { return nil }
+    var base = state["base"]
 
     // LTR eval: list, idx, value
-    _emit_eval_int_to_rax(ctx, args[0], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
-
-    _emit_eval_int_to_rax(ctx, args[1], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
-
-    _emit_eval_int_to_rax(ctx, args[2], locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - off_val, 0)
-
-    return {
-        "base": base,
-        "off_list": off_list,
-        "off_idx": off_idx,
-        "off_val": off_val
-    }
+    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[0], base, state["off_list"]) == nil { return nil }
+    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[1], base, state["off_idx"]) == nil { return nil }
+    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[2], base, state["off_val"]) == nil { return nil }
+    return state
 }
 
 fn _x64_emit_list_int_set_reload_args(ctx, locals, state) {
@@ -931,17 +934,22 @@ fn _x64_emit_list_int_set_value_and_count(ctx, locals, state) {
 
 fn _x64_emit_list_int_set_slow_or_fast(ctx, locals, state) {
     var local_fixups = state["local_fixups"]
-    var off_list = state["off_list"]
-    var off_idx = state["off_idx"]
-    var off_val = state["off_val"]
     // idx < count => fast path
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 10))
     _emit_jcc_to_label(ctx, local_fixups, "l", state["l_fast"])
 
-    // Slow path: call runtime oren_list_int_set(list, idx, value)
-    _emit_call_rel32_3args_x64(ctx, locals, "oren_list_int_set", off_list, off_idx, off_val)
-    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
+    _x64_emit_list_int_set_slow_path(ctx, locals, state)
+    _x64_emit_list_int_set_fast_path(ctx, state)
+    return nil
+}
 
+fn _x64_emit_list_int_set_slow_path(ctx, locals, state) {
+    _emit_call_rel32_3args_x64(ctx, locals, "oren_list_int_set", state["off_list"], state["off_idx"], state["off_val"])
+    _emit_jmp_to_label(ctx, state["local_fixups"], state["l_done"])
+    return nil
+}
+
+fn _x64_emit_list_int_set_fast_path(ctx, state) {
     _emit_label(ctx, state["labels"], state["l_fast"])
     // buf -> r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))

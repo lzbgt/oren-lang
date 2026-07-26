@@ -3,35 +3,48 @@
 // Split from `046_emit_sys_intrinsics.oren` to keep files small and to avoid a single
 // mega-function dominating self-host compilation time on x64 backends.
 
+fn _x64_linux_epoll_create1_state(ctx, locals, args) {
+    var base32 = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base32) == 0 { return nil }
+    var tmp_flags = _intr_tmp_off(ctx, locals, base32 + 0)
+    if oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base32); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base32); return nil }
+    return {"base": base32, "flags": tmp_flags}
+}
+
+fn _x64_linux_epoll_create1_capsule_pre(ctx, st, capsule) {
+    if !capsule { return nil }
+    _intr_load_x64(ctx, 7, st["flags"])
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_pre")
+    _emit_mov_mrbp_r64(ctx, 0 - st["flags"], 0)
+    return nil
+}
+
+fn _x64_linux_epoll_create1_syscall(ctx, st) {
+    _intr_load_x64(ctx, 7, st["flags"])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_create1()))
+    bytes_extend(ctx["code"], core.insn_syscall())
+    return nil
+}
+
+fn _x64_linux_epoll_create1_capsule_post(ctx, capsule) {
+    if !capsule { return nil }
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_post")
+    return nil
+}
+
 fn _emit_intrinsic_sys_linux_epoll_create1_x64(ctx, expr, locals, args, capsule) {
     if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_epoll_create1 expects 1 arg"); return true }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_epoll_create1 does not support spread"); return true }
 
-    var base32 = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(base32) == 0 { return true }
-    var tmp_flags = _intr_tmp_off(ctx, locals, base32 + 0)
-    if oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base32); return true }
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base32); return true }
-
-    // pre: native_capsule_sys_epoll_create1_pre(flags) -> flags
-    _intr_load_x64(ctx, 7, tmp_flags)
-    if capsule {
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_flags, 0)
-    }
-
-    _intr_load_x64(ctx, 7, tmp_flags)
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_create1()))
-    bytes_extend(ctx["code"], core.insn_syscall())
-
-    // post: native_capsule_sys_epoll_create1_post(epfd) -> epfd
-    if capsule {
-        bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_post")
-    }
-
-    _intr_tmp_pop(ctx, base32)
+    var st = _x64_linux_epoll_create1_state(ctx, locals, args)
+    if st == nil { return true }
+    _x64_linux_epoll_create1_capsule_pre(ctx, st, capsule)
+    _x64_linux_epoll_create1_syscall(ctx, st)
+    _x64_linux_epoll_create1_capsule_post(ctx, capsule)
+    _intr_tmp_pop(ctx, st["base"])
     return true
 }
 

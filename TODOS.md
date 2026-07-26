@@ -3444,3 +3444,9 @@ design evidence lives under `project-doc/`.
   separates vector/map entry filtering from appending, runtime function-offset
   lookup separates direct/compact/encoded-map paths, and direct-call argument
   loading separates register loads from outgoing stack stores.
+- X64 LIST_INT set lowering now separates spill-state allocation, left-to-right
+  argument spills, runtime slow fallback, and fast in-bounds stores; Linux x64
+  `sys_epoll_create1` lowering separates temp state, capsule hooks, and raw
+  syscall emission; Windows x64 overlapped WSA result handling separates
+  label/fixup allocation, immediate-result dispatch, error mapping, and success
+  paths.

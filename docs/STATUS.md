@@ -131,6 +131,12 @@ surfaces, but the following blockers remain:
   runtime-object vectors, and encoded-map fallback.
 - X64 direct-call argument loading now separates register loads, outgoing stack
   area validation, and stack argument stores.
+- X64 LIST_INT set lowering now separates spill-state allocation, left-to-right
+  argument spills, runtime slow fallback, and fast in-bounds stores.
+- Linux x64 `sys_epoll_create1` lowering now separates temp state, capsule
+  pre/post hooks, and raw syscall emission.
+- Windows x64 overlapped WSA result handling now separates label/fixup
+  allocation, immediate-result dispatch, WSA error mapping, and success paths.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

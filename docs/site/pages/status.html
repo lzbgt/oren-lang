@@ -253,6 +253,18 @@
 </ul>
 <p>  area validation, and stack argument stores.</p>
 <ul>
+<li>X64 LIST_INT set lowering now separates spill-state allocation, left-to-right</li>
+</ul>
+<p>  argument spills, runtime slow fallback, and fast in-bounds stores.</p>
+<ul>
+<li>Linux x64 <code>sys_epoll_create1</code> lowering now separates temp state, capsule</li>
+</ul>
+<p>  pre/post hooks, and raw syscall emission.</p>
+<ul>
+<li>Windows x64 overlapped WSA result handling now separates label/fixup</li>
+</ul>
+<p>  allocation, immediate-result dispatch, WSA error mapping, and success paths.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

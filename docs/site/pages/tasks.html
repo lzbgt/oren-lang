@@ -391,6 +391,19 @@
 <li>Current x64 direct-call argument loading separates register arguments, stack</li>
 </ul>
 <p>     area validation, and stack argument stores.</p>
+<ul>
+<li>Current x64 LIST_INT set cleanup separates spill-state allocation,</li>
+</ul>
+<p>     left-to-right argument spills, slow runtime fallback, and fast in-bounds</p>
+<p>     stores.</p>
+<ul>
+<li>Current Linux x64 <code>sys_epoll_create1</code> cleanup separates state preparation,</li>
+</ul>
+<p>     capsule pre/post hooks, and syscall emission.</p>
+<ul>
+<li>Current Windows x64 overlapped WSA result cleanup separates label/fixup</li>
+</ul>
+<p>     allocation, immediate-result dispatch, error mapping, and success paths.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

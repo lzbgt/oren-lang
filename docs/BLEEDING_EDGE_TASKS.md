@@ -204,6 +204,13 @@ This file is the concise task view. Detailed implementation status lives in
      maps, compact runtime-object offset vectors, and encoded map fallback.
    - Current x64 direct-call argument loading separates register arguments, stack
      area validation, and stack argument stores.
+   - Current x64 LIST_INT set cleanup separates spill-state allocation,
+     left-to-right argument spills, slow runtime fallback, and fast in-bounds
+     stores.
+   - Current Linux x64 `sys_epoll_create1` cleanup separates state preparation,
+     capsule pre/post hooks, and syscall emission.
+   - Current Windows x64 overlapped WSA result cleanup separates label/fixup
+     allocation, immediate-result dispatch, error mapping, and success paths.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.
