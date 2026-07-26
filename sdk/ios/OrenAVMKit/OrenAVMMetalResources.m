@@ -302,6 +302,7 @@ static BOOL OrenAVMMetalEnsureHeapImageVerticesForCoalescing(OrenAVMMetalImageRu
 NSArray<OrenAVMMetalImageRun*>* OrenAVMMetalCoalesceImageRuns(NSArray<OrenAVMMetalImageRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalImageRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    if (!out) return runs;
     OrenAVMMetalImageRun* pending = nil;
     for (OrenAVMMetalImageRun* run in runs) {
         NSUInteger vertexBytes = OrenAVMMetalImageRunVertexBytesLength(run);

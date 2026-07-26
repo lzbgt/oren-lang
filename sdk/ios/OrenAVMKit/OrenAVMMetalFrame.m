@@ -575,6 +575,7 @@ static void OrenAVMMetalApplyFragmentOpacityIfNeeded(id<MTLRenderCommandEncoder>
 NSArray<OrenAVMMetalVertexRun*>* OrenAVMMetalCoalesceVertexRuns(NSArray<OrenAVMMetalVertexRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalVertexRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    if (!out) return runs;
     OrenAVMMetalVertexRun* pending = nil;
     for (OrenAVMMetalVertexRun* run in runs) {
         if (!run.vertices || run.vertexBytes == 0) continue;

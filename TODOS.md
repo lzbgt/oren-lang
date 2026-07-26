@@ -76,6 +76,8 @@ design evidence lives under `project-doc/`.
 - Metal retained image/text/model uploads now guard Objective-C resource
   allocation before scalar-map insertion, and prepared image/text draw appends
   fail explicitly if lazy run-array allocation fails.
+- Metal prepared geometry/image/text run coalescing now preserves the original
+  prepared run lists if the optional coalesced output array cannot be allocated.
 - CoreGraphics retained image/text/model uploads now guard Objective-C resource
   allocation before scalar-map insertion, matching the Metal retained-resource
   failure boundary.

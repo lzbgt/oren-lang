@@ -99,6 +99,7 @@ def main() -> int:
     for token in (
         "OrenAVMMetalVertexRunScissorEqual(pending, run)",
         "OrenAVMMetalVertexRunAppendBytes(pending, run.vertices, run.vertexBytes)",
+        "if (!out) return runs;",
         "pending = run;",
         "[out addObject:pending]",
     ):
@@ -238,6 +239,8 @@ def main() -> int:
         fail("text coalescing must reuse prepared run objects instead of cloning every run")
     if "pending = run;" not in coalesce_body:
         fail("text coalescing must keep the first run in each compatible group")
+    if "if (!out) return runs;" not in coalesce_body:
+        fail("text coalescing must preserve original prepared runs if the optional output array cannot be allocated")
     cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
     attrs_lookup = text_source.find("OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba)")
     if cache_lookup < 0 or attrs_lookup < 0 or cache_lookup > attrs_lookup:
@@ -875,6 +878,7 @@ def main() -> int:
         fail("image coalescing must reuse prepared run objects instead of cloning every run")
     for token in (
         "pending = run;",
+        "if (!out) return runs;",
         "pending.texture == run.texture",
         "pending.opacity == run.opacity",
         "OrenAVMMetalImageScissorEqual(pending, run)",

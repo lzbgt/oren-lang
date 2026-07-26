@@ -573,6 +573,7 @@ static BOOL OrenAVMMetalEnsureHeapTextVerticesForCoalescing(OrenAVMMetalTextRun*
 NSArray<OrenAVMMetalTextRun*>* OrenAVMMetalCoalesceTextRuns(NSArray<OrenAVMMetalTextRun*>* runs) {
     if (runs.count < 2) return runs ?: @[];
     NSMutableArray<OrenAVMMetalTextRun*>* out = [NSMutableArray arrayWithCapacity:runs.count];
+    if (!out) return runs;
     OrenAVMMetalTextRun* pending = nil;
     for (OrenAVMMetalTextRun* run in runs) {
         NSUInteger vertexBytes = OrenAVMMetalTextRunVertexBytesLength(run);

@@ -156,7 +156,9 @@ surfaces, but the following blockers remain:
 			  still grows geometrically.
 - iOS Metal image-run preparation now coalesces adjacent compatible image runs
   sharing texture, scissor, and opacity into one raw vertex span, reducing
-  sprite draw calls while preserving single-quad inline storage.
+  sprite draw calls while preserving single-quad inline storage; prepared
+  geometry/image/text coalescing falls back to the original run lists if the
+  optional coalesced output array cannot be allocated.
 - iOS Metal image runs now track initialized inline-quad vertex count
   explicitly, so encoding and coalescing bind only actual inline or heap-backed
   vertex spans.

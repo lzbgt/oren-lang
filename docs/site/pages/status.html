@@ -257,7 +257,9 @@
 <li>iOS Metal image-run preparation now coalesces adjacent compatible image runs</li>
 </ul>
 <p>  sharing texture, scissor, and opacity into one raw vertex span, reducing</p>
-<p>  sprite draw calls while preserving single-quad inline storage.</p>
+<p>  sprite draw calls while preserving single-quad inline storage; prepared</p>
+<p>  geometry/image/text coalescing falls back to the original run lists if the</p>
+<p>  optional coalesced output array cannot be allocated.</p>
 <ul>
 <li>iOS Metal image runs now track initialized inline-quad vertex count</li>
 </ul>
