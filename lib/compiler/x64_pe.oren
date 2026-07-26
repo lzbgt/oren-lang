@@ -34,6 +34,17 @@ fn set_u64_le(buf, offset, n) {
     set_u32_le(buf, offset + 4, int_mod(n / 4294967296, 4294967296))
 }
 
+fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7) {
+    bytes_push(b, b0)
+    bytes_push(b, b1)
+    bytes_push(b, b2)
+    bytes_push(b, b3)
+    bytes_push(b, b4)
+    bytes_push(b, b5)
+    bytes_push(b, b6)
+    bytes_push(b, b7)
+}
+
 fn align_up(n, align) {
     return (n + align - 1) / align * align
 }
@@ -1310,12 +1321,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
 
     // ---- Section headers (3 * 40 bytes) ----
     // .text
-    var name_text = ".text"
-    var j = 0
-    while j < 8 {
-        if j < oren_string_len(name_text) { bytes_push(out, oren_string_byte_at_unchecked(name_text, j) & 255) } else { bytes_push(out, 0) }
-        j = j + 1
-    }
+    push_pe_section_name(out, 46, 116, 101, 120, 116, 0, 0, 0)
     push_u32_le(out, bytes_len(code)) // VirtualSize
     push_u32_le(out, text_rva)
     push_u32_le(out, text_raw_size)
@@ -1325,12 +1331,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     push_u32_le(out, 1610612768) // Characteristics: CNT_CODE | MEM_EXECUTE | MEM_READ (0x60000020)
 
     // .rdata
-    var name_rd = ".rdata"
-    j = 0
-    while j < 8 {
-        if j < oren_string_len(name_rd) { bytes_push(out, oren_string_byte_at_unchecked(name_rd, j) & 255) } else { bytes_push(out, 0) }
-        j = j + 1
-    }
+    push_pe_section_name(out, 46, 114, 100, 97, 116, 97, 0, 0)
     push_u32_le(out, bytes_len(rdata))
     push_u32_le(out, rdata_rva)
     push_u32_le(out, rdata_raw_size)
@@ -1340,12 +1341,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     push_u32_le(out, 1073741888) // CNT_INITIALIZED_DATA | MEM_READ (0x40000040)
 
     // .data (user data blob)
-    var name_data = ".data"
-    j = 0
-    while j < 8 {
-        if j < oren_string_len(name_data) { bytes_push(out, oren_string_byte_at_unchecked(name_data, j) & 255) } else { bytes_push(out, 0) }
-        j = j + 1
-    }
+    push_pe_section_name(out, 46, 100, 97, 116, 97, 0, 0, 0)
     push_u32_le(out, bytes_len(data)) // VirtualSize
     push_u32_le(out, data_rva)
     push_u32_le(out, data_raw_size)

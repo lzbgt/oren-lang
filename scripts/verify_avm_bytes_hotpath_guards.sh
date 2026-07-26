@@ -1054,6 +1054,17 @@ if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/c
   exit 1
 fi
 
+x64_pe_sections_impl="$(sed -n '/Section headers/,/Pad headers to SizeOfHeaders/p' lib/compiler/x64_pe.oren)"
+if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/compiler/x64_pe.oren ||
+  ! grep -Fq 'push_pe_section_name(out, 46, 116, 101, 120, 116, 0, 0, 0)' <<<"$x64_pe_sections_impl" ||
+  ! grep -Fq 'push_pe_section_name(out, 46, 114, 100, 97, 116, 97, 0, 0)' <<<"$x64_pe_sections_impl" ||
+  ! grep -Fq 'push_pe_section_name(out, 46, 100, 97, 116, 97, 0, 0, 0)' <<<"$x64_pe_sections_impl" ||
+  grep -Fq 'while j < 8' <<<"$x64_pe_sections_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(name_' <<<"$x64_pe_sections_impl"; then
+  echo "ERROR: x64 PE section names must be emitted as straight-line bytes, not fixed string-byte loops" >&2
+  exit 1
+fi
+
 if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands.oren; then
     echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
     exit 1

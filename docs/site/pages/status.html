@@ -234,6 +234,11 @@
 <p>  <code>infinity_norm</code>, <code>condition_number_one</code>, <code>cond_one</code>, <code>condition_number_inf</code>,</p>
 <p>  and <code>cond_inf</code>) with native/C/bytecode, AVM, and stdlib OBC bundle coverage.</p>
 <ul>
+<li>X64 PE section-name header emission now writes exact eight-byte COFF names as</li>
+</ul>
+<p>  straight-line literal bytes, avoiding fixed string-byte loops in compiler</p>
+<p>  artifact emission while preserving byte-for-byte section headers.</p>
+<ul>
 <li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
 </ul>
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>

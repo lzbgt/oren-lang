@@ -66,6 +66,8 @@ design evidence lives under `project-doc/`.
 - Compiler bytecode constants and ASTBIN u64 encode/decode helpers now use
   straight-line little-endian byte operations, keeping cache/build serializers
   out of fixed eight-iteration Oren loops.
+- X64 PE section-name header emission now uses straight-line literal bytes,
+  avoiding fixed string-byte loops while preserving exact eight-byte COFF names.
 - Scalar `std:math.sqrt` now keeps its deterministic eight-step Newton
   refinement as straight-line operations, reducing loop overhead for vector and
   matrix helpers that call it.

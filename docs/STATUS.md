@@ -146,6 +146,9 @@ surfaces, but the following blockers remain:
   `norm_frobenius`, `norm`, `norm_one`, `one_norm`, `norm_inf`,
   `infinity_norm`, `condition_number_one`, `cond_one`, `condition_number_inf`,
   and `cond_inf`) with native/C/bytecode, AVM, and stdlib OBC bundle coverage.
+- X64 PE section-name header emission now writes exact eight-byte COFF names as
+  straight-line literal bytes, avoiding fixed string-byte loops in compiler
+  artifact emission while preserving byte-for-byte section headers.
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.
