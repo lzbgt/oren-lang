@@ -324,6 +324,24 @@ fn _x64_indirect_call_emit_wrapper_call(ctx, st) {
     return true
 }
 
+fn _x64_indirect_call_runtime_ready(ctx) {
+    if ctx["runtime_injected"] == true { return true }
+    err(ctx, "x64 native v0: indirect calls require injected native runtime")
+    return false
+}
+
+fn _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc) {
+    var st = _x64_indirect_call_prepare(ctx, fn_obj_expr, args, argc)
+    if st == nil { return nil }
+    if _x64_indirect_call_spill_explicit_args(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_prepare_slots(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_spill_callee(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_build_args_list(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_push_explicit_args(ctx, st, locals) != true { return nil }
+    if _x64_indirect_call_emit_wrapper_call(ctx, st) != true { return nil }
+    return nil
+}
+
 fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     // Indirect call path (Tier-1 convergence): callee is a first-class function value, not a direct symbol call.
     //
@@ -340,10 +358,7 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     var has_spread = (spread != nil)
 
     // Indirect calls use runtime container helpers for argument packing.
-    if ctx["runtime_injected"] != true {
-        err(ctx, "x64 native v0: indirect calls require injected native runtime")
-        return nil
-    }
+    if _x64_indirect_call_runtime_ready(ctx) != true { return nil }
 
     // Spread always uses the shared runtime helper (matches arm64).
     if has_spread {
@@ -351,27 +366,33 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
         return nil
     }
 
-    var st = _x64_indirect_call_prepare(ctx, fn_obj_expr, args, argc)
-    if st == nil { return nil }
-    if _x64_indirect_call_spill_explicit_args(ctx, st, locals) != true { return nil }
-    if _x64_indirect_call_prepare_slots(ctx, st, locals) != true { return nil }
-    if _x64_indirect_call_spill_callee(ctx, st, locals) != true { return nil }
-    if _x64_indirect_call_build_args_list(ctx, st, locals) != true { return nil }
-    if _x64_indirect_call_push_explicit_args(ctx, st, locals) != true { return nil }
-    if _x64_indirect_call_emit_wrapper_call(ctx, st) != true { return nil }
+    _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc)
     return nil
 }
 
-fn _x64_spawn_expr_prepare(ctx, expr) {
+fn _x64_spawn_call_parts(ctx, expr) {
     var call2 = expr["call"]
     if call2 == nil || call2["type"] != "Call" { err(ctx, "x64 native v0: SpawnExpr missing call"); return nil }
     var fn_expr = call2["fn"]
     var args = call2["args"]
     var spread = call2["spread"]
     if fn_expr == nil { err(ctx, "x64 native v0: SpawnExpr missing callee"); return nil }
+    return {"call": call2, "fn_expr": fn_expr, "args": args, "spread": spread}
+}
 
+fn _x64_spawn_spill_count(argc, has_spread) {
+    var spill_n = argc + 2
+    if has_spread { spill_n = argc + 6 }
+    return spill_n
+}
+
+fn _x64_spawn_expr_prepare(ctx, expr) {
+    var parts = _x64_spawn_call_parts(ctx, expr)
+    if parts == nil { return nil }
+    var args = parts["args"]
     var argc = 0
     if args != nil { argc = oren_list_len(args) }
+    var spread = parts["spread"]
     var has_spread = (spread != nil)
 
     // Spill layout:
@@ -387,13 +408,11 @@ fn _x64_spawn_expr_prepare(ctx, expr) {
     // - len:           base + argc + 3
     // - elem:          base + argc + 4
     // - fn_obj:        base + argc + 5
-    var spill_n = argc + 2
-    if has_spread { spill_n = argc + 6 }
-    var base = _intr_tmp_push(ctx, spill_n)
+    var base = _intr_tmp_push(ctx, _x64_spawn_spill_count(argc, has_spread))
     if oren_type_tag(base) == 0 { return nil }
     var st = {}
-    st["call"] = call2
-    st["fn_expr"] = fn_expr
+    st["call"] = parts["call"]
+    st["fn_expr"] = parts["fn_expr"]
     st["args"] = args
     st["spread"] = spread
     st["argc"] = argc
@@ -739,6 +758,18 @@ fn _x64_varargs_named_emit_call(ctx, st, locals) {
     return true
 }
 
+fn _x64_varargs_named_call_emit_prepared(ctx, locals, st) {
+    var base = st["base"]
+    if _x64_varargs_named_spill_explicit_args(ctx, st, locals) != true { return nil }
+    if _x64_varargs_named_prepare_slots(ctx, st, locals) != true { return nil }
+    if _x64_varargs_named_build_args_list(ctx, st, locals) != true { return nil }
+    if _x64_varargs_named_push_args(ctx, st, locals) != true { return nil }
+    if _x64_varargs_named_spill_fnobj(ctx, st, locals) != true { return nil }
+    if _x64_varargs_named_emit_call(ctx, st, locals) != true { return nil }
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
 fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     // Tier-1 convergence: if the injected native runtime is enabled, lower varargs named calls
     // through the uniform callable ABI, matching arm64:
@@ -751,14 +782,7 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
 
     var st = _x64_varargs_named_call_prepare(ctx, nm, args)
     if st == nil { return nil }
-    var base = st["base"]
-    if _x64_varargs_named_spill_explicit_args(ctx, st, locals) != true { return nil }
-    if _x64_varargs_named_prepare_slots(ctx, st, locals) != true { return nil }
-    if _x64_varargs_named_build_args_list(ctx, st, locals) != true { return nil }
-    if _x64_varargs_named_push_args(ctx, st, locals) != true { return nil }
-    if _x64_varargs_named_spill_fnobj(ctx, st, locals) != true { return nil }
-    if _x64_varargs_named_emit_call(ctx, st, locals) != true { return nil }
-    _intr_tmp_pop(ctx, base)
+    _x64_varargs_named_call_emit_prepared(ctx, locals, st)
     return nil
 }
 

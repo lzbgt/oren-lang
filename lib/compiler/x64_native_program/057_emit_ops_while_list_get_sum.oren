@@ -13,45 +13,58 @@ fn _x64_fast_list_get_sum_local_offsets(info, locals) {
     return {"off_idx": off_idx, "off_n": off_n, "off_sum": off_sum}
 }
 
+fn _x64_fast_list_get_sum_info_parts(info) {
+    var lists = info["lists"]
+    var loads = info["loads"]
+    return {
+        "idx": info["idx"],
+        "n": info["n"],
+        "sum": info["sum"],
+        "lists": lists,
+        "loads": loads,
+        "list_count": oren_list_len(lists),
+        "load_count": oren_list_len(loads),
+        "sum_inty": info["sum_inty"]
+    }
+}
+
+fn _x64_fast_list_get_sum_unique_lists(parts) {
+    if parts["list_count"] == parts["load_count"] { return true }
+    return false
+}
+
+fn _x64_fast_list_get_sum_state(regs, offs, parts, base) {
+    return {
+        "a0": regs["a0"],
+        "a1": regs["a1"],
+        "idx": parts["idx"],
+        "n": parts["n"],
+        "sum": parts["sum"],
+        "lists": parts["lists"],
+        "loads": parts["loads"],
+        "off_idx": offs["off_idx"],
+        "off_n": offs["off_n"],
+        "off_sum": offs["off_sum"],
+        "list_count": parts["list_count"],
+        "sum_inty": parts["sum_inty"],
+        "unique_lists": _x64_fast_list_get_sum_unique_lists(parts),
+        "base": base
+    }
+}
+
 fn _x64_fast_list_get_sum_prepare(ctx, info, locals) {
     var regs = _x64_fast_list_get_sum_abi_regs(ctx)
     if regs == nil { return nil }
 
-    var idx_name = info["idx"]
-    var n_name = info["n"]
-    var sum_name = info["sum"]
-    var lists = info["lists"]
-    var loads = info["loads"]
-
+    var parts = _x64_fast_list_get_sum_info_parts(info)
     var offs = _x64_fast_list_get_sum_local_offsets(info, locals)
     if offs == nil { return nil }
 
-    var sum_inty = info["sum_inty"]
-    if sum_inty != true { return nil }
-    var list_count = oren_list_len(lists)
+    if parts["sum_inty"] != true { return nil }
     _trace_x64_list_fast_loop(ctx, "fast_list_get_sum_while", info)
-    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
+    var base = _intr_tmp_push(ctx, iadd(parts["list_count"], parts["list_count"]))
     if oren_type_tag(base) == 0 { return nil }
-    var load_count = oren_list_len(loads)
-    var unique_lists = false
-    if list_count == load_count { unique_lists = true }
-
-    return {
-        "a0": regs["a0"],
-        "a1": regs["a1"],
-        "idx": idx_name,
-        "n": n_name,
-        "sum": sum_name,
-        "lists": lists,
-        "loads": loads,
-        "off_idx": offs["off_idx"],
-        "off_n": offs["off_n"],
-        "off_sum": offs["off_sum"],
-        "list_count": list_count,
-        "sum_inty": sum_inty,
-        "unique_lists": unique_lists,
-        "base": base
-    }
+    return _x64_fast_list_get_sum_state(regs, offs, parts, base)
 }
 
 fn _x64_fast_list_get_sum_emit_sum_flag(ctx, off_sum, a0) {

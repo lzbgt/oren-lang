@@ -132,6 +132,9 @@ surfaces, but the following blockers remain:
   labels/body/finalization, Linux nanosleep timespec/syscall emission, Windows
   stdout panic writes, and cstr0/debug-info table preparation/emission into
   focused helper bodies.
+- X64 call-expression cleanup now separates indirect no-spread callable
+  execution, spawn call-part/spill sizing preparation, varargs prepared-call
+  execution, and fast list-get-sum state packing into focused parser helpers.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

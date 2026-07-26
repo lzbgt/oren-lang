@@ -1020,14 +1020,20 @@ if ! grep -Fq 'fn _emit_win32_last_error_file_cases_x64(ctx, labels, fixups, l_d
 fi
 x64_parser_helper_split_impl="$(sed -n '/fn _intr_tmp_pool_off/,/fn _x64_tmp_intr_name/p' lib/compiler/x64_native_program/035_intr_temps.oren)
 $(sed -n '/fn _x64_fast_list_get_sum_abi_regs/,/fn _x64_fast_list_get_sum_emit_sum_flag/p' lib/compiler/x64_native_program/057_emit_ops_while_list_get_sum.oren)
-$(sed -n '/fn _x64_win_cp_prepare_tmp_slots/,/fn _x64_win_cp_spill_args_and_zero/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)"
+$(sed -n '/fn _x64_win_cp_prepare_tmp_slots/,/fn _x64_win_cp_spill_args_and_zero/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)
+$(sed -n '/fn _x64_indirect_call_runtime_ready/,/fn _x64_spawn_spill_explicit_args/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)
+$(sed -n '/fn _x64_varargs_named_call_emit_prepared/,/fn _x64_emit_named_call_statement_only_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)"
 if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _intr_tmp_named_off(ctx, locals, idx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_fast_list_get_sum_abi_regs(ctx)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_fast_list_get_sum_local_offsets(info, locals)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_fast_list_get_sum_info_parts(info)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_win_cp_prepare_tmp_slots(ctx, locals, base)' <<<"$x64_parser_helper_split_impl" ||
-  ! grep -Fq 'fn _x64_win_cp_prepare_layout(ctx, base)' <<<"$x64_parser_helper_split_impl"; then
-  echo "ERROR: x64 temp, list-sum, and Windows process preparation must stay split into focused parser helpers" >&2
+  ! grep -Fq 'fn _x64_win_cp_prepare_layout(ctx, base)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_spawn_call_parts(ctx, expr)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_varargs_named_call_emit_prepared(ctx, locals, st)' <<<"$x64_parser_helper_split_impl"; then
+  echo "ERROR: x64 temp, list-sum, Windows process, and call-expression preparation must stay split into focused parser helpers" >&2
   exit 1
 fi
 x64_literal_callable_split_impl="$(sed -n '/fn _lit_hash_pairs/,/fn _lit_array_elements/p' lib/compiler/x64_native_program/043_emit_literals.oren)

@@ -127,6 +127,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 system/data cleanup splits Windows gettimeofday, Linux
      nanosleep, Windows panic stdout writes, and cstr0/debug-info table
      finalization into focused helper bodies without changing emitted order.
+   - Current x64 call-expression cleanup splits indirect no-spread execution,
+     spawn call-part/spill sizing preparation, varargs prepared-call execution,
+     and fast list-get-sum state packing into focused parser helpers.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.
