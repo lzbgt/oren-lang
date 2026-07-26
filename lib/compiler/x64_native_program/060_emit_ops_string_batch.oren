@@ -202,7 +202,7 @@ fn _x64_string_batch_trace_item_size(trace, trace_batch_sample, batch_i, batch_n
 }
 
 fn _x64_string_batch_align_data_buf(batch_data_buf) {
-    while core.int_mod(bytes_len(batch_data_buf), 8) != 0 { bytes_push(batch_data_buf, 0) }
+    _bytes_align8(batch_data_buf)
     return bytes_len(batch_data_buf)
 }
 
@@ -310,7 +310,7 @@ fn _x64_string_batch_trace_data_done(ctx, trace, j, batch_n, batch_data_buf) {
 
 fn _x64_string_batch_append_table_data(ctx, batch_n, batch_slot_offs, batch_cstr_offs) {
     var batch_data_buf = ctx["data"]
-    while core.int_mod(bytes_len(batch_data_buf), 8) != 0 { bytes_push(batch_data_buf, 0) }
+    _bytes_align8(batch_data_buf)
     var batch_table_off = bytes_len(batch_data_buf)
     push_u64_le(batch_data_buf, batch_n)
     var batch_table_i = 0

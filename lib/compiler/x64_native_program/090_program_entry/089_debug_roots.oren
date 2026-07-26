@@ -217,7 +217,7 @@ fn _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg) {
 }
 
 fn _x64_append_global_root_table_data(ctx, root_offsets, root_count) {
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var root_table_off = bytes_len(ctx["data"])
     var ri = 0
     while ri < root_count {

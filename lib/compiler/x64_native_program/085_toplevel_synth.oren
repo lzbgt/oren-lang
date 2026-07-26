@@ -103,7 +103,7 @@ fn _x64_append_global_string_batch_cstr0(ctx, s) {
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
     if s == nil || s == 0 { s = "" }
     if oren_is_string(s) != true { return nil }
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var off = bytes_len(ctx["data"])
     var n = oren_string_len(s)
     if n > 1048576 {
@@ -124,7 +124,7 @@ fn _x64_first_pending_string_token(toks) {
 fn _x64_append_global_string_batch_table(ctx, table_count, table_buf) {
     if ctx != nil && table_count > 0 && table_buf != nil {
         if ctx["data"] == nil { ctx["data"] = bytes_new() }
-        while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        _data_align8(ctx)
         var table_off = bytes_len(ctx["data"])
         push_u64_le(ctx["data"], table_count)
         bytes_extend(ctx["data"], table_buf)
@@ -176,7 +176,7 @@ fn _x64_flush_global_string_init_batch(out_stmts, names, values, off_encs, slot_
 fn _x64_flush_global_empty_container_init_batch(out_stmts, kind, tok0, ctx, table_count, table_buf) {
     if out_stmts == nil || kind == nil || table_count <= 0 || ctx == nil || table_buf == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
-    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _data_align8(ctx)
     var table_off = bytes_len(ctx["data"])
     push_u64_le(ctx["data"], table_count)
     bytes_extend(ctx["data"], table_buf)

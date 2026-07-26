@@ -28,6 +28,8 @@ surfaces, but the following blockers remain:
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
+- x64 native string-batch, top-level synthetic global, and debug-root table data
+  alignment now reuses the shared byte-builder zero-extension alignment helper.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

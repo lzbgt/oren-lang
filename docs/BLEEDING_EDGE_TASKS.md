@@ -30,6 +30,8 @@ This file is the concise task view. Detailed implementation status lives in
      instead of residual per-byte string-read loops.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
+   - Current x64 split-module cleanup also routes string-batch, top-level
+     synthetic global, and debug-root table alignment through the same helper.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

@@ -1179,13 +1179,17 @@ if ! grep -Fq 'fn _arm64_data_align8(ctx)' lib/compiler/arm64_native_program/010
   exit 1
 fi
 
+x64_native_program_impl="$(cat lib/compiler/x64_native_program/*.oren lib/compiler/x64_native_program/090_program_entry/*.oren)"
 x64_data_io_impl="$(cat lib/compiler/x64_native_program/010_data_io.oren)"
 if ! grep -Fq 'fn _bytes_align8(buf)' <<<"$x64_data_io_impl" ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, 8 - rem) }' <<<"$x64_data_io_impl" ||
   ! grep -Fq 'fn _data_align8(ctx)' <<<"$x64_data_io_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], total)' <<<"$x64_data_io_impl" ||
-  grep -Fq 'while core.int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$x64_data_io_impl" ||
-  grep -Fq 'while i < total { bytes_push(ctx["data"], 0)' <<<"$x64_data_io_impl"; then
+  ! grep -Fq '_bytes_align8(batch_data_buf)' <<<"$x64_native_program_impl" ||
+  ! grep -Fq '_data_align8(ctx)' <<<"$x64_native_program_impl" ||
+  grep -Fq 'while core.int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$x64_native_program_impl" ||
+  grep -Fq 'while core.int_mod(bytes_len(batch_data_buf), 8) != 0' <<<"$x64_native_program_impl" ||
+  grep -Fq 'while i < total { bytes_push(ctx["data"], 0)' <<<"$x64_native_program_impl"; then
   echo "ERROR: x64 native data-section alignment and table reservations must use byte-builder zero extension" >&2
   exit 1
 fi
