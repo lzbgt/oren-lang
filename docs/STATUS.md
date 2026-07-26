@@ -160,6 +160,8 @@ surfaces, but the following blockers remain:
 - ARM64 ELF runtime debug-record reserved fields now share a straight-line
   four-u64 zero helper instead of spelling the same zero pushes at each record
   emission site.
+- ARM64 Mach-O runtime debug-record reserved fields now use the same shared
+  four-u64 zero helper pattern.
 - ARM64 native compiler context, global, and statement-binding pointer-slot
   reservations now route fixed eight-byte zero fills through the shared
   byte-builder zero-extension path instead of per-byte push loops.

@@ -76,6 +76,8 @@ design evidence lives under `project-doc/`.
   now use shared byte-builder string extension instead of per-byte string loops.
 - ARM64 ELF runtime debug-record reserved u64 fields now use a shared straight-line
   zero-word helper instead of repeating four zero pushes at each record site.
+- ARM64 Mach-O runtime debug-record reserved u64 fields now use the same shared
+  straight-line zero-word helper pattern.
 - ARM64 native compiler data-slot reservations now use the shared byte-builder
   zero-extension path for fixed eight-byte pointer slots instead of per-byte
   push loops.

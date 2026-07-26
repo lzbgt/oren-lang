@@ -1122,6 +1122,15 @@ if ! grep -Fq 'fn _elf_push_u64_zero4(p)' lib/compiler/arm64_elf.oren ||
   exit 1
 fi
 
+arm64_macho_runtime_debug_impl="$(sed -n '/fn emit_debug_info/,/fn macho_inject_debug_info/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_runtime_debug_zero4_calls="$(grep -Fc '_macho_push_u64_zero4(p)' <<<"$arm64_macho_runtime_debug_impl")"
+if ! grep -Fq 'fn _macho_push_u64_zero4(p)' lib/compiler/arm64_macho.oren ||
+  test "$arm64_macho_runtime_debug_zero4_calls" != "2" ||
+  grep -Fq 'push_u64_le(p, 0)' <<<"$arm64_macho_runtime_debug_impl"; then
+  echo "ERROR: ARM64 Mach-O runtime debug reserved u64 fields must use the shared zero-word helper" >&2
+  exit 1
+fi
+
 arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"
