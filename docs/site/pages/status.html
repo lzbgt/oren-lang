@@ -82,6 +82,10 @@
 <p>  copy string spans directly into output <code>u8_buf</code>s, keeping scalar writes only</p>
 <p>  for <code>%XX</code> transformed bytes and query <code>+</code> spaces.</p>
 <ul>
+<li><code>std:bytes.to_hex</code> now emits lowercase hex digits arithmetically into its</li>
+</ul>
+<p>  exact-size output buffer instead of indexing a digit string for every nibble.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

@@ -40,6 +40,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current `std:net/url` output uses direct string-slice copies for concat
      spans plus percent encode/decode unchanged runs, leaving only transformed
      `%XX` bytes and query `+` spaces explicit.
+   - Current `std:bytes.to_hex` emits lowercase digit bytes arithmetically
+     instead of indexing a digit string for each output nibble.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
    - Current ARM64 native local-function code alignment uses byte-builder

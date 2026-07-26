@@ -128,6 +128,10 @@
 <p>  direct string-slice copies into their exact-size output <code>u8_buf</code>s; <code>%XX</code></p>
 <p>  transformed bytes and query <code>+</code> spaces remain explicit scalar writes.</p>
 <ul>
+<li><code>std:bytes.to_hex</code> now writes lowercase hex digit bytes arithmetically into</li>
+</ul>
+<p>  the exact-size output buffer instead of indexing a digit string per nibble.</p>
+<ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>
 <p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>

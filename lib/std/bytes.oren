@@ -475,6 +475,11 @@ fn _hex_digit_value(b) {
     return -1
 }
 
+fn _hex_digit_lower(n) {
+    if n < 10 { return 48 + n }
+    return 87 + n
+}
+
 fn _bytes_to_int_list(bytes, ctx) {
     if oren_type_tag(bytes) == 6 {
         var n2 = oren_list_len(bytes)
@@ -562,7 +567,6 @@ fn to_hex(bytes) {
     var out = raw.u8_new_uninit(n * 2)
     if oren_is_err(out) { return out }
     var outp = oren_buf_data_ptr_unchecked(out)
-    var digits = "0123456789abcdef"
     var srcp = nil
     if oren_is_u8_buf(bytes) == true { srcp = oren_buf_data_ptr_unchecked(bytes) }
     var i = 0
@@ -574,8 +578,8 @@ fn to_hex(bytes) {
             b = _load_u8(bytes, i)
             if oren_is_err(b) { return b }
         }
-        ptr_set_byte(outp + i * 2, oren_string_byte_at_unchecked(digits, (b >> 4) & 15))
-        ptr_set_byte(outp + i * 2 + 1, oren_string_byte_at_unchecked(digits, b & 15))
+        ptr_set_byte(outp + i * 2, _hex_digit_lower((b >> 4) & 15))
+        ptr_set_byte(outp + i * 2 + 1, _hex_digit_lower(b & 15))
         i = i + 1
     }
     return oren_string_from_bytes_slice(out, 0, n * 2)

@@ -71,6 +71,8 @@ design evidence lives under `project-doc/`.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes.
+- `std:bytes.to_hex` now writes lowercase hex digit bytes arithmetically into
+  the exact-size output buffer instead of indexing a digit string per nibble.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

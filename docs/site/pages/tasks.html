@@ -92,6 +92,10 @@
 <p>     spans plus percent encode/decode unchanged runs, leaving only transformed</p>
 <p>     <code>%XX</code> bytes and query <code>+</code> spaces explicit.</p>
 <ul>
+<li>Current <code>std:bytes.to_hex</code> emits lowercase digit bytes arithmetically</li>
+</ul>
+<p>     instead of indexing a digit string for each output nibble.</p>
+<ul>
 <li>Current native compiler data-section cleanup routes ARM64/x64 alignment and</li>
 </ul>
 <p>     fixed table reservations through exact byte-builder zero-extension spans.</p>

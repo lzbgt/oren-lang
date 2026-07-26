@@ -38,6 +38,8 @@ surfaces, but the following blockers remain:
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now
   copy string spans directly into output `u8_buf`s, keeping scalar writes only
   for `%XX` transformed bytes and query `+` spaces.
+- `std:bytes.to_hex` now emits lowercase hex digits arithmetically into its
+  exact-size output buffer instead of indexing a digit string for every nibble.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
