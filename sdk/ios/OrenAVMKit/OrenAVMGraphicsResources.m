@@ -121,6 +121,7 @@ BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
     UIImage* image = OrenAVMGfxImageRGBA(rgba, width, height, byteCount);
     if (!image) return NO;
     OrenAVMGfxImageResource* resource = [[OrenAVMGfxImageResource alloc] init];
+    if (!resource) return NO;
     resource.image = image;
     resource.pixels = pixels;
     CFDictionarySetValue(*imagesByID, key, (__bridge const void*)resource);
@@ -346,13 +347,14 @@ void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
 BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
                                uint32_t textID,
                                const uint8_t* textBytes,
-	                               uint32_t textLen,
-	                               NSDictionary<NSAttributedStringKey, id>* attrs) {
+                               uint32_t textLen,
+                               NSDictionary<NSAttributedStringKey, id>* attrs) {
     if (!texts || textID == 0 || !textBytes || textLen == 0 || !attrs) return NO;
     if (!OrenAVMGfxEnsureRetainedResourceMap(texts)) return NO;
     NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
     if (!text) return NO;
     OrenAVMGfxTextResource* resource = [[OrenAVMGfxTextResource alloc] init];
+    if (!resource) return NO;
     resource.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
     CFDictionarySetValue(*texts, OrenAVMGfxRetainedTextKey(textID), (__bridge const void*)resource);
     return YES;
@@ -921,6 +923,7 @@ BOOL OrenAVMGfxPutModelResource(CFMutableDictionaryRef* models,
     if (modelID == 0 || meshID == 0 || scaleMilli == 0) return NO;
     if (!OrenAVMGfxEnsureRetainedResourceMap(models)) return NO;
     OrenAVMGfxModelResource* model = [[OrenAVMGfxModelResource alloc] init];
+    if (!model) return NO;
     model.meshID = meshID;
     model.materialID = materialID;
     model.x = x;

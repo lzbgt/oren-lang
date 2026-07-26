@@ -63,6 +63,12 @@
 <p>  dropping valid runs. <code>scripts/verify_ios_metal_vertex_uploads.py</code> guards the</p>
 <p>  allocation and append shapes.</p>
 <ul>
+<li>iOS CoreGraphics retained image/text/model upload helpers now guard</li>
+</ul>
+<p>  Objective-C resource allocation before CF dictionary insertion, matching the</p>
+<p>  Metal retained-resource failure boundary; <code>scripts/verify_ios_gfx_retained_painter.py</code></p>
+<p>  guards the shape.</p>
+<ul>
 <li>iOS Metal text-cache misses now guard typed cache-key, cache-entry, and text-run</li>
 </ul>
 <p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>

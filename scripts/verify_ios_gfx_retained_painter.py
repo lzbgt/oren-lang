@@ -166,6 +166,10 @@ def main() -> int:
                    "OrenAVMGfxEnsureRetainedResourceMap(texts)",
                    "[[OrenAVMGfxTextResource alloc] init]",
                    "CoreGraphics retained text uploads must preflight scalar-map storage before resource allocation")
+    require_before(put_text_body,
+                   "if (!resource) return NO;",
+                   "CFDictionarySetValue(*texts",
+                   "CoreGraphics retained text uploads must guard resource allocation before map insertion")
     put_triangle_start = resource_source_text.find("BOOL OrenAVMGfxPutTriangleMeshResource")
     put_indexed_start = resource_source_text.find("BOOL OrenAVMGfxPutIndexedMeshResource", put_triangle_start)
     put_mesh_end = resource_source_text.find("void OrenAVMGfxRemoveMeshResource", put_indexed_start)
@@ -312,6 +316,10 @@ def main() -> int:
         fail("CoreGraphics retained image upload helper missing scalar map or image creation path")
     if image_map_alloc > image_create:
         fail("CoreGraphics retained image uploads must preflight scalar-map storage before CoreGraphics image creation")
+    require_before(put_image_body,
+                   "if (!resource) return NO;",
+                   "CFDictionarySetValue(*imagesByID",
+                   "CoreGraphics retained image uploads must guard resource allocation before map insertion")
     if "UIImage* image = OrenAVMGfxImageRGBA(payload + 16" in resource_text:
         fail("CoreGraphics retained image command path must let the upload helper create images after preflight")
     if "OrenAVMGfxSubrectInImage" not in text:
@@ -388,6 +396,10 @@ def main() -> int:
                    "OrenAVMGfxEnsureRetainedResourceMap(models)",
                    "[[OrenAVMGfxModelResource alloc] init]",
                    "CoreGraphics retained model uploads must preflight scalar-map storage before resource allocation")
+    require_before(put_model_body,
+                   "if (!model) return NO;",
+                   "CFDictionarySetValue(*models",
+                   "CoreGraphics retained model uploads must guard resource allocation before map insertion")
     if "CFDictionarySetValue(_orenModels3DByID" in view_text or "CFDictionaryRemoveValue(_orenModels3DByID" in view_text:
         fail("CoreGraphics view must not mutate retained model maps directly")
     if 'model[@"mesh_id"]' in text or '@"scale_milli"' in text:
