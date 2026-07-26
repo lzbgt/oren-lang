@@ -421,6 +421,11 @@
 <p>     separates timeout checks, nonblocking wait dispatch, retry advancement,</p>
 <p>     byte loading, NUL handling, byte ordering, and cursor advancement.</p>
 <ul>
+<li>Current Windows x64 FFI DLL collection shares unique-list collection helpers</li>
+</ul>
+<p>     for platform <code>--link</code> DLLs and per-declaration <code>@ffi.dll</code> entries while</p>
+<p>     preserving the built-in <code>kernel32.dll</code> fallback order.</p>
+<ul>
 <li>Current x64 string/function cleanup separates string-batch count/item</li>
 </ul>
 <p>     collection, callee-save and parameter spill emission, function phase start</p>

@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 Windows FFI DLL collection now uses shared unique-list helpers for
+  platform `--link` DLLs and per-declaration `@ffi.dll` entries while preserving
+  the built-in `kernel32.dll` fallback order.
 - X64 Windows CreateProcess polling and string-aware compare cleanup now split
   timeout checks, nonblocking wait dispatch, retry advancement, byte loading,
   NUL handling, byte ordering, and cursor advancement into focused helpers.

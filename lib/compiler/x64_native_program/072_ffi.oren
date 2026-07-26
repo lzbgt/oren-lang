@@ -282,6 +282,31 @@ fn _x64_ffi_push_unique(out, seen, s) {
     return nil
 }
 
+fn _x64_ffi_push_unique_list(out, seen, xs) {
+    if xs == nil { return nil }
+    var i = 0
+    var n = oren_list_len(xs)
+    while i < n {
+        _x64_ffi_push_unique(out, seen, xs[i])
+        i = i + 1
+    }
+    return nil
+}
+
+fn _x64_ffi_windows_add_platform_links(out, seen, platform) {
+    if platform != nil && platform["link_libs"] != nil {
+        _x64_ffi_push_unique_list(out, seen, platform["link_libs"])
+    }
+    return nil
+}
+
+fn _x64_ffi_windows_add_declared_dlls(out, seen, ctx) {
+    if ctx != nil && ctx["ffi_dlls"] != nil {
+        _x64_ffi_push_unique_list(out, seen, ctx["ffi_dlls"])
+    }
+    return nil
+}
+
 fn _x64_ffi_windows_dlls(ctx, platform) {
     // Order (rolling):
     // - user `--link` DLLs first
@@ -290,24 +315,8 @@ fn _x64_ffi_windows_dlls(ctx, platform) {
     var out = []
     var seen = {}
 
-    if platform != nil && platform["link_libs"] != nil {
-        var xs = platform["link_libs"]
-        var i = 0
-        while i < oren_list_len(xs) {
-            _x64_ffi_push_unique(out, seen, xs[i])
-            i = i + 1
-        }
-    }
-
-    if ctx != nil && ctx["ffi_dlls"] != nil {
-        var ys = ctx["ffi_dlls"]
-        var j = 0
-        while j < oren_list_len(ys) {
-            _x64_ffi_push_unique(out, seen, ys[j])
-            j = j + 1
-        }
-    }
-
+    _x64_ffi_windows_add_platform_links(out, seen, platform)
+    _x64_ffi_windows_add_declared_dlls(out, seen, ctx)
     _x64_ffi_push_unique(out, seen, "kernel32.dll")
     return out
 }

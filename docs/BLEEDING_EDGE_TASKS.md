@@ -221,6 +221,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current Windows x64 CreateProcess polling and string-aware compare cleanup
      separates timeout checks, nonblocking wait dispatch, retry advancement,
      byte loading, NUL handling, byte ordering, and cursor advancement.
+   - Current Windows x64 FFI DLL collection shares unique-list collection helpers
+     for platform `--link` DLLs and per-declaration `@ffi.dll` entries while
+     preserving the built-in `kernel32.dll` fallback order.
    - Current x64 string/function cleanup separates string-batch count/item
      collection, callee-save and parameter spill emission, function phase start
      logging, and compiled-entry call-depth gating.

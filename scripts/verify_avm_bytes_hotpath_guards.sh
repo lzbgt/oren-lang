@@ -1169,11 +1169,11 @@ if ! grep -Fq 'fn _x64_frame_align_unit(ctx)' <<<"$x64_function_frame_split_impl
   ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_emit_function_save_regs(ctx, save_regs, save_n, locals_size)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_emit_function_param_spill(ctx, locals, params, i, regc, shadow)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_begin_function_phase_start(phase_log, name, phase_this, phase_summary_only)' <<<"$x64_function_frame_split_impl" || ! grep -Fq 'fn _x64_emit_compiled_function_call_depth(ctx, fn_node, name, compile_opts, phase_state)' <<<"$x64_function_frame_split_impl"; then
   echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2; exit 1
 fi
-x64_ffi_attr_split_impl="$(sed -n '/fn _x64_collect_ffi_dll_attrs/,/fn _x64_ffi_ret_maps_init/p' lib/compiler/x64_native_program/072_ffi.oren)"
+x64_ffi_attr_split_impl="$(sed -n '/fn _x64_collect_ffi_dll_attrs/,/fn _x64_ffi_ret_maps_init/p' lib/compiler/x64_native_program/072_ffi.oren) $(sed -n '/fn _x64_ffi_push_unique/,/fn _x64_ffi_windows_dlls/p' lib/compiler/x64_native_program/072_ffi.oren)"
 if ! grep -Fq 'fn _x64_ffi_dll_outputs(ctx)' <<<"$x64_ffi_attr_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_attr_is_dll(a)' <<<"$x64_ffi_attr_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_dll_attr_value(ctx, nm, a)' <<<"$x64_ffi_attr_split_impl" ||
-  ! grep -Fq 'fn _x64_ffi_remember_dll(seen, out, val)' <<<"$x64_ffi_attr_split_impl"; then
+  ! grep -Fq 'fn _x64_ffi_remember_dll(seen, out, val)' <<<"$x64_ffi_attr_split_impl" || ! grep -Fq 'fn _x64_ffi_windows_add_declared_dlls(out, seen, ctx)' <<<"$x64_ffi_attr_split_impl"; then
   echo "ERROR: x64 FFI DLL attribute collection must keep validation and dedup helpers split" >&2; exit 1
 fi
 x64_stack_trace_split_impl="$(sed -n '/fn _emit_stack_trace_best_effort/,/fn _emit_stack_trace_release_scratch/p' lib/compiler/x64_native_program/071_panic.oren)"
