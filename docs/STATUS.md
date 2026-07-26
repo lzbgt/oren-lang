@@ -30,6 +30,9 @@ surfaces, but the following blockers remain:
 - iOS Metal text-cache misses now guard typed cache-key, cache-entry, and text-run
   allocation before dictionary lookup, glyph rasterization storage, or vertex
   writes, keeping failed allocations on the cheap path.
+- iOS Metal prepared geometry/text/image run arrays now cap their initial lazy
+  reservation to 4096 entries, so large frame-derived op counts do not force a
+  large pointer-array allocation on the first valid run append.
 - iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry
   clip, translation, opacity, and camera stacks. Overflow pushes are tracked as
   no-op frames and consume matching pops without mutating the nearest real outer

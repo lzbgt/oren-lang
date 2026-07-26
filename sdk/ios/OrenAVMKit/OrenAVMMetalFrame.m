@@ -28,9 +28,15 @@ NSUInteger OrenAVMMetalFrameRunCapacity(NSData* frame) {
     return (NSUInteger)opCount < maxRecordsByBytes ? (NSUInteger)opCount : maxRecordsByBytes;
 }
 
+static const NSUInteger OrenAVMMetalRunArrayMaxInitialCapacity = 4096u;
+
+static NSUInteger OrenAVMMetalRunArrayInitialCapacity(NSUInteger capacity) {
+    return capacity > OrenAVMMetalRunArrayMaxInitialCapacity ? OrenAVMMetalRunArrayMaxInitialCapacity : capacity;
+}
+
 NSMutableArray* OrenAVMMetalEnsureRunArray(NSMutableArray** runs, NSUInteger capacity) {
     if (!runs) return nil;
-    if (!*runs) *runs = [NSMutableArray arrayWithCapacity:capacity];
+    if (!*runs) *runs = [NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(capacity)];
     return *runs;
 }
 

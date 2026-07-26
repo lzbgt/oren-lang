@@ -50,6 +50,9 @@ design evidence lives under `project-doc/`.
 - Metal text cache misses now guard typed cache-key, cache-entry, and run
   allocation before dictionary lookup, glyph rasterization storage, or vertex
   writes.
+- Metal prepared geometry/text/image run arrays now cap their initial lazy
+  reservation to 4096 entries instead of reserving the full frame-derived op
+  capacity on first append.
 - Metal and CoreGraphics retained image/text draw handlers now reject malformed
   zero-size/count-mismatched draw payloads before retained resource lookup when
   the command is otherwise a no-op, preserving resource create/destroy paths.

@@ -1104,6 +1104,12 @@ def main() -> int:
         fail("Metal image-run metrics and outputs must use coalesced image runs")
     if "NSMutableArray* OrenAVMMetalEnsureRunArray" not in frame_text:
         fail("missing lazy Metal text/image run-array helper")
+    if (
+        "OrenAVMMetalRunArrayMaxInitialCapacity = 4096u" not in frame_text
+        or "OrenAVMMetalRunArrayInitialCapacity(capacity)" not in frame_text
+        or "[NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(capacity)]" not in frame_text
+    ):
+        fail("lazy Metal run arrays must cap initial reservation instead of using full frame-derived capacity")
     eager_run_arrays = [
         "NSMutableArray<OrenAVMMetalVertexRun*>* vertexRuns = [NSMutableArray arrayWithCapacity:runCapacity]",
         "NSMutableArray<OrenAVMMetalTextRun*>* textRuns = [NSMutableArray arrayWithCapacity:runCapacity]",

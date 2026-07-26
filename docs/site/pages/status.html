@@ -68,6 +68,11 @@
 <p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>
 <p>  writes, keeping failed allocations on the cheap path.</p>
 <ul>
+<li>iOS Metal prepared geometry/text/image run arrays now cap their initial lazy</li>
+</ul>
+<p>  reservation to 4096 entries, so large frame-derived op counts do not force a</p>
+<p>  large pointer-array allocation on the first valid run append.</p>
+<ul>
 <li>iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry</li>
 </ul>
 <p>  clip, translation, opacity, and camera stacks. Overflow pushes are tracked as</p>

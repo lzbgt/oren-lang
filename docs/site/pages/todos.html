@@ -95,6 +95,11 @@
 <p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>
 <p>  writes.</p>
 <ul>
+<li>Metal prepared geometry/text/image run arrays now cap their initial lazy</li>
+</ul>
+<p>  reservation to 4096 entries instead of reserving the full frame-derived op</p>
+<p>  capacity on first append.</p>
+<ul>
 <li>Metal and CoreGraphics retained image/text draw handlers now reject malformed</li>
 </ul>
 <p>  zero-size/count-mismatched draw payloads before retained resource lookup when</p>
