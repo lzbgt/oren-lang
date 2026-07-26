@@ -5547,9 +5547,10 @@ make docs-site</code></pre>
 <ul>
 <li>The AVM bytes hotpath guard now delegates the largest x64 system/data</li>
 </ul>
-<p>  source-shape checks to <code>scripts/verify_avm_bytes_hotpath_guards_x64_sys_data.sh</code>,</p>
-<p>  preserving the public <code>verify-avm-bytes-hotpath-guards</code> entrypoint while</p>
-<p>  moving the top-level guard below the source-line cap.</p>
+<p>  source-shape checks and shared compiler artifact byte-output checks to</p>
+<p>  dedicated guard scripts, preserving the public</p>
+<p>  <code>verify-avm-bytes-hotpath-guards</code> entrypoint while moving the top-level guard</p>
+<p>  below the source-line cap.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

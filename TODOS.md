@@ -37,9 +37,9 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - The AVM bytes hotpath guard now delegates its largest x64 system/data
-  source-shape checks to `scripts/verify_avm_bytes_hotpath_guards_x64_sys_data.sh`,
-  keeping the public guard entrypoint below the source-line cap with room for
-  future focused checks.
+  source-shape checks and shared compiler artifact byte-output checks to
+  dedicated guard scripts, keeping the public guard entrypoint below the
+  source-line cap with room for future focused checks.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

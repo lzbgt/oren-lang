@@ -4723,9 +4723,10 @@ make docs-site
   quick-integration paths; all focused x64-linux binaries and quick integration
   exit `0` on `bruce@192.168.3.208`.
 - The AVM bytes hotpath guard now delegates the largest x64 system/data
-  source-shape checks to `scripts/verify_avm_bytes_hotpath_guards_x64_sys_data.sh`,
-  preserving the public `verify-avm-bytes-hotpath-guards` entrypoint while
-  moving the top-level guard below the source-line cap.
+  source-shape checks and shared compiler artifact byte-output checks to
+  dedicated guard scripts, preserving the public
+  `verify-avm-bytes-hotpath-guards` entrypoint while moving the top-level guard
+  below the source-line cap.
 
 ## Documentation Guardrail
 

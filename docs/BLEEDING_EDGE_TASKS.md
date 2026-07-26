@@ -86,8 +86,9 @@ This file is the concise task view. Detailed implementation status lives in
      index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
      negative/upper-bound guards into focused helpers.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
-     system/data source-shape checks to a dedicated script while preserving the
-     public `verify-avm-bytes-hotpath-guards` entrypoint below the source-line cap.
+     system/data source-shape checks and shared compiler artifact byte-output
+     checks to dedicated scripts while preserving the public
+     `verify-avm-bytes-hotpath-guards` entrypoint below the source-line cap.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
