@@ -860,6 +860,26 @@ fn normalize_or_zero(x: f64, y: f64, z: f64) {
     return [x / l, y / l, z / l]
 }
 
+fn clamp_length(x: f64, y: f64, z: f64, max_len: f64) {
+    var ok = _finite_scalar(max_len, "vec3.clamp_length")
+    if oren_is_err(ok) { return ok }
+    if max_len < 0.0 { return oren_err(4, "vec3.clamp_length: negative max_len") }
+    var l0 = length(x, y, z)
+    if oren_is_err(l0) { return l0 }
+    var l: f64 = l0
+    if l == 0.0 || l <= max_len { return [x, y, z] }
+    var s: f64 = max_len / l
+    return [x * s, y * s, z * s]
+}
+
+fn clamp_len(x: f64, y: f64, z: f64, max_len: f64) {
+    return clamp_length(x, y, z, max_len)
+}
+
+fn limit_length(x: f64, y: f64, z: f64, max_len: f64) {
+    return clamp_length(x, y, z, max_len)
+}
+
 fn direction_to(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) {
     return normalize(bx - ax, by - ay, bz - az)
 }
