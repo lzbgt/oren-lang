@@ -893,17 +893,25 @@ if ! grep -Fq 'if opcode != 2 or payload != b"bin!"' scripts/libavm_ios_verify_n
   exit 1
 fi
 
-if ! grep -Fq 'var table = _b64_table_ptr()' lib/std/encoding/base64.oren ||
-  ! grep -Fq 'var table = _b64url_table_ptr()' lib/std/encoding/base64.oren ||
+base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
+if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||
+  ! grep -Fq 'fn _b64url_encode_byte(v)' <<<"$base64_encode_byte_impl" ||
+  ! grep -Fq 'if v < 26 { return 65 + v }' <<<"$base64_encode_byte_impl" ||
+  ! grep -Fq 'if v < 52 { return 97 + (v - 26) }' <<<"$base64_encode_byte_impl" ||
+  ! grep -Fq 'if v < 62 { return 48 + (v - 52) }' <<<"$base64_encode_byte_impl" ||
   ! grep -Fq 'fn _input_byte_direct(input_bytes, input_ptr, idx)' lib/std/encoding/base64.oren ||
   ! grep -Fq 'if input_ptr != nil { return ptr_get_byte(input_ptr + idx) & 255 }' lib/std/encoding/base64.oren ||
   ! grep -Fq 'var input_ptr = bytesm.view_ptr(input_view)' lib/std/encoding/base64.oren ||
+  grep -Fq 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/' lib/std/encoding/base64.oren ||
+  grep -Fq 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_' lib/std/encoding/base64.oren ||
+  grep -Fq '_str_byte(table' lib/std/encoding/base64.oren ||
   grep -Fq '_b64_char(' lib/std/encoding/base64.oren ||
   grep -Fq '_b64url_char(' lib/std/encoding/base64.oren ||
   grep -Fq 'fn _input_byte(input_view, idx)' lib/std/encoding/base64.oren ||
   ! grep -Fq 'encode list_int value' tests/modules/test_base64.oren ||
+  ! grep -Fq 'encode standard alphabet tail' tests/modules/test_base64.oren ||
   ! grep -Fq 'base64url list_int alphabet' tests/modules/test_base64.oren; then
-  echo "ERROR: Base64 encode must cache alphabet/input pointers and cover LIST_INT byte carriers" >&2
+  echo "ERROR: Base64 encode must use arithmetic alphabet mapping, cached input pointers, and LIST_INT/u8_buf coverage" >&2
   exit 1
 fi
 

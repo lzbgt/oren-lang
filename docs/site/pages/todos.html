@@ -3686,7 +3686,8 @@
 <p>  output as exact-size <code>u8_buf</code>; strict Base64 decode sizes exactly and validates</p>
 <p>  inline instead of pre-scanning then delegating to the whitespace-tolerant path.</p>
 <p>  Base64/Base64URL encode now hoists shared byte-view backing pointers once per</p>
-<p>  call, and Base64URL decode uses the same direct byte-buffer output path.</p>
+<p>  call and maps sextets arithmetically instead of indexing alphabet strings;</p>
+<p>  Base64URL decode uses the same direct byte-buffer output path.</p>
 <ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>

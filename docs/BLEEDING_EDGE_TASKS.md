@@ -50,6 +50,8 @@ This file is the concise task view. Detailed implementation status lives in
      directly into the exact-size output `u8_buf`.
    - Current Scene3D generated color hex strings write directly into exact-size
      byte buffers instead of composing tiny digit strings.
+   - Current Base64/Base64URL encode maps sextets arithmetically into exact-size
+     output buffers instead of indexing alphabet strings for every output byte.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
@@ -1481,7 +1483,7 @@ This file is the concise task view. Detailed implementation status lives in
 		     across all CONTINUATION frames, inbound single-CONTINUATION header
 		     blocks use the shared exact-capacity accumulator path, and PEM/Base64 body handling avoids
      materializing Oren byte lists with strict PEM body concatenation through raw
-     exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call, and decode also rejects malformed padding and
+     exact-size writes; Base64/Base64URL encode hoists shared byte-view backing pointers once per call and maps sextets arithmetically, and decode also rejects malformed padding and
 			     nonzero trailing pad bits before returning exact-size `u8_buf` decoded bytes. `std:bytes`
 							     now provides shared checked byte views plus explicit unchecked hot-loop u8/u32/i32/u64 little-endian readers, backing-aware u16/u32 plus unrolled u64 big-endian readers, signed checked byte-view helpers and public signed 64-bit endian getters that read `u8_buf` carriers directly after span validation, public 64-bit endian stores use unrolled direct `u8_buf` byte writes, `std:buffer` raw i64 stores use unrolled direct byte writes, CBOR/WebSocket 64-bit protocol headers use straight-line big-endian byte operations, compiler bytecode constants and ASTBIN u64 serializers use straight-line little-endian byte operations, x64 PE section-name headers emit exact eight-byte COFF names through straight-line literal bytes, x64 PE unused data directories plus import-thunk and export-name-pointer zero entries use shared zero-extension, ARM64/x64 ELF alignment padding uses shared zero-extension, compiler artifact whole-string append helpers use shared byte-builder string extension, ARM64 ELF and Mach-O runtime debug-record reserved u64 fields share straight-line zero helpers, ARM64 compiler fixed pointer-slot reservations use shared byte-builder zero-extension instead of byte-push loops, ARM64 Mach-O LC_UUID zero words emit straight-line, Mach-O fixed 16-byte name fields use shared zero-extension for padding, native whole-buffer/slice byte-to-string/u8-buffer conversions copy `u8_buf` carriers directly after one span check, `std:bytes.from_string`, `std:strings.to_bytes`, `std:ui/avm` plain text frame payloads, and `std:buffer` whole-string/string-slice u8 construction plus exact and offset-aware contiguous slice/dense-matrix string-slice and dense row-string copies route validated strings through byte-native runtime conversion, and AVM HTTP/WS text facades use whole-buffer byte-to-string conversion instead of repeated length-plus-slice conversion.
 		     `std:strings` prefix/suffix/search/equality

@@ -33,12 +33,20 @@ fn _str_byte(s, i) {
     return oren_string_byte_at_unchecked(s, i) & 255
 }
 
-fn _b64_table_ptr() {
-    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+fn _b64_encode_byte(v) {
+    if v < 26 { return 65 + v }       // 'A'..'Z'
+    if v < 52 { return 97 + (v - 26) } // 'a'..'z'
+    if v < 62 { return 48 + (v - 52) } // '0'..'9'
+    if v == 62 { return 43 } // '+'
+    return 47 // '/'
 }
 
-fn _b64url_table_ptr() {
-    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+fn _b64url_encode_byte(v) {
+    if v < 26 { return 65 + v }       // 'A'..'Z'
+    if v < 52 { return 97 + (v - 26) } // 'a'..'z'
+    if v < 62 { return 48 + (v - 52) } // '0'..'9'
+    if v == 62 { return 45 } // '-'
+    return 95 // '_'
 }
 
 fn b64_is_ws(c) {
@@ -122,7 +130,6 @@ fn encode_bytes(input_bytes) {
     var out_len = ((n + 2) / 3) * 4
     var out = oren_u8_buf_new_uninit(out_len)
     if oren_is_err(out) { return out }
-    var table = _b64_table_ptr()
     var i = 0
     var oi = 0
     while i < n {
@@ -149,16 +156,16 @@ fn encode_bytes(input_bytes) {
         var c2 = (triple >> 6) & 63
         var c3 = triple & 63
 
-        var rc0 = _set_out(out, oi, _str_byte(table, c0))
+        var rc0 = _set_out(out, oi, _b64_encode_byte(c0))
         if oren_is_err(rc0) { return rc0 }
-        var rc1 = _set_out(out, oi + 1, _str_byte(table, c1))
+        var rc1 = _set_out(out, oi + 1, _b64_encode_byte(c1))
         if oren_is_err(rc1) { return rc1 }
         var rc2 = nil
-        if have1 == 1 { rc2 = _set_out(out, oi + 2, _str_byte(table, c2)) }
+        if have1 == 1 { rc2 = _set_out(out, oi + 2, _b64_encode_byte(c2)) }
         else { rc2 = _set_out(out, oi + 2, 61) } // '='
         if oren_is_err(rc2) { return rc2 }
         var rc3 = nil
-        if have2 == 1 { rc3 = _set_out(out, oi + 3, _str_byte(table, c3)) }
+        if have2 == 1 { rc3 = _set_out(out, oi + 3, _b64_encode_byte(c3)) }
         else { rc3 = _set_out(out, oi + 3, 61) } // '='
         if oren_is_err(rc3) { return rc3 }
 
@@ -188,7 +195,6 @@ fn encode_url_bytes(input_bytes) {
     if rem == 2 { out_len = out_len + 3 }
     var out = oren_u8_buf_new_uninit(out_len)
     if oren_is_err(out) { return out }
-    var table = _b64url_table_ptr()
     var i = 0
     var oi = 0
     while i < n {
@@ -210,16 +216,16 @@ fn encode_url_bytes(input_bytes) {
         }
 
         var triple = (b0 << 16) | (b1 << 8) | b2
-        var rc0 = _set_out(out, oi, _str_byte(table, (triple >> 18) & 63))
+        var rc0 = _set_out(out, oi, _b64url_encode_byte((triple >> 18) & 63))
         if oren_is_err(rc0) { return rc0 }
-        var rc1 = _set_out(out, oi + 1, _str_byte(table, (triple >> 12) & 63))
+        var rc1 = _set_out(out, oi + 1, _b64url_encode_byte((triple >> 12) & 63))
         if oren_is_err(rc1) { return rc1 }
         if have1 == 1 {
-            var rc2 = _set_out(out, oi + 2, _str_byte(table, (triple >> 6) & 63))
+            var rc2 = _set_out(out, oi + 2, _b64url_encode_byte((triple >> 6) & 63))
             if oren_is_err(rc2) { return rc2 }
         }
         if have2 == 1 {
-            var rc3 = _set_out(out, oi + 3, _str_byte(table, triple & 63))
+            var rc3 = _set_out(out, oi + 3, _b64url_encode_byte(triple & 63))
             if oren_is_err(rc3) { return rc3 }
         }
 

@@ -45,6 +45,9 @@ surfaces, but the following blockers remain:
   exact-size output buffer instead of indexing a digit string for every nibble.
 - `std:bytes.from_hex` now parses ASCII hex nibbles inline while writing into its
   exact-size output `u8_buf`, avoiding per-output-byte helper calls.
+- `std:encoding/base64` Base64/Base64URL encode now maps sextets
+  arithmetically into exact-size output buffers instead of indexing alphabet
+  strings for every output byte.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
@@ -2883,7 +2886,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 	  native WebSocket header slices plus frame payload reads
   copy with `oren_memcpy`; DNS QNAME labels, native IPv6 sockaddr address bytes, and
   capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;
-				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call,
+				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call and maps sextets arithmetically instead of indexing alphabet strings,
 				  tolerant Base64 decode derives clean length plus trailing padding from one
 				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,
 				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,
@@ -3006,7 +3009,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
 			  `sha256.hex`, `ui_cmds.validate`, `ui_raster.rasterize`,
 			  `ppm.write_rgba_ppm`, `ints.checked_u8`, etc.) instead of public
 		  `try_*` names, while raw errno-style or low-level implementation
-  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now hoists shared byte-view backing pointers and writes exact-size `u8_buf` output instead of materializing an
+	  internals are explicit `*_raw` or private module helpers. Base64 and Base64URL encoding now hoists shared byte-view backing pointers, maps sextets arithmetically, and writes exact-size `u8_buf` output instead of materializing an
 				  intermediate Oren list, tolerant Base64 decode now computes whitespace-stripped length
 				  plus trailing padding in one pass, and their decode paths reject malformed padding,
 			  third-character padding without fourth-character padding, and nonzero

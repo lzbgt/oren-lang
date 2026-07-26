@@ -2656,7 +2656,8 @@ design evidence lives under `project-doc/`.
   output as exact-size `u8_buf`; strict Base64 decode sizes exactly and validates
   inline instead of pre-scanning then delegating to the whitespace-tolerant path.
   Base64/Base64URL encode now hoists shared byte-view backing pointers once per
-  call, and Base64URL decode uses the same direct byte-buffer output path.
+  call and maps sextets arithmetically instead of indexing alphabet strings;
+  Base64URL decode uses the same direct byte-buffer output path.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.

@@ -95,6 +95,11 @@
 </ul>
 <p>  exact-size output <code>u8_buf</code>, avoiding per-output-byte helper calls.</p>
 <ul>
+<li><code>std:encoding/base64</code> Base64/Base64URL encode now maps sextets</li>
+</ul>
+<p>  arithmetically into exact-size output buffers instead of indexing alphabet</p>
+<p>  strings for every output byte.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>
@@ -3153,7 +3158,7 @@
 <p>	  native WebSocket header slices plus frame payload reads</p>
 <p>  copy with <code>oren_memcpy</code>; DNS QNAME labels, native IPv6 sockaddr address bytes, and</p>
 <p>  capsule NET IPv4 sockaddr reads/rewrites copy directly after validation;</p>
-<p>				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call,</p>
+<p>				  Base64/Base64URL encode hoists shared byte-view backing pointers once per call and maps sextets arithmetically instead of indexing alphabet strings,</p>
 <p>				  tolerant Base64 decode derives clean length plus trailing padding from one</p>
 <p>				  metadata pass, Base64 range decoders let PEM decode body spans without slicing,</p>
 <p>				  compacting temporary strings, per-byte position maps, or doing a separate strict-body validation pass,</p>
@@ -3276,7 +3281,7 @@
 <p>			  <code>sha256.hex</code>, <code>ui_cmds.validate</code>, <code>ui_raster.rasterize</code>,</p>
 <p>			  <code>ppm.write_rgba_ppm</code>, <code>ints.checked_u8</code>, etc.) instead of public</p>
 <p>		  <code>try_*</code> names, while raw errno-style or low-level implementation</p>
-<p>  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now hoists shared byte-view backing pointers and writes exact-size <code>u8_buf</code> output instead of materializing an</p>
+<p>	  internals are explicit <code>*_raw</code> or private module helpers. Base64 and Base64URL encoding now hoists shared byte-view backing pointers, maps sextets arithmetically, and writes exact-size <code>u8_buf</code> output instead of materializing an</p>
 <p>				  intermediate Oren list, tolerant Base64 decode now computes whitespace-stripped length</p>
 <p>				  plus trailing padding in one pass, and their decode paths reject malformed padding,</p>
 <p>			  third-character padding without fourth-character padding, and nonzero</p>
