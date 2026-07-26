@@ -975,6 +975,9 @@ def main() -> int:
     encode_runs = frame_text[frame_text.find("void OrenAVMMetalEncodePreparedRuns") :]
     for token in (
         "MTLScissorRect fullScissor",
+        "BOOL hasLastScissor = NO;",
+        "MTLScissorRect lastScissor = {0, 0, 0, 0};",
+        "OrenAVMMetalApplyScissorIfNeeded(encoder, scissor, &hasLastScissor, &lastScissor)",
         "if (geometryPipeline && vertexRuns.count > 0)",
         "BOOL hasTextureRuns = imageRuns.count > 0 || textRuns.count > 0;",
         "if (textPipeline && hasTextureRuns)",
@@ -993,6 +996,10 @@ def main() -> int:
     ):
         if token in text:
             fail("Metal view must not own prepared-run encoder draw loops")
+    if "static void OrenAVMMetalApplyScissorIfNeeded" not in frame_text:
+        fail("Metal prepared-run encoding must cache repeated scissor state")
+    if frame_text.count("[encoder setScissorRect:scissor]") != 1:
+        fail("Metal prepared-run encoding must set scissor only through the cached helper")
     if "OrenAVMMetalFrameRunCapacity(NSData* frame)" not in frame_text:
         fail("missing bounded Metal frame run-capacity helper")
     if text.count("OrenAVMMetalFrameRunCapacity(") != 1:
