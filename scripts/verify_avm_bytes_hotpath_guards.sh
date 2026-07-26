@@ -1064,6 +1064,13 @@ if grep -q 'fn _rtobj_u8_at\|fn _rtobj_read_u32_le\|fn _rtobj_read_u64_le' lib/c
   exit 1
 fi
 
+rtobj_sidecar_align_impl="$(sed -n '/fn _rtobj_align_bytes_8/,/fn _rtobj_normalize_debug_funcs_enc/p' lib/compiler/native_runtime_obj_cache_sidecars.oren)"
+if ! grep -Fq 'if rem != 0 { bytes.bytes_extend_zeros(b, 8 - rem) }' <<<"$rtobj_sidecar_align_impl" ||
+  grep -Fq 'bytes.bytes_push(b, 0)' <<<"$rtobj_sidecar_align_impl"; then
+  echo "ERROR: runtime-object debug sidecar alignment must use byte-builder zero extension, not a per-byte zero loop" >&2
+  exit 1
+fi
+
 x64_pe_sections_impl="$(sed -n '/Section headers/,/Pad headers to SizeOfHeaders/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'push_pe_section_name(out, 46, 116, 101, 120, 116, 0, 0, 0)' <<<"$x64_pe_sections_impl" ||

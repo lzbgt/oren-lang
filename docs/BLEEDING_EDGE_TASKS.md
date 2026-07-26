@@ -43,6 +43,8 @@ This file is the concise task view. Detailed implementation status lives in
      through existing alignment helpers and exact zero-extension spans.
    - Current ARM64 native data cleanup routes C-string literal append, global
      slots, and C-string table alignment through byte-builder span helpers.
+   - Current runtime-object sidecar cleanup routes debug-name alignment through
+     byte-builder zero-extension instead of per-byte zero pushes.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

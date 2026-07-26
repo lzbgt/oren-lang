@@ -313,9 +313,9 @@ fn rtobj_store_cstr0_offsets_sidecar(cache_dir, key, cstr0_offsets_u8) {
 
 fn _rtobj_align_bytes_8(b) {
     if b == nil { return nil }
-    while (bytes.bytes_len(b) / 8) * 8 != bytes.bytes_len(b) {
-        bytes.bytes_push(b, 0)
-    }
+    var used = bytes.bytes_len(b)
+    var rem = used - (used / 8) * 8
+    if rem != 0 { bytes.bytes_extend_zeros(b, 8 - rem) }
     return nil
 }
 

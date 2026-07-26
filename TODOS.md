@@ -54,6 +54,8 @@ design evidence lives under `project-doc/`.
 - ARM64 native expression C-string literals now align and append through
   byte-builder span helpers while preserving original long-string dedupe keys;
   ARM64 global slots and C-string tables reuse the shared data-alignment helper.
+- Runtime-object debug-name sidecar blobs now align with byte-builder zero-span
+  extension instead of repeated zero-byte pushes.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

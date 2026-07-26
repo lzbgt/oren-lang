@@ -42,6 +42,8 @@ surfaces, but the following blockers remain:
 - ARM64 native expression literals, global slots, and C-string tables now share
   byte-builder span helpers for data alignment/string append without changing
   long-string dedupe keys.
+- Runtime-object debug-name sidecar alignment now uses byte-builder zero-span
+  extension instead of per-byte zero pushes.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently
