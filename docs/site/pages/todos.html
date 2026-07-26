@@ -105,6 +105,10 @@
 </ul>
 <p>  extension instead of repeated zero-byte pushes.</p>
 <ul>
+<li><code>std:net/url</code> concat helpers now use direct string-slice copies into their</li>
+</ul>
+<p>  exact-size output <code>u8_buf</code>s for unmodified spans.</p>
+<ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>
 <p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>

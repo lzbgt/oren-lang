@@ -902,6 +902,13 @@ if ! grep -Fq '_HUFF_L = list.int_new(1024)' <<<"$hpack_huffman_impl" ||
   exit 1
 fi
 
+net_url_concat_impl="$(sed -n '/fn _write_string/,/fn _lower_ascii/p' lib/std/net/url.oren)"
+if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out, off, s, 0, n)' <<<"$net_url_concat_impl" ||
+  grep -Fq 'ptr_set_byte(outp + off + i, _byte_at(s, i))' <<<"$net_url_concat_impl"; then
+  echo "ERROR: std:net/url concat helpers must copy plain string spans directly into u8_buf output, not loop per byte" >&2
+  exit 1
+fi
+
 http2_client_impl="$(sed -n '/fn _parse_content_length_value/,/fn _request_value/p' lib/std/net/http2_client.oren)"
 http2_read_header_impl="$(sed -n '/fn _read_header_block/,/fn _send_headers_fragmented/p' lib/std/net/http2_client.oren)"
 http2_send_headers_impl="$(sed -n '/fn _send_headers_fragmented/,/fn _new_record/p' lib/std/net/http2_client.oren)"

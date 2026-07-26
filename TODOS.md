@@ -56,6 +56,8 @@ design evidence lives under `project-doc/`.
   ARM64 global slots and C-string tables reuse the shared data-alignment helper.
 - Runtime-object debug-name sidecar blobs now align with byte-builder zero-span
   extension instead of repeated zero-byte pushes.
+- `std:net/url` concat helpers now use direct string-slice copies into their
+  exact-size output `u8_buf`s for unmodified spans.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

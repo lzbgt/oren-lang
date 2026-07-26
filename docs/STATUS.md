@@ -30,6 +30,8 @@ surfaces, but the following blockers remain:
   while avoiding separate terminator growth/write paths.
 - HPACK raw string-literal encoding now bulk-copies directly from validated
   strings into the output `u8_buf`; Huffman literals keep the existing bit writer.
+- `std:net/url` concat helpers now copy plain string spans directly into the
+  output `u8_buf`, keeping percent-encoding loops only where bytes transform.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

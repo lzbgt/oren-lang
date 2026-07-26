@@ -70,6 +70,10 @@
 </ul>
 <p>  strings into the output <code>u8_buf</code>; Huffman literals keep the existing bit writer.</p>
 <ul>
+<li><code>std:net/url</code> concat helpers now copy plain string spans directly into the</li>
+</ul>
+<p>  output <code>u8_buf</code>, keeping percent-encoding loops only where bytes transform.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

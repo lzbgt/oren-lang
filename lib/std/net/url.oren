@@ -98,13 +98,10 @@ fn _path_from_url_suffix(url, start) {
     return _concat3("/", suffix, "")
 }
 
-fn _write_string(outp, off, s) {
+fn _write_string(out, off, s) {
     var n = oren_string_len(s)
-    var i = 0
-    while i < n {
-        ptr_set_byte(outp + off + i, _byte_at(s, i))
-        i = i + 1
-    }
+    var rc = oren_u8_buf_copy_from_string_slice_at(out, off, s, 0, n)
+    if oren_is_err(rc) { return -1 }
     return off + n
 }
 
@@ -114,10 +111,12 @@ fn _concat3(a, b, c) {
     var nc = oren_string_len(c)
     var out = raw.u8_new_uninit(na + nb + nc)
     if oren_is_err(out) { return out }
-    var p = oren_buf_data_ptr_unchecked(out)
-    var off = _write_string(p, 0, a)
-    off = _write_string(p, off, b)
-    _write_string(p, off, c)
+    var off = _write_string(out, 0, a)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
+    off = _write_string(out, off, b)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
+    off = _write_string(out, off, c)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
     return oren_string_from_bytes_slice(out, 0, na + nb + nc)
 }
 
@@ -129,12 +128,16 @@ fn _concat5(a, b, c, d, e) {
     var ne = oren_string_len(e)
     var out = raw.u8_new_uninit(na + nb + nc + nd + ne)
     if oren_is_err(out) { return out }
-    var p = oren_buf_data_ptr_unchecked(out)
-    var off = _write_string(p, 0, a)
-    off = _write_string(p, off, b)
-    off = _write_string(p, off, c)
-    off = _write_string(p, off, d)
-    _write_string(p, off, e)
+    var off = _write_string(out, 0, a)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
+    off = _write_string(out, off, b)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
+    off = _write_string(out, off, c)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
+    off = _write_string(out, off, d)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
+    off = _write_string(out, off, e)
+    if off < 0 { return oren_err(1, "url.concat: copy failed") }
     return oren_string_from_bytes_slice(out, 0, na + nb + nc + nd + ne)
 }
 
