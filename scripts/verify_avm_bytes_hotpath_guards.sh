@@ -1018,6 +1018,18 @@ if ! grep -Fq 'fn _emit_win32_last_error_file_cases_x64(ctx, labels, fixups, l_d
   echo "ERROR: x64 Windows errno mapping must keep Win32/WSA case families split into focused helpers" >&2
   exit 1
 fi
+x64_parser_helper_split_impl="$(sed -n '/fn _intr_tmp_pool_off/,/fn _x64_tmp_intr_name/p' lib/compiler/x64_native_program/035_intr_temps.oren)
+$(sed -n '/fn _x64_fast_list_get_sum_abi_regs/,/fn _x64_fast_list_get_sum_emit_sum_flag/p' lib/compiler/x64_native_program/057_emit_ops_while_list_get_sum.oren)
+$(sed -n '/fn _x64_win_cp_prepare_tmp_slots/,/fn _x64_win_cp_spill_args_and_zero/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren)"
+if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _intr_tmp_named_off(ctx, locals, idx)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_fast_list_get_sum_abi_regs(ctx)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_fast_list_get_sum_local_offsets(info, locals)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_prepare_tmp_slots(ctx, locals, base)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_win_cp_prepare_layout(ctx, base)' <<<"$x64_parser_helper_split_impl"; then
+  echo "ERROR: x64 temp, list-sum, and Windows process preparation must stay split into focused parser helpers" >&2
+  exit 1
+fi
 arm64_gemm_store_helper_impl="$(sed -n '/fn arm64_emit_store_d_reg_to_cursor/,/fn native_emit_panic/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 if ! grep -Fq 'fn arm64_emit_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||
   ! grep -Fq 'fn arm64_emit_addp_store_d_regs_0_15_to_cursor' <<<"$arm64_gemm_store_helper_impl" ||

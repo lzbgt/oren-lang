@@ -1,9 +1,21 @@
-fn _x64_fast_list_get_sum_prepare(ctx, info, locals) {
+fn _x64_fast_list_get_sum_abi_regs(ctx) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 { return nil }
-    var a0 = a0_enc - 1
-    var a1 = a1_enc - 1
+    return {"a0": a0_enc - 1, "a1": a1_enc - 1}
+}
+
+fn _x64_fast_list_get_sum_local_offsets(info, locals) {
+    var off_idx = locals[info["idx"]]
+    var off_n = locals[info["n"]]
+    var off_sum = locals[info["sum"]]
+    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
+    return {"off_idx": off_idx, "off_n": off_n, "off_sum": off_sum}
+}
+
+fn _x64_fast_list_get_sum_prepare(ctx, info, locals) {
+    var regs = _x64_fast_list_get_sum_abi_regs(ctx)
+    if regs == nil { return nil }
 
     var idx_name = info["idx"]
     var n_name = info["n"]
@@ -11,10 +23,8 @@ fn _x64_fast_list_get_sum_prepare(ctx, info, locals) {
     var lists = info["lists"]
     var loads = info["loads"]
 
-    var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    var off_sum = locals[sum_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
+    var offs = _x64_fast_list_get_sum_local_offsets(info, locals)
+    if offs == nil { return nil }
 
     var sum_inty = info["sum_inty"]
     if sum_inty != true { return nil }
@@ -27,16 +37,16 @@ fn _x64_fast_list_get_sum_prepare(ctx, info, locals) {
     if list_count == load_count { unique_lists = true }
 
     return {
-        "a0": a0,
-        "a1": a1,
+        "a0": regs["a0"],
+        "a1": regs["a1"],
         "idx": idx_name,
         "n": n_name,
         "sum": sum_name,
         "lists": lists,
         "loads": loads,
-        "off_idx": off_idx,
-        "off_n": off_n,
-        "off_sum": off_sum,
+        "off_idx": offs["off_idx"],
+        "off_n": offs["off_n"],
+        "off_sum": offs["off_sum"],
         "list_count": list_count,
         "sum_inty": sum_inty,
         "unique_lists": unique_lists,

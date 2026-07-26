@@ -122,6 +122,9 @@ surfaces, but the following blockers remain:
 - X64 Windows Win32/WSA errno mapping now delegates common error-code case
   families to focused helper bodies while preserving emitted comparison order
   and default `-EIO` fallback behavior.
+- X64 temp-slot resolution, fast list-sum preparation, and Windows
+  CreateProcess preparation now separate register/local/layout state setup into
+  focused helper bodies while preserving validation and returned-state shape.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

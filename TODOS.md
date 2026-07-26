@@ -108,6 +108,9 @@ design evidence lives under `project-doc/`.
 - X64 Windows Win32/WSA errno mapping now delegates common error-code case
   families to focused helper bodies while preserving emitted comparison order
   and default `-EIO` fallback behavior.
+- X64 temp-slot resolution, fast list-sum preparation, and Windows
+  CreateProcess preparation now separate register/local/layout state setup into
+  focused helper bodies while preserving validation and returned-state shape.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

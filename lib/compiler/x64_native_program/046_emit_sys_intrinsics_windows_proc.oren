@@ -25,17 +25,16 @@
 // This file depends on `_emit_call_iat_x64` and `_emit_set_rax_neg_errno_x64` helpers defined
 // in `046_emit_sys_intrinsics_windows_net.oren` (included earlier in the x64 native program).
 
-fn _x64_win_cp_prepare(ctx, locals) {
-    // Spill args so we can freely use registers.
-    var base = _intr_tmp_push(ctx, 4)
-    if oren_type_tag(base) == 0 { return nil }
-
+fn _x64_win_cp_prepare_tmp_slots(ctx, locals, base) {
     var tmp_app = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_cmd = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_env = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 3)
     if oren_type_tag(tmp_app) == 0 || oren_type_tag(tmp_cmd) == 0 || oren_type_tag(tmp_env) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    return {"tmp_app": tmp_app, "tmp_cmd": tmp_cmd, "tmp_env": tmp_env, "tmp_to": tmp_to}
+}
 
+fn _x64_win_cp_prepare_layout(ctx, base) {
     // Win64 ABI call-area invariants:
     // sys_win_createprocess uses stack args (CreateProcessA has 6 stack args) and keeps its
     // scratch structs in the per-function outgoing call area so we don't rely on large
@@ -61,17 +60,37 @@ fn _x64_win_cp_prepare(ctx, locals) {
     }
 
     return {
-        "base": base,
-        "tmp_app": tmp_app,
-        "tmp_cmd": tmp_cmd,
-        "tmp_env": tmp_env,
-        "tmp_to": tmp_to,
         "startup_q": STARTUP_Q,
         "proc_q": PROC_Q,
         "startup_off": STARTUP_OFF,
         "proc_off": PROC_OFF,
         "exit_off": EXIT_OFF,
         "ret_off": RET_OFF
+    }
+}
+
+fn _x64_win_cp_prepare(ctx, locals) {
+    // Spill args so we can freely use registers.
+    var base = _intr_tmp_push(ctx, 4)
+    if oren_type_tag(base) == 0 { return nil }
+
+    var slots = _x64_win_cp_prepare_tmp_slots(ctx, locals, base)
+    if slots == nil { return nil }
+    var layout = _x64_win_cp_prepare_layout(ctx, base)
+    if layout == nil { return nil }
+
+    return {
+        "base": base,
+        "tmp_app": slots["tmp_app"],
+        "tmp_cmd": slots["tmp_cmd"],
+        "tmp_env": slots["tmp_env"],
+        "tmp_to": slots["tmp_to"],
+        "startup_q": layout["startup_q"],
+        "proc_q": layout["proc_q"],
+        "startup_off": layout["startup_off"],
+        "proc_off": layout["proc_off"],
+        "exit_off": layout["exit_off"],
+        "ret_off": layout["ret_off"]
     }
 }
 

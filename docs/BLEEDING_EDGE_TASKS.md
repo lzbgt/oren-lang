@@ -118,6 +118,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 Windows errno-mapping cleanup splits Win32 and WSA common
      error-code case families into focused helper bodies while preserving branch
      comparison order and default `-EIO` fallback behavior.
+   - Current x64 parser-body cleanup also splits intrinsic temp resolution,
+     fast list-sum state preparation, and Windows CreateProcess temp/layout
+     preparation into focused helper bodies.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

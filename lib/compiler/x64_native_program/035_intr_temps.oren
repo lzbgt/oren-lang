@@ -71,6 +71,37 @@ fn _intr_tmp_pop(ctx, base) {
     return nil
 }
 
+fn _intr_tmp_pool_off(ctx, idx) {
+    if idx < 0 { err(ctx, "x64 native v0: intrinsic temp idx < 0"); return 0 }
+    var lim = 0
+    if ctx["intr_tmp_limit"] != nil { lim = ctx["intr_tmp_limit"] }
+    if lim != 0 && idx >= lim {
+        err(ctx, "x64 native v0: intrinsic temp idx out of range (idx=" + oren_int_to_string(idx) +
+                 " lim=" + oren_int_to_string(lim) + ")")
+        return 0
+    }
+    var base = ctx["intr_tmp_base_off"]
+    var scale = iadd(idx, idx)   // *2
+    scale = iadd(scale, scale)   // *4
+    scale = iadd(scale, scale)   // *8
+    return iadd(base, scale)
+}
+
+fn _intr_tmp_named_off(ctx, locals, idx) {
+    var nm = _x64_tmp_intr_name(ctx, idx)
+    var off = nil
+    if locals != nil { off = locals[nm] }
+    // Native-runtime robustness:
+    // - `locals[nm]` can produce 0 for a missing key today (nil carrier).
+    // - Real stack offsets are never 0 in this backend (start at 8), so `off == nil` is a safe
+    //   missing check here even in the current untagged mode.
+    if off == nil || off == 0 {
+        err(ctx, "x64 native v0: missing intrinsic temp slot " + nm)
+        return 0
+    }
+    return off
+}
+
 fn _intr_tmp_off(ctx, locals, idx) {
     // Intrinsic temp indices are 1-based (0 is reserved).
     if idx <= 0 {
@@ -85,19 +116,7 @@ fn _intr_tmp_off(ctx, locals, idx) {
     //
     // Use only `iadd` here so stage1 (C runtime) doesn't pay the cost of generic `*`/`<<`.
     if ctx != nil && ctx["intr_tmp_base_off"] != nil {
-        if idx < 0 { err(ctx, "x64 native v0: intrinsic temp idx < 0"); return 0 }
-        var lim = 0
-        if ctx["intr_tmp_limit"] != nil { lim = ctx["intr_tmp_limit"] }
-        if lim != 0 && idx >= lim {
-            err(ctx, "x64 native v0: intrinsic temp idx out of range (idx=" + oren_int_to_string(idx) +
-                     " lim=" + oren_int_to_string(lim) + ")")
-            return 0
-        }
-        var base = ctx["intr_tmp_base_off"]
-        var scale = iadd(idx, idx)   // *2
-        scale = iadd(scale, scale)   // *4
-        scale = iadd(scale, scale)   // *8
-        return iadd(base, scale)
+        return _intr_tmp_pool_off(ctx, idx)
     }
 
     // Fallback (compat/debug): named locals `$tmp_intrN`.
@@ -105,16 +124,5 @@ fn _intr_tmp_off(ctx, locals, idx) {
     // PERF NOTE:
     // This path should not run for the current x64 backend, but keeping it provides
     // a clearer error surface if some older lowering still constructs `$tmp_intrN` identifiers.
-    var nm = _x64_tmp_intr_name(ctx, idx)
-    var off = nil
-    if locals != nil { off = locals[nm] }
-    // Native-runtime robustness:
-    // - `locals[nm]` can produce 0 for a missing key today (nil carrier).
-    // - Real stack offsets are never 0 in this backend (start at 8), so `off == nil` is a safe
-    //   missing check here even in the current untagged mode.
-    if off == nil || off == 0 {
-        err(ctx, "x64 native v0: missing intrinsic temp slot " + nm)
-        return 0
-    }
-    return off
+    return _intr_tmp_named_off(ctx, locals, idx)
 }
