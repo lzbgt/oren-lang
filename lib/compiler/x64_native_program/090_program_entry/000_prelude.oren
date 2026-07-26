@@ -132,7 +132,7 @@ fn _x64_store_envblock_in_entry_scratch(ctx, scratch_base) {
     return nil
 }
 
-fn _x64_win_entry_args_state(ctx, scratch_base) {
+fn _x64_win_entry_args_data(ctx, scratch_base) {
     var max_args = 128
     var off_argv = _data_add_zeros(ctx, (max_args + 1) * 8)
     var pool_cap = 65536
@@ -148,6 +148,10 @@ fn _x64_win_entry_args_state(ctx, scratch_base) {
     st["pool_cap"] = pool_cap
     st["off_argv"] = off_argv
     st["off_pool"] = off_pool
+    return st
+}
+
+fn _x64_win_entry_args_labels(ctx, st) {
     st["labels"] = {}
     st["local_fixups"] = []
     st["l_done"] = _new_label(ctx, "win_argv_done")
@@ -160,6 +164,10 @@ fn _x64_win_entry_args_state(ctx, scratch_base) {
     st["l_pool_ok"] = _new_label(ctx, "win_argv_pool_ok")
     st["l_conv_ok"] = _new_label(ctx, "win_argv_conv_ok")
     return st
+}
+
+fn _x64_win_entry_args_state(ctx, scratch_base) {
+    return _x64_win_entry_args_labels(ctx, _x64_win_entry_args_data(ctx, scratch_base))
 }
 
 fn _x64_win_entry_args_emit_buffers(ctx, st) {
@@ -570,31 +578,32 @@ fn _x64_new_ctx_runtime_slots(ctx, trace_ctx) {
     return nil
 }
 
+fn _x64_new_ctx_trace_env_flag(ctx, env_name, key) {
+    if oren_env(env_name) != nil {
+        ctx[key] = 1
+        return true
+    }
+    return nil
+}
+
 fn _x64_new_ctx_trace_flags(ctx, trace_ctx) {
     // Bounded debug knob (bring-up):
     // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.
     //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
-    if oren_env("OREN_TRACE_X64_ARRAY_LIT") != nil {
-        ctx["trace_x64_array_lit"] = 1
-    }
+    _x64_new_ctx_trace_env_flag(ctx, "OREN_TRACE_X64_ARRAY_LIT", "trace_x64_array_lit")
 
     // Bounded debug knob:
     // Enable fast-path list header tracing without per-call env lookups.
     //   OREN_TRACE_NATIVE_LIST_HDR=1 ./oren_stage2 build ... --platform x64-linux --no-cache
-    if oren_env("OREN_TRACE_NATIVE_LIST_HDR") != nil {
-        ctx["trace_native_list_hdr"] = 1
-    }
+    _x64_new_ctx_trace_env_flag(ctx, "OREN_TRACE_NATIVE_LIST_HDR", "trace_native_list_hdr")
     // Bounded debug knob:
     // Trace exact-shape x64 list<int> fast-loop lowering decisions at compile time.
     //   OREN_TRACE_X64_LIST_FAST=1 ./oren_stage2 build ... --platform x64-linux --no-cache
-    if oren_env("OREN_TRACE_X64_LIST_FAST") != nil {
-        ctx["trace_x64_list_fast"] = 1
-    }
+    _x64_new_ctx_trace_env_flag(ctx, "OREN_TRACE_X64_LIST_FAST", "trace_x64_list_fast")
     // Bounded debug knob:
     // Enable pre-track alloc request tracing for malloc/malloc_k.
     //   OREN_TRACE_NATIVE_ALLOC_REQ=1 ./oren_stage2 build ... --platform x64-linux --no-cache
-    if oren_env("OREN_TRACE_NATIVE_ALLOC_REQ") != nil {
-        ctx["trace_native_alloc_req"] = 1
+    if _x64_new_ctx_trace_env_flag(ctx, "OREN_TRACE_NATIVE_ALLOC_REQ", "trace_native_alloc_req") == true {
         if trace_ctx { print("[x64_ctx] trace_native_alloc_req=1") }
     }
     return nil

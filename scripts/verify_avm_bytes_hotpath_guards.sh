@@ -1037,7 +1037,7 @@ if ! grep -Fq 'fn _x64_assign_i32_state(ctx, op, locals, top_string_fast_stats)'
 fi
 x64_envblock_capture_split_impl="$(sed -n '/fn _emit_entry_capture_envblock_windows_x64/,/fn _x64_win_entry_args_state/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
 if ! grep -Fq 'fn _x64_emit_get_environment_strings_call(ctx)' <<<"$x64_envblock_capture_split_impl" ||
-  ! grep -Fq 'fn _x64_store_envblock_in_entry_scratch(ctx, scratch_base)' <<<"$x64_envblock_capture_split_impl"; then
+  ! grep -Fq 'fn _x64_store_envblock_in_entry_scratch(ctx, scratch_base)' <<<"$x64_envblock_capture_split_impl" || ! grep -Fq 'fn _x64_win_entry_args_data(ctx, scratch_base)' <<<"$x64_envblock_capture_split_impl" || ! grep -Fq 'fn _x64_win_entry_args_labels(ctx, st)' <<<"$x64_envblock_capture_split_impl"; then
   echo "ERROR: Windows x64 envblock capture must keep GetEnvironmentStringsA call and scratch-store helpers split" >&2; exit 1
 fi
 x64_windows_errno_impl="$(sed -n '/fn _emit_win32_last_error_file_cases_x64/,/fn _emit_win32_last_error_to_neg_errno_common_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
@@ -1156,7 +1156,7 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _data_emit_cstr0_table(ctx, state)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_fcntl_getfl_translate_success(ctx, labels, fixups)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_emit_sys_read_windows_stdin_handle(ctx, local_fixups, tmp_fd, l_have_handle)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_emit_dbginfo_table(ctx, platform, entries)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_ffi_resolver_linux_emit_body(ctx, got_dlsym)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_emit_ffi_stub_win64_body(ctx, data, resolver_name, labels, local_fixups)' <<<"$x64_sys_data_split_impl" ||
-  ! grep -Fq 'fn _x64_new_ctx_base_functions(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_new_ctx_base_functions(ctx)' <<<"$x64_sys_data_split_impl" || ! grep -Fq 'fn _x64_new_ctx_trace_env_flag(ctx, env_name, key)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)' <<<"$x64_sys_data_split_impl"; then
   echo "ERROR: x64 system read/write/fcntl/stat/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2; exit 1
 fi

@@ -73,6 +73,9 @@ This file is the concise task view. Detailed implementation status lives in
      scans in boolean singleton, tail normalization, and runtime helper paths.
    - Current x64 context-switch XMM save/restore code emission is straight-line
      for the fixed 16-register frame layout instead of a compiler-side fixed loop.
+   - Current x64 program-entry context cleanup separates Windows entry argv data
+     reservation from label/fixup initialization and shares trace env-flag
+     assignment while preserving per-flag trace behavior.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

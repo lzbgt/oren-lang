@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 program-entry context cleanup now separates Windows entry argv data
+  reservation from label/fixup initialization and shares trace env-flag
+  assignment while preserving per-flag trace behavior.
 - X64 lazy FFI stub and generic while lowering cleanup now separates shared
   lazy-stub validation/registration/fixup patching plus per-platform stub bodies,
   and generic while label/header/condition/body emission into focused helpers.

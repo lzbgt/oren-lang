@@ -149,6 +149,11 @@
 </ul>
 <p>     for the fixed 16-register frame layout instead of a compiler-side fixed loop.</p>
 <ul>
+<li>Current x64 program-entry context cleanup separates Windows entry argv data</li>
+</ul>
+<p>     reservation from label/fixup initialization and shares trace env-flag</p>
+<p>     assignment while preserving per-flag trace behavior.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>
