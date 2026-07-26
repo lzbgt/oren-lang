@@ -44,6 +44,9 @@ design evidence lives under `project-doc/`.
   packing, little-endian scalar writes, and alignment math through the shared
   `artifact_bytes.oren` semantic helper while leaving ISA instruction and ABI
   lowering in x64/ARM64-specific modules.
+- X64/ARM64 ELF emitters now share `elf_artifact.oren` for identical ELF64
+  program-header emission, byte alignment, UTF-8/debug string packing,
+  NUL-terminated string-table insertion, and unique DT_NEEDED collection.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

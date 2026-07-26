@@ -22,6 +22,21 @@ if ! grep -Fq 'import bb "bytes_builder.oren"' lib/compiler/artifact_bytes.oren 
   exit 1
 fi
 
+if ! grep -Fq 'import artifact "artifact_bytes.oren"' lib/compiler/elf_artifact.oren ||
+  ! grep -Fq 'import elfart "elf_artifact.oren"' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'import elfart "elf_artifact.oren"' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'return elfart.push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'return elfart.push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' lib/compiler/x64_elf.oren; then
+  echo "ERROR: x64/ARM64 ELF emitters must share format-level helper bodies through elf_artifact.oren" >&2
+  exit 1
+fi
+
 x64_pe_sections_impl="$(sed -n '/Section headers/,/Pad headers to SizeOfHeaders/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'fn push_pe_section_name(b, b0, b1, b2, b3, b4, b5, b6, b7)' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'push_pe_section_name(out, 46, 116, 101, 120, 116, 0, 0, 0)' <<<"$x64_pe_sections_impl" ||
@@ -89,16 +104,17 @@ arm64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' 
 x64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/x64_elf.oren)"
 arm64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: AArch64/p' lib/compiler/arm64_elf.oren)"
 x64_elf_header_impl="$(sed -n '/ELF Header (64 bytes)/,/Machine: x86-64/p' lib/compiler/x64_elf.oren)"
+elf_artifact_align_impl="$(sed -n '/fn bytes_align/,/^}/p' lib/compiler/elf_artifact.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
   test "$(grep -Fc 'bytes_extend_zeros(dynsym, 1) // st_other' <<<"$arm64_elf_dynsym_impl")" != "2" ||
   test "$(grep -Fc 'bytes_extend_zeros(dynsym, 1) // st_other' <<<"$x64_elf_dynsym_impl")" != "2" ||
   ! grep -Fq 'bytes_extend_zeros(p, 1); // OS ABI: System V' <<<"$arm64_elf_header_impl" ||
   ! grep -Fq 'bytes_extend_zeros(p, 1) // System V' <<<"$x64_elf_header_impl" ||
-  ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$arm64_elf_align_impl" ||
-  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$arm64_elf_align_impl" ||
-  ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$x64_elf_align_impl" ||
-  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$x64_elf_align_impl" ||
+  ! grep -Fq 'var rem = artifact.int_mod(artifact.bytes_len(buf), align)' <<<"$elf_artifact_align_impl" ||
+  ! grep -Fq 'if rem != 0 { artifact.bytes_extend_zeros(buf, align - rem) }' <<<"$elf_artifact_align_impl" ||
+  ! grep -Fq 'return elfart.bytes_align(buf, align)' <<<"$arm64_elf_align_impl" ||
+  ! grep -Fq 'return elfart.bytes_align(buf, align)' <<<"$x64_elf_align_impl" ||
   ! grep -Fq '_bytes_align(data, 8)' <<<"$arm64_elf_layout_impl" ||
   ! grep -Fq 'bytes_extend_zeros(prefix, pad_len)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'bytes_extend_zeros(prefix, pad_len)' lib/compiler/x64_elf.oren ||
@@ -125,6 +141,7 @@ x64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/co
 arm64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/arm64_elf.oren)"
 x64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/x64_elf.oren)"
 arm64_elf_data_cstr_impl="$(sed -n '/fn _data_add_cstr0/,/^}/p' lib/compiler/arm64_elf.oren)"
+elf_artifact_string_impl="$(sed -n '/fn push_utf8_aligned/,/fn bytes_align/p; /fn push_string_bytes/,/fn push_unique/p' lib/compiler/elf_artifact.oren)"
 arm64_macho_bind_impl="$(sed -n '/fn macho_build_bind_opcodes/,/fn macho_build_prefix_arm64/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
@@ -134,11 +151,13 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   ! grep -Fq 'fn bytes_extend_string(b, s) { return artifact.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_string_z(b, s) }' lib/compiler/x64_pe.oren ||
-  ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_elf_string_impl" ||
-  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_elf_string_impl" ||
-  ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_elf_cstr_impl" ||
-  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_elf_string_impl" ||
-  ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$x64_elf_cstr_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string(p, s)' <<<"$elf_artifact_string_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string(buf, s)' <<<"$elf_artifact_string_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string_z(buf, s)' <<<"$elf_artifact_string_impl" ||
+  ! grep -Fq 'return elfart.push_string_bytes(buf, s)' <<<"$arm64_elf_string_impl" ||
+  ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' <<<"$arm64_elf_cstr_impl" ||
+  ! grep -Fq 'return elfart.push_string_bytes(buf, s)' <<<"$x64_elf_string_impl" ||
+  ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' <<<"$x64_elf_cstr_impl" ||
   ! grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$arm64_elf_dynamic_impl" ||
   ! grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$x64_elf_dynamic_impl" ||
   ! grep -Fq 'bytes_extend_zeros(dynstr, 1)' <<<"$arm64_elf_dynamic_impl" ||

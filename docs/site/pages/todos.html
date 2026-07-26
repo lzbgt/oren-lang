@@ -83,6 +83,11 @@
 <p>  <code>artifact_bytes.oren</code> semantic helper while leaving ISA instruction and ABI</p>
 <p>  lowering in x64/ARM64-specific modules.</p>
 <ul>
+<li>X64/ARM64 ELF emitters now share <code>elf_artifact.oren</code> for identical ELF64</li>
+</ul>
+<p>  program-header emission, byte alignment, UTF-8/debug string packing,</p>
+<p>  NUL-terminated string-table insertion, and unique DT_NEEDED collection.</p>
+<ul>
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>

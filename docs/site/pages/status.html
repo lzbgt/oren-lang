@@ -5557,6 +5557,12 @@ make docs-site</code></pre>
 <p>  format-neutral byte builders, little-endian scalar writes, and alignment math</p>
 <p>  across x64 and ARM64. Instruction encoding, register/stack contracts, and</p>
 <p>  platform ABI lowering remain architecture-specific.</p>
+<ul>
+<li>X64 and ARM64 ELF emitters now share <code>elf_artifact.oren</code> for identical ELF64</li>
+</ul>
+<p>  program-header emission, byte alignment, UTF-8/debug string packing,</p>
+<p>  NUL-terminated string-table insertion, and unique DT_NEEDED collection while</p>
+<p>  leaving machine IDs, relocations, codegen, and ABI rules in the arch emitters.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

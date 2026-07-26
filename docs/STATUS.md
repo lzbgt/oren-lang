@@ -4731,6 +4731,10 @@ make docs-site
   format-neutral byte builders, little-endian scalar writes, and alignment math
   across x64 and ARM64. Instruction encoding, register/stack contracts, and
   platform ABI lowering remain architecture-specific.
+- X64 and ARM64 ELF emitters now share `elf_artifact.oren` for identical ELF64
+  program-header emission, byte alignment, UTF-8/debug string packing,
+  NUL-terminated string-table insertion, and unique DT_NEEDED collection while
+  leaving machine IDs, relocations, codegen, and ABI rules in the arch emitters.
 
 ## Documentation Guardrail
 

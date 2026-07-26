@@ -93,6 +93,10 @@ This file is the concise task view. Detailed implementation status lives in
      builders, little-endian scalar writes, and alignment math through shared
      `artifact_bytes.oren` across x64/ARM64 while keeping ISA and ABI lowering
      architecture-local.
+   - Current ELF artifact abstraction shares identical ELF64 program-header,
+     byte-alignment, UTF-8/debug-string, string-table, and DT_NEEDED unique-list
+     helpers through `elf_artifact.oren` while keeping machine IDs,
+     relocations, codegen, and ABI rules in the arch emitters.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

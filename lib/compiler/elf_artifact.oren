@@ -1,0 +1,68 @@
+import artifact "artifact_bytes.oren"
+
+// Shared ELF64 artifact helpers.
+//
+// Scope: format-level byte emission that is identical for x64 and ARM64 ELF.
+// Machine IDs, relocation types, instruction code, syscall ABI, and dynamic
+// relocation semantics stay in the architecture-specific ELF emitters.
+
+fn push_utf8_aligned(p, s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    artifact.push_u64_le(p, n)
+    artifact.bytes_extend_string(p, s)
+    bytes_align(p, 8)
+    return nil
+}
+
+fn push_u64_zero4(p) {
+    artifact.push_u64_le(p, 0)
+    artifact.push_u64_le(p, 0)
+    artifact.push_u64_le(p, 0)
+    artifact.push_u64_le(p, 0)
+    return nil
+}
+
+fn push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {
+    artifact.push_u32_le(p, p_type)
+    artifact.push_u32_le(p, p_flags)
+    artifact.push_u64_le(p, p_offset)
+    artifact.push_u64_le(p, p_vaddr)
+    artifact.push_u64_le(p, p_paddr)
+    artifact.push_u64_le(p, p_filesz)
+    artifact.push_u64_le(p, p_memsz)
+    artifact.push_u64_le(p, p_align)
+    return nil
+}
+
+fn bytes_align(buf, align) {
+    if buf == nil { return nil }
+    if align == nil || align <= 1 { return nil }
+    var rem = artifact.int_mod(artifact.bytes_len(buf), align)
+    if rem != 0 { artifact.bytes_extend_zeros(buf, align - rem) }
+    return nil
+}
+
+fn push_string_bytes(buf, s) {
+    if buf == nil { return nil }
+    if s == nil { s = "" }
+    artifact.bytes_extend_string(buf, s)
+    return nil
+}
+
+fn bytes_add_str0(buf, s) {
+    if buf == nil { return nil }
+    if s == nil { s = "" }
+    var off = artifact.bytes_len(buf)
+    artifact.bytes_extend_string_z(buf, s)
+    return off
+}
+
+fn push_unique(out, seen, s) {
+    if out == nil || seen == nil { return nil }
+    if s == nil || s == "" { return nil }
+    if seen[s] != nil { return nil }
+    seen[s] = true
+    oren_list_push(out, s)
+    return nil
+}
