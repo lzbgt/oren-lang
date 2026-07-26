@@ -29,6 +29,7 @@ fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
 fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
+fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
@@ -520,12 +521,7 @@ fn _bytes_align(buf, align) {
 fn _elf_push_string_bytes(buf, s) {
     if buf == nil { return nil }
     if s == nil { s = "" }
-    var i = 0
-    var n = oren_string_len(s)
-    while i < n {
-        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
+    bytes_extend_string(buf, s)
     return nil
 }
 

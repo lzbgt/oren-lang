@@ -294,6 +294,7 @@ fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
 fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
+fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
@@ -339,12 +340,15 @@ fn push_str_fixed16(buf, s) {
 fn _macho_push_string_bytes(buf, s) {
     if buf == nil { return nil }
     if s == nil { s = "" }
-    var i = 0
-    var n = oren_string_len(s)
-    while i < n {
-        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
+    bytes_extend_string(buf, s)
+    return nil
+}
+
+fn _macho_align(buf, align) {
+    if buf == nil { return nil }
+    if align == nil || align <= 1 { return nil }
+    var rem = int_mod(bytes_len(buf), align)
+    if rem != 0 { bytes_extend_zeros(buf, align - rem) }
     return nil
 }
 
@@ -405,9 +409,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
     bytes_push(p, bind_done())
     
     // Pad to 8 bytes? Not strictly required but good for alignment.
-    while int_mod(bytes_len(p), 8) != 0 {
-        bytes_push(p, 0)
-    }
+    _macho_align(p, 8)
     
     return p
 }
@@ -696,12 +698,8 @@ fn _macho_push_utf8_aligned(p, s) {
     if s == nil { s = "" }
     var n = oren_string_len(s)
     push_u64_le(p, n)
-    var i = 0
-    while i < n {
-        bytes_push(p, oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
-    while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
+    bytes_extend_string(p, s)
+    _macho_align(p, 8)
     return nil
 }
 

@@ -22,6 +22,7 @@ fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
 fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
+fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 fn push_u32_le(b, n) { return codegen.push_u32_le(b, n) }
@@ -497,12 +498,7 @@ fn push_ascii_z(buf, s) {
     // Avoid an intermediate byte carrier in hot emitter paths.
     // Import table construction calls this many times and must stay fast.
     if s == nil { bytes_push(buf, 0); return nil }
-    var n = oren_string_len(s)
-    var i = 0
-    while i < n {
-        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
-    }
+    bytes_extend_string(buf, s)
     bytes_push(buf, 0)
     return nil
 }

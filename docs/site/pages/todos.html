@@ -135,6 +135,14 @@
 </ul>
 <p>  shared byte-builder zero extension instead of per-byte alignment loops.</p>
 <ul>
+<li>ARM64/x64 ELF, ARM64 Mach-O, and x64 PE whole-string artifact append helpers</li>
+</ul>
+<p>  now use shared byte-builder string extension instead of per-byte string loops.</p>
+<ul>
+<li>ARM64 ELF runtime debug-record reserved u64 fields now use a shared straight-line</li>
+</ul>
+<p>  zero-word helper instead of repeating four zero pushes at each record site.</p>
+<ul>
 <li>ARM64 native compiler data-slot reservations now use the shared byte-builder</li>
 </ul>
 <p>  zero-extension path for fixed eight-byte pointer slots instead of per-byte</p>

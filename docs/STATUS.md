@@ -154,6 +154,12 @@ surfaces, but the following blockers remain:
 - ARM64 and x64 ELF alignment helpers now compute the required padding span
   once and extend zeros through the shared byte-builder path instead of pushing
   one zero byte per alignment step.
+- ARM64/x64 ELF, ARM64 Mach-O, and x64 PE artifact string append helpers now
+  extend whole strings through the shared byte-builder path, preserving exact
+  terminators/alignment while avoiding repeated per-byte string pushes.
+- ARM64 ELF runtime debug-record reserved fields now share a straight-line
+  four-u64 zero helper instead of spelling the same zero pushes at each record
+  emission site.
 - ARM64 native compiler context, global, and statement-binding pointer-slot
   reservations now route fixed eight-byte zero fills through the shared
   byte-builder zero-extension path instead of per-byte push loops.

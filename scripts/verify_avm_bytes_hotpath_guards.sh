@@ -1088,6 +1088,40 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b
   exit 1
 fi
 
+arm64_elf_string_impl="$(sed -n '/fn _elf_push_utf8_aligned/,/fn _elf_push_phdr/p; /fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/arm64_elf.oren)"
+x64_elf_string_impl="$(sed -n '/fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/x64_elf.oren)"
+arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
+x64_pe_ascii_impl="$(sed -n '/fn push_ascii_z/,/fn _pe_path_basename/p' lib/compiler/x64_pe.oren)"
+if ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
+  ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/x64_pe.oren ||
+  ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_elf_string_impl" ||
+  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_elf_string_impl" ||
+  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_elf_string_impl" ||
+  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
+  ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
+  ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
+  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_pe_ascii_impl" ||
+  grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
+  grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_elf_string_impl" ||
+  grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl" ||
+  grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_pe_ascii_impl" ||
+  grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
+  grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl"; then
+  echo "ERROR: compiler artifact string append helpers must use byte-builder string extension, not per-byte string loops" >&2
+  exit 1
+fi
+
+arm64_elf_runtime_debug_impl="$(sed -n '/fn emit_debug_info/,/fn _elf_push_utf8_aligned/p' lib/compiler/arm64_elf.oren)"
+arm64_elf_runtime_debug_zero4_calls="$(grep -Fc '_elf_push_u64_zero4(p)' <<<"$arm64_elf_runtime_debug_impl")"
+if ! grep -Fq 'fn _elf_push_u64_zero4(p)' lib/compiler/arm64_elf.oren ||
+  test "$arm64_elf_runtime_debug_zero4_calls" != "2" ||
+  grep -Fq 'push_u64_le(p, 0)' <<<"$arm64_elf_runtime_debug_impl"; then
+  echo "ERROR: ARM64 ELF runtime debug reserved u64 fields must use the shared zero-word helper" >&2
+  exit 1
+fi
+
 arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"

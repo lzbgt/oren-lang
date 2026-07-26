@@ -72,6 +72,10 @@ design evidence lives under `project-doc/`.
   zero-extension instead of a fixed u32 pair loop.
 - ARM64 and x64 ELF alignment padding now computes one padding span and uses
   shared byte-builder zero extension instead of per-byte alignment loops.
+- ARM64/x64 ELF, ARM64 Mach-O, and x64 PE whole-string artifact append helpers
+  now use shared byte-builder string extension instead of per-byte string loops.
+- ARM64 ELF runtime debug-record reserved u64 fields now use a shared straight-line
+  zero-word helper instead of repeating four zero pushes at each record site.
 - ARM64 native compiler data-slot reservations now use the shared byte-builder
   zero-extension path for fixed eight-byte pointer slots instead of per-byte
   push loops.
