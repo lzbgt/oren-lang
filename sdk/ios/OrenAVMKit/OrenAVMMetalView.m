@@ -159,9 +159,6 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
     self.paused = NO;
     self.enableSetNeedsDisplay = NO;
     self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
-    if (!self.orenTextCache) self.orenTextCache = [NSMutableDictionary dictionary];
-    if (!self.orenTextCacheOrder) self.orenTextCacheOrder = [NSMutableArray array];
-    if (!self.orenTextAttributes) self.orenTextAttributes = [[OrenAVMMetalTextAttributeCache alloc] init];
     if (self.orenNextTouchID == 0) self.orenNextTouchID = 1u;
     if (self.targetHzMilli == 0) self.targetHzMilli = 60000u;
     if (self.frameBudgetWarningPermille == 0) self.frameBudgetWarningPermille = 1000u;
@@ -374,9 +371,9 @@ static BOOL OrenAVMMetalAssignError(NSError** error, NSInteger code, NSString* m
         .materials3D = &_orenMaterials3DByID,
         .models3D = &_orenModels3DByID,
         .images = &_orenImagesByID,
-        .textCache = self.orenTextCache,
-        .textCacheOrder = self.orenTextCacheOrder,
-        .textAttributes = self.orenTextAttributes,
+        .textCache = &_orenTextCache,
+        .textCacheOrder = &_orenTextCacheOrder,
+        .textAttributes = &_orenTextAttributes,
         .textCachePixels = self.orenTextCachePixels,
         .textAtlas = self.orenTextAtlas,
         .retainedImageCountLimit = self.retainedImageCountLimit,

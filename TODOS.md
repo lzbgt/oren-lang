@@ -3254,6 +3254,9 @@ design evidence lives under `project-doc/`.
   raw scalar values instead of retaining per-touch `NSNumber` boxes, and both
   renderers now share the `OrenAVMGFXInput` touch forwarding helper while
   keeping their per-view maps.
+- Metal renderer startup now leaves text texture and attribute cache storage nil
+  until valid text work reaches rendering; the frame/text helper path writes
+  lazily allocated storage back to the view-owned strong references.
 - CoreGraphics retained resource models, scalar map keys/lookups, raw payload
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.

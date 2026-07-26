@@ -48,9 +48,9 @@ typedef struct {
     CFMutableDictionaryRef* materials3D;
     CFMutableDictionaryRef* models3D;
     CFMutableDictionaryRef* images;
-    NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* textCache;
-    NSMutableArray<OrenAVMMetalTextCacheKey*>* textCacheOrder;
-    OrenAVMMetalTextAttributeCache* textAttributes;
+    NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* __strong * textCache;
+    NSMutableArray<OrenAVMMetalTextCacheKey*>* __strong * textCacheOrder;
+    OrenAVMMetalTextAttributeCache* __strong * textAttributes;
     NSUInteger textCachePixels;
     OrenAVMMetalTextAtlas* textAtlas;
     NSUInteger retainedImageCountLimit;

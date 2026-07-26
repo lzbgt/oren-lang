@@ -4639,6 +4639,11 @@
 <p>  renderers now share the <code>OrenAVMGFXInput</code> touch forwarding helper while</p>
 <p>  keeping their per-view maps.</p>
 <ul>
+<li>Metal renderer startup now leaves text texture and attribute cache storage nil</li>
+</ul>
+<p>  until valid text work reaches rendering; the frame/text helper path writes</p>
+<p>  lazily allocated storage back to the view-owned strong references.</p>
+<ul>
 <li>CoreGraphics retained resource models, scalar map keys/lookups, raw payload</li>
 </ul>
 <p>  copy, and retained-3D painter ordering helpers now live in</p>

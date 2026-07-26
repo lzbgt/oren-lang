@@ -59,6 +59,30 @@ def main() -> int:
         fail("Metal view must not inline shader compilation or pipeline descriptor setup")
     if "newLibraryWithSource:" not in pipeline_text or "newRenderPipelineStateWithDescriptor:" not in pipeline_text:
         fail("Metal pipeline helper must compile shaders and create render pipeline states")
+    configure_start = text.find("- (void)orenConfigureMetalView")
+    configure_end = text.find("- (void)setTargetHzMilli:", configure_start)
+    if configure_start < 0 or configure_end < 0:
+        fail("missing Metal view configuration body")
+    configure_body = text[configure_start:configure_end]
+    for token in (
+        "self.orenTextCache = [NSMutableDictionary dictionary]",
+        "self.orenTextCacheOrder = [NSMutableArray array]",
+        "self.orenTextAttributes = [[OrenAVMMetalTextAttributeCache alloc] init]",
+    ):
+        if token in configure_body:
+            fail("Metal text caches must be allocated lazily from text rendering, not view startup")
+    for token in (
+        ".textCache = &_orenTextCache",
+        ".textCacheOrder = &_orenTextCacheOrder",
+        ".textAttributes = &_orenTextAttributes",
+        "OrenAVMMetalEnsureTextTextureCache(",
+        "OrenAVMMetalEnsureTextAttributeCache(",
+        "NSMutableDictionary<OrenAVMMetalTextCacheKey*, OrenAVMMetalTextCacheEntry*>* __strong * cacheRef",
+        "NSMutableArray<OrenAVMMetalTextCacheKey*>* __strong * orderRef",
+        "OrenAVMMetalTextAttributeCache* __strong * attributesCacheRef",
+    ):
+        if token not in metal_text + "\n" + text_source + "\n" + text_header:
+            fail(f"Metal text cache lazy allocation path missing expected token: {token}")
     if HELPER not in frame_text:
         fail("missing bounded vertex payload helper")
     if "newBufferWithBytes:" not in frame_text or "addCompletedHandler:" not in text:
@@ -247,7 +271,7 @@ def main() -> int:
     if "[NSMutableArray arrayWithCapacity:OrenAVMMetalRunArrayInitialCapacity(runs.count)]" not in coalesce_body:
         fail("text coalescing must cap optional output-array reservation")
     cache_lookup = text_source.find("OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]")
-    attrs_lookup = text_source.find("OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba)")
+    attrs_lookup = text_source.find("OrenAVMMetalEnsureTextAttributeCache(attributesCacheRef)")
     if cache_lookup < 0 or attrs_lookup < 0 or cache_lookup > attrs_lookup:
         fail("Metal text cache hits must return before looking up UIKit attributes")
     require_before(text_source,
@@ -268,7 +292,7 @@ def main() -> int:
         fail("Metal text attribute cache must admit new colors after hitting its bounded entry limit")
     if "OrenAVMMetalTextAttributeCache* orenTextAttributes" not in text:
         fail("Metal text attributes must be cached through a typed view-owned cache")
-    if "self.orenTextAttributes" not in text or "textAttributes" not in resource_text:
+    if ".textAttributes = &_orenTextAttributes" not in text or "textAttributes" not in resource_text:
         fail("Metal text creation paths must share the view-owned attribute cache")
     if "@interface OrenAVMMetalTextAttributeCache : NSObject" not in text_header:
         fail("Metal text attributes must use a typed cache object")

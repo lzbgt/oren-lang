@@ -212,9 +212,9 @@ surfaces, but the following blockers remain:
   optional coalesced output array cannot be allocated, and coalesced output
   arrays reuse the shared 4096-entry initial-capacity cap instead of reserving
   the full input run count.
-- iOS CoreGraphics and Metal renderer startup now leaves retained-resource and
-  touch scalar maps nil until first use; shared input/resource helpers allocate
-  those maps lazily.
+- iOS CoreGraphics and Metal renderer startup now leaves retained-resource,
+  touch scalar, and Metal text texture/attribute caches nil until first use;
+  shared input/resource/text helpers allocate those caches lazily.
 - iOS Metal image runs now track initialized inline-quad vertex count
   explicitly, so encoding and coalescing bind only actual inline or heap-backed
   vertex spans.
@@ -2666,9 +2666,10 @@ retained material resources use scalar-key/scalar-value maps instead of boxed
 quads now stay inline in fixed image-run storage with explicit initialized
 vertex counts, while text texture quads append
 into caller-owned run buffers instead of allocating tiny `NSData`
-wrappers from stack vertices. Metal text texture cache lookups now use typed
-immutable cache keys instead of formatted strings that copy the full label into
-every lookup key, and Metal image-run construction now guards run allocation before
+wrappers from stack vertices. Metal text texture and attribute cache storage is
+allocated only after valid text work reaches rendering; texture cache lookups
+now use typed immutable cache keys instead of formatted strings that copy the
+full label into every lookup key, and Metal image-run construction now guards run allocation before
 inline vertex writes or exact heap vertex allocation; immediate Metal text rejects
 invalid UTF-8 before texture-cache, atlas, or run construction, and immediate
 CoreGraphics text rejects invalid UTF-8 before attribute-cache lookup. iOS SDK typed GFX input helpers now build

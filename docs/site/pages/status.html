@@ -354,10 +354,10 @@
 <p>  arrays reuse the shared 4096-entry initial-capacity cap instead of reserving</p>
 <p>  the full input run count.</p>
 <ul>
-<li>iOS CoreGraphics and Metal renderer startup now leaves retained-resource and</li>
+<li>iOS CoreGraphics and Metal renderer startup now leaves retained-resource,</li>
 </ul>
-<p>  touch scalar maps nil until first use; shared input/resource helpers allocate</p>
-<p>  those maps lazily.</p>
+<p>  touch scalar, and Metal text texture/attribute caches nil until first use;</p>
+<p>  shared input/resource/text helpers allocate those caches lazily.</p>
 <ul>
 <li>iOS Metal image runs now track initialized inline-quad vertex count</li>
 </ul>
@@ -2944,9 +2944,10 @@
 <p>quads now stay inline in fixed image-run storage with explicit initialized</p>
 <p>vertex counts, while text texture quads append</p>
 <p>into caller-owned run buffers instead of allocating tiny <code>NSData</code></p>
-<p>wrappers from stack vertices. Metal text texture cache lookups now use typed</p>
-<p>immutable cache keys instead of formatted strings that copy the full label into</p>
-<p>every lookup key, and Metal image-run construction now guards run allocation before</p>
+<p>wrappers from stack vertices. Metal text texture and attribute cache storage is</p>
+<p>allocated only after valid text work reaches rendering; texture cache lookups</p>
+<p>now use typed immutable cache keys instead of formatted strings that copy the</p>
+<p>full label into every lookup key, and Metal image-run construction now guards run allocation before</p>
 <p>inline vertex writes or exact heap vertex allocation; immediate Metal text rejects</p>
 <p>invalid UTF-8 before texture-cache, atlas, or run construction, and immediate</p>
 <p>CoreGraphics text rejects invalid UTF-8 before attribute-cache lookup. iOS SDK typed GFX input helpers now build</p>
