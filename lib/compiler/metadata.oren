@@ -549,26 +549,18 @@ fn json_yield_lowering(plan) {
 
 fn ascii_upper(s) {
     if s == nil { return s }
-    var out = ""
-    var lower = "abcdefghijklmnopqrstuvwxyz"
-    var upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    var n = oren_string_len(s)
+    var out = oren_u8_buf_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
     var i = 0
-    while i < oren_string_len(s) {
-        var ch = oren_string_char_at(s, i)
-        var j = 0
-        var mapped = nil
-        while j < oren_string_len(lower) {
-            if oren_string_char_at(lower, j) == ch {
-                mapped = oren_string_char_at(upper, j)
-                j = oren_string_len(lower)
-            } else {
-                j = j + 1
-            }
-        }
-        if mapped != nil { out = out + mapped } else { out = out + ch }
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        if b >= 97 && b <= 122 { b = b - 32 }
+        ptr_set_byte(data + i, b)
         i = i + 1
     }
-    return out
+    return oren_string_from_bytes_slice(out, 0, n)
 }
 
 fn string_list_has(xs, value) {

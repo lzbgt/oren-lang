@@ -54,6 +54,9 @@ surfaces, but the following blockers remain:
 - Parser generator file-hash hex escapes now emit lowercase digit bytes
   arithmetically into exact-size two-byte buffers instead of indexing a digit
   string and concatenating per-nibble strings.
+- Compiler capsule and metadata ASCII uppercasing now writes exact-size `u8_buf`
+  output with byte arithmetic instead of scanning lowercase/uppercase alphabet
+  strings and concatenating one character at a time.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

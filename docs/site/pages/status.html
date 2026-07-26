@@ -110,6 +110,11 @@
 <p>  arithmetically into exact-size two-byte buffers instead of indexing a digit</p>
 <p>  string and concatenating per-nibble strings.</p>
 <ul>
+<li>Compiler capsule and metadata ASCII uppercasing now writes exact-size <code>u8_buf</code></li>
+</ul>
+<p>  output with byte arithmetic instead of scanning lowercase/uppercase alphabet</p>
+<p>  strings and concatenating one character at a time.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

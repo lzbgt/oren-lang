@@ -2664,6 +2664,9 @@ design evidence lives under `project-doc/`.
 - Parser generator file-hash hex escapes now emit lowercase digit bytes
   arithmetically into exact-size two-byte buffers instead of indexing a digit
   string and concatenating per-nibble strings.
+- Compiler capsule and metadata ASCII uppercasing now writes exact-size byte
+  buffers with byte arithmetic instead of scanning lowercase/uppercase alphabet
+  strings and concatenating per-character output.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.

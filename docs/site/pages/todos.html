@@ -3699,6 +3699,11 @@
 <p>  arithmetically into exact-size two-byte buffers instead of indexing a digit</p>
 <p>  string and concatenating per-nibble strings.</p>
 <ul>
+<li>Compiler capsule and metadata ASCII uppercasing now writes exact-size byte</li>
+</ul>
+<p>  buffers with byte arithmetic instead of scanning lowercase/uppercase alphabet</p>
+<p>  strings and concatenating per-character output.</p>
+<ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>

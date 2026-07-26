@@ -58,6 +58,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current parser generator file-hash hex escapes emit lowercase digit bytes
      arithmetically into exact-size two-byte buffers instead of indexing a digit
      string and concatenating per-nibble strings.
+   - Current compiler capsule and metadata ASCII uppercasing writes exact-size
+     byte buffers with byte arithmetic instead of scanning lowercase/uppercase
+     alphabet strings and concatenating per-character output.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

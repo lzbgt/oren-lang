@@ -906,6 +906,23 @@ if ! grep -Fq 'var out = oren_u8_buf_new_uninit(n)' <<<"$argparse_lower_impl" ||
   echo "ERROR: argparse ASCII lowercasing must use exact-size u8_buf writes and byte arithmetic, not alphabet string scans" >&2
   exit 1
 fi
+compiler_capsule_ascii_upper_impl="$(sed -n '/fn ascii_upper/,/fn build_allow_set/p' lib/compiler/capsule.oren)"
+compiler_metadata_ascii_upper_impl="$(sed -n '/fn ascii_upper/,/fn string_list_has/p' lib/compiler/metadata.oren)"
+compiler_ascii_upper_impl="$compiler_capsule_ascii_upper_impl
+$compiler_metadata_ascii_upper_impl"
+if ! grep -Fq 'var out = oren_u8_buf_new_uninit(n)' <<<"$compiler_capsule_ascii_upper_impl" ||
+  ! grep -Fq 'var out = oren_u8_buf_new_uninit(n)' <<<"$compiler_metadata_ascii_upper_impl" ||
+  [[ "$(grep -F 'var data = oren_buf_data_ptr_unchecked(out)' <<<"$compiler_ascii_upper_impl" | wc -l | tr -d ' ')" != "2" ]] ||
+  [[ "$(grep -F 'var b = oren_string_byte_at_unchecked(s, i) & 255' <<<"$compiler_ascii_upper_impl" | wc -l | tr -d ' ')" != "2" ]] ||
+  [[ "$(grep -F 'if b >= 97 && b <= 122 { b = b - 32 }' <<<"$compiler_ascii_upper_impl" | wc -l | tr -d ' ')" != "2" ]] ||
+  [[ "$(grep -F 'ptr_set_byte(data + i, b)' <<<"$compiler_ascii_upper_impl" | wc -l | tr -d ' ')" != "2" ]] ||
+  [[ "$(grep -F 'return oren_string_from_bytes_slice(out, 0, n)' <<<"$compiler_ascii_upper_impl" | wc -l | tr -d ' ')" != "2" ]] ||
+  grep -Fq 'var lower = "abcdefghijklmnopqrstuvwxyz"' <<<"$compiler_ascii_upper_impl" ||
+  grep -Fq 'var upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"' <<<"$compiler_ascii_upper_impl" ||
+  grep -Fq 'out = out + mapped' <<<"$compiler_ascii_upper_impl"; then
+  echo "ERROR: compiler ASCII uppercase helpers must use exact-size u8_buf writes and byte arithmetic, not alphabet scans" >&2
+  exit 1
+fi
 
 base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||
