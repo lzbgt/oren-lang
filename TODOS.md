@@ -62,6 +62,9 @@ design evidence lives under `project-doc/`.
 - ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
   data C strings now route through shared string+zero or zero-span byte-builder
   helpers instead of separate string append plus zero-byte pushes.
+- ARM64 Mach-O bind opcodes, load-command dylib names, dylib-id names, and
+  import/export string-table names now route through a shared string+NUL
+  byte-builder helper instead of separate string append plus terminator pushes.
 - OBC linker NIL constant tags now route through byte-builder zero-extension
   rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix

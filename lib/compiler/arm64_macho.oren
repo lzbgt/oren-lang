@@ -295,6 +295,7 @@ fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
 fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
+fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
@@ -341,6 +342,12 @@ fn _macho_push_string_bytes(buf, s) {
     if buf == nil { return nil }
     if s == nil { s = "" }
     bytes_extend_string(buf, s)
+    return nil
+}
+
+fn _macho_push_string_z(buf, s) {
+    if buf == nil { return nil }
+    bytes_extend_string_z(buf, s)
     return nil
 }
 
@@ -402,8 +409,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
         
         // Symbol name (C-string) + '_' prefix if typical C
         bytes_push(p, 95) // '_'
-        _macho_push_string_bytes(p, name)
-        bytes_push(p, 0)
+        _macho_push_string_z(p, name)
         
         // BIND_OPCODE_DO_BIND (0x90)
         bytes_push(p, bind_do_bind())
@@ -604,8 +610,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     push_u32_le(p, lc_load_dylinker())
     push_u32_le(p, dyld_cmdsize)
     push_u32_le(p, dylinker_name_offset())
-    _macho_push_string_bytes(p, dyld_path)
-    bytes_push(p, 0)
+    _macho_push_string_z(p, dyld_path)
     _macho_pad_to_len(p, cmd_start + dyld_cmdsize)
     
     // 7. LC_LOAD_DYLIB (libSystem) - optional for syscall-only binaries
@@ -617,8 +622,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current version
         push_u32_le(p, 0) // compatibility version
-        _macho_push_string_bytes(p, libsys_path)
-        bytes_push(p, 0) // null terminator
+        _macho_push_string_z(p, libsys_path)
         _macho_pad_to_len(p, cmd_start_lib + libsys_cmdsize)
     }
 
@@ -634,8 +638,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current version
         push_u32_le(p, 0) // compatibility version
-        _macho_push_string_bytes(p, lib_path2)
-        bytes_push(p, 0)
+        _macho_push_string_z(p, lib_path2)
         _macho_pad_to_len(p, cmd_start_lib2 + lib_cmdsize2)
         k_lib = k_lib + 1
     }
@@ -667,8 +670,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current ver
         push_u32_le(p, 0) // compat ver
-        _macho_push_string_bytes(p, id_name)
-        bytes_push(p, 0)
+        _macho_push_string_z(p, id_name)
         _macho_pad_to_len(p, id_start + id_size)
     } else {
         push_u32_le(p, lc_main())
@@ -1022,8 +1024,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var name_idx = bytes_len(strtab)
         
         bytes_push(strtab, 95) // '_'
-        _macho_push_string_bytes(strtab, bind_name)
-        bytes_push(strtab, 0)
+        _macho_push_string_z(strtab, bind_name)
         
         push_u32_le(symtab, name_idx) // n_strx
         bytes_push(symtab, 1) // n_type (N_EXT | N_UNDF)
@@ -1048,8 +1049,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             
             var name_idx_exp = bytes_len(strtab)
             bytes_push(strtab, 95) // '_'
-            _macho_push_string_bytes(strtab, f_name)
-            bytes_push(strtab, 0)
+            _macho_push_string_z(strtab, f_name)
             
             push_u32_le(symtab, name_idx_exp)
             bytes_push(symtab, 15) // N_SECT | N_EXT

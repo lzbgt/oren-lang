@@ -113,6 +113,11 @@
 <p>  data C strings now route through shared string+zero or zero-span byte-builder</p>
 <p>  helpers instead of separate string append plus zero-byte pushes.</p>
 <ul>
+<li>ARM64 Mach-O bind opcodes, load-command dylib names, dylib-id names, and</li>
+</ul>
+<p>  import/export string-table names now route through a shared string+NUL</p>
+<p>  byte-builder helper instead of separate string append plus terminator pushes.</p>
+<ul>
 <li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
 </ul>
 <p>  rather than single zero-byte pushes while preserving nonzero constant tags.</p>

@@ -1210,12 +1210,14 @@ x64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/co
 arm64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/arm64_elf.oren)"
 x64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/x64_elf.oren)"
 arm64_elf_data_cstr_impl="$(sed -n '/fn _data_add_cstr0/,/^}/p' lib/compiler/arm64_elf.oren)"
+arm64_macho_bind_impl="$(sed -n '/fn macho_build_bind_opcodes/,/fn macho_build_prefix_arm64/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
 x64_pe_ascii_impl="$(sed -n '/fn push_ascii_z/,/fn _pe_path_basename/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_elf_string_impl" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_elf_string_impl" ||
@@ -1230,9 +1232,15 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   ! grep -Fq 'bytes_extend_zeros(shstr, 1)' <<<"$x64_elf_build_shstr_impl" ||
   test "$(grep -Fc 'bytes_extend_string_z(shstr,' <<<"$x64_elf_build_shstr_impl")" != "3" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
-  test "$(grep -Fc '_macho_push_string_bytes(strtab,' <<<"$arm64_macho_file_impl")" != "2" ||
+  test "$(grep -Fc '_macho_push_string_z(strtab,' <<<"$arm64_macho_file_impl")" != "2" ||
+  ! grep -Fq '_macho_push_string_z(p, name)' <<<"$arm64_macho_bind_impl" ||
+  ! grep -Fq '_macho_push_string_z(p, dyld_path)' <<<"$arm64_macho_file_impl" ||
+  ! grep -Fq '_macho_push_string_z(p, libsys_path)' <<<"$arm64_macho_file_impl" ||
+  ! grep -Fq '_macho_push_string_z(p, lib_path2)' <<<"$arm64_macho_file_impl" ||
+  ! grep -Fq '_macho_push_string_z(p, id_name)' <<<"$arm64_macho_file_impl" ||
   ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$x64_pe_ascii_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_elf_string_impl" ||
@@ -1240,6 +1248,12 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_pe_ascii_impl" ||
   grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
   grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl" ||
+  grep -Fq '_macho_push_string_bytes(p, name)' <<<"$arm64_macho_bind_impl" ||
+  grep -Fq '_macho_push_string_bytes(p, dyld_path)' <<<"$arm64_macho_file_impl" ||
+  grep -Fq '_macho_push_string_bytes(p, libsys_path)' <<<"$arm64_macho_file_impl" ||
+  grep -Fq '_macho_push_string_bytes(p, lib_path2)' <<<"$arm64_macho_file_impl" ||
+  grep -Fq '_macho_push_string_bytes(p, id_name)' <<<"$arm64_macho_file_impl" ||
+  grep -Fq '_macho_push_string_bytes(strtab,' <<<"$arm64_macho_file_impl" ||
   grep -Fq '_elf_push_string_bytes(data, interp)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
   grep -Fq 'bytes_push(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$arm64_elf_data_cstr_impl" ||
   grep -Fq 'bytes_push(dynstr, 0) // leading NUL' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||

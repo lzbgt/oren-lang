@@ -56,6 +56,9 @@ surfaces, but the following blockers remain:
 - ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
   data C strings now use shared string+zero or zero-span byte-builder helpers
   instead of separate string append plus single-zero pushes.
+- ARM64 Mach-O bind-opcode symbol names, load-command dylib names, dylib-id
+  names, and import/export string-table entries now use a shared string+NUL
+  byte-builder helper instead of separate terminator byte pushes.
 - OBC linker NIL constant tags now use byte-builder zero-extension instead of
   single zero-byte pushes, leaving nonzero constant tags unchanged.
 - ARM64 Mach-O load-command, string-table, and final text/data prefix padding

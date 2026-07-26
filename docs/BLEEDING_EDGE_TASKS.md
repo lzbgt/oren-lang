@@ -59,6 +59,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current ELF string-table cleanup routes interpreter strings, dynstr/shstr
      leading NULs, and ARM64 data C strings through shared string+zero or
      zero-span helpers instead of separate string append plus zero-byte pushes.
+   - Current ARM64 Mach-O C-string cleanup routes bind symbols, load-command
+     dylib names, dylib-id names, and import/export string-table entries through
+     a shared string+NUL helper.
    - Current ARM64 Mach-O cleanup routes load-command, string-table, and final
      text/data prefix padding through `_macho_pad_to_len`/`_macho_align`.
    - Current ARM64 Mach-O import GOT cleanup aligns data with `_macho_align`
@@ -1532,7 +1535,7 @@ This file is the concise task view. Detailed implementation status lives in
      append/list/string/set stores, C
      identifier escaping with raw exact-size output writes, raw u8/view/u8-matrix
      string copy helpers, `std:bytes.from_string`/`from_hex`, `std:strings` byte roundtrips,
-		    `std:bytes` u8/endian writes with unrolled u64 `u8_buf` stores, unrolled `std:buffer` raw i64 stores for typed-buffer builders, straight-line CBOR/WebSocket u64 protocol byte operations, compiler bytecode/ASTBIN u64 serializer byte operations, x64 PE section-name literal byte plus data-directory/import-thunk/export-name-pointer zero emission, ARM64/x64 ELF alignment zero extension, compiler artifact whole-string byte-builder extension, OBC linker NIL zero tags, ARM64 ELF/Mach-O runtime debug zero helpers, ARM64 compiler fixed pointer-slot zero extension, ARM64 Mach-O fixed UUID zero-word and 16-byte name padding emission, concat/copy u8-buffer spans, overlap-safe
+		    `std:bytes` u8/endian writes with unrolled u64 `u8_buf` stores, unrolled `std:buffer` raw i64 stores for typed-buffer builders, straight-line CBOR/WebSocket u64 protocol byte operations, compiler bytecode/ASTBIN u64 serializer byte operations, x64 PE section-name literal byte plus data-directory/import-thunk/export-name-pointer zero emission, ARM64/x64 ELF alignment zero extension, compiler artifact whole-string byte-builder extension, OBC linker NIL zero tags, ARM64 Mach-O C-string helper emission, ARM64 ELF/Mach-O runtime debug zero helpers, ARM64 compiler fixed pointer-slot zero extension, ARM64 Mach-O fixed UUID zero-word and 16-byte name padding emission, concat/copy u8-buffer spans, overlap-safe
 	     u8 `copy_into`, `std:buffer` view/matrix `copy_from_bytes` direct
 	     carrier reads through shared checked byte views with hoisted backing pointers for non-contiguous fallbacks,
      contiguous slice/dense-matrix byte/text exports, and
