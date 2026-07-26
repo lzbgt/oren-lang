@@ -82,6 +82,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 function epilogue emission separates call-depth exit patch
      points, callee-save restores, frame teardown/return, and local-fixup
      finalization into focused helpers while preserving return-order emission.
+   - Current x64 index/list lowering separates map-vs-generic runtime-fast
+     index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
+     negative/upper-bound guards into focused helpers.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

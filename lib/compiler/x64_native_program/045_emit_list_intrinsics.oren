@@ -643,23 +643,32 @@ fn _x64_emit_list_int_get_unchecked_bounds(ctx, state) {
     var labels = state["labels"]
     var local_fixups = state["local_fixups"]
     var off_idx = state["off_idx"]
-    var l_idx_nonneg = state["l_idx_nonneg"]
-    var l_idx_ok = state["l_idx_ok"]
-
     // restore idx
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx) // r8 = idx
+    _x64_emit_list_int_get_unchecked_count(ctx)
+    _x64_emit_list_int_get_unchecked_negative_guard(ctx, labels, local_fixups, state["l_idx_nonneg"])
+    _x64_emit_list_int_get_unchecked_upper_guard(ctx, labels, local_fixups, state["l_idx_ok"])
+    return nil
+}
 
+fn _x64_emit_list_int_get_unchecked_count(ctx) {
     // count -> r9
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 0))
+    return nil
+}
 
+fn _x64_emit_list_int_get_unchecked_negative_guard(ctx, labels, local_fixups, l_idx_nonneg) {
     // idx < 0 => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
     _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
     _emit_label(ctx, labels, l_idx_nonneg)
+    return nil
+}
 
+fn _x64_emit_list_int_get_unchecked_upper_guard(ctx, labels, local_fixups, l_idx_ok) {
     // idx >= count => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 9))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_idx_ok)

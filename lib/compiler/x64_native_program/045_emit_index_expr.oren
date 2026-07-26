@@ -111,32 +111,38 @@ fn _x64_index_prepare(ctx, expr, locals) {
     return _x64_index_pack_prepare(expr, operands, st)
 }
 
-fn _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) {
+fn _x64_index_emit_map_runtime_fast(ctx, locals, known_kk, tmp0, tmp_idx, base0) {
     // String-key indexing and lowered map gets cannot reach list semantics. Delegate
     // checked map validation to the runtime instead of emitting the same tracking,
     // kind, magic, and panic sequence at every compiler AST access site.
-    if recv_kind == "map" || known_kk == 1 {
-        if known_kk == 0 {
-            _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int_checked", tmp0, tmp_idx)
-        } else if known_kk == 1 {
-            _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str_checked", tmp0, tmp_idx)
-        } else {
-            _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_checked", tmp0, tmp_idx)
-        }
-        _intr_tmp_pop(ctx, base0)
-        return true
+    if known_kk == 0 {
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int_checked", tmp0, tmp_idx)
+    } else if known_kk == 1 {
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str_checked", tmp0, tmp_idx)
+    } else {
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_checked", tmp0, tmp_idx)
     }
+    _intr_tmp_pop(ctx, base0)
+    return true
+}
 
+fn _x64_index_emit_generic_runtime_fast(ctx, locals, tmp0, tmp_idx, base0) {
     // Unknown receiver kinds are common in self-hosted compiler helpers where
     // map/list evidence is parameter-local. Call the checked generic runtime
     // helper instead of compiling the full dynamic list+map dispatch at every
     // access site.
-    if recv_kind != "list" && recv_kind != "list_int" {
-        _emit_call_rel32_2args_x64(ctx, locals, "oren_index_get", tmp0, tmp_idx)
-        _intr_tmp_pop(ctx, base0)
-        return true
-    }
+    _emit_call_rel32_2args_x64(ctx, locals, "oren_index_get", tmp0, tmp_idx)
+    _intr_tmp_pop(ctx, base0)
+    return true
+}
 
+fn _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) {
+    if recv_kind == "map" || known_kk == 1 {
+        return _x64_index_emit_map_runtime_fast(ctx, locals, known_kk, tmp0, tmp_idx, base0)
+    }
+    if recv_kind != "list" && recv_kind != "list_int" {
+        return _x64_index_emit_generic_runtime_fast(ctx, locals, tmp0, tmp_idx, base0)
+    }
     return false
 }
 

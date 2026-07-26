@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
+  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
+  negative/upper-bound guards into focused helpers.
 - X64 function epilogue emission now separates call-depth exit patch points,
   callee-save restores, frame teardown/return, and local-fixup finalization into
   focused helpers while preserving return-order emission.

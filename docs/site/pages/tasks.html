@@ -164,6 +164,11 @@
 <p>     points, callee-save restores, frame teardown/return, and local-fixup</p>
 <p>     finalization into focused helpers while preserving return-order emission.</p>
 <ul>
+<li>Current x64 index/list lowering separates map-vs-generic runtime-fast</li>
+</ul>
+<p>     index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>
+<p>     negative/upper-bound guards into focused helpers.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

@@ -160,33 +160,43 @@ fn _x64_index_set_emit_map_path(ctx, locals, state) {
     return nil
 }
 
-fn _x64_index_set_emit_list_or_map_dispatch(ctx, locals, state) {
+fn _x64_index_set_emit_non_nil_container(ctx, state) {
     var off_cont = state["off_cont"]
     var labels = state["labels"]
     var local_fixups = state["fixups"]
-
-    // container -> rdx (2)
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_cont)
-
-    // If container is nil, panic deterministically.
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
     var l_non_nil = _new_label(ctx, "idx_set_non_nil")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
     _emit_abort_panic_str(ctx, "index_set on nil")
     _emit_label(ctx, labels, l_non_nil)
+    return nil
+}
 
+fn _x64_index_set_emit_tracked_container(ctx, state) {
     // Tier-1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _x64_index_set_emit_recv_kind_dispatch(ctx, state)
-    _x64_index_set_emit_list_path(ctx, locals, state)
-    _x64_index_set_emit_map_path(ctx, locals, state)
+    return true
+}
 
+fn _x64_index_set_finish_dispatch(ctx, labels, local_fixups, state) {
     _emit_label(ctx, labels, state["l_done"])
     _patch_local_fixups(ctx, labels, local_fixups)
     return nil
+}
+
+fn _x64_index_set_emit_list_or_map_dispatch(ctx, locals, state) {
+    var labels = state["labels"]
+    var local_fixups = state["fixups"]
+    _x64_index_set_emit_non_nil_container(ctx, state)
+    if _x64_index_set_emit_tracked_container(ctx, state) != true { return nil }
+    _x64_index_set_emit_recv_kind_dispatch(ctx, state)
+    _x64_index_set_emit_list_path(ctx, locals, state)
+    _x64_index_set_emit_map_path(ctx, locals, state)
+    return _x64_index_set_finish_dispatch(ctx, labels, local_fixups, state)
 }
 
 fn _x64_index_set_validated_args(ctx, expr, locals) {
