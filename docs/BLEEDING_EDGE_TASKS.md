@@ -196,6 +196,14 @@ This file is the concise task view. Detailed implementation status lives in
      progress-env gating, and start-event emission.
    - Current Windows x64 `sys_fcntl_setfl` wrapper cleanup separates label/fixup
      state, body emission, and final patch/temp cleanup.
+   - Current x64 `assign_i32` cleanup separates local/global state selection,
+     top-level fast paths, checked value emission, and final store dispatch.
+   - Current x64 global-root cleanup separates vector/map entry filtering and
+     appending, and the vector path caches the root-offset count before looping.
+   - Current x64 runtime function-offset lookup cleanup separates direct function
+     maps, compact runtime-object offset vectors, and encoded map fallback.
+   - Current x64 direct-call argument loading separates register arguments, stack
+     area validation, and stack argument stores.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

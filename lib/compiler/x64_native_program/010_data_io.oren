@@ -518,29 +518,35 @@ fn _x64_data_string_eq(a, b) {
     return true
 }
 
-fn _x64_data_lookup_function_offset(ctx, nm) {
-    if ctx == nil || nm == nil { return nil }
+fn _x64_data_lookup_direct_function_offset(ctx, nm) {
     var fns = ctx["functions"]
     if fns != nil {
         var off0 = fns[nm]
         if oren_type_tag(off0) != 0 { return off0 }
     }
+    return nil
+}
+
+fn _x64_data_lookup_compact_function_offset(ctx, nm, base) {
     var comp = ctx["runtime_x64_fn_offsets_compact"]
-    var base = ctx["runtime_x64_fn_offsets_base_code"]
-    if base == nil { base = 0 }
-    if comp != nil {
-        var names = comp["names"]
-        var offs = comp["offs_enc"]
-        var i = 0
-        while names != nil && i < oren_list_len(names) {
-            if _x64_data_string_eq(names[i], nm) {
-                var off1 = nil
-                if offs != nil { off1 = _x64_data_rtobj_decode_enc0(offs[i]) }
-                if off1 != nil { return base + off1 }
-            }
-            i = i + 1
+    if comp == nil { return nil }
+    var names = comp["names"]
+    var offs = comp["offs_enc"]
+    var names_n = 0
+    if names != nil { names_n = oren_list_len(names) }
+    var i = 0
+    while i < names_n {
+        if _x64_data_string_eq(names[i], nm) {
+            var off1 = nil
+            if offs != nil { off1 = _x64_data_rtobj_decode_enc0(offs[i]) }
+            if off1 != nil { return base + off1 }
         }
+        i = i + 1
     }
+    return nil
+}
+
+fn _x64_data_lookup_encoded_function_offset(ctx, nm, base) {
     var enc_map = ctx["runtime_x64_fn_offsets_enc"]
     if enc_map != nil {
         var off_enc = enc_map[nm]
@@ -548,6 +554,17 @@ fn _x64_data_lookup_function_offset(ctx, nm) {
         if off2 != nil { return base + off2 }
     }
     return nil
+}
+
+fn _x64_data_lookup_function_offset(ctx, nm) {
+    if ctx == nil || nm == nil { return nil }
+    var off0 = _x64_data_lookup_direct_function_offset(ctx, nm)
+    if off0 != nil { return off0 }
+    var base = ctx["runtime_x64_fn_offsets_base_code"]
+    if base == nil { base = 0 }
+    var off1 = _x64_data_lookup_compact_function_offset(ctx, nm, base)
+    if off1 != nil { return off1 }
+    return _x64_data_lookup_encoded_function_offset(ctx, nm, base)
 }
 
 fn _data_symtab_state(ctx) {

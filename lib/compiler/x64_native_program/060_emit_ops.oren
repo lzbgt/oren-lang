@@ -713,36 +713,58 @@ fn _x64_assign_i32_store_global_rax(ctx, op) {
     return nil
 }
 
-fn _emit_assign_i32_op_x64(ctx, op, locals, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats) {
+fn _x64_assign_i32_state(ctx, op, locals, top_string_fast_stats) {
     var off2 = locals[op["name"]]
     var top_string_fast_candidate = false
     if op["__oren_top_level_global_init"] == true && oren_type_tag(off2) == 0 {
         top_string_fast_candidate = true
         top_string_fast_stats["candidates"] = top_string_fast_stats["candidates"] + 1
     }
-    if top_string_fast_candidate == true {
-        var fast_status = _x64_emit_assign_top_string_fast(ctx, op, j, op_start_ns, op_slow_ms, top_string_fast_stats)
-        if fast_status == nil { return nil }
-        if fast_status == 1 { return 1 }
+    return {"off": off2, "top_string_fast_candidate": top_string_fast_candidate}
+}
 
-        var empty_status = _x64_emit_assign_top_empty_container(ctx, op, platform, j, op_start_ns, op_slow_ms)
-        if empty_status == nil { return nil }
-        if empty_status == 1 { return 1 }
-    }
-    if top_string_fast_candidate == true {
-        top_string_fast_stats["miss_type"] = top_string_fast_stats["miss_type"] + 1
-    }
+fn _x64_emit_assign_i32_fast_paths(ctx, op, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats, top_string_fast_candidate) {
+    if top_string_fast_candidate != true { return 0 }
+    var fast_status = _x64_emit_assign_top_string_fast(ctx, op, j, op_start_ns, op_slow_ms, top_string_fast_stats)
+    if fast_status == nil { return nil }
+    if fast_status == 1 { return 1 }
+
+    var empty_status = _x64_emit_assign_top_empty_container(ctx, op, platform, j, op_start_ns, op_slow_ms)
+    if empty_status == nil { return nil }
+    if empty_status == 1 { return 1 }
+    return 0
+}
+
+fn _x64_emit_assign_i32_checked_value(ctx, op, locals, top_string_fast_candidate) {
     _expr_int_check(ctx, op["expr"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _x64_assign_i32_update_local_facts(ctx, op, top_string_fast_candidate)
     _emit_eval_int_to_rax(ctx, op["expr"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return true
+}
 
+fn _x64_emit_assign_i32_result_store(ctx, op, off2) {
     if oren_type_tag(off2) != 0 {
         _emit_mov_mrbp_r64(ctx, 0 - off2, 0)
     } else {
         _x64_assign_i32_store_global_rax(ctx, op)
     }
+    return nil
+}
+
+fn _emit_assign_i32_op_x64(ctx, op, locals, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats) {
+    var state = _x64_assign_i32_state(ctx, op, locals, top_string_fast_stats)
+    var off2 = state["off"]
+    var top_string_fast_candidate = state["top_string_fast_candidate"]
+    var fast_path_status = _x64_emit_assign_i32_fast_paths(ctx, op, platform, j, op_start_ns, op_slow_ms, top_string_fast_stats, top_string_fast_candidate)
+    if fast_path_status == nil { return nil }
+    if fast_path_status == 1 { return 1 }
+    if top_string_fast_candidate == true {
+        top_string_fast_stats["miss_type"] = top_string_fast_stats["miss_type"] + 1
+    }
+    if _x64_emit_assign_i32_checked_value(ctx, op, locals, top_string_fast_candidate) == nil { return nil }
+    _x64_emit_assign_i32_result_store(ctx, op, off2)
     return 0
 }
 

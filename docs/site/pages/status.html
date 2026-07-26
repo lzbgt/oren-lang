@@ -237,6 +237,22 @@
 </ul>
 <p>  emission, and final patch/temp cleanup.</p>
 <ul>
+<li>X64 <code>assign_i32</code> lowering now separates state selection, top-level fast paths,</li>
+</ul>
+<p>  checked value emission, and local/global result storage.</p>
+<ul>
+<li>X64 global-root collection now separates vector/map entry filtering from</li>
+</ul>
+<p>  append emission, with the vector root count cached before iteration.</p>
+<ul>
+<li>X64 runtime function-offset lookup now separates direct function maps, compact</li>
+</ul>
+<p>  runtime-object vectors, and encoded-map fallback.</p>
+<ul>
+<li>X64 direct-call argument loading now separates register loads, outgoing stack</li>
+</ul>
+<p>  area validation, and stack argument stores.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

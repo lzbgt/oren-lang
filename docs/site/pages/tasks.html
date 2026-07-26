@@ -375,6 +375,22 @@
 <li>Current Windows x64 <code>sys_fcntl_setfl</code> wrapper cleanup separates label/fixup</li>
 </ul>
 <p>     state, body emission, and final patch/temp cleanup.</p>
+<ul>
+<li>Current x64 <code>assign_i32</code> cleanup separates local/global state selection,</li>
+</ul>
+<p>     top-level fast paths, checked value emission, and final store dispatch.</p>
+<ul>
+<li>Current x64 global-root cleanup separates vector/map entry filtering and</li>
+</ul>
+<p>     appending, and the vector path caches the root-offset count before looping.</p>
+<ul>
+<li>Current x64 runtime function-offset lookup cleanup separates direct function</li>
+</ul>
+<p>     maps, compact runtime-object offset vectors, and encoded map fallback.</p>
+<ul>
+<li>Current x64 direct-call argument loading separates register arguments, stack</li>
+</ul>
+<p>     area validation, and stack argument stores.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

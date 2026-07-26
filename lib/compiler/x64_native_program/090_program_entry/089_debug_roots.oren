@@ -166,6 +166,16 @@ fn _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname,
     return nil
 }
 
+fn _x64_collect_global_root_vector_entry(ctx, root_offsets, trace_root_names, root_names_src, root_offsets_src, root_runtime_src, runtime_globals, skip_runtime_globals, gi, arg_reg, name_reg) {
+    var gname = root_names_src[gi]
+    if _x64_global_root_name_is_skipped(gname) == true { return false }
+    var is_runtime_root = _x64_vector_global_root_is_runtime(gname, gi, root_runtime_src, runtime_globals)
+    if _x64_should_skip_runtime_global_root(skip_runtime_globals, is_runtime_root) == true { return false }
+    var off = root_offsets_src[gi]
+    _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg)
+    return true
+}
+
 fn _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg) {
     var vectors = _x64_global_root_vectors(ctx)
     if vectors == nil { return nil }
@@ -177,24 +187,34 @@ fn _x64_collect_global_roots_from_vectors(ctx, root_offsets, arg_reg, name_reg) 
     var trace_root_names = ctx["trace_gc_root_names"]
     var root_runtime_src = ctx["global_root_is_runtime"]
     var roots_scanned = 0
-        var gi = 0
-        while gi < oren_list_len(root_offsets_src) {
-            roots_scanned = roots_scanned + 1
-            var gname = root_names_src[gi]
-            if _x64_global_root_name_is_skipped(gname) == true {
-                gi = gi + 1
-                continue
-            }
-            var is_runtime_root = _x64_vector_global_root_is_runtime(gname, gi, root_runtime_src, runtime_globals)
-            if _x64_should_skip_runtime_global_root(skip_runtime_globals, is_runtime_root) == true {
-                gi = gi + 1
-                continue
-            }
-            var off = root_offsets_src[gi]
-            _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg)
-            gi = gi + 1
-        }
+    var root_offsets_n = oren_list_len(root_offsets_src)
+    var gi = 0
+    while gi < root_offsets_n {
+        roots_scanned = roots_scanned + 1
+        _x64_collect_global_root_vector_entry(ctx, root_offsets, trace_root_names, root_names_src, root_offsets_src, root_runtime_src, runtime_globals, skip_runtime_globals, gi, arg_reg, name_reg)
+        gi = gi + 1
+    }
     return roots_scanned
+}
+
+fn _x64_map_global_root_is_runtime(runtime_globals, gname) {
+    if gname == nil { return false }
+    if runtime_globals == nil { return false }
+    if runtime_globals[gname] != nil { return true }
+    return false
+}
+
+fn _x64_collect_global_root_map_entry(ctx, root_offsets, trace_root_names, runtime_globals, skip_runtime_globals, pair, arg_reg, name_reg) {
+    var gname = pair[0]
+    if _x64_global_root_name_is_skipped(gname) == true { return false }
+    var is_runtime_root = _x64_map_global_root_is_runtime(runtime_globals, gname)
+    if _x64_should_skip_runtime_global_root(skip_runtime_globals, is_runtime_root) == true { return false }
+    var off_enc = pair[1]
+    if oren_type_tag(off_enc) == 1 {
+        var off = off_enc - 1
+        _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg)
+    }
+    return true
 }
 
 fn _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg) {
@@ -204,29 +224,15 @@ fn _x64_collect_global_roots_from_map(ctx, root_offsets, arg_reg, name_reg) {
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
     var roots_scanned = 0
-        var gi2 = 0
-        var pair = [nil, nil]
-        while 1 {
-            var okg = oren_iter_next_entry(gmap, gi2, pair)
-            if okg == 0 { break }
-            roots_scanned = roots_scanned + 1
-            var gname = pair[0]
-            if _x64_global_root_name_is_skipped(gname) == true {
-                gi2 = gi2 + 1
-                continue
-            }
-            if _x64_should_skip_runtime_global_root(skip_runtime_globals,
-                gname != nil && runtime_globals != nil && runtime_globals[gname] != nil) == true {
-                gi2 = gi2 + 1
-                continue
-            }
-            var off_enc = pair[1]
-            if oren_type_tag(off_enc) == 1 {
-                var off = off_enc - 1
-                _x64_append_collected_global_root(ctx, root_offsets, trace_root_names, gname, off, arg_reg, name_reg)
-            }
-            gi2 = gi2 + 1
-        }
+    var gi2 = 0
+    var pair = [nil, nil]
+    while 1 {
+        var okg = oren_iter_next_entry(gmap, gi2, pair)
+        if okg == 0 { break }
+        roots_scanned = roots_scanned + 1
+        _x64_collect_global_root_map_entry(ctx, root_offsets, trace_root_names, runtime_globals, skip_runtime_globals, pair, arg_reg, name_reg)
+        gi2 = gi2 + 1
+    }
     return roots_scanned
 }
 

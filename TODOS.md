@@ -3439,3 +3439,8 @@ design evidence lives under `project-doc/`.
 - X64 string-batch trace setup now separates phase-log lookup, progress-env
   gating, and start-event emission; Windows x64 `sys_fcntl_setfl` lowering now
   separates label/fixup state, body emission, and final patch/temp cleanup.
+- X64 `assign_i32` lowering now separates state selection, top-level fast paths,
+  checked value emission, and result storage; global-root collection now
+  separates vector/map entry filtering from appending, runtime function-offset
+  lookup separates direct/compact/encoded-map paths, and direct-call argument
+  loading separates register loads from outgoing stack stores.

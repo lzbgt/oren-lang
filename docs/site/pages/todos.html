@@ -4941,6 +4941,13 @@
 </ul>
 <p>  gating, and start-event emission; Windows x64 <code>sys_fcntl_setfl</code> lowering now</p>
 <p>  separates label/fixup state, body emission, and final patch/temp cleanup.</p>
+<ul>
+<li>X64 <code>assign_i32</code> lowering now separates state selection, top-level fast paths,</li>
+</ul>
+<p>  checked value emission, and result storage; global-root collection now</p>
+<p>  separates vector/map entry filtering from appending, runtime function-offset</p>
+<p>  lookup separates direct/compact/encoded-map paths, and direct-call argument</p>
+<p>  loading separates register loads from outgoing stack stores.</p>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>

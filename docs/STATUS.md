@@ -123,6 +123,14 @@ surfaces, but the following blockers remain:
   gating, and start-event emission.
 - Windows x64 `sys_fcntl_setfl` lowering now separates label/fixup state, body
   emission, and final patch/temp cleanup.
+- X64 `assign_i32` lowering now separates state selection, top-level fast paths,
+  checked value emission, and local/global result storage.
+- X64 global-root collection now separates vector/map entry filtering from
+  append emission, with the vector root count cached before iteration.
+- X64 runtime function-offset lookup now separates direct function maps, compact
+  runtime-object vectors, and encoded-map fallback.
+- X64 direct-call argument loading now separates register loads, outgoing stack
+  area validation, and stack argument stores.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.
