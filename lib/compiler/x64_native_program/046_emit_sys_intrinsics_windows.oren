@@ -726,21 +726,7 @@ fn _x64_windows_open_validate(ctx, expr, args) {
     return true
 }
 
-fn _x64_windows_open_state(ctx, locals, args) {
-    // Windows: implement `sys_open(path, flags, mode)` via KERNEL32!CreateFileA.
-    //
-    // Contract (syscall-first, capsule-safe):
-    // - `native_capsule_sys_open_pre(path, flags) -> pair` must be invoked first
-    // - resolved path pointer is at pair[0]
-    // - return value is a "fd-like" i64:
-    //     - on success: a HANDLE value (opaque; consumed by sys_read/sys_write/sys_close)
-    //     - on failure: negative (INVALID_HANDLE_VALUE = -1), treated as error by callers
-    // - `native_capsule_sys_open_post(pair, rc) -> rc` runs after the OS call
-    //
-    // NOTE (rolling):
-    // - We currently model file descriptors as Win32 HANDLEs directly.
-    // - sys_close on Windows tries closesocket() first, then falls back to CloseHandle(),
-    //   so returning a HANDLE here keeps semantics unified for IO and NET.
+fn _x64_windows_open_alloc_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 4) // path, flags, mode, pair
     if oren_type_tag(base) == 0 { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
@@ -748,12 +734,23 @@ fn _x64_windows_open_state(ctx, locals, args) {
     var tmp_mode = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_pair = _intr_tmp_off(ctx, locals, base + 3)
     if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base); return nil }
-
-    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
-    _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
-    _intr_eval_spill_x64(ctx, locals, args[2], tmp_mode)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     return {"base": base, "path": tmp_path, "flags": tmp_flags, "mode": tmp_mode, "pair": tmp_pair}
+}
+
+fn _x64_windows_open_spill_args(ctx, locals, args, state) {
+    _intr_eval_spill_x64(ctx, locals, args[0], state["path"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state["flags"])
+    _intr_eval_spill_x64(ctx, locals, args[2], state["mode"])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return false }
+    return true
+}
+
+fn _x64_windows_open_state(ctx, locals, args) {
+    // Windows `sys_open` returns fd-like Win32 HANDLE values consumed by IO/NET close paths.
+    var state = _x64_windows_open_alloc_state(ctx, locals)
+    if state == nil { return nil }
+    if _x64_windows_open_spill_args(ctx, locals, args, state) != true { return nil }
+    return state
 }
 
 fn _x64_windows_open_labels() {

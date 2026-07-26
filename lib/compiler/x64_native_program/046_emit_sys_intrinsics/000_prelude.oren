@@ -117,22 +117,7 @@ fn _emit_translate_fcntl_setfl_flags_linux_x64(ctx) {
     return nil
 }
 
-fn _emit_translate_fcntl_getfl_return_linux_x64(ctx) {
-    // Input:  rax = os_flags (or negative errno)
-    // Output: rax = oren_flags (or negative errno)
-    //
-    // Keep access bits (&3) and translate O_NONBLOCK.
-    //
-    // Scratch: r8, r9
-    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    var labels = {}
-    var fixups = []
-    var l_skip_all = _new_label(ctx, "fcntl_getfl_skip_all")
-    _emit_jcc_to_label(ctx, fixups, "l", l_skip_all) // rc < 0
-
-    bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 0))     // r8 = os_flags
-    bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, 3))   // rax = os_flags & 3 (access bits)
-
+fn _x64_fcntl_getfl_translate_nonblock(ctx, labels, fixups) {
     // if (os_flags & O_NONBLOCK) != 0 => rax |= OREN_O_NONBLOCK
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(9, 8))
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(9, labi.linux_open_flag_nonblock()))
@@ -141,7 +126,24 @@ fn _emit_translate_fcntl_getfl_return_linux_x64(ctx) {
     _emit_jcc_to_label(ctx, fixups, "e", l_skip_nb)
     bytes_extend(ctx["code"], core.insn_or_r64_imm32(0, OREN_O_NONBLOCK))
     _emit_label(ctx, labels, l_skip_nb)
+    return nil
+}
 
+fn _x64_fcntl_getfl_translate_success(ctx, labels, fixups) {
+    bytes_extend(ctx["code"], core.insn_mov_r64_r64(8, 0))     // r8 = os_flags
+    bytes_extend(ctx["code"], core.insn_and_r64_imm32(0, 3))   // rax = os_flags & 3 (access bits)
+    _x64_fcntl_getfl_translate_nonblock(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_translate_fcntl_getfl_return_linux_x64(ctx) {
+    // Input: rax = os_flags (or negative errno). Output: rax = Oren flags/errno.
+    bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
+    var labels = {}
+    var fixups = []
+    var l_skip_all = _new_label(ctx, "fcntl_getfl_skip_all")
+    _emit_jcc_to_label(ctx, fixups, "l", l_skip_all) // rc < 0
+    _x64_fcntl_getfl_translate_success(ctx, labels, fixups)
     _emit_label(ctx, labels, l_skip_all)
     _patch_local_fixups(ctx, labels, fixups)
     return nil
@@ -190,10 +192,7 @@ fn _x64_prepare_sys_read_windows_args(ctx, locals, args, capsule) {
     return state
 }
 
-fn _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
-    // Determine handle:
-    // - fd==0 => GetStdHandle(STD_INPUT_HANDLE)
-    // - else  => fd itself is a Win32 HANDLE
+fn _x64_emit_sys_read_windows_stdin_handle(ctx, local_fixups, tmp_fd, l_have_handle) {
     _intr_load_x64(ctx, 0, tmp_fd)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_have_handle)
@@ -208,7 +207,10 @@ fn _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_h
     // rcx = handle
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
+    return nil
+}
 
+fn _x64_emit_sys_read_windows_fd_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
     _emit_label(ctx, labels, l_have_handle)
     // If fd != 0, override rcx with the handle value.
     _intr_load_x64(ctx, 0, tmp_fd)
@@ -217,6 +219,13 @@ fn _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_h
     _emit_jcc_to_label(ctx, local_fixups, "e", l_skip_fd)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd(handle)
     _emit_label(ctx, labels, l_skip_fd)
+    return nil
+}
+
+fn _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle) {
+    // fd==0 uses GetStdHandle(STD_INPUT_HANDLE); otherwise fd is the Win32 HANDLE.
+    _x64_emit_sys_read_windows_stdin_handle(ctx, local_fixups, tmp_fd, l_have_handle)
+    _x64_emit_sys_read_windows_fd_handle(ctx, labels, local_fixups, tmp_fd, l_have_handle)
     return nil
 }
 

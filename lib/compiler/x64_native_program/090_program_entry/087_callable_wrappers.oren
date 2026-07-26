@@ -27,6 +27,17 @@ fn _x64_log_lambda_collection_done(ctx, phase_log, lambda_scan_skipped) {
     return nil
 }
 
+fn _x64_collect_lambda_candidates(ctx, stmts_all, top_info, type_ctors, trace_prog) {
+    if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
+    _x64_collect_lambda_stmt_list(ctx, stmts_all)
+    // Also scan synthesized `__top_level__` and type constructors.
+    if top_info["top_level_fn"] != nil {
+        callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
+    }
+    _x64_collect_lambda_type_ctors(ctx, type_ctors)
+    return nil
+}
+
 fn _x64_collect_lambda_uses(ctx, stmts_all, top_info, type_ctors, trace_prog, phase_log) {
     // Collect lambdas (anonymous Function nodes with name="") from the full statement set
     // that will actually be compiled.
@@ -41,14 +52,7 @@ fn _x64_collect_lambda_uses(ctx, stmts_all, top_info, type_ctors, trace_prog, ph
     // - x64 synthesizes type constructors.
     var lambda_scan_skipped = false
     if ctx["_native_has_lambda_candidates"] == true {
-        if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
-        _x64_collect_lambda_stmt_list(ctx, stmts_all)
-        // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
-        if top_info["top_level_fn"] != nil {
-            callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
-        }
-        // Also scan synthesized type constructors (not present in `linked2["statements"]`).
-        _x64_collect_lambda_type_ctors(ctx, type_ctors)
+        _x64_collect_lambda_candidates(ctx, stmts_all, top_info, type_ctors, trace_prog)
     } else {
         lambda_scan_skipped = true
         if trace_prog { print("[x64_compile] collect lambdas skipped (no candidates)") }

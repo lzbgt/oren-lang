@@ -169,33 +169,35 @@ fn _emit_gc_visible_call_x64(ctx, callee_name) {
     return nil
 }
 
+fn _x64_gc_root_insert_sorted(offs, seen, off) {
+    if seen[off] == true { return nil }
+    seen[off] = true
+    var insert_at = oren_list_len(offs)
+    var i = 0
+    while i < oren_list_len(offs) {
+        if off < offs[i] {
+            insert_at = i
+            break
+        }
+        i = i + 1
+    }
+    oren_list_push(offs, 0)
+    var j = oren_list_len(offs) - 1
+    while j > insert_at {
+        offs[j] = offs[j - 1]
+        j = j - 1
+    }
+    offs[insert_at] = off
+    return nil
+}
+
 fn _collect_gc_root_local_offsets_x64(locals) {
     var offs = []
     if locals == nil { return offs }
     var seen = {}
     for name in locals {
         var off = locals[name]
-        if oren_type_tag(off) != 0 {
-            if seen[off] != true {
-                seen[off] = true
-                var insert_at = oren_list_len(offs)
-                var i = 0
-                while i < oren_list_len(offs) {
-                    if off < offs[i] {
-                        insert_at = i
-                        break
-                    }
-                    i = i + 1
-                }
-                oren_list_push(offs, 0)
-                var j = oren_list_len(offs) - 1
-                while j > insert_at {
-                    offs[j] = offs[j - 1]
-                    j = j - 1
-                }
-                offs[insert_at] = off
-            }
-        }
+        if oren_type_tag(off) != 0 { _x64_gc_root_insert_sorted(offs, seen, off) }
     }
     return offs
 }

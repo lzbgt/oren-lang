@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 system/data helper cleanup now separates GC-root sorted insertion, C-string
+  sentinel normalization, debug-info entry field emission, Linux `fcntl_getfl`
+  flag translation, Windows read-handle selection, and Windows open state setup.
 - X64 parser/codegen helper cleanup now separates local/global variable loads,
   function-value suffix resolution, string-compare pointer probes, LIST_INT push
   reserve emission, and late synthesized fnwrap compilation.

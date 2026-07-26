@@ -183,6 +183,17 @@ fn _data_cstr0_record_unique(ctx, s, off) {
     return nil
 }
 
+fn _data_cstr0_normalize_sentinel(s) {
+    if s == 0 { return "" }
+    return s
+}
+
+fn _data_cstr0_validate_arg(ctx, s) {
+    if oren_is_string(s) == true { return true }
+    _data_cstr0_bad_arg(ctx, s)
+    return false
+}
+
 fn _data_add_cstr0(ctx, s) {
     // Add a NUL-terminated C string to the appended data blob and return its byte offset.
     //
@@ -194,17 +205,8 @@ fn _data_add_cstr0(ctx, s) {
     //   but it reduces binary size and makes pointer identity stable for repeated literals.
     if ctx == nil { return 0 }
     _data_cstr0_ensure_state(ctx)
-
-    // In native mode, some call sites use raw 0 as a "null string pointer" sentinel.
-    // Treat it as an empty string here so string-y emitters don't crash during cross-target builds.
-    if s == 0 { s = "" }
-    // Defensive: a corrupted/invalid AST (usually from a bad astbin cache) can surface a non-string
-    // value here. Avoid panicking inside `oren_string_len` (hard crash) and instead report a
-    // compiler error so callers can fall back or advise `oren clean`.
-    if oren_is_string(s) != true {
-        _data_cstr0_bad_arg(ctx, s)
-        return 0
-    }
+    s = _data_cstr0_normalize_sentinel(s)
+    if _data_cstr0_validate_arg(ctx, s) != true { return 0 }
     var existing = _data_cstr0_existing_off(ctx, s)
     if existing >= 0 { return existing }
 
@@ -858,9 +860,8 @@ fn _data_dbginfo_display_name(ctx, nm0) {
     return nm0
 }
 
-fn _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len) {
+fn _data_dbginfo_entry_offsets(entries, i, code_len) {
     var e = entries[i]
-    var nm0 = e["name"]
     var start_off = e["off"]
     var end_off = code_len
     if i + 1 < oren_list_len(entries) {
@@ -868,17 +869,19 @@ fn _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len) {
     }
     // Offsets are always integers (0 is valid). Treat missing offsets as a bug upstream.
     if end_off < start_off { end_off = start_off }
+    return {"name": e["name"], "start": start_off, "end": end_off}
+}
 
-    var text_base = abi.x64_v0_text_base_addr(platform)
-    push_u64_le(ctx["data"], text_base + start_off)
-    push_u64_le(ctx["data"], text_base + end_off)
-
-    var disp = _data_dbginfo_display_name(ctx, nm0)
+fn _data_emit_dbginfo_name(ctx, name) {
+    var disp = _data_dbginfo_display_name(ctx, name)
     var nb_len = oren_string_len(disp)
     push_u64_le(ctx["data"], nb_len)
     bytes_extend_string(ctx["data"], disp)
     _data_align8(ctx)
+    return nil
+}
 
+fn _data_emit_dbginfo_reserved_fields(ctx) {
     // File/line/column/parameter metadata is reserved for later native debug data.
     push_u64_le(ctx["data"], 0)
     _data_align8(ctx)
@@ -888,11 +891,22 @@ fn _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len) {
     return nil
 }
 
+fn _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len) {
+    var info = _data_dbginfo_entry_offsets(entries, i, code_len)
+    var text_base = abi.x64_v0_text_base_addr(platform)
+    push_u64_le(ctx["data"], text_base + info["start"])
+    push_u64_le(ctx["data"], text_base + info["end"])
+    _data_emit_dbginfo_name(ctx, info["name"])
+    _data_emit_dbginfo_reserved_fields(ctx)
+    return nil
+}
+
 fn _data_emit_dbginfo_entries(ctx, platform, entries) {
     var code_len = 0
     if ctx["code"] != nil { code_len = bytes_len(ctx["code"]) }
     var i = 0
-    while i < oren_list_len(entries) {
+    var entries_n = oren_list_len(entries)
+    while i < entries_n {
         _data_emit_one_dbginfo_entry(ctx, platform, entries, i, code_len)
         i = i + 1
     }
