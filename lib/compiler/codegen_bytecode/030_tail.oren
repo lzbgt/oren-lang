@@ -605,11 +605,7 @@ fn bytecode_emit_program(out_path, ctx) {
             if s == nil { s = "" }
             var len = oren_string_len(s)
             bytes.bytes_push_u16_le(out, len)
-            var si = 0
-            while si < len {
-                bytes.bytes_push(out, oren_string_byte_at_unchecked(s, si) & 255)
-                si = si + 1
-            }
+            bytes.bytes_extend_string(out, s)
         }
         if c["type"] == "Bytes" {
             // Type BYTES (rolling): u32 length + raw bytes

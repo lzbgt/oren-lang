@@ -1024,14 +1024,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var name_idx = bytes_len(strtab)
         
         bytes_push(strtab, 95) // '_'
-        // Avoid an intermediate byte carrier in hot emitter paths.
-        var k2 = 0
-        var n2 = 0
-        if bind_name != nil { n2 = oren_string_len(bind_name) }
-        while k2 < n2 {
-            bytes_push(strtab, oren_string_byte_at_unchecked(bind_name, k2) & 255)
-            k2 = k2 + 1
-        }
+        _macho_push_string_bytes(strtab, bind_name)
         bytes_push(strtab, 0)
         
         push_u32_le(symtab, name_idx) // n_strx
@@ -1057,14 +1050,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             
             var name_idx_exp = bytes_len(strtab)
             bytes_push(strtab, 95) // '_'
-            // Avoid an intermediate byte carrier in hot emitter paths.
-            var k3 = 0
-            var n3 = 0
-            if f_name != nil { n3 = oren_string_len(f_name) }
-            while k3 < n3 {
-                bytes_push(strtab, oren_string_byte_at_unchecked(f_name, k3) & 255)
-                k3 = k3 + 1
-            }
+            _macho_push_string_bytes(strtab, f_name)
             bytes_push(strtab, 0)
             
             push_u32_le(symtab, name_idx_exp)

@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- Compiler byte output now routes bytecode constant strings and ARM64 Mach-O
+  import/export string-table names through byte-builder string extension,
+  removing residual per-byte string-read loops from those hot emitters.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

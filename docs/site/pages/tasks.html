@@ -67,7 +67,10 @@
 <ul>
 <li>Track hot-loop and allocation gates through the existing performance scripts.</li>
 <li>Do not retain local codegen probes unless profiles prove aggregate wall-time wins.</li>
+<li>Current compiler byte-output cleanup routes full-string bytecode constants</li>
 </ul>
+<p>     and ARM64 Mach-O string-table names through byte-builder string extension</p>
+<p>     instead of residual per-byte string-read loops.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

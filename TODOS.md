@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- Compiler bytecode constant strings and ARM64 Mach-O import/export string-table
+  names now append through byte-builder string extension instead of per-byte
+  string-read loops, with the byte-hotpath guard pinning both shapes.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

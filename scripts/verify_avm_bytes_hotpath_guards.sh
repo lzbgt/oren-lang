@@ -33,6 +33,14 @@ if ! grep -Fq 'bytes.bytes_push(out, (n >> 56) & 255)' <<<"$bytecode_emit_u64_im
   exit 1
 fi
 
+bytecode_const_string_impl="$(sed -n '/if c\["type"\] == "String" {/,/if c\["type"\] == "Bytes" {/p' lib/compiler/codegen_bytecode/030_tail.oren)"
+if ! grep -Fq 'bytes.bytes_push_u16_le(out, len)' <<<"$bytecode_const_string_impl" ||
+  ! grep -Fq 'bytes.bytes_extend_string(out, s)' <<<"$bytecode_const_string_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(s, si)' <<<"$bytecode_const_string_impl"; then
+  echo "ERROR: bytecode constant string emission must use byte-builder string extension, not a per-byte string loop" >&2
+  exit 1
+fi
+
 if grep -q 'avm_call_native2(vm, 1, 3' lib/avm/avm_native_compiler_cases.inc; then
   echo "ERROR: AVM read_u8_buf compiler shim must route to byte-native FS.read_u8_buf, not legacy read_bytes" >&2
   exit 1
@@ -1109,6 +1117,7 @@ fi
 arm64_elf_string_impl="$(sed -n '/fn _elf_push_utf8_aligned/,/fn _elf_push_phdr/p; /fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/arm64_elf.oren)"
 x64_elf_string_impl="$(sed -n '/fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/x64_elf.oren)"
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
 x64_pe_ascii_impl="$(sed -n '/fn push_ascii_z/,/fn _pe_path_basename/p' lib/compiler/x64_pe.oren)"
 if ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/x64_elf.oren ||
@@ -1120,13 +1129,16 @@ if ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
+  test "$(grep -Fc '_macho_push_string_bytes(strtab,' <<<"$arm64_macho_file_impl")" != "2" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_pe_ascii_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_elf_string_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_pe_ascii_impl" ||
   grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
-  grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl"; then
+  grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(bind_name' <<<"$arm64_macho_file_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(f_name' <<<"$arm64_macho_file_impl"; then
   echo "ERROR: compiler artifact string append helpers must use byte-builder string extension, not per-byte string loops" >&2
   exit 1
 fi

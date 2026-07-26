@@ -71,6 +71,11 @@
 </table>
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
+<li>Compiler bytecode constant strings and ARM64 Mach-O import/export string-table</li>
+</ul>
+<p>  names now append through byte-builder string extension instead of per-byte</p>
+<p>  string-read loops, with the byte-hotpath guard pinning both shapes.</p>
+<ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>
 <p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>
