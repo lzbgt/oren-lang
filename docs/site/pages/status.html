@@ -159,6 +159,23 @@
 </ul>
 <p>  selection, unique display-name insertion, and list/map fallback iteration.</p>
 <ul>
+<li>X64 spawn-call preparation now separates fixed spill-layout state assembly</li>
+</ul>
+<p>  from call-part validation and temporary-slot reservation.</p>
+<ul>
+<li>X64 list-int named-call dispatch now separates length, access/mutation, and</li>
+</ul>
+<p>  unchecked fast-slot intrinsic routing helpers.</p>
+<ul>
+<li>X64 function-frame preparation now separates stack alignment, outgoing call</li>
+</ul>
+<p>  area sizing, callee-save sizing, base local collection, and temp/literal slot</p>
+<p>  reservation helpers.</p>
+<ul>
+<li>Windows x64 <code>sys_fstat</code> lowering now separates label allocation and final</li>
+</ul>
+<p>  done/posthook/temp-pop emission from the main wrapper.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

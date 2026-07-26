@@ -988,9 +988,12 @@ if [[ "$(grep -F 'core.insn_movdqu_m128_xmm_disp(0,' <<<"$x64_ctx_xmm_impl" | wc
   echo "ERROR: x64 context-switch XMM save/restore emission must stay straight-line, not fixed compiler loops" >&2
   exit 1
 fi
-x64_named_call_core_impl="$(sed -n '/fn _x64_emit_named_call_list_int_intrinsic_v0/,/fn _x64_emit_named_call_call_obj_list_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)"
+x64_named_call_core_impl="$(sed -n '/fn _x64_emit_named_call_list_int_len_v0/,/fn _x64_emit_named_call_call_obj_list_v0/p' lib/compiler/x64_native_program/044_emit_call_expr.oren)"
 if ! grep -Fq 'fn _x64_emit_named_call_index_intrinsic_v0' <<<"$x64_named_call_core_impl" ||
   ! grep -Fq 'fn _x64_emit_named_call_list_intrinsic_v0' <<<"$x64_named_call_core_impl" ||
+  ! grep -Fq 'fn _x64_emit_named_call_list_int_len_v0(ctx, expr, locals, nm)' <<<"$x64_named_call_core_impl" ||
+  ! grep -Fq 'fn _x64_emit_named_call_list_int_access_v0(ctx, expr, locals, nm)' <<<"$x64_named_call_core_impl" ||
+  ! grep -Fq 'fn _x64_emit_named_call_list_int_fast_slots_v0(ctx, expr, locals, nm)' <<<"$x64_named_call_core_impl" ||
   ! grep -Fq 'fn _x64_emit_named_call_core_intrinsic_v0' <<<"$x64_named_call_core_impl" ||
   ! grep -Fq '_x64_emit_named_call_index_intrinsic_v0(ctx, expr, locals, nm)' <<<"$x64_named_call_core_impl" ||
   ! grep -Fq '_x64_emit_named_call_list_intrinsic_v0(ctx, expr, locals, nm)' <<<"$x64_named_call_core_impl" ||
@@ -1040,6 +1043,7 @@ if ! grep -Fq 'fn _intr_tmp_pool_off(ctx, idx)' <<<"$x64_parser_helper_split_imp
   ! grep -Fq 'fn _x64_call_obj_list_intrinsic_spill_fn(ctx, locals, fn_obj_expr, st)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_indirect_call_emit_nospread(ctx, locals, fn_obj_expr, args, argc)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_spawn_call_parts(ctx, expr)' <<<"$x64_parser_helper_split_impl" ||
+  ! grep -Fq 'fn _x64_spawn_prepare_state(parts, args, argc, spread, has_spread, base)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_varargs_named_call_emit_prepared(ctx, locals, st)' <<<"$x64_parser_helper_split_impl" ||
   ! grep -Fq 'fn _x64_member_index_expr(ctx, expr)' <<<"$x64_parser_helper_split_impl"; then
   echo "ERROR: x64 temp, list-sum, Windows process, call-expression, and member-expression preparation must stay split into focused parser helpers" >&2
@@ -1063,6 +1067,7 @@ $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepa
 $(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
 $(sed -n '/fn _x64_win_wait_single_object_result_labels/,/fn _emit_intrinsic_sys_win_wait_single_object_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_threads.oren)
 $(sed -n '/fn _emit_win64_stat_regular_file_mode_x64/,/fn _emit_win64_stat_capsule_post_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
+$(sed -n '/fn _x64_windows_fstat_labels/,/fn _x64_unlink_rmdir_windows_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _emit_nanosleep_timespec_syscall_x64/,/fn _x64_linux_nanosleep_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren)
 $(sed -n '/fn _emit_windows_write_ptr_len/,/fn _emit_panic_preserve_msg_reg/p' lib/compiler/x64_native_program/071_panic.oren)
 $(sed -n '/fn _data_cstr0_table_prepare/,/fn _data_add_fnobj/p' lib/compiler/x64_native_program/010_data_io.oren)
@@ -1079,6 +1084,8 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_windows_fstat_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_nanosleep_timespec_on_stack_x64(ctx, tmp_ns)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_windows_writefile_stdout_handle(ctx, ptr_reg, len_reg)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _data_reserve_u64_table_region(ctx, count)' <<<"$x64_sys_data_split_impl" ||
@@ -1089,6 +1096,16 @@ if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64
   ! grep -Fq 'fn _x64_new_ctx_base_functions(ctx)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_new_ctx_runtime_boot_globals(ctx, trace_ctx)' <<<"$x64_sys_data_split_impl"; then
   echo "ERROR: x64 system read/stat/panic/data-table reservation/emission, FFI, and context setup codegen must keep split focused helper bodies" >&2
+  exit 1
+fi
+x64_function_frame_split_impl="$(sed -n '/fn _x64_frame_align_unit/,/fn _x64_emit_function_spills/p' lib/compiler/x64_native_program/080_functions_compile.oren)"
+if ! grep -Fq 'fn _x64_frame_align_unit(ctx)' <<<"$x64_function_frame_split_impl" ||
+  ! grep -Fq 'fn _x64_frame_align_bytes(n, align, step)' <<<"$x64_function_frame_split_impl" ||
+  ! grep -Fq 'fn _x64_frame_call_area(ctx, max_call_argc, align)' <<<"$x64_function_frame_split_impl" ||
+  ! grep -Fq 'fn _x64_frame_save_state(ctx, align)' <<<"$x64_function_frame_split_impl" ||
+  ! grep -Fq 'fn _x64_prepare_function_base_slots(ctx, fn_node, name, ops)' <<<"$x64_function_frame_split_impl" ||
+  ! grep -Fq 'fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots)' <<<"$x64_function_frame_split_impl"; then
+  echo "ERROR: x64 function-frame layout and local-slot preparation must stay split into focused helpers" >&2
   exit 1
 fi
 x64_float_cmp_branch_impl="$(sed -n '/fn _x64_float_cmp_emit_two_jcc_then_done/,/fn _emit_float_cmp_to_bool_x64/p' lib/compiler/x64_native_program/047_emit_float_intrinsics.oren)"

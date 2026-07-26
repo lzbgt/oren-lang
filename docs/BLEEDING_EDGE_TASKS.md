@@ -154,6 +154,15 @@ This file is the concise task view. Detailed implementation status lives in
      while preserving the same `0` / `-ETIMEDOUT` / `-1` mapping.
    - Current x64 runtime-object debug symtab-name cleanup separates compact-name
      selection, unique display-name insertion, and list/map fallback iteration.
+   - Current x64 spawn-call cleanup separates fixed spill-layout state assembly
+     from call-part validation and temporary-slot reservation.
+   - Current x64 list-int named-call dispatch cleanup separates length,
+     access/mutation, and unchecked fast-slot intrinsic routing helpers.
+   - Current x64 function-frame cleanup separates stack alignment, outgoing call
+     area sizing, callee-save sizing, base local collection, and temp/literal
+     slot reservation helpers.
+   - Current Windows x64 `sys_fstat` cleanup separates label allocation and final
+     done/posthook/temp-pop emission from the main wrapper.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

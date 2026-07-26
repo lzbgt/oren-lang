@@ -83,6 +83,15 @@ surfaces, but the following blockers remain:
   while preserving the same `0` / `-ETIMEDOUT` / `-1` mapping.
 - X64 runtime-object debug symtab-name collection now separates compact-name
   selection, unique display-name insertion, and list/map fallback iteration.
+- X64 spawn-call preparation now separates fixed spill-layout state assembly
+  from call-part validation and temporary-slot reservation.
+- X64 list-int named-call dispatch now separates length, access/mutation, and
+  unchecked fast-slot intrinsic routing helpers.
+- X64 function-frame preparation now separates stack alignment, outgoing call
+  area sizing, callee-save sizing, base local collection, and temp/literal slot
+  reservation helpers.
+- Windows x64 `sys_fstat` lowering now separates label allocation and final
+  done/posthook/temp-pop emission from the main wrapper.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

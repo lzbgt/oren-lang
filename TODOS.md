@@ -67,6 +67,15 @@ design evidence lives under `project-doc/`.
   while preserving the same `0` / `-ETIMEDOUT` / `-1` mapping.
 - x64 runtime-object debug symtab-name collection now separates compact-name
   selection, unique display-name insertion, and list/map fallback iteration.
+- x64 spawn-call preparation now separates fixed spill-layout state assembly from
+  call-part validation and temporary-slot reservation.
+- x64 list-int named-call dispatch now separates length, access/mutation, and
+  unchecked fast-slot intrinsic routing helpers.
+- x64 function-frame preparation now separates stack alignment, outgoing call
+  area sizing, callee-save sizing, base local collection, and temp/literal slot
+  reservation helpers.
+- Windows x64 `sys_fstat` lowering now separates label allocation and final
+  done/posthook/temp-pop emission from the main wrapper.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops, and PE import hint/name alignment

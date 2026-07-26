@@ -269,13 +269,19 @@ fn _x64_reserve_literal_frame_slots(ctx, locals, local_next, needs_literal_slots
     return {"literal_slot_count": literal_slot_count, "local_next": local_next}
 }
 
-fn _x64_compute_function_frame_layout(ctx, local_next, max_call_argc) {
-    var locals_pre_align_bytes = local_next - 8
-    var locals_size = locals_pre_align_bytes
+fn _x64_frame_align_unit(ctx) {
     var align = abi.stack_align_bytes(ctx["abi"])
     if align < 1 { align = 16 }
-    while core.int_mod(locals_size, align) != 0 { locals_size = locals_size + 1 }
+    return align
+}
 
+fn _x64_frame_align_bytes(n, align, step) {
+    var out = n
+    while core.int_mod(out, align) != 0 { out = out + step }
+    return out
+}
+
+fn _x64_frame_call_area(ctx, max_call_argc, align) {
     var regc = abi.max_int_reg_args(ctx["abi"])
     var shadow = abi.caller_shadow_bytes(ctx["abi"])
     var slot = abi.stack_arg_slot_bytes(ctx["abi"])
@@ -284,28 +290,42 @@ fn _x64_compute_function_frame_layout(ctx, local_next, max_call_argc) {
     var need_call_area = shadow + stack_slots * slot
     var call_area = abi.callee_call_area_bytes(ctx["abi"])
     if need_call_area > call_area { call_area = need_call_area }
-    while core.int_mod(call_area, align) != 0 { call_area = call_area + 1 }
+    call_area = _x64_frame_align_bytes(call_area, align, 1)
     ctx["cur_call_area_bytes"] = call_area
+    return {"regc": regc, "shadow": shadow, "call_area": call_area}
+}
 
+fn _x64_frame_save_state(ctx, align) {
     var save_regs = abi.callee_saved_regs(ctx["abi"])
     var save_n = 0
     if save_regs != nil { save_n = oren_list_len(save_regs) }
     var save_bytes = save_n * 8
-    while core.int_mod(save_bytes, align) != 0 { save_bytes = save_bytes + 8 }
+    save_bytes = _x64_frame_align_bytes(save_bytes, align, 8)
+    return {"save_regs": save_regs, "save_n": save_n, "save_bytes": save_bytes}
+}
+
+fn _x64_compute_function_frame_layout(ctx, local_next, max_call_argc) {
+    var locals_pre_align_bytes = local_next - 8
+    var align = _x64_frame_align_unit(ctx)
+    var locals_size = _x64_frame_align_bytes(locals_pre_align_bytes, align, 1)
+    var call_state = _x64_frame_call_area(ctx, max_call_argc, align)
+    var save_state = _x64_frame_save_state(ctx, align)
+    var call_area = call_state["call_area"]
+    var save_bytes = save_state["save_bytes"]
     var frame_size = locals_size + save_bytes + call_area
     return {
         "locals_pre_align_bytes": locals_pre_align_bytes,
         "locals_size": locals_size,
-        "regc": regc,
-        "shadow": shadow,
+        "regc": call_state["regc"],
+        "shadow": call_state["shadow"],
         "call_area": call_area,
-        "save_regs": save_regs,
-        "save_n": save_n,
+        "save_regs": save_state["save_regs"],
+        "save_n": save_state["save_n"],
         "frame_size": frame_size
     }
 }
 
-fn _x64_prepare_function_local_slots(ctx, fn_node, name, ops, needs_literal_slots) {
+fn _x64_prepare_function_base_slots(ctx, fn_node, name, ops) {
     var locals = {}
     var param_state = _x64_prepare_function_params(ctx, fn_node, name, locals)
     if param_state == nil { return nil }
@@ -318,7 +338,10 @@ fn _x64_prepare_function_local_slots(ctx, fn_node, name, ops, needs_literal_slot
 
     local_next = _x64_reserve_frame_scratch_slots(ctx, locals, local_next)
     if local_next < 0 { return nil }
+    return {"locals": locals, "params": params, "pc": pc, "local_next": local_next}
+}
 
+fn _x64_prepare_function_temp_slots(ctx, ops, locals, local_next, needs_literal_slots) {
     var intr_state = _x64_reserve_intrinsic_temp_slots(ctx, ops, locals, local_next)
     if intr_state == nil { return nil }
     var max_intr = intr_state["max_intr"]
@@ -331,13 +354,27 @@ fn _x64_prepare_function_local_slots(ctx, fn_node, name, ops, needs_literal_slot
     local_next = literal_state["local_next"]
 
     return {
-        "locals": locals,
-        "params": params,
-        "pc": pc,
         "max_intr": max_intr,
         "intr_lim": intr_lim,
         "literal_slot_count": literal_slot_count,
         "local_next": local_next
+    }
+}
+
+fn _x64_prepare_function_local_slots(ctx, fn_node, name, ops, needs_literal_slots) {
+    var base_state = _x64_prepare_function_base_slots(ctx, fn_node, name, ops)
+    if base_state == nil { return nil }
+    var locals = base_state["locals"]
+    var temp_state = _x64_prepare_function_temp_slots(ctx, ops, locals, base_state["local_next"], needs_literal_slots)
+    if temp_state == nil { return nil }
+    return {
+        "locals": locals,
+        "params": base_state["params"],
+        "pc": base_state["pc"],
+        "max_intr": temp_state["max_intr"],
+        "intr_lim": temp_state["intr_lim"],
+        "literal_slot_count": temp_state["literal_slot_count"],
+        "local_next": temp_state["local_next"]
     }
 }
 

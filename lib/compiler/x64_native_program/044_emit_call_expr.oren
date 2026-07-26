@@ -400,6 +400,19 @@ fn _x64_spawn_spill_count(argc, has_spread) {
     return spill_n
 }
 
+fn _x64_spawn_prepare_state(parts, args, argc, spread, has_spread, base) {
+    var st = {}
+    st["call"] = parts["call"]
+    st["fn_expr"] = parts["fn_expr"]
+    st["args"] = args
+    st["spread"] = spread
+    st["argc"] = argc
+    st["has_spread"] = has_spread
+    st["base"] = base
+    st["args_slot"] = iadd(base, argc)
+    return st
+}
+
 fn _x64_spawn_expr_prepare(ctx, expr) {
     var parts = _x64_spawn_call_parts(ctx, expr)
     if parts == nil { return nil }
@@ -424,16 +437,7 @@ fn _x64_spawn_expr_prepare(ctx, expr) {
     // - fn_obj:        base + argc + 5
     var base = _intr_tmp_push(ctx, _x64_spawn_spill_count(argc, has_spread))
     if oren_type_tag(base) == 0 { return nil }
-    var st = {}
-    st["call"] = parts["call"]
-    st["fn_expr"] = parts["fn_expr"]
-    st["args"] = args
-    st["spread"] = spread
-    st["argc"] = argc
-    st["has_spread"] = has_spread
-    st["base"] = base
-    st["args_slot"] = iadd(base, argc)
-    return st
+    return _x64_spawn_prepare_state(parts, args, argc, spread, has_spread, base)
 }
 
 fn _x64_spawn_spill_explicit_args(ctx, st, locals) {
@@ -805,7 +809,7 @@ fn _x64_emit_named_call_statement_only_v0(ctx, nm) {
     return false
 }
 
-fn _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) {
+fn _x64_emit_named_call_list_int_len_v0(ctx, expr, locals, nm) {
     if nm == "oren_list_int_len" || nm == "STD_list_int_len" {
         _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals)
         return true
@@ -814,6 +818,10 @@ fn _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) {
         _emit_list_int_len_unchecked_intrinsic_v0_x64(ctx, expr, locals)
         return true
     }
+    return false
+}
+
+fn _x64_emit_named_call_list_int_access_v0(ctx, expr, locals, nm) {
     if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
         _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals)
         return true
@@ -830,6 +838,10 @@ fn _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) {
         _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals)
         return true
     }
+    return false
+}
+
+fn _x64_emit_named_call_list_int_fast_slots_v0(ctx, expr, locals, nm) {
     if nm == "oren_list_int_reduce_sum_slots_unchecked" {
         _emit_list_int_reduce_sum_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
         return true
@@ -838,6 +850,13 @@ fn _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) {
         _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
         return true
     }
+    return false
+}
+
+fn _x64_emit_named_call_list_int_intrinsic_v0(ctx, expr, locals, nm) {
+    if _x64_emit_named_call_list_int_len_v0(ctx, expr, locals, nm) == true { return true }
+    if _x64_emit_named_call_list_int_access_v0(ctx, expr, locals, nm) == true { return true }
+    if _x64_emit_named_call_list_int_fast_slots_v0(ctx, expr, locals, nm) == true { return true }
     return false
 }
 
