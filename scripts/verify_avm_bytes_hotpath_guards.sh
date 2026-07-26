@@ -1002,8 +1002,7 @@ if ! grep -Fq 'fn _x64_emit_named_call_index_intrinsic_v0' <<<"$x64_named_call_c
   exit 1
 fi
 x64_program_entry_shape_impl="$(cat lib/compiler/x64_native_program/090_program_entry/020_part_b.oren)
-$(sed -n '/fn _x64_rtobj_should_merge_cstr0_offs/,/fn _x64_rtobj_apply_function_metadata/p' lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
-$(sed -n '/fn _x64_rtobj_apply_rip_data32_fixups/,/fn _x64_rtobj_apply_code_to_ctx/p' lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
+$(cat lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
 $(sed -n '/fn _x64_rtobj_symtab_compact_names/,/fn _x64_reserve_debug_symtab/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)
 $(sed -n '/fn _x64_reserve_debug_symtab/,/fn _x64_setup_program_debug_metadata/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)
 $(sed -n '/fn _x64_collect_global_root_vector_entry/,/fn _x64_setup_program_debug_metadata/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)"
@@ -1019,6 +1018,7 @@ if ! grep -Fq 'fn _x64_slow_fn_top_insert_index' <<<"$x64_program_entry_shape_im
   ! grep -Fq 'fn _x64_push_rtobj_symtab_names_map(ctx, sym_seen, sym_names, enc_map)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_debug_function_names(sym_seen, sym_names, fns)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_debug_import_names(sym_seen, sym_names, imports0)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_meta_fixups(ctx, meta)' <<<"$x64_program_entry_shape_impl" || ! grep -Fq 'fn _x64_rtobj_meta_function_info(ctx, meta)' <<<"$x64_program_entry_shape_impl" || ! grep -Fq 'fn _x64_rtobj_compile_decl_phase(ctx, fns, platform, call_depth_default_enabled, phase_log, trace, trace_state, decl_state)' <<<"$x64_program_entry_shape_impl" || ! grep -Fq 'fn _x64_rtobj_compile_wrapper_phase(ctx, wrappers, platform, call_depth_default_enabled, phase_log, trace, trace_state, decl_state)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_collect_global_root_vector_entry(ctx, root_offsets, trace_root_names, root_names_src, root_offsets_src, root_runtime_src, runtime_globals, skip_runtime_globals, gi, arg_reg, name_reg)' <<<"$x64_program_entry_shape_impl" || ! grep -Fq 'fn _x64_collect_global_root_map_entry(ctx, root_offsets, trace_root_names, runtime_globals, skip_runtime_globals, pair, arg_reg, name_reg)' <<<"$x64_program_entry_shape_impl" || ! grep -Fq 'fn _x64_map_global_root_is_runtime(runtime_globals, gname)' <<<"$x64_program_entry_shape_impl"; then
   echo "ERROR: x64 program-entry trace/cstr/debug/global-root helpers must stay split into focused parser bodies" >&2; exit 1
 fi

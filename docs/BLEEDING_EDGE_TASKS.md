@@ -218,6 +218,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 string/function cleanup separates string-batch count/item
      collection, callee-save and parameter spill emission, function phase start
      logging, and compiled-entry call-depth gating.
+   - Current x64 runtime-object build cleanup separates metadata fixup/root/import
+     and function-info assembly plus runtime-declaration and wrapper compilation
+     phases while preserving trace marks and metadata keys.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

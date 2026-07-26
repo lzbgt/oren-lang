@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 runtime-object build cleanup now separates metadata fixup/root/import and
+  function-info assembly plus runtime-declaration and wrapper compilation phases
+  while preserving trace marks and runtime-object metadata keys.
 - X64 string-batch and function-entry parser/codegen cleanup now separates
   batch count/item collection, callee-save and parameter spills, phase-start
   logging, and compiled-entry call-depth gating into focused helpers.

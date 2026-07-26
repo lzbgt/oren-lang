@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- X64 runtime-object build cleanup now separates metadata fixup/root/import and
+  function-info assembly plus runtime-declaration and wrapper compilation phases
+  while preserving trace marks and runtime-object metadata keys.
 - X64 string-batch and function-entry cleanup now separates batch count/item
   collection, callee-save and parameter spill emission, phase-start logging,
   and compiled-entry call-depth gating into focused helpers.

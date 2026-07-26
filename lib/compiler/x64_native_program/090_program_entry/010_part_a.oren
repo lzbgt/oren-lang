@@ -1054,35 +1054,68 @@ fn _x64_rtobj_finalize_blobs(ctx) {
     return {"code_u8": code_u8, "data_u8": data_u8, "data_tail_u8": tail, "data_prefix_len": prefix}
 }
 
-fn _x64_rtobj_finalize_meta(ctx, runtime_hash, backend_sig, data_prefix_len) {
+fn _x64_rtobj_meta_base(runtime_hash, backend_sig, data_prefix_len) {
     return {
         "schema": rtobj.RUNTIME_OBJ_SCHEMA,
         "backend": "x64",
         "backend_sig": backend_sig,
         "runtime_hash": runtime_hash,
-        "data_prefix_len": data_prefix_len,
-        "fn_offs_enc": _x64_rtobj_encode_offsets_map_int(ctx["functions"]),
-        "fn_offsets_compact": _x64_rtobj_encode_fn_offsets_compact(ctx["functions"]),
-        "x64_fixups_compact": _x64_rtobj_encode_fixups_compact(ctx["fixups"]),
-        "fixups_enc": _x64_rtobj_encode_fixups(ctx["fixups"]),
-        "rip_data32_fixups_enc": _x64_rtobj_encode_rip_data32_fixups(ctx["rip_data32_fixups"]),
-        "globals": ctx["globals"],
-        "global_root_names": ctx["global_root_names"],
-        "global_root_offsets": ctx["global_root_offsets"],
-        "global_root_is_runtime": ctx["global_root_is_runtime"],
-        // Carry runtime imports/FFI name remaps so rtobj-mode emitters can resolve external symbols.
-        "import_list": ctx["import_list"],
-        "ffi_link_names": ctx["ffi_link_names"],
-        // PERF (stage2-native hot path):
-        // Do not persist the full runtime `cstr0_offs` dedup map in rtobj meta by default.
-        // It is large (all runtime string literals) and decoding it can dominate "compile one file"
-        // even though merging it is optional for correctness.
-        "cstr0_list_enc": _x64_rtobj_encode_offsets_list_int(ctx["cstr0_list"]),
-        "declared_functions": ctx["declared_functions"],
-        "func_arity": ctx["func_arity"],
-        "func_varargs_fixed": ctx["func_varargs_fixed"],
-        "func_decl_order": ctx["func_decl_order"],
-        "lambda_counter_enc": ctx["lambda_counter"] + 1
+        "data_prefix_len": data_prefix_len
+    }
+}
+
+fn _x64_rtobj_meta_fixups(ctx, meta) {
+    meta["fn_offs_enc"] = _x64_rtobj_encode_offsets_map_int(ctx["functions"])
+    meta["fn_offsets_compact"] = _x64_rtobj_encode_fn_offsets_compact(ctx["functions"])
+    meta["x64_fixups_compact"] = _x64_rtobj_encode_fixups_compact(ctx["fixups"])
+    meta["fixups_enc"] = _x64_rtobj_encode_fixups(ctx["fixups"])
+    meta["rip_data32_fixups_enc"] = _x64_rtobj_encode_rip_data32_fixups(ctx["rip_data32_fixups"])
+    return nil
+}
+
+fn _x64_rtobj_meta_globals(ctx, meta) {
+    meta["globals"] = ctx["globals"]
+    meta["global_root_names"] = ctx["global_root_names"]
+    meta["global_root_offsets"] = ctx["global_root_offsets"]
+    meta["global_root_is_runtime"] = ctx["global_root_is_runtime"]
+    return nil
+}
+
+fn _x64_rtobj_meta_external_names(ctx, meta) {
+    // Carry runtime imports/FFI name remaps so rtobj-mode emitters can resolve external symbols.
+    meta["import_list"] = ctx["import_list"]
+    meta["ffi_link_names"] = ctx["ffi_link_names"]
+    // PERF (stage2-native hot path): do not persist the full runtime `cstr0_offs`
+    // map by default; all runtime strings are large and merging is optional.
+    meta["cstr0_list_enc"] = _x64_rtobj_encode_offsets_list_int(ctx["cstr0_list"])
+    return nil
+}
+
+fn _x64_rtobj_meta_function_info(ctx, meta) {
+    meta["declared_functions"] = ctx["declared_functions"]
+    meta["func_arity"] = ctx["func_arity"]
+    meta["func_varargs_fixed"] = ctx["func_varargs_fixed"]
+    meta["func_decl_order"] = ctx["func_decl_order"]
+    meta["lambda_counter_enc"] = ctx["lambda_counter"] + 1
+    return nil
+}
+
+fn _x64_rtobj_finalize_meta(ctx, runtime_hash, backend_sig, data_prefix_len) {
+    var meta = _x64_rtobj_meta_base(runtime_hash, backend_sig, data_prefix_len)
+    _x64_rtobj_meta_fixups(ctx, meta)
+    _x64_rtobj_meta_globals(ctx, meta)
+    _x64_rtobj_meta_external_names(ctx, meta)
+    _x64_rtobj_meta_function_info(ctx, meta)
+    return meta
+}
+
+fn _x64_rtobj_finalize_build_payload(blobs, meta, cstr0_offsets_u8) {
+    return {
+        "meta": meta,
+        "code_u8": blobs["code_u8"],
+        "data_u8": blobs["data_u8"],
+        "data_tail_u8": blobs["data_tail_u8"],
+        "cstr0_offsets_u8": cstr0_offsets_u8
     }
 }
 
@@ -1108,7 +1141,7 @@ fn _x64_rtobj_finalize_build(ctx, runtime_hash, backend_sig, phase_log) {
     var meta = _x64_rtobj_finalize_meta(ctx, runtime_hash, backend_sig, blobs["data_prefix_len"])
     _x64_rtobj_log_finalize_done(ctx, code_u8, data_u8, phase_log)
     var cstr0_offsets_u8 = _x64_rtobj_encode_offsets_u8_from_int_list(ctx["cstr0_list"])
-    return {"meta": meta, "code_u8": code_u8, "data_u8": data_u8, "data_tail_u8": blobs["data_tail_u8"], "cstr0_offsets_u8": cstr0_offsets_u8}
+    return _x64_rtobj_finalize_build_payload(blobs, meta, cstr0_offsets_u8)
 }
 
 fn _x64_rtobj_summary_timing_ms(timing) {
@@ -1251,35 +1284,42 @@ fn _x64_rtobj_decl_trace_state() {
     return {"trace_decls": trace_decls, "top_decls": top_decls, "top_keep": 12, "sum_decl_ns": 0}
 }
 
+fn _x64_rtobj_compile_decl_phase(ctx, fns, platform, call_depth_default_enabled, phase_log, trace, trace_state, decl_state) {
+    var decl_res = _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabled,
+        decl_state["trace_decls"], decl_state["top_decls"], decl_state["top_keep"], phase_log, trace)
+    if decl_res == nil { return nil }
+    decl_state["sum_decl_ns"] = decl_state["sum_decl_ns"] + decl_res["sum_decl_ns"]
+    decl_state["top_decls"] = decl_res["top_decls"]
+    _x64_rtobj_trace_mark(trace_state, "decls")
+    return true
+}
+
+fn _x64_rtobj_compile_wrapper_phase(ctx, wrappers, platform, call_depth_default_enabled, phase_log, trace, trace_state, decl_state) {
+    var wrap_res = _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled,
+        decl_state["trace_decls"], decl_state["top_decls"], decl_state["top_keep"], phase_log, trace)
+    if wrap_res == nil { return nil }
+    decl_state["sum_decl_ns"] = decl_state["sum_decl_ns"] + wrap_res["sum_decl_ns"]
+    decl_state["top_decls"] = wrap_res["top_decls"]
+    _x64_rtobj_trace_mark(trace_state, "wrap")
+    return true
+}
+
 fn _x64_rtobj_compile_runtime_functions_and_wrappers(ctx, fns, platform, phase_log, trace, trace_state) {
     // Compile runtime named functions, then only the wrappers needed by the runtime itself:
     // - named functions used as first-class values (tracked in ctx["fnwrap_needed"])
     // - lambda wrappers (always needed when a lambda literal exists)
     var decl_state = _x64_rtobj_decl_trace_state()
-    var trace_decls = decl_state["trace_decls"] == true
-    var top_decls = decl_state["top_decls"]
-    var top_keep = decl_state["top_keep"]
-    var sum_decl_ns = decl_state["sum_decl_ns"]
     var call_depth_default_enabled = _x64_call_depth_default_enabled(platform)
 
-    var decl_res = _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabled,
-        trace_decls, top_decls, top_keep, phase_log, trace)
-    if decl_res == nil { return nil }
-    sum_decl_ns = sum_decl_ns + decl_res["sum_decl_ns"]
-    top_decls = decl_res["top_decls"]
-    _x64_rtobj_trace_mark(trace_state, "decls")
+    if _x64_rtobj_compile_decl_phase(ctx, fns, platform, call_depth_default_enabled, phase_log, trace, trace_state, decl_state) != true { return nil }
 
     var wrappers = _x64_rtobj_synthesize_wrappers(ctx)
     if wrappers == nil { return nil }
 
-    var wrap_res = _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabled,
-        trace_decls, top_decls, top_keep, phase_log, trace)
-    if wrap_res == nil { return nil }
-    sum_decl_ns = sum_decl_ns + wrap_res["sum_decl_ns"]
-    top_decls = wrap_res["top_decls"]
-    _x64_rtobj_trace_mark(trace_state, "wrap")
-
-    if trace_decls && top_decls != nil { _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) }
+    if _x64_rtobj_compile_wrapper_phase(ctx, wrappers, platform, call_depth_default_enabled, phase_log, trace, trace_state, decl_state) != true { return nil }
+    if decl_state["trace_decls"] == true && decl_state["top_decls"] != nil {
+        _x64_rtobj_print_top_decls(decl_state["top_decls"], decl_state["sum_decl_ns"])
+    }
     return {"wrappers": wrappers}
 }
 
