@@ -934,6 +934,22 @@ if ! grep -Fq 'var b = oren_string_byte_at_unchecked(name, 0) & 255' <<<"$runtim
   echo "ERROR: native runtime bundle uppercase-name classifier must use direct first-byte ASCII range checks" >&2
   exit 1
 fi
+compiler_string_len_cached_impl="$(sed -n '/fn _split_csv_simple/,/fn _parse_bool_env/p' lib/std/argparse.oren)
+$(sed -n '/fn _to_int/,/fn _validate_opt/p' lib/std/argparse.oren)
+$(sed -n '/fn _json_escape/,/fn _json_value/p' lib/std/argparse.oren)
+$(sed -n '/Chain remaining chars/,/return {\"ok\": true/p' lib/std/argparse.oren)
+$(sed -n '/fn diag_escape/,/fn emit_diag/p' lib/compiler/compiler/000_prelude_body.oren)
+$(sed -n '/fn _path_to_windows_sep/,/fn host_is_windows/p' lib/compiler/compiler/000_prelude_body.oren)
+$(sed -n '/fn _cmd_quote/,/fn _ensure_stage1_exe/p' lib/compiler/compiler/000_prelude_body.oren)
+$(sed -n '/fn _rt_bundle_path_to_windows_sep/,/fn _rt_bundle_host_is_windows/p' lib/compiler/native_runtime_bundle.oren)"
+if ! grep -Fq 'var tail_len = oren_string_len(tail)' <<<"$compiler_string_len_cached_impl" ||
+  ! grep -Fq 'var n = oren_string_len(msg)' <<<"$compiler_string_len_cached_impl" ||
+  ! grep -Fq 'var n = oren_string_len(s)' <<<"$compiler_string_len_cached_impl" ||
+  grep -Fq 'while i < oren_string_len(' <<<"$compiler_string_len_cached_impl" ||
+  grep -Fq 'while ci < oren_string_len(' <<<"$compiler_string_len_cached_impl"; then
+  echo "ERROR: selected compiler/tooling string loops must cache immutable string lengths before iteration" >&2
+  exit 1
+fi
 arm64_expr_g_storage_impl="$(sed -n '/fn _arm64_expr_name_ends_with_g_storage/,/fn _arm64_expr_emit_load_g_storage_ptr/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 arm64_rt_g_storage_impl="$(sed -n '/fn _arm64_rt_name_ends_with_g_storage/,/fn _arm64_emit_load_g_storage_ptr/p' lib/compiler/arm64_native_stmt_runtime.oren)"
 x64_rt_g_storage_impl="$(sed -n '/fn _x64_rt_name_ends_with_g_storage/,/fn _x64_emit_load_g_storage_ptr_to_reg/p' lib/compiler/x64_native_program/040_emit_expr.oren)"

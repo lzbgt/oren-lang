@@ -44,9 +44,10 @@ fn _split_csv_simple(s) {
     // Trims spaces around elements and drops empty segments.
     var out = []
     if s == nil { return out }
+    var n = oren_string_len(s)
     var i = 0
     var start = 0
-    while i < oren_string_len(s) {
+    while i < n {
         if oren_string_char_at(s, i) == "," {
             var seg = _trim_spaces(oren_string_slice(s, start, i))
             if _streq(seg, "") != true { list.push(out, seg) }
@@ -54,7 +55,7 @@ fn _split_csv_simple(s) {
         }
         i = i + 1
     }
-    var last = _trim_spaces(oren_string_slice(s, start, oren_string_len(s)))
+    var last = _trim_spaces(oren_string_slice(s, start, n))
     if _streq(last, "") != true { list.push(out, last) }
     return out
 }
@@ -127,15 +128,16 @@ fn _split_once(s, sep) {
 fn _to_int(s) {
     // v1: accept base-10, optional leading '-'.
     if s == nil || _streq(s, "") { return nil }
+    var len = oren_string_len(s)
     var i = 0
     var sign = 1
-    if oren_string_len(s) > 0 && _streq(oren_string_slice(s, 0, 1), "-") {
+    if len > 0 && _streq(oren_string_slice(s, 0, 1), "-") {
         sign = -1
         i = 1
-        if i >= oren_string_len(s) { return nil }
+        if i >= len { return nil }
     }
     var n = 0
-    while i < oren_string_len(s) {
+    while i < len {
         var c = oren_string_slice(s, i, i + 1)
         var d = -1
         if _streq(c, "0") { d = 0 }
@@ -671,8 +673,9 @@ fn render_help(p, cmd_name) {
 fn _json_escape(s) {
     if s == nil { return "" }
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var c = oren_string_char_at(s, i)
         if _streq(c, "\\") { out = out + "\\\\"; i = i + 1; continue }
         if _streq(c, "\"") { out = out + "\\\""; i = i + 1; continue }
@@ -1039,8 +1042,9 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
     }
 
     // Chain remaining chars.
+    var tail_len = oren_string_len(tail)
     var ci = 0
-    while ci < oren_string_len(tail) {
+    while ci < tail_len {
         var ch = oren_string_slice(tail, ci, ci + 1)
         var f = "-" + ch
         var o = _find_opt(cmd, f)

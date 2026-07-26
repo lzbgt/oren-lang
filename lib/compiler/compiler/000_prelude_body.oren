@@ -150,8 +150,9 @@ fn diag_escape(msg) {
     // Escape newlines/tabs so one-line OREN_DIAG is machine-friendly.
     if msg == nil { return "" }
     var out = ""
+    var n = oren_string_len(msg)
     var i = 0
-    while i < oren_string_len(msg) {
+    while i < n {
         var c = oren_string_char_at(msg, i)
         if c == "\n" { out = out + "\\n"; i = i + 1; continue }
         if c == "\r" { out = out + "\\r"; i = i + 1; continue }
@@ -178,8 +179,9 @@ fn _imod(a, b) {
 fn _path_to_windows_sep(s) {
     if s == nil { return "" }
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
         if ch == "/" { out = out + "\\" }
         else { out = out + ch }
@@ -197,8 +199,9 @@ fn _path_to_posix_sep(s) {
     // NOTE: Windows APIs accept forward slashes for most file paths, so this is safe on Windows too.
     if s == nil { return "" }
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
         if ch == "\\" { out = out + "/" }
         else { out = out + ch }
@@ -589,8 +592,9 @@ fn cmd_quote(s) {
     if s == nil { return "\"\"" }
     if s == "" { return "\"\"" }
     var needs = false
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var c = oren_string_char_at_unchecked(s, i)
         if c == " " || c == "\t" { needs = true }
         if c == "\"" { needs = true }
@@ -600,7 +604,7 @@ fn cmd_quote(s) {
     // Build with doubled quotes.
     var parts = ["\""]
     i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var c2 = oren_string_char_at_unchecked(s, i)
         if c2 == "\"" { oren_list_push(parts, "\"\"") }
         else { oren_list_push(parts, c2) }

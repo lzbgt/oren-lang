@@ -2688,6 +2688,9 @@ design evidence lives under `project-doc/`.
   strings and concatenating per-character output.
 - Native runtime bundle constant-global name classification now checks the first
   ASCII byte directly instead of scanning an uppercase alphabet string per name.
+- Argparse, compiler prelude, and native runtime-bundle string helper loops now
+  cache immutable string lengths before iteration instead of calling
+  `oren_string_len` in every loop condition.
 - ARM64/x64 native `g_storage` resolution now uses shared byte-suffix helpers plus
   cached resolver calls instead of duplicated `oren_string_char_at` suffix scans
   across expression lowering, tail boolean normalization, and runtime helper

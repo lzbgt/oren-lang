@@ -59,6 +59,9 @@ surfaces, but the following blockers remain:
   strings and concatenating one character at a time.
 - Native runtime bundle constant-global name classification now checks the first
   ASCII byte directly instead of scanning an uppercase alphabet string per name.
+- Argparse, compiler prelude, and native runtime-bundle string helper loops now
+  cache immutable string lengths before iteration instead of calling
+  `oren_string_len` in every loop condition.
 - ARM64/x64 native expression/runtime `g_storage` resolution now uses shared
   byte-suffix helpers and cached resolver calls instead of duplicated
   `oren_string_char_at` suffix scans in boolean singleton, tail normalization,

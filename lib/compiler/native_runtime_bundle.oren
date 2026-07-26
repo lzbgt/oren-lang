@@ -88,8 +88,9 @@ fn _rt_bundle_runtime_fingerprint_v2(runtime_src) {
 fn _rt_bundle_path_to_windows_sep(s) {
     if s == nil { return "" }
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
         if ch == "/" { out = out + "\\" }
         else { out = out + ch }

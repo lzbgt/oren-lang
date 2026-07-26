@@ -3741,6 +3741,11 @@
 </ul>
 <p>  ASCII byte directly instead of scanning an uppercase alphabet string per name.</p>
 <ul>
+<li>Argparse, compiler prelude, and native runtime-bundle string helper loops now</li>
+</ul>
+<p>  cache immutable string lengths before iteration instead of calling</p>
+<p>  <code>oren_string_len</code> in every loop condition.</p>
+<ul>
 <li>ARM64/x64 native <code>g_storage</code> resolution now uses shared byte-suffix helpers plus</li>
 </ul>
 <p>  cached resolver calls instead of duplicated <code>oren_string_char_at</code> suffix scans</p>
