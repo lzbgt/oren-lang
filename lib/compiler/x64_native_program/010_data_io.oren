@@ -171,8 +171,7 @@ fn _data_cstr0_cap_string(s) {
 fn _data_cstr0_append_raw(ctx, s) {
     _data_align8(ctx)
     var off = bytes_len(ctx["data"])
-    bytes_extend_string(ctx["data"], s)
-    bytes_push(ctx["data"], 0)
+    bytes_extend_string_z(ctx["data"], s)
     return off
 }
 
@@ -238,8 +237,7 @@ fn _data_add_cstr0_nodedup(ctx, s) {
         s = oren_string_slice(s, 0, 1048576)
         n0 = 1048576
     }
-    bytes_extend_string(ctx["data"], s)
-    bytes_push(ctx["data"], 0)
+    bytes_extend_string_z(ctx["data"], s)
     oren_list_push(ctx["cstr0_list"], off)
     return off
 }

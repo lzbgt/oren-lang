@@ -121,6 +121,9 @@ design evidence lives under `project-doc/`.
   shared byte-builder zero extension instead of per-byte alignment loops.
 - ARM64/x64 ELF, ARM64 Mach-O, and x64 PE whole-string artifact append helpers
   now use shared byte-builder string extension instead of per-byte string loops.
+- X64 PE, ARM64/x64 ELF, and ARM64/x64 native C-string append helpers now use
+  shared byte-builder NUL-terminated string extension instead of appending the
+  terminator through a second byte-builder operation.
 - ARM64 ELF runtime debug-record reserved u64 fields now use a shared straight-line
   zero-word helper instead of repeating four zero pushes at each record site.
 - ARM64 Mach-O runtime debug-record reserved u64 fields now use the same shared

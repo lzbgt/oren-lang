@@ -222,6 +222,11 @@
 </ul>
 <p>  now use shared byte-builder string extension instead of per-byte string loops.</p>
 <ul>
+<li>X64 PE, ARM64/x64 ELF, and ARM64/x64 native C-string append helpers now use</li>
+</ul>
+<p>  shared byte-builder NUL-terminated string extension instead of appending the</p>
+<p>  terminator through a second byte-builder operation.</p>
+<ul>
 <li>ARM64 ELF runtime debug-record reserved u64 fields now use a shared straight-line</li>
 </ul>
 <p>  zero-word helper instead of repeating four zero pushes at each record site.</p>

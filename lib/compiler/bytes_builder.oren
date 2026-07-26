@@ -230,6 +230,23 @@ fn bytes_extend_string(b, s) {
     return nil
 }
 
+fn bytes_extend_string_z(b, s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + n + 1)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_extend_string_z: buf data ptr is nil") }
+    var i = 0
+    while i < n {
+        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    ptr_set_byte(iadd(dstp, used + n), 0)
+    _bytes_set_len_raw(b, used + n + 1)
+    return nil
+}
+
 fn bytes_set_u8(b, idx, v) {
     var used = _bytes_len_raw(b)
     if idx < 0 || idx >= used { oren_fail(1, "bytes_set_u8: index out of bounds") }

@@ -213,8 +213,7 @@ fn _x64_string_batch_append_cstr_bytes(batch_data_buf, s_b) {
         s_b = oren_string_slice(s_b, 0, 1048576)
         n0_b = 1048576
     }
-    bytes_extend_string(batch_data_buf, s_b)
-    bytes_push(batch_data_buf, 0)
+    bytes_extend_string_z(batch_data_buf, s_b)
     return cstr_off_b
 }
 

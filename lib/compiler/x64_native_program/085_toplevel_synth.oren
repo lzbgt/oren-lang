@@ -109,8 +109,7 @@ fn _x64_append_global_string_batch_cstr0(ctx, s) {
     if n > 1048576 {
         s = oren_string_slice(s, 0, 1048576)
     }
-    bytes_extend_string(ctx["data"], s)
-    bytes_push(ctx["data"], 0)
+    bytes_extend_string_z(ctx["data"], s)
     oren_list_push(ctx["cstr0_list"], off)
     return off
 }

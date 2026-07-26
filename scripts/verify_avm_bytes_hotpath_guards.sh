@@ -1139,22 +1139,26 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b
 fi
 
 arm64_elf_string_impl="$(sed -n '/fn _elf_push_utf8_aligned/,/fn _elf_push_phdr/p; /fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/arm64_elf.oren)"
+arm64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/compiler/arm64_elf.oren)"
 x64_elf_string_impl="$(sed -n '/fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/x64_elf.oren)"
+x64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/compiler/x64_elf.oren)"
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
 x64_pe_ascii_impl="$(sed -n '/fn push_ascii_z/,/fn _pe_path_basename/p' lib/compiler/x64_pe.oren)"
-if ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_elf.oren ||
-  ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/x64_elf.oren ||
+if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/arm64_macho.oren ||
-  ! grep -Fq 'fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }' lib/compiler/x64_pe.oren ||
+  ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }' lib/compiler/x64_pe.oren ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_elf_string_impl" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_elf_string_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_elf_cstr_impl" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_elf_string_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$x64_elf_cstr_impl" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
   test "$(grep -Fc '_macho_push_string_bytes(strtab,' <<<"$arm64_macho_file_impl")" != "2" ||
-  ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_pe_ascii_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$x64_pe_ascii_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_elf_string_impl" ||
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl" ||
@@ -1214,7 +1218,7 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }' lib/compiler/arm64_native_expr/000_prelude.oren ||
   ! grep -Fq 'var key_s = s' <<<"$arm64_native_expr_cstr_impl" ||
   ! grep -Fq 's = oren_string_slice(s, 0, 1048576)' <<<"$arm64_native_expr_cstr_impl" ||
-  ! grep -Fq 'bytes_extend_string(ctx["data"], s)' <<<"$arm64_native_expr_cstr_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(ctx["data"], s)' <<<"$arm64_native_expr_cstr_impl" ||
   ! grep -Fq 'ctx["cstr0_offs"][key_s] = off + 1' <<<"$arm64_native_expr_cstr_impl" ||
   grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_native_expr_cstr_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(s, i)' <<<"$arm64_native_expr_cstr_impl"; then
@@ -1228,6 +1232,8 @@ if ! grep -Fq 'fn _bytes_align8(buf)' <<<"$x64_data_io_impl" ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, 8 - rem) }' <<<"$x64_data_io_impl" ||
   ! grep -Fq 'fn _data_align8(ctx)' <<<"$x64_data_io_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], total)' <<<"$x64_data_io_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(ctx["data"], s)' <<<"$x64_data_io_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(batch_data_buf, s_b)' <<<"$x64_native_program_impl" ||
   ! grep -Fq '_bytes_align8(batch_data_buf)' <<<"$x64_native_program_impl" ||
   ! grep -Fq '_data_align8(ctx)' <<<"$x64_native_program_impl" ||
   grep -Fq 'while core.int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$x64_native_program_impl" ||

@@ -28,6 +28,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current compiler byte-output cleanup routes full-string bytecode constants
      and ARM64 Mach-O string-table names through byte-builder string extension
      instead of residual per-byte string-read loops.
+   - Current PE/ELF and native compiler C-string output cleanup routes
+     NUL-terminated string appends through shared byte-builder string+zero
+     extension.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
    - Current x64 split-module cleanup also routes string-batch, top-level

@@ -25,6 +25,9 @@ surfaces, but the following blockers remain:
 - Compiler byte output now routes bytecode constant strings and ARM64 Mach-O
   import/export string-table names through byte-builder string extension,
   removing residual per-byte string-read loops from those hot emitters.
+- Compiler byte output now also routes PE/ELF and native C-string append helpers
+  through shared byte-builder NUL-terminated string extension, preserving offsets
+  while avoiding separate terminator growth/write paths.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

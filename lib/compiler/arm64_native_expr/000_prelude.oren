@@ -60,6 +60,7 @@ fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
 fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
 fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn bytes_extend_string(b, s) { return core.bytes_extend_string(b, s) }
+fn bytes_extend_string_z(b, s) { return core.bytes_extend_string_z(b, s) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
@@ -125,8 +126,7 @@ fn native_data_add_cstr0(ctx, s) {
         s = oren_string_slice(s, 0, 1048576)
         n = 1048576
     }
-    bytes_extend_string(ctx["data"], s)
-    bytes_push(ctx["data"], 0)
+    bytes_extend_string_z(ctx["data"], s)
     ctx["cstr0_offs"][key_s] = off + 1
     // Track unique offsets so the program entry stub can register all literals once at startup.
     oren_list_push(ctx["cstr0_list"], off)
@@ -1050,8 +1050,7 @@ fn native_emit_panic(ctx, msg) {
         bytes_push(ctx["data"], 0)
     }
     var data_off = bytes_len(ctx["data"])
-    bytes_extend_string(ctx["data"], msg)
-    bytes_push(ctx["data"], 0) // NUL
+    bytes_extend_string_z(ctx["data"], msg)
 
     // X0 = &msg
     var adr_pos = bytes_len(ctx["code"])

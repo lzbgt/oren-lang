@@ -30,6 +30,7 @@ fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
 fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
 fn bytes_extend_string(b, s) { return codegen.bytes_extend_string(b, s) }
+fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_string_z(b, s) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
@@ -530,8 +531,7 @@ fn _bytes_add_str0(buf, s) {
     if buf == nil { return nil }
     if s == nil { s = "" }
     var off = bytes_len(buf)
-    _elf_push_string_bytes(buf, s)
-    bytes_push(buf, 0)
+    bytes_extend_string_z(buf, s)
     return off
 }
 
