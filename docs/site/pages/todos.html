@@ -96,6 +96,11 @@
 <p>  alignment helpers or exact zero-extension spans for dylib-id, exit-stub,</p>
 <p>  debug-data, page, and section-table padding.</p>
 <ul>
+<li>ARM64 native expression C-string literals now align and append through</li>
+</ul>
+<p>  byte-builder span helpers while preserving original long-string dedupe keys;</p>
+<p>  ARM64 global slots and C-string tables reuse the shared data-alignment helper.</p>
+<ul>
 <li>iOS Metal retained image uploads now preflight scalar-map storage before</li>
 </ul>
 <p>  allocating or filling <code>MTLTexture</code> objects, avoiding GPU work when the</p>

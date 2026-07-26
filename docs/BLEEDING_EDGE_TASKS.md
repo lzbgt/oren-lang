@@ -36,6 +36,8 @@ This file is the concise task view. Detailed implementation status lives in
      through exact byte-builder zero-extension helpers.
    - Current Mach-O/ELF byte-output cleanup routes final executable padding
      through existing alignment helpers and exact zero-extension spans.
+   - Current ARM64 native data cleanup routes C-string literal append, global
+     slots, and C-string table alignment through byte-builder span helpers.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

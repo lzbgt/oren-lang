@@ -58,6 +58,7 @@ fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
 fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn bytes_extend_string(b, s) { return core.bytes_extend_string(b, s) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_finalize(b) { return core.bytes_finalize(b) }
@@ -74,6 +75,14 @@ fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
 fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+
+fn _native_expr_data_align8(ctx) {
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    var rem = int_mod(bytes_len(ctx["data"]), 8)
+    if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }
+    return nil
+}
 
 fn trim_trailing_underscores(s) {
     var end = oren_string_len(s)
@@ -96,14 +105,15 @@ fn native_data_add_cstr0(ctx, s) {
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
 
     if s == nil { s = "" }
+    var key_s = s
     // Store offsets as `off+1` so a real offset of 0 is representable while still using `nil`
     // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
-    var existing_enc = ctx["cstr0_offs"][s]
+    var existing_enc = ctx["cstr0_offs"][key_s]
     if oren_type_tag(existing_enc) == 1 {
         if existing_enc > 0 { return existing_enc - 1 }
     }
 
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _native_expr_data_align8(ctx)
     var off = bytes_len(ctx["data"])
     // Avoid allocating an intermediate byte carrier for each literal via `oren_bytes_from_string`.
     // Tooling workloads (compiler self-host) can have thousands of distinct literals, and list
@@ -111,14 +121,13 @@ fn native_data_add_cstr0(ctx, s) {
     //
     // Use the stable `oren_string_*` helpers (works under both C and native runtimes).
     var n = oren_string_len(s)
-    if n > 1048576 { n = 1048576 } // safety cap
-    var i = 0
-    while i < n {
-        bytes_push(ctx["data"], oren_string_byte_at_unchecked(s, i) & 255)
-        i = i + 1
+    if n > 1048576 {
+        s = oren_string_slice(s, 0, 1048576)
+        n = 1048576
     }
+    bytes_extend_string(ctx["data"], s)
     bytes_push(ctx["data"], 0)
-    ctx["cstr0_offs"][s] = off + 1
+    ctx["cstr0_offs"][key_s] = off + 1
     // Track unique offsets so the program entry stub can register all literals once at startup.
     oren_list_push(ctx["cstr0_list"], off)
     return off

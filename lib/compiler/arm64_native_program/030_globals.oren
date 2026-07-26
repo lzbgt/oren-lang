@@ -27,7 +27,7 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     // Globals live in `.data` as 8-byte slots. Do not rely on runtime execution order to
     // initialize them; the entry stub calls `__top_level__` before `main` to handle user
     // initializers deterministically.
-    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    _arm64_data_align8(ctx)
     var data_off = bytes_len(ctx["data"])
     bytes_extend_zeros(ctx["data"], 8)
     // Store as offset+1 so a real offset of 0 is representable while still using `nil`

@@ -51,6 +51,9 @@ design evidence lives under `project-doc/`.
 - ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing
   alignment helpers or exact zero-extension spans for dylib-id, exit-stub,
   debug-data, page, and section-table padding.
+- ARM64 native expression C-string literals now align and append through
+  byte-builder span helpers while preserving original long-string dedupe keys;
+  ARM64 global slots and C-string tables reuse the shared data-alignment helper.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

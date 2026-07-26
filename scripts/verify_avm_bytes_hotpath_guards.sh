@@ -1187,19 +1187,38 @@ fi
 
 arm64_ctx_impl="$(sed -n '/Reserve a `.data` slot holding the cstr0-literal table offset/,/Bounded debug knob:/p' lib/compiler/arm64_native_program/010_ctx.oren)"
 arm64_global_impl="$(sed -n '/fn _arm64_alloc_global_slot/,/return nm/p' lib/compiler/arm64_native_program/030_globals.oren)"
+arm64_program_cstr_table_impl="$(sed -n '/arm64.codegen.cstr_table.start/,/Layout: \\[table_off\\]/p' lib/compiler/arm64_native_program/090_program.oren)"
 arm64_stmt_binding_impl="$(sed -n '/var data_off = bytes_len(ctx\["data"\])/,/_arm64_emit_store_x0_to_global/p' lib/compiler/arm64_native_stmt_bindings.oren)"
 if ! grep -Fq 'fn _arm64_data_align8(ctx)' lib/compiler/arm64_native_program/010_ctx.oren ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }' lib/compiler/arm64_native_program/010_ctx.oren ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 512)' <<<"$arm64_ctx_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_ctx_impl" ||
+  ! grep -Fq '_arm64_data_align8(ctx)' <<<"$arm64_global_impl" ||
+  ! grep -Fq '_arm64_data_align8(ctx)' <<<"$arm64_program_cstr_table_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_global_impl" ||
   ! grep -Fq 'bytes_extend_zeros(ctx["data"], 8)' <<<"$arm64_stmt_binding_impl" ||
   grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' lib/compiler/arm64_native_program/010_ctx.oren ||
+  grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_global_impl" ||
+  grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_program_cstr_table_impl" ||
   grep -Fq 'while z < 8' <<<"$arm64_ctx_impl" ||
   grep -Fq 'while z < 512' <<<"$arm64_ctx_impl" ||
   grep -Fq 'while k < 8' <<<"$arm64_global_impl" ||
   grep -Fq 'while k < 8' <<<"$arm64_stmt_binding_impl"; then
   echo "ERROR: ARM64 compiler 8-byte zero slot reservations must use bytes_extend_zeros, not fixed byte-push loops" >&2
+  exit 1
+fi
+
+arm64_native_expr_cstr_impl="$(sed -n '/fn native_data_add_cstr0(ctx, s)/,/^}/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
+if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }' lib/compiler/arm64_native_expr/000_prelude.oren ||
+  ! grep -Fq 'fn _native_expr_data_align8(ctx)' lib/compiler/arm64_native_expr/000_prelude.oren ||
+  ! grep -Fq 'if rem != 0 { bytes_extend_zeros(ctx["data"], 8 - rem) }' lib/compiler/arm64_native_expr/000_prelude.oren ||
+  ! grep -Fq 'var key_s = s' <<<"$arm64_native_expr_cstr_impl" ||
+  ! grep -Fq 's = oren_string_slice(s, 0, 1048576)' <<<"$arm64_native_expr_cstr_impl" ||
+  ! grep -Fq 'bytes_extend_string(ctx["data"], s)' <<<"$arm64_native_expr_cstr_impl" ||
+  ! grep -Fq 'ctx["cstr0_offs"][key_s] = off + 1' <<<"$arm64_native_expr_cstr_impl" ||
+  grep -Fq 'while int_mod(bytes_len(ctx["data"]), 8) != 0' <<<"$arm64_native_expr_cstr_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(s, i)' <<<"$arm64_native_expr_cstr_impl"; then
+  echo "ERROR: ARM64 native expr C-string literals must align and append through byte-builder span helpers" >&2
   exit 1
 fi
 

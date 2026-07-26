@@ -995,7 +995,7 @@ fn native_compile_program_arm64(linked, platform) {
         if phase_log != nil {
             _arm64_program_phase_log_append(phase_log, "arm64.codegen.cstr_table.start", "rt=" + oren_int_to_string(rt_count) + " user=" + oren_int_to_string(user_count))
         }
-        while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        _arm64_data_align8(ctx)
         var table_off2 = bytes_len(ctx["data"])
         var total_count = rt_count + user_count
         if phase_log != nil {
