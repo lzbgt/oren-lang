@@ -1659,7 +1659,7 @@ This file is the concise task view. Detailed implementation status lives in
      pure finite `std:math/vec3` helpers including projection/rejection/reflection,
      pure finite `std:math/vec4` helpers including projection/rejection/reflection,
      pure finite `std:math/quat` helpers for axis-angle rotation, inverse, and interpolation,
-     pure finite row-major `std:math/mat4` algebra, transform, normal-matrix, normal transform, model-view-projection composition, orthographic/frustum/perspective projection, screen project/unproject, validation, view, predicate, norm, inverse, and transform helpers split through focused modules below the source-line guardrail, Frobenius/one/infinity norms and condition numbers, tolerance-aware affine/perspective predicates, and exact/tolerance-aware symmetric/upper-lower-triangular/diagonal/translation/scale/uniform-scale/invertible/singular predicates,
+     pure finite row-major `std:math/mat4` algebra, transform, normal-matrix, normal transform, model-view-projection composition, orthographic/frustum/perspective projection, screen project/unproject, validation, view, predicate, norm, inverse, projection, and transform helpers split through focused modules below the source-line guardrail, Frobenius/one/infinity norms and condition numbers, tolerance-aware affine/perspective predicates, and exact/tolerance-aware symmetric/upper-lower-triangular/diagonal/translation/scale/uniform-scale/invertible/singular predicates,
      overflow-aware `midpoint`,
      scaled two- and three-argument hypotenuse, cancellation-aware
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
