@@ -90,20 +90,42 @@ fn _x64_emit_ctx_switch_save_resume(ctx) {
 }
 
 fn _x64_emit_ctx_switch_save_xmms(ctx) {
-    var xi = 0
-    while xi < 16 {
-        bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 128 + xi * 16, xi))
-        xi = xi + 1
-    }
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 128, 0))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 144, 1))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 160, 2))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 176, 3))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 192, 4))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 208, 5))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 224, 6))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 240, 7))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 256, 8))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 272, 9))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 288, 10))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 304, 11))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 320, 12))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 336, 13))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 352, 14))
+    bytes_extend(ctx["code"], core.insn_movdqu_m128_xmm_disp(0, 368, 15))
     return nil
 }
 
 fn _x64_emit_ctx_switch_restore_xmms(ctx) {
-    var xi = 0
-    while xi < 16 {
-        bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(xi, 9, 128 + xi * 16))
-        xi = xi + 1
-    }
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(0, 9, 128))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(1, 9, 144))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(2, 9, 160))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(3, 9, 176))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(4, 9, 192))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(5, 9, 208))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(6, 9, 224))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(7, 9, 240))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(8, 9, 256))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(9, 9, 272))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(10, 9, 288))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(11, 9, 304))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(12, 9, 320))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(13, 9, 336))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(14, 9, 352))
+    bytes_extend(ctx["code"], core.insn_movdqu_xmm_m128_disp(15, 9, 368))
     return nil
 }
 

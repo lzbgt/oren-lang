@@ -67,6 +67,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current ARM64/x64 native `g_storage` resolution uses shared byte-suffix helpers
      and cached resolver calls instead of duplicated `oren_string_char_at` suffix
      scans in boolean singleton, tail normalization, and runtime helper paths.
+   - Current x64 context-switch XMM save/restore code emission is straight-line
+     for the fixed 16-register frame layout instead of a compiler-side fixed loop.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

@@ -125,6 +125,10 @@
 <p>  <code>oren_string_char_at</code> suffix scans in boolean singleton, tail normalization,</p>
 <p>  and runtime helper paths.</p>
 <ul>
+<li>X64 context-switch XMM save/restore code emission is now straight-line for the</li>
+</ul>
+<p>  fixed 16-register frame layout instead of a compiler-side fixed loop.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

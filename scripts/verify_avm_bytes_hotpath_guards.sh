@@ -947,6 +947,15 @@ if ! grep -Fq 'fn _arm64_expr_name_ends_with_g_storage(k)' <<<"$arm64_expr_g_sto
   echo "ERROR: native g_storage resolution must use byte-suffix helpers and cached resolver calls, not duplicated char-at suffix scans" >&2
   exit 1
 fi
+x64_ctx_xmm_impl="$(sed -n '/fn _x64_emit_ctx_switch_save_xmms/,/fn _x64_emit_ctx_switch_restore_gprs/p' lib/compiler/x64_native_program/043_emit_stack_intrinsics.oren)"
+if [[ "$(grep -F 'core.insn_movdqu_m128_xmm_disp(0,' <<<"$x64_ctx_xmm_impl" | wc -l | tr -d ' ')" != "16" ]] ||
+  [[ "$(grep -F 'core.insn_movdqu_xmm_m128_disp(' <<<"$x64_ctx_xmm_impl" | wc -l | tr -d ' ')" != "16" ]] ||
+  ! grep -Fq 'core.insn_movdqu_m128_xmm_disp(0, 368, 15)' <<<"$x64_ctx_xmm_impl" ||
+  ! grep -Fq 'core.insn_movdqu_xmm_m128_disp(15, 9, 368)' <<<"$x64_ctx_xmm_impl" ||
+  grep -Fq 'while xi < 16' <<<"$x64_ctx_xmm_impl"; then
+  echo "ERROR: x64 context-switch XMM save/restore emission must stay straight-line, not fixed compiler loops" >&2
+  exit 1
+fi
 
 base64_encode_byte_impl="$(sed -n '/fn _b64_encode_byte/,/fn b64_is_ws/p' lib/std/encoding/base64.oren)"
 if ! grep -Fq 'fn _b64_encode_byte(v)' <<<"$base64_encode_byte_impl" ||

@@ -63,6 +63,8 @@ surfaces, but the following blockers remain:
   byte-suffix helpers and cached resolver calls instead of duplicated
   `oren_string_char_at` suffix scans in boolean singleton, tail normalization,
   and runtime helper paths.
+- X64 context-switch XMM save/restore code emission is now straight-line for the
+  fixed 16-register frame layout instead of a compiler-side fixed loop.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

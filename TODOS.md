@@ -2673,6 +2673,8 @@ design evidence lives under `project-doc/`.
   cached resolver calls instead of duplicated `oren_string_char_at` suffix scans
   across expression lowering, tail boolean normalization, and runtime helper
   paths.
+- X64 context-switch XMM save/restore code emission is now straight-line for the
+  fixed 16-register frame layout instead of looping in the compiler emitter.
 - SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for
   `u8_buf` carriers and virtual padded message expansion reads their backing
   bytes directly, while boxed byte-list fallback validation remains covered.

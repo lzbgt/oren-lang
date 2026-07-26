@@ -139,6 +139,10 @@
 <p>     and cached resolver calls instead of duplicated <code>oren_string_char_at</code> suffix</p>
 <p>     scans in boolean singleton, tail normalization, and runtime helper paths.</p>
 <ul>
+<li>Current x64 context-switch XMM save/restore code emission is straight-line</li>
+</ul>
+<p>     for the fixed 16-register frame layout instead of a compiler-side fixed loop.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

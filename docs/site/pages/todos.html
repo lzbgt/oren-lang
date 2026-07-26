@@ -3714,6 +3714,10 @@
 <p>  across expression lowering, tail boolean normalization, and runtime helper</p>
 <p>  paths.</p>
 <ul>
+<li>X64 context-switch XMM save/restore code emission is now straight-line for the</li>
+</ul>
+<p>  fixed 16-register frame layout instead of looping in the compiler emitter.</p>
+<ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>
