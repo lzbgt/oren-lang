@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- X64 Windows CreateProcess polling and string-aware compare cleanup now split
+  timeout checks, nonblocking wait dispatch, retry advancement, byte loading,
+  NUL handling, byte ordering, and cursor advancement into focused helpers.
 - X64 Windows stat/fstat/IOCP helper cleanup now separates stat attribute
   normalization/failure paths, fstat body orchestration, and CancelIoEx
   success/error result normalization into focused helpers.

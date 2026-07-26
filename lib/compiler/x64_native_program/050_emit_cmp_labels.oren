@@ -70,12 +70,14 @@ fn _x64_emit_cmp_string_cursor_setup(ctx, off_l, off_r) {
     return nil
 }
 
-fn _x64_emit_cmp_string_loop_body(ctx, labels, names, fixups) {
-    _emit_label(ctx, labels, names["loop"])
+fn _x64_emit_cmp_string_load_bytes(ctx) {
     // r8d = *s1 ; r9d = *s2
     bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(8, 10))
     bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(9, 11))
+    return nil
+}
 
+fn _x64_emit_cmp_string_zero_cases(ctx, labels, names, fixups) {
     // b1 == 0: b2 == 0 => 0, otherwise -1.
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(8, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", names["b1_nz"])
@@ -87,16 +89,31 @@ fn _x64_emit_cmp_string_loop_body(ctx, labels, names, fixups) {
     // b2 == 0 => +1.
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(9, 0))
     _emit_jcc_to_label(ctx, fixups, "e", names["ret_p1"])
+    return nil
+}
 
+fn _x64_emit_cmp_string_byte_order(ctx, names, fixups) {
     // Unsigned byte ordering: b1 < b2 => -1 ; b1 > b2 => +1.
     bytes_extend(ctx["code"], core.insn_cmp_r32_r32(8, 9))
     _emit_jcc_to_label(ctx, fixups, "b", names["ret_m1"])
     _emit_jcc_to_label(ctx, fixups, "a", names["ret_p1"])
+    return nil
+}
 
+fn _x64_emit_cmp_string_advance(ctx, names, fixups) {
     // Equal: advance and continue.
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 1))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 1))
     _emit_jmp_to_label(ctx, fixups, names["loop"])
+    return nil
+}
+
+fn _x64_emit_cmp_string_loop_body(ctx, labels, names, fixups) {
+    _emit_label(ctx, labels, names["loop"])
+    _x64_emit_cmp_string_load_bytes(ctx)
+    _x64_emit_cmp_string_zero_cases(ctx, labels, names, fixups)
+    _x64_emit_cmp_string_byte_order(ctx, names, fixups)
+    _x64_emit_cmp_string_advance(ctx, names, fixups)
     return nil
 }
 

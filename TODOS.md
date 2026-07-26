@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- X64 Windows CreateProcess polling and string-aware compare cleanup now split
+  timeout checks, nonblocking wait dispatch, retry advancement, byte loading,
+  NUL handling, byte ordering, and cursor advancement into focused helpers.
 - X64 Windows stat/fstat/IOCP cleanup now separates stat attribute normalization,
   attribute failure handling, fstat handle/success orchestration, and CancelIoEx
   success/error normalization into focused helper bodies.

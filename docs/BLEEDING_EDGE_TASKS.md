@@ -218,6 +218,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current Windows x64 stat/fstat/IOCP cleanup separates stat attribute
      normalization/failure handling, fstat body orchestration, and CancelIoEx
      success/error result normalization into focused helpers.
+   - Current Windows x64 CreateProcess polling and string-aware compare cleanup
+     separates timeout checks, nonblocking wait dispatch, retry advancement,
+     byte loading, NUL handling, byte ordering, and cursor advancement.
    - Current x64 string/function cleanup separates string-batch count/item
      collection, callee-save and parameter spill emission, function phase start
      logging, and compiled-entry call-depth gating.
