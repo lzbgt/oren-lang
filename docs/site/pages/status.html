@@ -3836,6 +3836,11 @@
 </ul>
 <p>  V0..V15 cursor-store helpers for the i32/f32/f64 4x4 GEMM lowering chunks,</p>
 <p>  with the hotpath guard rejecting the old duplicated fixed loops.</p>
+<ul>
+<li><code>std:ui/ppm</code> header fragments now bulk-copy validated strings directly into</li>
+</ul>
+<p>  the exact-size <code>u8_buf</code> output before the existing hoisted RGBA byte-view body</p>
+<p>  copy.</p>
 <h2 id="key-verification-entrypoints">Key Verification Entrypoints</h2>
 <pre><code>./oretest
 ./oretest --selfhost

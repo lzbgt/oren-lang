@@ -146,6 +146,10 @@
 <p>  cursor-store helpers for i32/f32/f64 4x4 GEMM paths instead of keeping</p>
 <p>  duplicated fixed compiler loops in individual lowering chunks.</p>
 <ul>
+<li><code>std:ui/ppm</code> header fragments now bulk-copy validated strings into the</li>
+</ul>
+<p>  exact-size output <code>u8_buf</code> while retaining hoisted RGBA byte-view body reads.</p>
+<ul>
 <li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
 </ul>
 <p>  rather than single zero-byte pushes while preserving nonzero constant tags.</p>

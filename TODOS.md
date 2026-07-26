@@ -81,6 +81,8 @@ design evidence lives under `project-doc/`.
 - ARM64 native SIMD/GEMM result-store emission now shares straight-line V0..V15
   cursor-store helpers for i32/f32/f64 4x4 GEMM paths instead of keeping
   duplicated fixed compiler loops in individual lowering chunks.
+- `std:ui/ppm` header fragments now bulk-copy validated strings into the
+  exact-size output `u8_buf` while retaining hoisted RGBA byte-view body reads.
 - OBC linker NIL constant tags now route through byte-builder zero-extension
   rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix

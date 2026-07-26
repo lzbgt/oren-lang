@@ -22,12 +22,10 @@ fn _push_ascii_u8(out, b) {
 
 fn _push_ascii_str(out, s) {
     var n = oren_string_len(s)
-    var i = 0
-    while i < n {
-        var b = oren_string_byte_at_unchecked(s, i) & 255
-        _push_ascii_u8(out, b)
-        i = i + 1
-    }
+    var rc = oren_u8_buf_copy_from_string_slice_at(out["buf"], out["pos"], s, 0, n)
+    if oren_is_err(rc) { return rc }
+    out["pos"] = out["pos"] + n
+    return 0
 }
 
 fn _digits(n) {
@@ -58,11 +56,16 @@ fn encode_rgba(rgba, w, h) {
     var cur = {"buf": buf, "ptr": outp, "pos": 0}
 
     // Emit header (ASCII).
-    _push_ascii_str(cur, "P6\n")
-    _push_ascii_str(cur, ws)
-    _push_ascii_str(cur, " ")
-    _push_ascii_str(cur, hs)
-    _push_ascii_str(cur, "\n255\n")
+    var h0 = _push_ascii_str(cur, "P6\n")
+    if oren_is_err(h0) { return h0 }
+    var h1 = _push_ascii_str(cur, ws)
+    if oren_is_err(h1) { return h1 }
+    var h2 = _push_ascii_str(cur, " ")
+    if oren_is_err(h2) { return h2 }
+    var h3 = _push_ascii_str(cur, hs)
+    if oren_is_err(h3) { return h3 }
+    var h4 = _push_ascii_str(cur, "\n255\n")
+    if oren_is_err(h4) { return h4 }
 
     // Emit binary RGB.
     var pos = cur["pos"]

@@ -3494,6 +3494,9 @@ Working evidence:
 - ARM64 native SIMD/GEMM result-store emission now uses shared straight-line
   V0..V15 cursor-store helpers for the i32/f32/f64 4x4 GEMM lowering chunks,
   with the hotpath guard rejecting the old duplicated fixed loops.
+- `std:ui/ppm` header fragments now bulk-copy validated strings directly into
+  the exact-size `u8_buf` output before the existing hoisted RGBA byte-view body
+  copy.
 
 ## Key Verification Entrypoints
 

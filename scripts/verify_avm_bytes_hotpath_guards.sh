@@ -140,11 +140,14 @@ if grep -q 'oren_read_bytes(path)\|byte_len(roundtrip)\|byte_get(roundtrip' test
   exit 1
 fi
 ppm_encode_impl="$(sed -n '/fn encode_rgba(rgba, w, h)/,/fn write_rgba_ppm/p' lib/std/ui/ppm.oren)"
+ppm_header_impl="$(sed -n '/fn _push_ascii_str/,/fn _digits/p' lib/std/ui/ppm.oren)"
 if ! grep -Fq 'var rgba_data = bytes.view_bytes(rgba_view)' <<<"$ppm_encode_impl" ||
   ! grep -Fq 'var rgba_ptr = bytes.view_ptr(rgba_view)' <<<"$ppm_encode_impl" ||
   ! grep -Fq 'var r = bytes.view_get_u8_from(rgba_data, rgba_ptr, rgba_off + 0)' <<<"$ppm_encode_impl" ||
+  ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out["buf"], out["pos"], s, 0, n)' <<<"$ppm_header_impl" ||
+  grep -Fq 'oren_string_byte_at_unchecked(s, i)' <<<"$ppm_header_impl" ||
   grep -Fq 'bytes.view_get_u8_unchecked(rgba_view' <<<"$ppm_encode_impl"; then
-  echo "ERROR: PPM RGBA encoding must hoist byte-view backing storage and avoid per-channel view metadata reads" >&2
+  echo "ERROR: PPM encoding must bulk-copy header strings, hoist byte-view backing storage, and avoid per-channel view metadata reads" >&2
   exit 1
 fi
 

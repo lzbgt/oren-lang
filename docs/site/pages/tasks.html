@@ -1508,6 +1508,9 @@
 <p>			     ARM64 native SIMD/GEMM result-store emission now uses shared</p>
 <p>			     straight-line V0..V15 cursor-store helpers across i32/f32/f64</p>
 <p>			     4x4 lowering chunks instead of duplicated fixed compiler loops.</p>
+<p>			     <code>std:ui/ppm</code> header fragments now bulk-copy validated strings</p>
+<p>			     directly into the exact-size output buffer while preserving</p>
+<p>			     hoisted byte-view RGBA body reads.</p>
 <p>			     Host <code>rtobj-seed</code> now uses the same bounded stage1 build-compiler fallback</p>
 <p>	     when a compatible stage2 runtime-hash seed is missing, so local NET/native</p>
 <p>     matrix prewarm does not burn the verifier budget on repeated stage2 cold</p>
