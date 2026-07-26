@@ -102,6 +102,10 @@
 </ul>
 <p>  now route through <code>_macho_pad_to_len</code>/<code>_macho_align</code> helpers.</p>
 <ul>
+<li>ARM64 Mach-O GOT placeholder alignment now uses <code>_macho_align(data, 8)</code></li>
+</ul>
+<p>  before reserving import slots through exact zero extension.</p>
+<ul>
 <li>ARM64/x64 ELF page padding now extends the final output prefix directly with</li>
 </ul>
 <p>  exact zero spans, avoiding a temporary <code>code_pad</code> builder allocation/copy.</p>

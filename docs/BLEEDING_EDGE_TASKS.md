@@ -49,6 +49,8 @@ This file is the concise task view. Detailed implementation status lives in
      through existing alignment helpers and exact zero-extension spans.
    - Current ARM64 Mach-O cleanup routes load-command, string-table, and final
      text/data prefix padding through `_macho_pad_to_len`/`_macho_align`.
+   - Current ARM64 Mach-O import GOT cleanup aligns data with `_macho_align`
+     before reserving import pointer slots with exact zero extension.
    - Current ELF page-padding cleanup extends the output prefix directly with
      exact zero spans instead of allocating and copying a temporary `code_pad`
      builder.

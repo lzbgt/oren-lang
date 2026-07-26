@@ -111,6 +111,10 @@
 </ul>
 <p>     text/data prefix padding through <code>_macho_pad_to_len</code>/<code>_macho_align</code>.</p>
 <ul>
+<li>Current ARM64 Mach-O import GOT cleanup aligns data with <code>_macho_align</code></li>
+</ul>
+<p>     before reserving import pointer slots with exact zero extension.</p>
+<ul>
 <li>Current ELF page-padding cleanup extends the output prefix directly with</li>
 </ul>
 <p>     exact zero spans instead of allocating and copying a temporary <code>code_pad</code></p>

@@ -48,6 +48,8 @@ surfaces, but the following blockers remain:
   alignment or exact zero-extension spans for residual output padding loops.
 - ARM64 Mach-O load-command, string-table, and final text/data prefix padding
   now route through `_macho_pad_to_len`/`_macho_align` helpers.
+- ARM64 Mach-O GOT placeholder alignment now uses `_macho_align(data, 8)`
+  before reserving import slots through exact zero extension.
 - ARM64/x64 ELF page padding now extends the final output prefix directly with
   exact zero spans, avoiding a temporary `code_pad` builder allocation/copy.
 - ARM64 native expression literals, global slots, and C-string tables now share

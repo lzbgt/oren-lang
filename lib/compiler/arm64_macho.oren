@@ -981,9 +981,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var indsymtab = bytes_new()
     
     // Append GOT placeholder to Data (Aligned)
-    while int_mod(bytes_len(data), 8) != 0 {
-        bytes_push(data, 0)
-    }
+    _macho_align(data, 8)
     var got_offset = bytes_len(data)
     // PERF: avoid per-byte `bytes_push` loops when the import list is large.
     codegen.bytes_extend_zeros(data, oren_list_len(imports) * 8)
