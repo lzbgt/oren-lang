@@ -4,6 +4,7 @@ import inv "std:math/mat4_inverse"
 import norms "std:math/mat4_norms"
 import pred "std:math/mat4_predicates"
 import quat "std:math/quat"
+import xform "std:math/mat4_transform"
 import viewport "std:math/mat4_viewport"
 
 fn is_finite(m) {
@@ -1170,115 +1171,43 @@ fn normal_matrix(m) {
 }
 
 fn transform_point3(m, x: f64, y: f64, z: f64) {
-    var cm = chk._check(m, "mat4.transform_point3")
-    if oren_is_err(cm) { return cm }
-    var ok = chk._finite3(x, y, z, "mat4.transform_point3")
-    if oren_is_err(ok) { return ok }
-    var m0: f64 = m[0]
-    var m1: f64 = m[1]
-    var m2: f64 = m[2]
-    var m3: f64 = m[3]
-    var m4: f64 = m[4]
-    var m5: f64 = m[5]
-    var m6: f64 = m[6]
-    var m7: f64 = m[7]
-    var m8: f64 = m[8]
-    var m9: f64 = m[9]
-    var m10: f64 = m[10]
-    var m11: f64 = m[11]
-    var m12: f64 = m[12]
-    var m13: f64 = m[13]
-    var m14: f64 = m[14]
-    var m15: f64 = m[15]
-    var ox: f64 = m0 * x + m1 * y + m2 * z + m3
-    var oy: f64 = m4 * x + m5 * y + m6 * z + m7
-    var oz: f64 = m8 * x + m9 * y + m10 * z + m11
-    var ow: f64 = m12 * x + m13 * y + m14 * z + m15
-    if ow == 0.0 { return oren_err(4, "mat4.transform_point3: zero w") }
-    if ow == 1.0 { return [ox, oy, oz] }
-    return [ox / ow, oy / ow, oz / ow]
+    return xform.transform_point3(m, x, y, z)
 }
 
 fn transform_point(m, x: f64, y: f64, z: f64) {
-    return transform_point3(m, x, y, z)
+    return xform.transform_point(m, x, y, z)
 }
 
 fn transform_vec3(m, x: f64, y: f64, z: f64) {
-    var cm = chk._check(m, "mat4.transform_vec3")
-    if oren_is_err(cm) { return cm }
-    var ok = chk._finite3(x, y, z, "mat4.transform_vec3")
-    if oren_is_err(ok) { return ok }
-    var m0: f64 = m[0]
-    var m1: f64 = m[1]
-    var m2: f64 = m[2]
-    var m4: f64 = m[4]
-    var m5: f64 = m[5]
-    var m6: f64 = m[6]
-    var m8: f64 = m[8]
-    var m9: f64 = m[9]
-    var m10: f64 = m[10]
-    return [
-        m0 * x + m1 * y + m2 * z,
-        m4 * x + m5 * y + m6 * z,
-        m8 * x + m9 * y + m10 * z
-    ]
+    return xform.transform_vec3(m, x, y, z)
 }
 
 fn transform_vector(m, x: f64, y: f64, z: f64) {
-    return transform_vec3(m, x, y, z)
+    return xform.transform_vector(m, x, y, z)
 }
 
 fn transform_normal3(m, x: f64, y: f64, z: f64) {
-    var ok = chk._finite3(x, y, z, "mat4.transform_normal3")
-    if oren_is_err(ok) { return ok }
-    var n = normal_matrix3(m)
-    if oren_is_err(n) { return n }
-    var n0: f64 = n[0]
-    var n1: f64 = n[1]
-    var n2: f64 = n[2]
-    var n3: f64 = n[3]
-    var n4: f64 = n[4]
-    var n5: f64 = n[5]
-    var n6: f64 = n[6]
-    var n7: f64 = n[7]
-    var n8: f64 = n[8]
-    var tx: f64 = n0 * x + n1 * y + n2 * z
-    var ty: f64 = n3 * x + n4 * y + n5 * z
-    var tz: f64 = n6 * x + n7 * y + n8 * z
-    var l0 = math.hypot3(tx, ty, tz)
-    if oren_is_err(l0) { return l0 }
-    var l: f64 = l0
-    if l == 0.0 { return oren_err(4, "mat4.transform_normal3: zero length") }
-    return [tx / l, ty / l, tz / l]
+    return xform.transform_normal3(m, x, y, z)
 }
 
 fn transform_normal(m, x: f64, y: f64, z: f64) {
-    return transform_normal3(m, x, y, z)
+    return xform.transform_normal(m, x, y, z)
 }
 
 fn project_point3(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
-    var p = transform_point3(m, x, y, z)
-    if oren_is_err(p) { return p }
-    var px: f64 = p[0]
-    var py: f64 = p[1]
-    var pz: f64 = p[2]
-    return viewport.ndc_to_window_checked(px, py, pz, viewport_x, viewport_y, viewport_w, viewport_h, "mat4.project_point3")
+    return xform.project_point3(m, x, y, z, viewport_x, viewport_y, viewport_w, viewport_h)
 }
 
 fn project_point(m, x: f64, y: f64, z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
-    return project_point3(m, x, y, z, viewport_x, viewport_y, viewport_w, viewport_h)
+    return xform.project_point(m, x, y, z, viewport_x, viewport_y, viewport_w, viewport_h)
 }
 
 fn unproject_point3(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
-    var ndc = viewport.window_to_ndc_checked(win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h, "mat4.unproject_point3")
-    if oren_is_err(ndc) { return ndc }
-    var inv = inverse(m)
-    if oren_is_err(inv) { return inv }
-    return transform_point3(inv, ndc[0], ndc[1], ndc[2])
+    return xform.unproject_point3(m, win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
 }
 
 fn unproject_point(m, win_x: f64, win_y: f64, win_z: f64, viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
-    return unproject_point3(m, win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
+    return xform.unproject_point(m, win_x, win_y, win_z, viewport_x, viewport_y, viewport_w, viewport_h)
 }
 
 fn viewport_matrix(viewport_x: f64, viewport_y: f64, viewport_w: f64, viewport_h: f64) {
