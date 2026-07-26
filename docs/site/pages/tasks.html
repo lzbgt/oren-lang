@@ -281,6 +281,20 @@
 </ul>
 <p>     <code>oren_call_obj_list</code> temp-state/spill/args emission and namespace/member</p>
 <p>     index lowering helpers.</p>
+<ul>
+<li>Current Windows x64 <code>sys_getentropy</code> RNG-call cleanup separates argument</li>
+</ul>
+<p>     materialization, conservative u32 length guarding, dynamic RNG invocation,</p>
+<p>     and success return-code emission into focused helpers.</p>
+<ul>
+<li>Current Windows x64 <code>sys_win_wait_single_object</code> result cleanup separates</li>
+</ul>
+<p>     WAIT-code label allocation, dispatch comparisons, and status-path emission</p>
+<p>     while preserving the same <code>0</code> / <code>-ETIMEDOUT</code> / <code>-1</code> mapping.</p>
+<ul>
+<li>Current x64 runtime-object debug symtab-name cleanup separates compact-name</li>
+</ul>
+<p>     selection, unique display-name insertion, and list/map fallback iteration.</p>
 <ol>
 <li><strong>Tagged value convergence</strong></li>
 </ol>

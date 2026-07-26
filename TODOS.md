@@ -59,6 +59,14 @@ design evidence lives under `project-doc/`.
 - x64 native string-batch, top-level synthetic global, and debug-root table data
   alignment now share the same byte-builder zero-extension helper instead of
   open-coded zero-byte alignment loops.
+- Windows x64 `sys_getentropy` RNG call lowering now separates argument
+  materialization, conservative u32 length guarding, dynamic RNG invocation, and
+  success return-code emission into focused helpers.
+- Windows x64 `sys_win_wait_single_object` result lowering now separates
+  WAIT-code label allocation, dispatch comparisons, and status-path emission
+  while preserving the same `0` / `-ETIMEDOUT` / `-1` mapping.
+- x64 runtime-object debug symtab-name collection now separates compact-name
+  selection, unique display-name insertion, and list/map fallback iteration.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops, and PE import hint/name alignment

@@ -146,6 +146,14 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 call/member expression cleanup separates explicit
      `oren_call_obj_list` temp-state/spill/args emission and namespace/member
      index lowering helpers.
+   - Current Windows x64 `sys_getentropy` RNG-call cleanup separates argument
+     materialization, conservative u32 length guarding, dynamic RNG invocation,
+     and success return-code emission into focused helpers.
+   - Current Windows x64 `sys_win_wait_single_object` result cleanup separates
+     WAIT-code label allocation, dispatch comparisons, and status-path emission
+     while preserving the same `0` / `-ETIMEDOUT` / `-1` mapping.
+   - Current x64 runtime-object debug symtab-name cleanup separates compact-name
+     selection, unique display-name insertion, and list/map fallback iteration.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

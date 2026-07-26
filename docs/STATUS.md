@@ -75,6 +75,14 @@ surfaces, but the following blockers remain:
   and runtime helper paths.
 - X64 context-switch XMM save/restore code emission is now straight-line for the
   fixed 16-register frame layout instead of a compiler-side fixed loop.
+- Windows x64 `sys_getentropy` RNG-call lowering now separates argument
+  materialization, conservative u32 length guarding, dynamic RNG invocation, and
+  success return-code emission into focused helpers.
+- Windows x64 `sys_win_wait_single_object` result lowering now separates
+  WAIT-code label allocation, dispatch comparisons, and status-path emission
+  while preserving the same `0` / `-ETIMEDOUT` / `-1` mapping.
+- X64 runtime-object debug symtab-name collection now separates compact-name
+  selection, unique display-name insertion, and list/map fallback iteration.
 - ARM64/x64 native compiler data-section alignment and fixed table reservations
   now reserve exact zero spans with byte-builder zero extension rather than
   repeated zero-byte push loops in context/data I/O helpers.

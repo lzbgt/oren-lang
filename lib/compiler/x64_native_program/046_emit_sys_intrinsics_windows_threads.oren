@@ -132,40 +132,54 @@ fn _x64_emit_win_wait_single_object_call(ctx) {
     return nil
 }
 
-fn _x64_emit_win_wait_single_object_result(ctx, labels, fixups) {
-    var l_ok = _new_label(ctx, "win_wso_ok")
-    var l_timeout = _new_label(ctx, "win_wso_timeout")
-    var l_fail = _new_label(ctx, "win_wso_fail")
-    var l_done = _new_label(ctx, "win_wso_done")
+fn _x64_win_wait_single_object_result_labels(ctx) {
+    return {
+        "ok": _new_label(ctx, "win_wso_ok"),
+        "timeout": _new_label(ctx, "win_wso_timeout"),
+        "fail": _new_label(ctx, "win_wso_fail"),
+        "done": _new_label(ctx, "win_wso_done"),
+    }
+}
 
+fn _x64_win_wait_single_object_emit_dispatch(ctx, fixups, wlab) {
     // WAIT_OBJECT_0 == 0
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", l_ok)
+    _emit_jcc_to_label(ctx, fixups, "e", wlab["ok"])
     // WAIT_TIMEOUT == 258
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 258))
-    _emit_jcc_to_label(ctx, fixups, "e", l_timeout)
+    _emit_jcc_to_label(ctx, fixups, "e", wlab["timeout"])
     // WAIT_FAILED == 0xFFFFFFFF
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "e", l_fail)
+    _emit_jcc_to_label(ctx, fixups, "e", wlab["fail"])
     // unexpected => fail
-    _emit_jmp_to_label(ctx, fixups, l_fail)
+    _emit_jmp_to_label(ctx, fixups, wlab["fail"])
+    return nil
+}
 
-    _emit_label(ctx, labels, l_ok)
+fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab) {
+    _emit_label(ctx, labels, wlab["ok"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, wlab["done"])
 
-    _emit_label(ctx, labels, l_timeout)
+    _emit_label(ctx, labels, wlab["timeout"])
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, wlab["done"])
 
-    _emit_label(ctx, labels, l_fail)
+    _emit_label(ctx, labels, wlab["fail"])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967295))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_jmp_to_label(ctx, fixups, wlab["done"])
 
-    _emit_label(ctx, labels, l_done)
+    _emit_label(ctx, labels, wlab["done"])
     _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _x64_emit_win_wait_single_object_result(ctx, labels, fixups) {
+    var wlab = _x64_win_wait_single_object_result_labels(ctx)
+    _x64_win_wait_single_object_emit_dispatch(ctx, fixups, wlab)
+    _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)
     return nil
 }
 

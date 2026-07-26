@@ -1,36 +1,50 @@
-fn _x64_push_rtobj_symtab_names(ctx, sym_seen, sym_names) {
+fn _x64_rtobj_symtab_compact_names(ctx) {
     var pend = ctx["rtobj_pending"]
     var rt_fn_compact = nil
     if pend != nil { rt_fn_compact = pend["fn_offsets_compact"] }
     var rt_names = nil
     if rt_fn_compact != nil { rt_names = rt_fn_compact["names"] }
+    return rt_names
+}
+
+fn _x64_push_rtobj_symtab_name(ctx, sym_seen, sym_names, rnm) {
+    if rnm == nil || rnm == "" { return nil }
+    _x64_symtab_push_unique(sym_seen, sym_names, rnm)
+    if ctx["symtab_display"][rnm] == nil {
+        ctx["symtab_display"][rnm] = rnm + "@<runtime>"
+    }
+    return nil
+}
+
+fn _x64_push_rtobj_symtab_names_list(ctx, sym_seen, sym_names, rt_names) {
+    var rn_i = 0
+    var rn_len = oren_list_len(rt_names)
+    while rn_i < rn_len {
+        _x64_push_rtobj_symtab_name(ctx, sym_seen, sym_names, rt_names[rn_i])
+        rn_i = rn_i + 1
+    }
+    return nil
+}
+
+fn _x64_push_rtobj_symtab_names_map(ctx, sym_seen, sym_names, enc_map) {
+    var idxr = 0
+    var pairr = [nil, nil]
+    while 1 {
+        var okr = oren_iter_next_entry(enc_map, idxr, pairr)
+        if okr == 0 { break }
+        _x64_push_rtobj_symtab_name(ctx, sym_seen, sym_names, pairr[0])
+        idxr = idxr + 1
+    }
+    return nil
+}
+
+fn _x64_push_rtobj_symtab_names(ctx, sym_seen, sym_names) {
+    var pend = ctx["rtobj_pending"]
+    var rt_names = _x64_rtobj_symtab_compact_names(ctx)
     if rt_names != nil {
-        var rn_i = 0
-        while rn_i < oren_list_len(rt_names) {
-            var rnm0 = rt_names[rn_i]
-            if rnm0 != nil && rnm0 != "" {
-                _x64_symtab_push_unique(sym_seen, sym_names, rnm0)
-                if ctx["symtab_display"][rnm0] == nil {
-                    ctx["symtab_display"][rnm0] = rnm0 + "@<runtime>"
-                }
-            }
-            rn_i = rn_i + 1
-        }
+        _x64_push_rtobj_symtab_names_list(ctx, sym_seen, sym_names, rt_names)
     } else if pend != nil && pend["fn_offs_enc"] != nil {
-        var idxr = 0
-        var pairr = [nil, nil]
-        while 1 {
-            var okr = oren_iter_next_entry(pend["fn_offs_enc"], idxr, pairr)
-            if okr == 0 { break }
-            var rnm = pairr[0]
-            if rnm != nil && rnm != "" {
-                _x64_symtab_push_unique(sym_seen, sym_names, rnm)
-                if ctx["symtab_display"][rnm] == nil {
-                    ctx["symtab_display"][rnm] = rnm + "@<runtime>"
-                }
-            }
-            idxr = idxr + 1
-        }
+        _x64_push_rtobj_symtab_names_map(ctx, sym_seen, sym_names, pend["fn_offs_enc"])
     }
     return nil
 }

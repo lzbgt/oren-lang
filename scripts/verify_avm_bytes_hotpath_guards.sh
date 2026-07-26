@@ -1000,10 +1000,15 @@ if ! grep -Fq 'fn _x64_emit_named_call_index_intrinsic_v0' <<<"$x64_named_call_c
 fi
 x64_program_entry_shape_impl="$(cat lib/compiler/x64_native_program/090_program_entry/020_part_b.oren)
 $(sed -n '/fn _x64_rtobj_should_merge_cstr0_offs/,/fn _x64_rtobj_apply_function_metadata/p' lib/compiler/x64_native_program/090_program_entry/010_part_a.oren)
+$(sed -n '/fn _x64_rtobj_symtab_compact_names/,/fn _x64_reserve_debug_symtab/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)
 $(sed -n '/fn _x64_reserve_debug_symtab/,/fn _x64_setup_program_debug_metadata/p' lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren)"
 if ! grep -Fq 'fn _x64_slow_fn_top_insert_index' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_rtobj_merge_cstr0_offs(ctx, offs, trace)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_rtobj_stash_cstr0_lists(ctx, meta, trace)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_rtobj_symtab_compact_names(ctx)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_push_rtobj_symtab_name(ctx, sym_seen, sym_names, rnm)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_push_rtobj_symtab_names_list(ctx, sym_seen, sym_names, rt_names)' <<<"$x64_program_entry_shape_impl" ||
+  ! grep -Fq 'fn _x64_push_rtobj_symtab_names_map(ctx, sym_seen, sym_names, enc_map)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_debug_function_names(sym_seen, sym_names, fns)' <<<"$x64_program_entry_shape_impl" ||
   ! grep -Fq 'fn _x64_push_debug_import_names(sym_seen, sym_names, imports0)' <<<"$x64_program_entry_shape_impl"; then
   echo "ERROR: x64 program-entry trace/cstr/debug helpers must stay split into focused parser bodies" >&2
@@ -1055,6 +1060,8 @@ if ! grep -Fq 'fn _lit_hash_emit_pairs(ctx, locals, hn, pairs, depth_enc0)' <<<"
 fi
 x64_sys_data_split_impl="$(sed -n '/fn _x64_emit_windows_file_io_result/,/fn _x64_sys_rw_linux_slots/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren)
 $(sed -n '/fn _x64_gettimeofday_windows_new_labels/,/fn _x64_qpc_frequency_prepare_windows/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
+$(sed -n '/fn _x64_emit_getentropy_windows_rng_args/,/fn _x64_emit_getentropy_windows_finish/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren)
+$(sed -n '/fn _x64_win_wait_single_object_result_labels/,/fn _emit_intrinsic_sys_win_wait_single_object_windows_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_threads.oren)
 $(sed -n '/fn _emit_win64_stat_regular_file_mode_x64/,/fn _emit_win64_stat_capsule_post_x64/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren)
 $(sed -n '/fn _emit_nanosleep_timespec_syscall_x64/,/fn _x64_linux_nanosleep_state/p' lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren)
 $(sed -n '/fn _emit_windows_write_ptr_len/,/fn _emit_panic_preserve_msg_reg/p' lib/compiler/x64_native_program/071_panic.oren)
@@ -1066,6 +1073,10 @@ $(sed -n '/fn _x64_ffi_resolver_linux_name/,/fn _x64_ffi_stub_linux_dyn_data/p' 
 $(sed -n '/fn _x64_new_ctx_base_buffers/,/fn _x64_new_ctx_aliases/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)
 $(sed -n '/fn _x64_new_ctx_runtime_cstr_slot/,/fn _x64_new_ctx_trace_flags/p' lib/compiler/x64_native_program/090_program_entry/000_prelude.oren)"
 if ! grep -Fq 'fn _x64_gettimeofday_windows_emit_body(ctx, state, lab)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_len_guard(ctx, state)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_emit_getentropy_windows_rng_call(ctx, state)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_win_wait_single_object_result_labels(ctx)' <<<"$x64_sys_data_split_impl" ||
+  ! grep -Fq 'fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _x64_emit_sys_read_windows_finish(ctx, labels, local_fixups, l_ret0, l_done, base)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)' <<<"$x64_sys_data_split_impl" ||
   ! grep -Fq 'fn _emit_nanosleep_timespec_on_stack_x64(ctx, tmp_ns)' <<<"$x64_sys_data_split_impl" ||

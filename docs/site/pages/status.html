@@ -145,6 +145,20 @@
 </ul>
 <p>  fixed 16-register frame layout instead of a compiler-side fixed loop.</p>
 <ul>
+<li>Windows x64 <code>sys_getentropy</code> RNG-call lowering now separates argument</li>
+</ul>
+<p>  materialization, conservative u32 length guarding, dynamic RNG invocation, and</p>
+<p>  success return-code emission into focused helpers.</p>
+<ul>
+<li>Windows x64 <code>sys_win_wait_single_object</code> result lowering now separates</li>
+</ul>
+<p>  WAIT-code label allocation, dispatch comparisons, and status-path emission</p>
+<p>  while preserving the same <code>0</code> / <code>-ETIMEDOUT</code> / <code>-1</code> mapping.</p>
+<ul>
+<li>X64 runtime-object debug symtab-name collection now separates compact-name</li>
+</ul>
+<p>  selection, unique display-name insertion, and list/map fallback iteration.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

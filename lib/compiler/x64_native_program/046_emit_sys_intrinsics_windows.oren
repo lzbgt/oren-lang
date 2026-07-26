@@ -951,9 +951,7 @@ fn _x64_emit_getentropy_windows_resolve_fp(ctx, state) {
     return nil
 }
 
-fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
-    var labels = state["labels"]
-    var fixups = state["fixups"]
+fn _x64_emit_getentropy_windows_rng_args(ctx, state) {
     var tmp_buf = state["tmp_buf"]
     var tmp_len = state["tmp_len"]
     // Call BCryptGenRandom(NULL, buf, (u32)len, 0x2)
@@ -963,6 +961,12 @@ fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
     _intr_load_x64(ctx, 2, tmp_buf)
     // r8d = len (u32)
     _intr_load_x64(ctx, 8, tmp_len)
+    return nil
+}
+
+fn _x64_emit_getentropy_windows_rng_len_guard(ctx, state) {
+    var labels = state["labels"]
+    var fixups = state["fixups"]
     // Fail if len > 0xFFFFFFFF (conservative)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, 4294967295))
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 9))
@@ -973,6 +977,11 @@ fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, state["l_done"])
     _emit_label(ctx, labels, l_len_ok)
+    return nil
+}
+
+fn _x64_emit_getentropy_windows_rng_call(ctx, state) {
+    var fixups = state["fixups"]
     // r9d = flags (BCRYPT_USE_SYSTEM_PREFERRED_RNG = 2)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 2))
     // call fp in r11
@@ -981,10 +990,22 @@ fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
     // NTSTATUS in eax: 0 => success
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", state["l_fail"])
+    return nil
+}
 
+fn _x64_emit_getentropy_windows_success_rc(ctx, state) {
+    var fixups = state["fixups"]
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
     _emit_jmp_to_label(ctx, fixups, state["l_done"])
+    return nil
+}
+
+fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
+    _x64_emit_getentropy_windows_rng_args(ctx, state)
+    _x64_emit_getentropy_windows_rng_len_guard(ctx, state)
+    _x64_emit_getentropy_windows_rng_call(ctx, state)
+    _x64_emit_getentropy_windows_success_rc(ctx, state)
     return nil
 }
 
