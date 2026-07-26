@@ -1416,8 +1416,10 @@ fi
 
 bytes_builder_string_impl="$(sed -n '/fn bytes_extend_string(b, s)/,/fn bytes_set_u8/p' lib/compiler/bytes_builder.oren)"
 if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, 0, n)' <<<"$bytes_builder_string_impl" ||
+  ! grep -Fq 'fn bytes_extend_string_slice(b, s, off, n)' <<<"$bytes_builder_string_impl" ||
+  ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(b["buf"], used, s, off, n)' <<<"$bytes_builder_string_impl" ||
   grep -Fq 'ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)' <<<"$bytes_builder_string_impl"; then
-  echo "ERROR: compiler byte-builder string extension must copy string spans directly, not loop per byte" >&2
+  echo "ERROR: compiler byte-builder string extension must copy string spans and slices directly, not loop per byte" >&2
   exit 1
 fi
 
@@ -1520,8 +1522,11 @@ arm64_macho_got_impl="$(sed -n '/Append GOT placeholder to Data/,/macho arm64: G
 arm64_macho_load_commands_impl="$(sed -n '/LC_LOAD_DYLINKER/,/LC_BUILD_VERSION/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_prefix_impl="$(sed -n '/Pad strtab to 16 bytes/,/LinkEdit content/p' lib/compiler/arm64_macho.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_macho.oren ||
+  ! grep -Fq 'fn bytes_extend_string_slice(b, s, off, n) { return codegen.bytes_extend_string_slice(b, s, off, n) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'if n > 16 { n = 16 }' <<<"$arm64_macho_fixed16_impl" ||
+  ! grep -Fq 'bytes_extend_string_slice(buf, s, 0, n)' <<<"$arm64_macho_fixed16_impl" ||
   ! grep -Fq 'if n < 16 { bytes_extend_zeros(buf, 16 - n) }' <<<"$arm64_macho_fixed16_impl" ||
+  grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_fixed16_impl" ||
   grep -Fq 'while i < 16' <<<"$arm64_macho_fixed16_impl" ||
   ! grep -Fq 'bytes_extend_zeros(p, 16)' <<<"$arm64_macho_pagezero_impl" ||
   ! grep -Fq 'fn _macho_pad_to_len(buf, target_len)' <<<"$arm64_macho_pad_helper_impl" ||

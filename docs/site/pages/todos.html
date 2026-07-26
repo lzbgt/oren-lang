@@ -150,6 +150,11 @@
 </ul>
 <p>  exact-size output <code>u8_buf</code> while retaining hoisted RGBA byte-view body reads.</p>
 <ul>
+<li>Compiler byte builders now expose direct string-slice extension, and ARM64</li>
+</ul>
+<p>  Mach-O fixed 16-byte segment/section fields use it before zero-padding instead</p>
+<p>  of per-byte string emission.</p>
+<ul>
 <li>OBC linker NIL constant tags now route through byte-builder zero-extension</li>
 </ul>
 <p>  rather than single zero-byte pushes while preserving nonzero constant tags.</p>

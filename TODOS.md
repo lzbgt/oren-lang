@@ -83,6 +83,9 @@ design evidence lives under `project-doc/`.
   duplicated fixed compiler loops in individual lowering chunks.
 - `std:ui/ppm` header fragments now bulk-copy validated strings into the
   exact-size output `u8_buf` while retaining hoisted RGBA byte-view body reads.
+- Compiler byte builders now expose direct string-slice extension, and ARM64
+  Mach-O fixed 16-byte segment/section fields use it before zero-padding instead
+  of per-byte string emission.
 - OBC linker NIL constant tags now route through byte-builder zero-extension
   rather than single zero-byte pushes while preserving nonzero constant tags.
 - ARM64/x64 ELF final executable page padding now extends the output prefix

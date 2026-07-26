@@ -1389,6 +1389,10 @@ This file is the concise task view. Detailed implementation status lives in
 			     `std:ui/ppm` header fragments now bulk-copy validated strings
 			     directly into the exact-size output buffer while preserving
 			     hoisted byte-view RGBA body reads.
+			     Compiler byte builders now expose direct string-slice
+			     extension, and ARM64 Mach-O fixed 16-byte segment/section
+			     fields use it before zero-padding instead of per-byte string
+			     emission.
 			     Host `rtobj-seed` now uses the same bounded stage1 build-compiler fallback
 	     when a compatible stage2 runtime-hash seed is missing, so local NET/native
      matrix prewarm does not burn the verifier budget on repeated stage2 cold

@@ -3497,6 +3497,9 @@ Working evidence:
 - `std:ui/ppm` header fragments now bulk-copy validated strings directly into
   the exact-size `u8_buf` output before the existing hoisted RGBA byte-view body
   copy.
+- Compiler byte builders now expose a direct string-slice extension helper, and
+  ARM64 Mach-O fixed 16-byte segment/section fields use it before zero-padding
+  instead of per-byte string emission.
 
 ## Key Verification Entrypoints
 

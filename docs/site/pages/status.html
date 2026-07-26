@@ -3841,6 +3841,11 @@
 </ul>
 <p>  the exact-size <code>u8_buf</code> output before the existing hoisted RGBA byte-view body</p>
 <p>  copy.</p>
+<ul>
+<li>Compiler byte builders now expose a direct string-slice extension helper, and</li>
+</ul>
+<p>  ARM64 Mach-O fixed 16-byte segment/section fields use it before zero-padding</p>
+<p>  instead of per-byte string emission.</p>
 <h2 id="key-verification-entrypoints">Key Verification Entrypoints</h2>
 <pre><code>./oretest
 ./oretest --selfhost
