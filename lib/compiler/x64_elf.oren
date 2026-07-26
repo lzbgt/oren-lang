@@ -1189,8 +1189,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     var text_end_off = hdr_size + code_len
     var data_file_off = align_up(text_end_off, page)
     var pad_len = data_file_off - text_end_off
-    var pi = 0
-    while pi < pad_len { bytes_push(code_pad, 0); pi = pi + 1 }
+    bytes_extend_zeros(code_pad, pad_len)
     var data_base_off = code_len + bytes_len(code_pad)
     if phase_log != nil {
         _elf_phase_log_append(phase_log, "x64.elf.layout.done",
@@ -1467,10 +1466,10 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     bytes_push(shstr, 0)
 
     // Align and append shstrtab.
-    while int_mod(bytes_len(prefix), 16) != 0 { bytes_push(prefix, 0) }
+    _bytes_align(prefix, 16)
     var shstr_off = bytes_len(prefix)
     bytes_extend(prefix, shstr)
-    while int_mod(bytes_len(prefix), 16) != 0 { bytes_push(prefix, 0) }
+    _bytes_align(prefix, 16)
 
     // Build section header table (SHT).
     // ELF64_Shdr size is 64 bytes.

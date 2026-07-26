@@ -32,6 +32,8 @@ surfaces, but the following blockers remain:
   alignment now reuses the shared byte-builder zero-extension alignment helper.
 - x64 PE export, header, and raw-section padding now use exact byte-builder
   zero-extension helpers instead of open-coded zero-byte push loops.
+- ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based
+  alignment or exact zero-extension spans for residual output padding loops.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

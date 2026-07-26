@@ -48,6 +48,9 @@ design evidence lives under `project-doc/`.
 - x64 PE export-table, DOS/optional/header, and section raw-data padding now
   routes through `_pe_align`/`_pe_pad_to_len` byte-builder zero-extension helpers
   rather than open-coded zero-byte push loops.
+- ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing
+  alignment helpers or exact zero-extension spans for dylib-id, exit-stub,
+  debug-data, page, and section-table padding.
 - iOS Metal retained image uploads now preflight scalar-map storage before
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.

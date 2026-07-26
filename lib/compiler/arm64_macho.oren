@@ -352,6 +352,14 @@ fn _macho_align(buf, align) {
     return nil
 }
 
+fn _macho_pad_to_len(buf, target_len) {
+    if buf == nil { return nil }
+    if target_len == nil { return nil }
+    var used = bytes_len(buf)
+    if target_len > used { bytes_extend_zeros(buf, target_len - used) }
+    return nil
+}
+
 fn push_uleb128(buf, val) {
     if val == 0 {
         bytes_push(buf, 0)
@@ -667,7 +675,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         push_u32_le(p, 0) // compat ver
         _macho_push_string_bytes(p, id_name)
         bytes_push(p, 0)
-        while bytes_len(p) < id_start + id_size { bytes_push(p, 0) }
+        _macho_pad_to_len(p, id_start + id_size)
     } else {
         push_u32_le(p, lc_main())
         push_u32_le(p, cmdsize_main())
@@ -881,7 +889,7 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
     var text_size = align_up(header_size + bytes_len(code), macho_segment_align())
     var prefix = macho_build_prefix_arm64(text_size, 0, 0, 0, header_size, 0, 0, 0, 0, 0, [], false, "")
     bytes_extend(prefix, code)
-    while bytes_len(prefix) < text_size { bytes_push(prefix, 0) }
+    _macho_pad_to_len(prefix, text_size)
 
     var w = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w) {
@@ -1068,7 +1076,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         _macho_phase_log_append(phase_log, "macho.exports.done", "exports=" + oren_int_to_string(exports_n))
     }
     
-    while int_mod(bytes_len(code), 4) != 0 { bytes_push(code, 0) }
+    _macho_align(code, 4)
     
     if functions["main"] == nil {
         if functions["__top_level__"] != nil { functions["main"] = functions["__top_level__"] }
@@ -1094,7 +1102,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if debug_mode {
         if phase_log != nil { _macho_phase_log_append(phase_log, "macho.debug.start", "") }
         var debug_blob = emit_debug_info(ctx, text_base, header_size)
-        while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
+        _macho_align(data, 8)
         var debug_off = bytes_len(data)
         bytes_extend(data, debug_blob)
         if ctx["debug_fixup_pos"] != nil {

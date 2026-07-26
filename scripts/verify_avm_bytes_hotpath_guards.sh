@@ -1115,14 +1115,25 @@ fi
 
 arm64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/arm64_elf.oren)"
 x64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/x64_elf.oren)"
+arm64_elf_layout_impl="$(sed -n '/Append debug info (Linux ELF)/,/Patch debug static addr constant/p' lib/compiler/arm64_elf.oren)"
+x64_elf_page_layout_impl="$(sed -n '/Ensure the data segment begins on a page boundary/,/If `--link` is used/p' lib/compiler/x64_elf.oren)"
+x64_elf_shstr_layout_impl="$(sed -n '/Align and append shstrtab/,/Build section header table/p' lib/compiler/x64_elf.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$arm64_elf_align_impl" ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$arm64_elf_align_impl" ||
   ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$x64_elf_align_impl" ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$x64_elf_align_impl" ||
+  ! grep -Fq '_bytes_align(data, 8)' <<<"$arm64_elf_layout_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(code_pad, pad_len)' <<<"$arm64_elf_layout_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(code_pad, pad_len)' <<<"$x64_elf_page_layout_impl" ||
+  test "$(grep -Fc '_bytes_align(prefix, 16)' <<<"$x64_elf_shstr_layout_impl")" != "2" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
-  grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl"; then
+  grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl" ||
+  grep -Fq 'while int_mod(bytes_len(data), 8) != 0' <<<"$arm64_elf_layout_impl" ||
+  grep -Fq 'while pi < pad_len' <<<"$arm64_elf_layout_impl" ||
+  grep -Fq 'while pi < pad_len' <<<"$x64_elf_page_layout_impl" ||
+  grep -Fq 'while int_mod(bytes_len(prefix), 16) != 0' <<<"$x64_elf_shstr_layout_impl"; then
   echo "ERROR: ELF alignment padding must use byte-builder zero extension, not per-byte loops" >&2
   exit 1
 fi
@@ -1219,13 +1230,27 @@ fi
 
 arm64_macho_fixed16_impl="$(sed -n '/fn push_str_fixed16/,/fn _macho_push_string_bytes/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_pagezero_impl="$(sed -n '/LC_SEGMENT_64 (__PAGEZERO)/,/vmaddr/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_pad_helper_impl="$(sed -n '/fn _macho_pad_to_len/,/fn push_uleb128/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_dylib_id_impl="$(sed -n '/var id_start = bytes_len(p)/,/} else {/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_exit_impl="$(sed -n '/fn macho_emit_exit_arm64/,/^}/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_codegen_align_impl="$(sed -n '/macho.exports.done/,/if functions\["main"\] == nil/p; /Append debug info/,/var debug_off = bytes_len(data)/p' lib/compiler/arm64_macho.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_macho.oren ||
   ! grep -Fq 'if n > 16 { n = 16 }' <<<"$arm64_macho_fixed16_impl" ||
   ! grep -Fq 'if n < 16 { bytes_extend_zeros(buf, 16 - n) }' <<<"$arm64_macho_fixed16_impl" ||
   grep -Fq 'while i < 16' <<<"$arm64_macho_fixed16_impl" ||
   ! grep -Fq 'bytes_extend_zeros(p, 16)' <<<"$arm64_macho_pagezero_impl" ||
-  grep -Fq 'while i < 16 { bytes_push(p, 0); i = i + 1 }' <<<"$arm64_macho_pagezero_impl"; then
-  echo "ERROR: ARM64 Mach-O fixed 16-byte fields must use byte-builder zero extension for padding" >&2
+  ! grep -Fq 'fn _macho_pad_to_len(buf, target_len)' <<<"$arm64_macho_pad_helper_impl" ||
+  ! grep -Fq 'if target_len > used { bytes_extend_zeros(buf, target_len - used) }' <<<"$arm64_macho_pad_helper_impl" ||
+  ! grep -Fq '_macho_pad_to_len(p, id_start + id_size)' <<<"$arm64_macho_dylib_id_impl" ||
+  ! grep -Fq '_macho_pad_to_len(prefix, text_size)' <<<"$arm64_macho_exit_impl" ||
+  ! grep -Fq '_macho_align(code, 4)' <<<"$arm64_macho_codegen_align_impl" ||
+  ! grep -Fq '_macho_align(data, 8)' <<<"$arm64_macho_codegen_align_impl" ||
+  grep -Fq 'while i < 16 { bytes_push(p, 0); i = i + 1 }' <<<"$arm64_macho_pagezero_impl" ||
+  grep -Fq 'while bytes_len(p) < id_start + id_size' <<<"$arm64_macho_dylib_id_impl" ||
+  grep -Fq 'while bytes_len(prefix) < text_size' <<<"$arm64_macho_exit_impl" ||
+  grep -Fq 'while int_mod(bytes_len(code), 4) != 0' <<<"$arm64_macho_codegen_align_impl" ||
+  grep -Fq 'while int_mod(bytes_len(data), 8) != 0' <<<"$arm64_macho_codegen_align_impl"; then
+  echo "ERROR: ARM64 Mach-O fixed/header/debug padding must use byte-builder zero-extension helpers" >&2
   exit 1
 fi
 
