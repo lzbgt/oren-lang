@@ -83,8 +83,8 @@
 <ul>
 <li>Current <code>std:net/url</code> output uses direct string-slice copies for concat</li>
 </ul>
-<p>     spans and percent-encode unreserved runs, leaving only transformed <code>%XX</code></p>
-<p>     bytes explicit.</p>
+<p>     spans plus percent encode/decode unchanged runs, leaving only transformed</p>
+<p>     <code>%XX</code> bytes and query <code>+</code> spaces explicit.</p>
 <ul>
 <li>Current native compiler data-section cleanup routes ARM64/x64 alignment and</li>
 </ul>

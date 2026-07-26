@@ -34,8 +34,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current HPACK raw string-literal output uses direct string-slice copies into
      the encoded header-block `u8_buf`, with RFC raw-literal fixture coverage.
    - Current `std:net/url` output uses direct string-slice copies for concat
-     spans and percent-encode unreserved runs, leaving only transformed `%XX`
-     bytes explicit.
+     spans plus percent encode/decode unchanged runs, leaving only transformed
+     `%XX` bytes and query `+` spaces explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and
      fixed table reservations through exact byte-builder zero-extension spans.
    - Current x64 split-module cleanup also routes string-batch, top-level

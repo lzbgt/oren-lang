@@ -909,12 +909,15 @@ if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out, off, s, 0, n)' <<<"$ne
   exit 1
 fi
 net_url_encode_impl="$(sed -n '/fn encode_component/,/fn _decode_component/p' lib/std/net/url.oren)"
+net_url_decode_impl="$(sed -n '/fn _decode_component/,/fn decode_component/p' lib/std/net/url.oren)"
 net_url_write_encoded_impl="$(sed -n '/fn _write_encoded/,/fn build_query/p' lib/std/net/url.oren)"
 if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out, j, s, start, run_n)' <<<"$net_url_encode_impl" ||
+  ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out, j, s, start, run_n)' <<<"$net_url_decode_impl" ||
   ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(out, j, s, start, run_n)' <<<"$net_url_write_encoded_impl" ||
   grep -Fq 'ptr_set_byte(p + j, b)' <<<"$net_url_encode_impl" ||
+  grep -Fq 'ptr_set_byte(p + j, b2)' <<<"$net_url_decode_impl" ||
   grep -Fq 'ptr_set_byte(outp + j, b)' <<<"$net_url_write_encoded_impl"; then
-  echo "ERROR: std:net/url percent-encoding must copy unreserved string runs directly, not byte-by-byte" >&2
+  echo "ERROR: std:net/url percent encode/decode must copy unchanged string runs directly, not byte-by-byte" >&2
   exit 1
 fi
 
