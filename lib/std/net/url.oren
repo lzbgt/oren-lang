@@ -313,15 +313,20 @@ fn encode_component(s) {
     while i < n {
         var b = _byte_at(s, i)
         if _is_unreserved(b) {
-            ptr_set_byte(p + j, b)
-            j = j + 1
+            var start = i
+            i = i + 1
+            while i < n && _is_unreserved(_byte_at(s, i)) { i = i + 1 }
+            var run_n = i - start
+            var rc = oren_u8_buf_copy_from_string_slice_at(out, j, s, start, run_n)
+            if oren_is_err(rc) { return rc }
+            j = j + run_n
         } else {
             ptr_set_byte(p + j, 37) // '%'
             ptr_set_byte(p + j + 1, _hex_digit((b >> 4) & 15))
             ptr_set_byte(p + j + 2, _hex_digit(b & 15))
             j = j + 3
+            i = i + 1
         }
-        i = i + 1
     }
     return oren_string_from_bytes_slice(out, 0, n + extra)
 }
@@ -427,22 +432,27 @@ fn _encoded_len(s) {
     return out
 }
 
-fn _write_encoded(outp, off, s) {
+fn _write_encoded(out, outp, off, s) {
     var n = oren_string_len(s)
     var j = off
     var i = 0
     while i < n {
         var b = _byte_at(s, i)
         if _is_unreserved(b) {
-            ptr_set_byte(outp + j, b)
-            j = j + 1
+            var start = i
+            i = i + 1
+            while i < n && _is_unreserved(_byte_at(s, i)) { i = i + 1 }
+            var run_n = i - start
+            var rc = oren_u8_buf_copy_from_string_slice_at(out, j, s, start, run_n)
+            if oren_is_err(rc) { return -1 }
+            j = j + run_n
         } else {
             ptr_set_byte(outp + j, 37)
             ptr_set_byte(outp + j + 1, _hex_digit((b >> 4) & 15))
             ptr_set_byte(outp + j + 2, _hex_digit(b & 15))
             j = j + 3
+            i = i + 1
         }
-        i = i + 1
     }
     return j
 }
@@ -475,10 +485,12 @@ fn build_query(pairs) {
             j = j + 1
         }
         var pair = pairs[i]
-        j = _write_encoded(outp, j, pair[0])
+        j = _write_encoded(out, outp, j, pair[0])
+        if j < 0 { return oren_err(5, "url.build_query: failed to copy key") }
         ptr_set_byte(outp + j, 61) // '='
         j = j + 1
-        j = _write_encoded(outp, j, pair[1])
+        j = _write_encoded(out, outp, j, pair[1])
+        if j < 0 { return oren_err(5, "url.build_query: failed to copy value") }
         i = i + 1
     }
     return oren_string_from_bytes_slice(out, 0, total)

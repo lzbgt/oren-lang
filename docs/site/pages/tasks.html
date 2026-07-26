@@ -81,9 +81,10 @@
 </ul>
 <p>     the encoded header-block <code>u8_buf</code>, with RFC raw-literal fixture coverage.</p>
 <ul>
-<li>Current <code>std:net/url</code> concat output uses direct string-slice copies for</li>
+<li>Current <code>std:net/url</code> output uses direct string-slice copies for concat</li>
 </ul>
-<p>     unmodified spans, leaving transforming percent-encode/decode loops explicit.</p>
+<p>     spans and percent-encode unreserved runs, leaving only transformed <code>%XX</code></p>
+<p>     bytes explicit.</p>
 <ul>
 <li>Current native compiler data-section cleanup routes ARM64/x64 alignment and</li>
 </ul>
