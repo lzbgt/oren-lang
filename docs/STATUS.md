@@ -27,6 +27,9 @@ surfaces, but the following blockers remain:
   run appends report lazy run-array allocation failure instead of silently
   dropping valid runs. `scripts/verify_ios_metal_vertex_uploads.py` guards the
   allocation and append shapes.
+- iOS Metal text-cache misses now guard typed cache-key, cache-entry, and text-run
+  allocation before dictionary lookup, glyph rasterization storage, or vertex
+  writes, keeping failed allocations on the cheap path.
 - iOS Metal OGF0 frame-state stack overflow is balanced for the fixed 64-entry
   clip, translation, opacity, and camera stacks. Overflow pushes are tracked as
   no-op frames and consume matching pops without mutating the nearest real outer

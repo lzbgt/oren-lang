@@ -253,6 +253,7 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     if (scale <= 0.0) scale = 1.0;
     uint32_t scaleMilli = (uint32_t)llround((double)scale * 1000.0);
     OrenAVMMetalTextCacheKey* cacheKey = [OrenAVMMetalTextCacheKey keyWithText:text rgba:rgba scaleMilli:scaleMilli];
+    if (!cacheKey) return nil;
     OrenAVMMetalTextCacheEntry* cached = cache[cacheKey];
     if (cached) {
         OrenAVMMetalTouchTextCacheKey(order, cacheKey);
@@ -266,6 +267,8 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     NSUInteger pixelWidth = (NSUInteger)ceil(textSize.width * scale);
     NSUInteger pixelHeight = (NSUInteger)ceil(textSize.height * scale);
     if (pixelWidth == 0 || pixelHeight == 0 || pixelWidth > 4096u || pixelHeight > 4096u) return nil;
+    OrenAVMMetalTextCacheEntry* entry = [[OrenAVMMetalTextCacheEntry alloc] init];
+    if (!entry) return nil;
 
     if (pixelWidth > ((NSUInteger)-1) / pixelHeight / 4u) return nil;
     NSUInteger pixelBytes = pixelWidth * pixelHeight * 4u;
@@ -295,7 +298,6 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
     UIGraphicsPopContext();
     CGContextRelease(ctx);
 
-    OrenAVMMetalTextCacheEntry* entry = [[OrenAVMMetalTextCacheEntry alloc] init];
     entry.logicalSize = textSize;
     entry.pixelCount = pixelWidth * pixelHeight;
     NSUInteger atlasX = 0;
@@ -410,6 +412,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun(id<MTLDevice> device,
     OrenAVMMetalTextCacheEntry* entry = OrenAVMMetalTextCacheEntryForText(device, screen, atlas, cache, order, attributesCache, cachePixels, text, rgba);
     if (!entry) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
+    if (!run) return nil;
     run.texture = entry.texture;
     OrenAVMMetalWriteTextureQuad(run->inlineVertices,
                                  x,
@@ -491,6 +494,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
     if (positionCount == 1) {
         const uint8_t* p = positions;
         OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
+        if (!run) return nil;
         run.texture = entry.texture;
         OrenAVMMetalWriteTextureQuad(run->inlineVertices,
                                      (float)OrenAVMMetalTextReadU32LE(p) + translateX,
@@ -510,6 +514,7 @@ OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun(id<MTLDevice> device,
     NSUInteger vertexCount = (NSUInteger)positionCount * 6u;
     if (positionCount != 0 && vertexCount / 6u != (NSUInteger)positionCount) return nil;
     OrenAVMMetalTextRun* run = [[OrenAVMMetalTextRun alloc] init];
+    if (!run) return nil;
     run.texture = entry.texture;
     run.opacity = opacity;
     if (!OrenAVMMetalTextRunAllocateExactHeapVertices(run, vertexCount)) return nil;

@@ -242,6 +242,18 @@ def main() -> int:
     attrs_lookup = text_source.find("OrenAVMMetalTextAttributesForRGBA(attributesCache, rgba)")
     if cache_lookup < 0 or attrs_lookup < 0 or cache_lookup > attrs_lookup:
         fail("Metal text cache hits must return before looking up UIKit attributes")
+    require_before(text_source,
+                   "if (!cacheKey) return nil;",
+                   "OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]",
+                   "Metal text cache lookups must guard typed cache-key allocation before dictionary access")
+    require_before(text_source,
+                   "OrenAVMMetalTextCacheEntry* entry = [[OrenAVMMetalTextCacheEntry alloc] init];",
+                   "uint8_t* pixels = (uint8_t*)malloc(pixelBytes)",
+                   "Metal text cache misses must allocate the cache entry before glyph rasterization storage")
+    require_before(text_source,
+                   "if (!entry) return nil;",
+                   "uint8_t* pixels = (uint8_t*)malloc(pixelBytes)",
+                   "Metal text cache misses must guard cache-entry allocation before glyph rasterization storage")
     if "OrenAVMMetalTextAttributeCacheEntryLimit = 256u" not in text_source:
         fail("Metal text attribute cache must stay bounded")
     if "CFDictionaryRemoveAllValues(cache.entries)" not in text_source:
@@ -295,6 +307,28 @@ def main() -> int:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:
         fail("single Metal texture/text quads must not allocate NSData wrappers from stack vertices")
+    single_text_start = text_source.find("OrenAVMMetalTextRun* OrenAVMMetalCreateTextRun")
+    single_text_end = text_source.find("static BOOL OrenAVMMetalTextRunReserveHeapVertices", single_text_start)
+    batch_text_start = text_source.find("OrenAVMMetalTextRun* OrenAVMMetalCreateTextBatchRun")
+    batch_text_end = text_source.find("OrenAVMMetalTextRunVertexBytes", batch_text_start)
+    if single_text_start < 0 or single_text_end < 0 or batch_text_start < 0 or batch_text_end < 0:
+        fail("missing Metal text run construction helpers")
+    single_text_body = text_source[single_text_start:single_text_end]
+    batch_text_body = text_source[batch_text_start:batch_text_end]
+    require_before(single_text_body,
+                   "if (!run) return nil;",
+                   "OrenAVMMetalWriteTextureQuad(run->inlineVertices",
+                   "single Metal text run construction must guard run allocation before vertex writes")
+    if batch_text_body.count("if (!run) return nil;") < 2:
+        fail("batched Metal text run construction must guard both single-position and heap run allocations")
+    require_before(batch_text_body,
+                   "if (!run) return nil;",
+                   "OrenAVMMetalWriteTextureQuad(run->inlineVertices",
+                   "single-position batched Metal text construction must guard run allocation before vertex writes")
+    require_before(batch_text_body,
+                   "if (!run) return nil;",
+                   "OrenAVMMetalTextRunAllocateExactHeapVertices(run, vertexCount)",
+                   "multi-position batched Metal text construction must guard run allocation before heap allocation")
     if "dataWithBytes:payload + 4 length:4" in metal_text:
         fail("retained Metal RGBA fields must stay scalar instead of allocating NSData wrappers")
     if "@property(nonatomic) uint32_t rgbaValue" not in metal_text or "@property(nonatomic) uint32_t rgbaValue" not in text_header:

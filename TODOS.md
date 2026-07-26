@@ -47,6 +47,9 @@ design evidence lives under `project-doc/`.
 - Metal retained image/text/model uploads now guard Objective-C resource
   allocation before scalar-map insertion, and prepared image/text draw appends
   fail explicitly if lazy run-array allocation fails.
+- Metal text cache misses now guard typed cache-key, cache-entry, and run
+  allocation before dictionary lookup, glyph rasterization storage, or vertex
+  writes.
 - Metal and CoreGraphics retained image/text draw handlers now reject malformed
   zero-size/count-mismatched draw payloads before retained resource lookup when
   the command is otherwise a no-op, preserving resource create/destroy paths.

@@ -90,6 +90,11 @@
 <p>  allocation before scalar-map insertion, and prepared image/text draw appends</p>
 <p>  fail explicitly if lazy run-array allocation fails.</p>
 <ul>
+<li>Metal text cache misses now guard typed cache-key, cache-entry, and run</li>
+</ul>
+<p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>
+<p>  writes.</p>
+<ul>
 <li>Metal and CoreGraphics retained image/text draw handlers now reject malformed</li>
 </ul>
 <p>  zero-size/count-mismatched draw payloads before retained resource lookup when</p>
