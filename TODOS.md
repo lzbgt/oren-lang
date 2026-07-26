@@ -3266,7 +3266,8 @@ design evidence lives under `project-doc/`.
   lazily on first live fetch or network-session registration instead of at
   runtime startup, and live DNS resolve avoids allocating the callback result
   table on empty/no-usable-address paths. Non-WebSocket session reads now use a
-  stack-first small-read buffer before returning heap-owned payload bytes to AVM.
+  stack-first small-read buffer plus bounded 64 KiB scratch reads before
+  returning heap-owned payload bytes to AVM.
 - CoreGraphics retained resource models, scalar map keys/lookups, raw payload
   copy, and retained-3D painter ordering helpers now live in
   `OrenAVMGraphicsResources`, matching the Metal resource-module boundary.

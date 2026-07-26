@@ -4658,7 +4658,8 @@
 <p>  lazily on first live fetch or network-session registration instead of at</p>
 <p>  runtime startup, and live DNS resolve avoids allocating the callback result</p>
 <p>  table on empty/no-usable-address paths. Non-WebSocket session reads now use a</p>
-<p>  stack-first small-read buffer before returning heap-owned payload bytes to AVM.</p>
+<p>  stack-first small-read buffer plus bounded 64 KiB scratch reads before</p>
+<p>  returning heap-owned payload bytes to AVM.</p>
 <ul>
 <li>CoreGraphics retained resource models, scalar map keys/lookups, raw payload</li>
 </ul>

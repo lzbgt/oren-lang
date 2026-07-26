@@ -87,10 +87,13 @@ def main() -> int:
         "if (!ips) {\n            ips = (char**)malloc(cap * sizeof(char*));",
         "if (count == 0) {\n        return -1;\n    }",
         "uint8_t inlineBuf[2048]",
-        "BOOL heapBuf = maxLen > sizeof(inlineBuf)",
-        "uint8_t* buf = heapBuf ? (uint8_t*)malloc(maxLen) : inlineBuf",
+        "if (readLen > 65536u) readLen = 65536u",
+        "BOOL heapBuf = readLen > sizeof(inlineBuf)",
+        "uint8_t* buf = heapBuf ? (uint8_t*)malloc(readLen) : inlineBuf",
+        "ssize_t n = recv(fd, buf, readLen, 0)",
         "if (heapBuf) free(buf)",
-        "memcpy(out, inlineBuf, (size_t)n)",
+        "if (!heapBuf || (size_t)n < readLen)",
+        "memcpy(out, buf, (size_t)n)",
     ]
     for needle in required:
         if needle not in text:

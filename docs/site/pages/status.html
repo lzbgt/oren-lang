@@ -368,7 +368,8 @@
 <p>  session maps nil until the first live fetch or network-session registration;</p>
 <p>  live DNS resolve now also delays allocating the returned <code>char**</code> table until</p>
 <p>  a unique address is found, and non-WebSocket session reads use a stack-first</p>
-<p>  small-read buffer before returning heap-owned payload bytes to AVM.</p>
+<p>  small-read buffer plus bounded 64 KiB scratch reads before returning</p>
+<p>  heap-owned payload bytes to AVM.</p>
 <ul>
 <li>iOS Metal image runs now track initialized inline-quad vertex count</li>
 </ul>
