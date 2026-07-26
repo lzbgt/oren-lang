@@ -36,6 +36,7 @@ def main() -> int:
         "appendBytes:tmp",
         "initWithData:response",
         "uint8_t* frame = (uint8_t*)malloc(frameLen)",
+        "char** ips = (char**)calloc(cap, sizeof(char*))",
     ]
     for needle in forbidden:
         if needle in text:
@@ -81,6 +82,9 @@ def main() -> int:
         "uint8_t inlineFrame[2048]",
         "uint8_t* frame = frameLen <= sizeof(inlineFrame) ? inlineFrame : (uint8_t*)malloc(frameLen)",
         "if (frame != inlineFrame) free(frame)",
+        "char** ips = NULL",
+        "if (!ips) {\n            ips = (char**)malloc(cap * sizeof(char*));",
+        "if (count == 0) {\n        return -1;\n    }",
     ]
     for needle in required:
         if needle not in text:

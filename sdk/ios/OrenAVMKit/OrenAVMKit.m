@@ -696,11 +696,7 @@ static int OrenAVMRuntimeNetResolve(void* userData, const char* host, uint32_t t
     if (getaddrinfo(host, NULL, &hints, &result) != 0) return -1;
 
     const size_t cap = 16u;
-    char** ips = (char**)calloc(cap, sizeof(char*));
-    if (!ips) {
-        freeaddrinfo(result);
-        return -1;
-    }
+    char** ips = NULL;
     size_t count = 0;
     for (struct addrinfo* ai = result; ai && count < cap; ai = ai->ai_next) {
         char buf[INET6_ADDRSTRLEN];
@@ -721,6 +717,13 @@ static int OrenAVMRuntimeNetResolve(void* userData, const char* host, uint32_t t
             }
         }
         if (duplicate) continue;
+        if (!ips) {
+            ips = (char**)malloc(cap * sizeof(char*));
+            if (!ips) {
+                freeaddrinfo(result);
+                return -1;
+            }
+        }
         size_t len = strlen(buf);
         ips[count] = (char*)malloc(len + 1u);
         if (!ips[count]) {
@@ -734,7 +737,6 @@ static int OrenAVMRuntimeNetResolve(void* userData, const char* host, uint32_t t
     }
     freeaddrinfo(result);
     if (count == 0) {
-        free(ips);
         return -1;
     }
     *outIPs = ips;
