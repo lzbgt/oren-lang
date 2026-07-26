@@ -284,8 +284,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
         var interp = "/lib/ld-linux-aarch64.so.1"
         _bytes_align(data, 1)
         interp_off = bytes_len(data)
-        _elf_push_string_bytes(data, interp)
-        bytes_push(data, 0)
+        bytes_extend_string_z(data, interp)
         interp_len = oren_string_len(interp) + 1
     }
 
@@ -305,7 +304,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
 
     // --- Build dynstr (DT_STRTAB) ---
     var dynstr = bytes_new()
-    bytes_push(dynstr, 0) // leading NUL
+    bytes_extend_zeros(dynstr, 1) // leading NUL
 
     var needed = _elf_arm64_dyn_needed_libs(user_link_libs)
     var needed_dynstr_offs = {}
@@ -726,8 +725,7 @@ fn _data_add_cstr0(data, s) {
     // Keep pointers naturally aligned for best-effort tooling reads (not required by correctness).
     _bytes_align(data, 1)
     var off = bytes_len(data)
-    _elf_push_string_bytes(data, s)
-    bytes_push(data, 0)
+    bytes_extend_string_z(data, s)
     return off
 }
 

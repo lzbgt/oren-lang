@@ -120,6 +120,11 @@
 </ul>
 <p>     through existing alignment helpers and exact zero-extension spans.</p>
 <ul>
+<li>Current ELF string-table cleanup routes interpreter strings, dynstr/shstr</li>
+</ul>
+<p>     leading NULs, and ARM64 data C strings through shared string+zero or</p>
+<p>     zero-span helpers instead of separate string append plus zero-byte pushes.</p>
+<ul>
 <li>Current ARM64 Mach-O cleanup routes load-command, string-table, and final</li>
 </ul>
 <p>     text/data prefix padding through <code>_macho_pad_to_len</code>/<code>_macho_align</code>.</p>

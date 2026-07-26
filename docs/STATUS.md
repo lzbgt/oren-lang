@@ -53,6 +53,9 @@ surfaces, but the following blockers remain:
   of repeated one-byte zero-pad branches.
 - ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based
   alignment or exact zero-extension spans for residual output padding loops.
+- ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF
+  data C strings now use shared string+zero or zero-span byte-builder helpers
+  instead of separate string append plus single-zero pushes.
 - ARM64 Mach-O load-command, string-table, and final text/data prefix padding
   now route through `_macho_pad_to_len`/`_macho_align` helpers.
 - ARM64 Mach-O GOT placeholder alignment now uses `_macho_align(data, 8)`

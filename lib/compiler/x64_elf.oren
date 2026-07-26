@@ -712,8 +712,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         var interp = "/lib64/ld-linux-x86-64.so.2"
         _bytes_align(data, 1)
         interp_off = bytes_len(data)
-        _elf_push_string_bytes(data, interp)
-        bytes_push(data, 0)
+        bytes_extend_string_z(data, interp)
         interp_len = oren_string_len(interp) + 1
     }
 
@@ -733,7 +732,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
 
     // --- Build dynstr (DT_STRTAB) ---
     var dynstr = bytes_new()
-    bytes_push(dynstr, 0) // leading NUL
+    bytes_extend_zeros(dynstr, 1) // leading NUL
 
     var needed = _elf_x64_dyn_needed_libs(user_link_libs)
     var needed_dynstr_offs = {}
@@ -1452,16 +1451,13 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
 
     // Build shstrtab.
     var shstr = bytes_new()
-    bytes_push(shstr, 0) // leading NUL => name index 0 is ""
+    bytes_extend_zeros(shstr, 1) // leading NUL => name index 0 is ""
     var off_text = bytes_len(shstr)
-    _elf_push_string_bytes(shstr, ".text")
-    bytes_push(shstr, 0)
+    bytes_extend_string_z(shstr, ".text")
     var off_data = bytes_len(shstr)
-    _elf_push_string_bytes(shstr, ".data")
-    bytes_push(shstr, 0)
+    bytes_extend_string_z(shstr, ".data")
     var off_shstr = bytes_len(shstr)
-    _elf_push_string_bytes(shstr, ".shstrtab")
-    bytes_push(shstr, 0)
+    bytes_extend_string_z(shstr, ".shstrtab")
 
     // Align and append shstrtab.
     _bytes_align(prefix, 16)

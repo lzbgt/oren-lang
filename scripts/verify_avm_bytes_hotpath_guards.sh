@@ -1171,6 +1171,7 @@ arm64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/arm64_elf.
 x64_elf_align_impl="$(sed -n '/fn _bytes_align/,/^}/p' lib/compiler/x64_elf.oren)"
 arm64_elf_layout_impl="$(sed -n '/Append debug info (Linux ELF)/,/Patch debug static addr constant/p' lib/compiler/arm64_elf.oren)"
 x64_elf_page_layout_impl="$(sed -n '/Ensure the data segment begins on a page boundary/,/If `--link` is used/p' lib/compiler/x64_elf.oren)"
+x64_elf_build_shstr_impl="$(sed -n '/Build shstrtab/,/Align and append shstrtab/p' lib/compiler/x64_elf.oren)"
 x64_elf_shstr_layout_impl="$(sed -n '/Align and append shstrtab/,/Build section header table/p' lib/compiler/x64_elf.oren)"
 if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/x64_elf.oren ||
@@ -1198,6 +1199,9 @@ arm64_elf_string_impl="$(sed -n '/fn _elf_push_utf8_aligned/,/fn _elf_push_phdr/
 arm64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/compiler/arm64_elf.oren)"
 x64_elf_string_impl="$(sed -n '/fn _elf_push_string_bytes/,/fn _bytes_add_str0/p' lib/compiler/x64_elf.oren)"
 x64_elf_cstr_impl="$(sed -n '/fn _bytes_add_str0/,/fn _elf_push_unique/p' lib/compiler/x64_elf.oren)"
+arm64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/arm64_elf.oren)"
+x64_elf_dynamic_impl="$(sed -n '/PT_INTERP payload/,/var needed =/p' lib/compiler/x64_elf.oren)"
+arm64_elf_data_cstr_impl="$(sed -n '/fn _data_add_cstr0/,/^}/p' lib/compiler/arm64_elf.oren)"
 arm64_macho_string_impl="$(sed -n '/fn _macho_push_string_bytes/,/fn push_uleb128/p; /fn _macho_push_utf8_aligned/,/fn emit_debug_info/p' lib/compiler/arm64_macho.oren)"
 arm64_macho_file_impl="$(cat lib/compiler/arm64_macho.oren)"
 x64_pe_ascii_impl="$(sed -n '/fn push_ascii_z/,/fn _pe_path_basename/p' lib/compiler/x64_pe.oren)"
@@ -1210,6 +1214,13 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_elf_cstr_impl" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$x64_elf_string_impl" ||
   ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$x64_elf_cstr_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$arm64_elf_dynamic_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(data, interp)' <<<"$x64_elf_dynamic_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(dynstr, 1)' <<<"$arm64_elf_dynamic_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(dynstr, 1)' <<<"$x64_elf_dynamic_impl" ||
+  ! grep -Fq 'bytes_extend_string_z(data, s)' <<<"$arm64_elf_data_cstr_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(shstr, 1)' <<<"$x64_elf_build_shstr_impl" ||
+  test "$(grep -Fc 'bytes_extend_string_z(shstr,' <<<"$x64_elf_build_shstr_impl")" != "3" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'bytes_extend_string(p, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq '_macho_align(p, 8)' <<<"$arm64_macho_string_impl" ||
@@ -1221,6 +1232,10 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return codegen.bytes_extend_stri
   grep -Fq 'bytes_push(buf, oren_string_byte_at_unchecked(s, i)' <<<"$x64_pe_ascii_impl" ||
   grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_elf_string_impl" ||
   grep -Fq 'bytes_push(p, oren_string_byte_at_unchecked(s, i)' <<<"$arm64_macho_string_impl" ||
+  grep -Fq '_elf_push_string_bytes(data, interp)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
+  grep -Fq 'bytes_push(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$arm64_elf_data_cstr_impl" ||
+  grep -Fq 'bytes_push(dynstr, 0) // leading NUL' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
+  grep -Fq 'bytes_push(shstr, 0)' <<<"$x64_elf_build_shstr_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(bind_name' <<<"$arm64_macho_file_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(f_name' <<<"$arm64_macho_file_impl"; then
   echo "ERROR: compiler artifact string append helpers must use byte-builder string extension, not per-byte string loops" >&2

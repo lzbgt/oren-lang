@@ -111,6 +111,11 @@
 </ul>
 <p>  alignment or exact zero-extension spans for residual output padding loops.</p>
 <ul>
+<li>ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF</li>
+</ul>
+<p>  data C strings now use shared string+zero or zero-span byte-builder helpers</p>
+<p>  instead of separate string append plus single-zero pushes.</p>
+<ul>
 <li>ARM64 Mach-O load-command, string-table, and final text/data prefix padding</li>
 </ul>
 <p>  now route through <code>_macho_pad_to_len</code>/<code>_macho_align</code> helpers.</p>

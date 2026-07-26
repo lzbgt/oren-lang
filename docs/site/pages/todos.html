@@ -108,6 +108,11 @@
 <p>  alignment helpers or exact zero-extension spans for dylib-id, exit-stub,</p>
 <p>  debug-data, GOT, page, load-command, string-table, and section-table padding.</p>
 <ul>
+<li>ARM64/x64 ELF interpreter strings, dynstr/shstr leading NULs, and ARM64 ELF</li>
+</ul>
+<p>  data C strings now route through shared string+zero or zero-span byte-builder</p>
+<p>  helpers instead of separate string append plus zero-byte pushes.</p>
+<ul>
 <li>ARM64/x64 ELF final executable page padding now extends the output prefix</li>
 </ul>
 <p>  directly with exact zero spans instead of allocating and copying a temporary</p>
