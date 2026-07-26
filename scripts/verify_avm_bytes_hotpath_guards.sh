@@ -1088,6 +1088,18 @@ if ! grep -Fq 'push_u32_le(p, lc_uuid())' <<<"$arm64_macho_uuid_impl" ||
   exit 1
 fi
 
+arm64_macho_fixed16_impl="$(sed -n '/fn push_str_fixed16/,/fn _macho_push_string_bytes/p' lib/compiler/arm64_macho.oren)"
+arm64_macho_pagezero_impl="$(sed -n '/LC_SEGMENT_64 (__PAGEZERO)/,/vmaddr/p' lib/compiler/arm64_macho.oren)"
+if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }' lib/compiler/arm64_macho.oren ||
+  ! grep -Fq 'if n > 16 { n = 16 }' <<<"$arm64_macho_fixed16_impl" ||
+  ! grep -Fq 'if n < 16 { bytes_extend_zeros(buf, 16 - n) }' <<<"$arm64_macho_fixed16_impl" ||
+  grep -Fq 'while i < 16' <<<"$arm64_macho_fixed16_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(p, 16)' <<<"$arm64_macho_pagezero_impl" ||
+  grep -Fq 'while i < 16 { bytes_push(p, 0); i = i + 1 }' <<<"$arm64_macho_pagezero_impl"; then
+  echo "ERROR: ARM64 Mach-O fixed 16-byte fields must use byte-builder zero extension for padding" >&2
+  exit 1
+fi
+
 if grep -q 'fn _byte_view\|fn _read_u32_le\|fn _read_i32_le' lib/std/ui/commands.oren; then
     echo "ERROR: std:ui/commands validation must use shared std:bytes views directly" >&2
     exit 1

@@ -248,6 +248,11 @@
 </ul>
 <p>  straight-line, keeping fixed header bytes out of avoidable compiler loops.</p>
 <ul>
+<li>ARM64 Mach-O fixed 16-byte segment and section name fields now write string</li>
+</ul>
+<p>  bytes only for the present name and use shared byte-builder zero extension for</p>
+<p>  padding, including the PAGEZERO empty segment name.</p>
+<ul>
 <li>CoreGraphics retained mesh uploads now use the same staged/null-safe raw</li>
 </ul>
 <p>  payload-copy discipline as Metal, avoiding direct unchecked assignment of</p>

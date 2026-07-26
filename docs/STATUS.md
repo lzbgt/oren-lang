@@ -154,6 +154,9 @@ surfaces, but the following blockers remain:
   byte-builder zero-extension path instead of per-byte push loops.
 - ARM64 Mach-O LC_UUID emission now writes the four zero u32 words
   straight-line, keeping fixed header bytes out of avoidable compiler loops.
+- ARM64 Mach-O fixed 16-byte segment and section name fields now write string
+  bytes only for the present name and use shared byte-builder zero extension for
+  padding, including the PAGEZERO empty segment name.
 - CoreGraphics retained mesh uploads now use the same staged/null-safe raw
   payload-copy discipline as Metal, avoiding direct unchecked assignment of
   triangle, vertex, and index copy results into retained resources.

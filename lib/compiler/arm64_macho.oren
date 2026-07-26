@@ -293,6 +293,7 @@ fn bind_done() { return 0 } // BIND_OPCODE_DONE
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b, n) }
 fn bytes_len(b) { return codegen.bytes_len(b) }
 fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
@@ -325,12 +326,13 @@ fn push_str_fixed16(buf, s) {
     // Write a Mach-O fixed-size 16-byte ASCII field (segname/sectname), NUL-padded.
     if s == nil { s = "" }
     var n = oren_string_len(s)
+    if n > 16 { n = 16 }
     var i = 0
-    while i < 16 {
-        if i < n { bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255) }
-        else { bytes_push(buf, 0) }
+    while i < n {
+        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
         i = i + 1
     }
+    if n < 16 { bytes_extend_zeros(buf, 16 - n) }
     return nil
 }
 
@@ -483,8 +485,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     // 1. LC_SEGMENT_64 (__PAGEZERO)
     push_u32_le(p, lc_segment_64())
     push_u32_le(p, cmdsize_segment_64())
-    var i = 0
-    while i < 16 { bytes_push(p, 0); i = i + 1 }
+    bytes_extend_zeros(p, 16)
     push_u64_le(p, 0) // vmaddr
     push_u64_le(p, pagezero_vmsize())
     push_u64_le(p, 0) // fileoff
