@@ -309,17 +309,17 @@ fn _emit_win64_stat_open_file_x64(ctx, fixups, l_done, l_handle_ok) {
     return nil
 }
 
-fn _emit_win64_stat_file_success_x64(ctx, tmp_st, tmp_handle) {
-    // spill handle so capsule post hooks can observe rc consistently (and so we can close it)
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_handle, 0)
-
+fn _emit_win64_stat_regular_file_mode_x64(ctx, tmp_st) {
     // Translate into OrenStatV0 at st_ptr.
     _intr_load_x64(ctx, 9, tmp_st)                 // r9 = st_ptr
     _emit_win64_zero_ore_stat_v0_x64(ctx, 9)
     // mode: regular file (approx): 0o100644 = 33188
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 33188))
     bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+    return nil
+}
 
+fn _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle) {
     // LARGE_INTEGER out at [rsp+0x28] (reuse call-area; avoid intrinsic temp pointers)
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(40, 0))
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(44, 0))
@@ -336,14 +336,30 @@ fn _emit_win64_stat_file_success_x64(ctx, tmp_st, tmp_handle) {
     _intr_load_x64(ctx, 9, tmp_st) // reload st_ptr (volatile regs are clobbered by WinAPI calls)
     bytes_extend(ctx["code"], core.insn_mov_r64_mrsp_disp8(8, 40))
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(9, 8)) // [st_ptr+0] = size
+    return nil
+}
 
+fn _emit_win64_stat_close_handle_x64(ctx, tmp_handle) {
     // CloseHandle(handle) (best-effort).
     _intr_load_x64(ctx, 1, tmp_handle) // rcx = handle
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
+    return nil
+}
 
+fn _emit_win64_stat_zero_rc_x64(ctx) {
     // rc = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
+    return nil
+}
+
+fn _emit_win64_stat_file_success_x64(ctx, tmp_st, tmp_handle) {
+    // spill handle so capsule post hooks can observe rc consistently (and so we can close it)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_handle, 0)
+    _emit_win64_stat_regular_file_mode_x64(ctx, tmp_st)
+    _emit_win64_stat_file_size_probe_x64(ctx, tmp_st, tmp_handle)
+    _emit_win64_stat_close_handle_x64(ctx, tmp_handle)
+    _emit_win64_stat_zero_rc_x64(ctx)
     return nil
 }
 

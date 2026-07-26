@@ -141,6 +141,11 @@ This file is the concise task view. Detailed implementation status lives in
      from runtime list allocation and left-to-right element push emission.
    - Current Windows x64 `sys_read` cleanup isolates the zero-length
      return/done-label patching and temp cleanup tail from ReadFile emission.
+   - Current Windows x64 `sys_stat` regular-file success cleanup separates
+     stat-mode fill, best-effort size query, handle close, and zero rc emission.
+   - Current x64 call/member expression cleanup separates explicit
+     `oren_call_obj_list` temp-state/spill/args emission and namespace/member
+     index lowering helpers.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

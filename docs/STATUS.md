@@ -146,6 +146,10 @@ surfaces, but the following blockers remain:
   runtime list allocation and left-to-right element push emission.
 - Windows x64 `sys_read` cleanup now isolates the zero-length return/done-label
   patching and intrinsic-temp cleanup tail from the ReadFile emission path.
+- Windows x64 `sys_stat` regular-file success cleanup now separates stat-mode
+  fill, best-effort size query, handle close, and zero return-code emission.
+- X64 call/member expression cleanup now separates explicit `oren_call_obj_list`
+  temp-state/spill/args emission and namespace/member-index lowering helpers.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently

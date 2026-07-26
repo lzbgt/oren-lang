@@ -132,6 +132,10 @@ design evidence lives under `project-doc/`.
   runtime list allocation and left-to-right element push emission.
 - Windows x64 `sys_read` cleanup now isolates the zero-length return/done-label
   patching and intrinsic-temp cleanup tail from the ReadFile emission path.
+- Windows x64 `sys_stat` regular-file success cleanup now separates stat-mode
+  fill, best-effort size query, handle close, and zero return-code emission.
+- X64 call/member expression cleanup now separates explicit `oren_call_obj_list`
+  temp-state/spill/args emission and namespace/member-index lowering helpers.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

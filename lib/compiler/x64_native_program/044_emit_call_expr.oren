@@ -3,40 +3,54 @@
 // Kept in a dedicated chunk to prevent `040_emit_expr.oren` from growing beyond
 // reviewable limits as x64 Tier-1 call semantics converge with AVM/C.
 
+fn _x64_call_obj_list_intrinsic_state(ctx, locals) {
+    var spill = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(spill) == 0 { return nil }
+    var fn_off = _intr_tmp_off(ctx, locals, spill)
+    if oren_type_tag(fn_off) == 0 { _intr_tmp_pop(ctx, spill); return nil }
+    return {"spill": spill, "fn_off": fn_off}
+}
+
+fn _x64_call_obj_list_intrinsic_spill_fn(ctx, locals, fn_obj_expr, st) {
+    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, st["spill"])
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - st["fn_off"], 0)
+    return true
+}
+
+fn _x64_call_obj_list_intrinsic_eval_args(ctx, locals, args_list_expr, st) {
+    _emit_eval_int_to_rax(ctx, args_list_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _intr_tmp_pop(ctx, st["spill"])
+        return nil
+    }
+    return true
+}
+
+fn _x64_call_obj_list_intrinsic_emit(ctx, st) {
+    if _x64_emit_call_obj_list_from_spills(ctx, st["spill"], st["fn_off"], nil, true, "oren_call_obj_list_fnobj_ok", "oren_call_obj_list") != true {
+        return nil
+    }
+    _intr_tmp_pop(ctx, st["spill"])
+    return nil
+}
+
 fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_expr) {
     // Intrinsic: indirect call through a native function object.
     // Signature: oren_call_obj_list(fn_obj, args_list) -> value
-    //
-    // Layout (kind=6):
-    //   [0] code_ptr
-    //   [8] env_ptr
-    //
-    // This is inlined (like arm64) so injected runtime code can call it even
-    // when the symbol is not present in the source module.
     if fn_obj_expr == nil || args_list_expr == nil {
         err(ctx, "x64 native v0: oren_call_obj_list expects 2 args")
         return nil
     }
 
-    var spill = _intr_tmp_push(ctx, 1)
-    if oren_type_tag(spill) == 0 { return nil }
-    var fn_off = _intr_tmp_off(ctx, locals, spill)
-    if oren_type_tag(fn_off) == 0 { _intr_tmp_pop(ctx, spill); return nil }
-
-    // Spill fn_obj.
-    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
-
-    // Eval args_list -> rax.
-    _emit_eval_int_to_rax(ctx, args_list_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
-
-    if _x64_emit_call_obj_list_from_spills(ctx, spill, fn_off, nil, true, "oren_call_obj_list_fnobj_ok", "oren_call_obj_list") != true {
-        return nil
-    }
-
-    _intr_tmp_pop(ctx, spill)
+    var st = _x64_call_obj_list_intrinsic_state(ctx, locals)
+    if st == nil { return nil }
+    if _x64_call_obj_list_intrinsic_spill_fn(ctx, locals, fn_obj_expr, st) != true { return nil }
+    if _x64_call_obj_list_intrinsic_eval_args(ctx, locals, args_list_expr, st) != true { return nil }
+    _x64_call_obj_list_intrinsic_emit(ctx, st)
     return nil
 }
 
