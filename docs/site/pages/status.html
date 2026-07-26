@@ -181,8 +181,8 @@
 <p>					  leading fill vertices only before prepared drawable work while resource</p>
 <p>					  create/destroy opcodes still execute, malformed zero-size/count-mismatched</p>
 <p>				  retained image/text draws reject before retained resource lookup when the</p>
-<p>				  command is otherwise a no-op, immediate text opcodes reject empty or</p>
-<p>				  trailing-byte payloads before attribute/texture preparation, retained</p>
+<p>					  command is otherwise a no-op, immediate text opcodes reject empty,</p>
+<p>					  trailing-byte, or invalid-UTF-8 payloads before attribute/texture preparation, retained</p>
 <p>				  text uploads reject empty payloads before map/string/resource work, and later compatible-run coalescing</p>
 <p>			  still grows geometrically.</p>
 <ul>
@@ -2780,7 +2780,8 @@
 <p>immutable cache keys instead of formatted strings that copy the full label into</p>
 <p>every lookup key, and Metal image-run construction now guards run allocation before</p>
 <p>inline vertex writes or exact heap vertex allocation; immediate Metal text rejects</p>
-<p>invalid UTF-8 before texture-cache, atlas, or run construction. iOS SDK typed GFX input helpers now build</p>
+<p>invalid UTF-8 before texture-cache, atlas, or run construction, and immediate</p>
+<p>CoreGraphics text rejects invalid UTF-8 before attribute-cache lookup. iOS SDK typed GFX input helpers now build</p>
 <p>fixed-size <code>OGE0</code> events on stack and enqueue raw bytes directly; CoreGraphics</p>
 <p>and Metal views expose text plus composition forwarding helpers over the same</p>
 <p>runtime encoders; text and composition events use segmented stack-first</p>

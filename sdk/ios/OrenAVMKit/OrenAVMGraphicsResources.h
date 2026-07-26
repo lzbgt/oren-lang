@@ -87,11 +87,6 @@ NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForRGBA(CFMutab
                                                                          uint32_t* lastRGBA,
                                                                          NSDictionary<NSAttributedStringKey, id>* __strong* lastAttributes,
                                                                          uint32_t rgbaValue);
-void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
-                             uint32_t textLen,
-                             uint32_t x,
-                             uint32_t y,
-                             NSDictionary<NSAttributedStringKey, id>* attrs);
 BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
                                uint32_t textID,
                                const uint8_t* textBytes,

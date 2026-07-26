@@ -334,16 +334,6 @@ NSDictionary<NSAttributedStringKey, id>* OrenAVMGfxTextAttributesForRGBA(CFMutab
     return attrs;
 }
 
-void OrenAVMGfxDrawTextBytes(const uint8_t* textBytes,
-                             uint32_t textLen,
-                             uint32_t x,
-                             uint32_t y,
-                             NSDictionary<NSAttributedStringKey, id>* attrs) {
-    if (!textBytes || textLen == 0 || !attrs) return;
-    NSString* text = [[NSString alloc] initWithBytes:textBytes length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
-    if (text) [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
-}
-
 BOOL OrenAVMGfxPutTextResource(CFMutableDictionaryRef* texts,
                                uint32_t textID,
                                const uint8_t* textBytes,
@@ -398,11 +388,13 @@ BOOL OrenAVMGfxHandleTextCommand(CGContextRef ctx,
                 uint32_t y = OrenAVMGfxResourceReadU32LE(payload + 4);
                 uint32_t textLen = OrenAVMGfxResourceReadU32LE(payload + 12);
                 if (textLen == (uint32_t)payloadLen - 16u && textLen > 0) {
+                    NSString* text = [[NSString alloc] initWithBytes:payload + 16 length:(NSUInteger)textLen encoding:NSUTF8StringEncoding];
+                    if (!text) return YES;
                     NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMGfxTextAttributesForRGBA(attrsByRGBA,
                                                                                                       lastRGBA,
                                                                                                       lastAttributes,
                                                                                                       OrenAVMGfxResourceReadU32LE(payload + 8));
-                    OrenAVMGfxDrawTextBytes(payload + 16, textLen, x, y, attrs);
+                    if (attrs) [text drawAtPoint:CGPointMake((CGFloat)x, (CGFloat)y) withAttributes:attrs];
                 }
             }
             return YES;

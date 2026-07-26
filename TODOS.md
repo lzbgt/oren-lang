@@ -57,6 +57,8 @@ design evidence lives under `project-doc/`.
   before inline vertex writes or exact heap vertex allocation.
 - Metal immediate text draws now reject invalid UTF-8 before entering
   texture-cache, atlas, or run construction.
+- CoreGraphics immediate text draws now reject invalid UTF-8 before text
+  attribute-cache lookup and draw preparation.
 - Metal prepared geometry/text/image run arrays now cap their initial lazy
   reservation to 4096 entries instead of reserving the full frame-derived op
   capacity on first append.

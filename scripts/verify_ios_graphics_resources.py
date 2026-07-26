@@ -44,7 +44,6 @@ def main() -> int:
         "OrenAVMGfxDrawImageSubrect",
         "OrenAVMGfxRetainedTextKey",
         "OrenAVMGfxTextAttributesForRGBA",
-        "OrenAVMGfxDrawTextBytes",
         "OrenAVMGfxPutTextResource",
         "OrenAVMGfxDrawTextResourcePositions",
         "OrenAVMGfxRemoveTextResource",
