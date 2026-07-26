@@ -477,7 +477,15 @@ void OrenAVMMetalFlushVertexRun(NSMutableArray<OrenAVMMetalVertexRun*>** runsRef
     if (!vertices || vertexBytes == 0) return;
     NSMutableArray<OrenAVMMetalVertexRun*>* runs =
         (NSMutableArray<OrenAVMMetalVertexRun*>*)OrenAVMMetalEnsureRunArray((NSMutableArray**)runsRef, runCapacity);
+    if (!runs) {
+        free(vertices);
+        return;
+    }
     OrenAVMMetalVertexRun* run = [[OrenAVMMetalVertexRun alloc] init];
+    if (!run) {
+        free(vertices);
+        return;
+    }
     run.vertices = vertices;
     run.vertexBytes = vertexBytes;
     run.vertexCapacity = vertexBytes;

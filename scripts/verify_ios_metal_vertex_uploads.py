@@ -116,6 +116,17 @@ def main() -> int:
         fail("Metal geometry vertex runs must expose raw bytes with explicit cleanup")
     if "OrenAVMMetalVertexBufferTakeBytes" not in frame_text or "run.vertexBytes = vertexBytes" not in frame_text:
         fail("Metal geometry flush must transfer raw vertex buffers into runs")
+    flush_start = frame_source.find("void OrenAVMMetalFlushVertexRun")
+    flush_end = frame_source.find("static BOOL OrenAVMMetalVertexRunScissorEqual", flush_start)
+    if flush_start < 0 or flush_end < 0:
+        fail("missing Metal vertex-run flush helper")
+    flush_body = frame_source[flush_start:flush_end]
+    for token in (
+        "if (!runs) {\n        free(vertices);\n        return;\n    }",
+        "if (!run) {\n        free(vertices);\n        return;\n    }",
+    ):
+        if token not in flush_body:
+            fail("Metal geometry flush must free taken vertex bytes if run allocation fails")
     bind_start = frame_source.find("BOOL OrenAVMMetalBindVertexPayload")
     bind_end = frame_source.find("void OrenAVMMetalEncodePreparedRuns", bind_start)
     if bind_start < 0 or bind_end < 0:
