@@ -105,6 +105,11 @@
 <p>  with byte arithmetic instead of scanning alphabet strings and repeatedly</p>
 <p>  concatenating single-character strings.</p>
 <ul>
+<li>Parser generator file-hash hex escapes now emit lowercase digit bytes</li>
+</ul>
+<p>  arithmetically into exact-size two-byte buffers instead of indexing a digit</p>
+<p>  string and concatenating per-nibble strings.</p>
+<ul>
 <li>ARM64/x64 native compiler data-section alignment and fixed table reservations</li>
 </ul>
 <p>  now reserve exact zero spans with byte-builder zero extension rather than</p>

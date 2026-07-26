@@ -185,8 +185,9 @@ fn _stmt_uses_generator_core(stmt) {
     return false
 }
 
-fn _generator_helper_hex_digit(n) {
-    return oren_string_char_at("0123456789abcdef", n)
+fn _generator_helper_hex_digit_byte(n) {
+    if n < 10 { return 48 + n }
+    return 87 + n
 }
 
 fn _generator_helper_byte_hex(b) {
@@ -194,7 +195,12 @@ fn _generator_helper_byte_hex(b) {
     if b > 255 { b = 255 }
     var hi = b / 16
     var lo = b - (hi * 16)
-    return _generator_helper_hex_digit(hi) + _generator_helper_hex_digit(lo)
+    var out = oren_u8_buf_new_uninit(2)
+    if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
+    ptr_set_byte(data, _generator_helper_hex_digit_byte(hi))
+    ptr_set_byte(data + 1, _generator_helper_hex_digit_byte(lo))
+    return oren_string_from_bytes_slice(out, 0, 2)
 }
 
 fn _generator_helper_file_hash(file) {

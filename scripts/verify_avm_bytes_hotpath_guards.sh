@@ -1007,6 +1007,18 @@ if ! grep -Fq 'if d < 10 { return 48 + d }' <<<"$net_url_hex_digit_impl" ||
   echo "ERROR: std:net/url percent encode must emit uppercase hex digits arithmetically, not index a digit string per nibble" >&2
   exit 1
 fi
+parser_generator_hex_impl="$(sed -n '/fn _generator_helper_hex_digit_byte/,/fn _generator_helper_file_hash/p' lib/compiler/parser_parse/000_prelude_generator.oren)"
+if ! grep -Fq 'if n < 10 { return 48 + n }' <<<"$parser_generator_hex_impl" ||
+  ! grep -Fq 'return 87 + n' <<<"$parser_generator_hex_impl" ||
+  ! grep -Fq 'var out = oren_u8_buf_new_uninit(2)' <<<"$parser_generator_hex_impl" ||
+  ! grep -Fq 'ptr_set_byte(data, _generator_helper_hex_digit_byte(hi))' <<<"$parser_generator_hex_impl" ||
+  ! grep -Fq 'ptr_set_byte(data + 1, _generator_helper_hex_digit_byte(lo))' <<<"$parser_generator_hex_impl" ||
+  ! grep -Fq 'return oren_string_from_bytes_slice(out, 0, 2)' <<<"$parser_generator_hex_impl" ||
+  grep -Fq '0123456789abcdef' <<<"$parser_generator_hex_impl" ||
+  grep -Fq '_generator_helper_hex_digit(hi) + _generator_helper_hex_digit(lo)' <<<"$parser_generator_hex_impl"; then
+  echo "ERROR: parser generator file-hash hex must emit lowercase digits arithmetically into exact-size buffers" >&2
+  exit 1
+fi
 
 http2_client_impl="$(sed -n '/fn _parse_content_length_value/,/fn _request_value/p' lib/std/net/http2_client.oren)"
 http2_read_header_impl="$(sed -n '/fn _read_header_block/,/fn _send_headers_fragmented/p' lib/std/net/http2_client.oren)"

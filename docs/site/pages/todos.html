@@ -3694,6 +3694,11 @@
 <p>  arithmetic instead of scanning alphabet strings and concatenating one</p>
 <p>  character at a time.</p>
 <ul>
+<li>Parser generator file-hash hex escapes now emit lowercase digit bytes</li>
+</ul>
+<p>  arithmetically into exact-size two-byte buffers instead of indexing a digit</p>
+<p>  string and concatenating per-nibble strings.</p>
+<ul>
 <li>SHA-1/SHA-256 digest input validation now skips redundant per-byte scans for</li>
 </ul>
 <p>  <code>u8_buf</code> carriers and virtual padded message expansion reads their backing</p>

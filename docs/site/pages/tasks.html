@@ -119,6 +119,11 @@
 <p>     with byte arithmetic instead of alphabet-string scans and repeated</p>
 <p>     single-character concatenation.</p>
 <ul>
+<li>Current parser generator file-hash hex escapes emit lowercase digit bytes</li>
+</ul>
+<p>     arithmetically into exact-size two-byte buffers instead of indexing a digit</p>
+<p>     string and concatenating per-nibble strings.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>
