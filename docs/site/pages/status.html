@@ -129,6 +129,12 @@
 <p>  C string escaping, CFG CSV parsing, and backend diagnostic escaping now use</p>
 <p>  the same cached immutable string length pattern.</p>
 <ul>
+<li>Remaining compiler/std index scans now cache immutable string lengths before</li>
+</ul>
+<p>  iteration across module-prefix, type-annotation, bytecode integer, parser,</p>
+<p>  ABI, JSON, and runtime-object path helpers, with a guard rejecting new</p>
+<p>  <code>while i &lt; oren_string_len(...)</code> style loops.</p>
+<ul>
 <li>ARM64/x64 native expression/runtime <code>g_storage</code> resolution now uses shared</li>
 </ul>
 <p>  byte-suffix helpers and cached resolver calls instead of duplicated</p>

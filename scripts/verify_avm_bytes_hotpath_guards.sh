@@ -958,6 +958,11 @@ if ! grep -Fq 'var tail_len = oren_string_len(tail)' <<<"$compiler_string_len_ca
   echo "ERROR: selected compiler/tooling string loops must cache immutable string lengths before iteration" >&2
   exit 1
 fi
+if grep -R -n -E --include='*.oren' 'while [[:alnum:]_]+ < oren_string_len\(' lib/compiler lib/std >/dev/null; then
+  echo "ERROR: compiler/std index loops must cache immutable string lengths before iteration" >&2
+  grep -R -n -E --include='*.oren' 'while [[:alnum:]_]+ < oren_string_len\(' lib/compiler lib/std >&2
+  exit 1
+fi
 arm64_expr_g_storage_impl="$(sed -n '/fn _arm64_expr_name_ends_with_g_storage/,/fn _arm64_expr_emit_load_g_storage_ptr/p' lib/compiler/arm64_native_expr/000_prelude.oren)"
 arm64_rt_g_storage_impl="$(sed -n '/fn _arm64_rt_name_ends_with_g_storage/,/fn _arm64_emit_load_g_storage_ptr/p' lib/compiler/arm64_native_stmt_runtime.oren)"
 x64_rt_g_storage_impl="$(sed -n '/fn _x64_rt_name_ends_with_g_storage/,/fn _x64_emit_load_g_storage_ptr_to_reg/p' lib/compiler/x64_native_program/040_emit_expr.oren)"

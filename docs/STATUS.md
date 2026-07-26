@@ -65,6 +65,10 @@ surfaces, but the following blockers remain:
 - Module-linking path-prefix/cache sanitizers, compiler metadata format parsing,
   C string escaping, CFG CSV parsing, and backend diagnostic escaping now use
   the same cached immutable string length pattern.
+- Remaining compiler/std index scans now cache immutable string lengths before
+  iteration across module-prefix, type-annotation, bytecode integer, parser,
+  ABI, JSON, and runtime-object path helpers, with a guard rejecting new
+  `while i < oren_string_len(...)` style loops.
 - ARM64/x64 native expression/runtime `g_storage` resolution now uses shared
   byte-suffix helpers and cached resolver calls instead of duplicated
   `oren_string_char_at` suffix scans in boolean singleton, tail normalization,

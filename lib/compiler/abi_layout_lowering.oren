@@ -129,8 +129,9 @@ fn parse_uint_dec(s) {
     if s == nil { return nil }
     if s == "" { return nil }
     var n = 0
+    var s_len = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < s_len {
         var c = oren_string_slice(s, i, i + 1)
         if c == "0" { n = n * 10 + 0 }
         else {
@@ -195,13 +196,14 @@ fn abi_ptr_size_align_for_target(target, arch) {
 fn abi_strip_ptr_prefix(kind) {
     // Returns {"ptr_depth": int, "rest": string}
     var d = 0
+    var kind_len = oren_string_len(kind)
     var i = 0
-    while i < oren_string_len(kind) {
+    while i < kind_len {
         if oren_string_slice(kind, i, i + 1) != "*" { break }
         d = d + 1
         i = i + 1
     }
-    return {"ptr_depth": d, "rest": oren_string_slice(kind, i, oren_string_len(kind))}
+    return {"ptr_depth": d, "rest": oren_string_slice(kind, i, kind_len)}
 }
 
 fn abi_parse_array_suffixes(rest) {

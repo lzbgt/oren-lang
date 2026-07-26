@@ -77,8 +77,9 @@ fn native_compile_stmt(ctx, stmt) { return stmtm.native_compile_stmt(ctx, stmt) 
 fn native_diag_escape(msg) {
     if msg == nil { return "" }
     var out = ""
+    var n = oren_string_len(msg)
     var i = 0
-    while i < oren_string_len(msg) {
+    while i < n {
         var c = oren_string_char_at(msg, i)
         if c == "\n" { out = out + "\\n"; i = i + 1; continue }
         if c == "\r" { out = out + "\\r"; i = i + 1; continue }

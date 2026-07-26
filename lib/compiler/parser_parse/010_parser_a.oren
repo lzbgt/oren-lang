@@ -411,8 +411,9 @@ fn parse_test(p) {
     if !expect_peek(p, token.TOK_STRING) { return nil }
     var test_name = p["cur"]["literal"]
     var safe_name = ""
+    var test_name_len = oren_string_len(test_name)
     var ti = 0
-    while ti < oren_string_len(test_name) {
+    while ti < test_name_len {
         var c = oren_string_char_at(test_name, ti)
         var ok = false
         if c != "" {

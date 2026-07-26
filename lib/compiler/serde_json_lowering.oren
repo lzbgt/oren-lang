@@ -325,8 +325,9 @@ fn _serde_split_formats(s) {
     var out = []
     if s == nil { return out }
     var cur = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
         var is_sep = serde_str_eq(ch, ",") || serde_str_eq(ch, " ") || serde_str_eq(ch, "\t") || serde_str_eq(ch, "\n") || serde_str_eq(ch, "\r")
         if is_sep {

@@ -243,8 +243,9 @@ fn _msvc_python_embed_flags() {
         var ver = info["version"]
         if ver != nil && ver != "" {
             var digits = ""
+            var ver_len = oren_string_len(ver)
             var vi = 0
-            while vi < oren_string_len(ver) {
+            while vi < ver_len {
                 var ch = oren_string_char_at_unchecked(ver, vi)
                 if ch >= "0" && ch <= "9" { digits = digits + ch }
                 vi = vi + 1

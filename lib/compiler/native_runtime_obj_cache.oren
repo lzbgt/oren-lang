@@ -412,8 +412,9 @@ fn _rtobj_hash_cache_dir() {
 fn _rtobj_hash_cache_sanitize_path(p) {
     if p == nil { return "nil" }
     var out = ""
+    var p_len = oren_string_len(p)
     var i = 0
-    while i < oren_string_len(p) {
+    while i < p_len {
         var c = oren_string_char_at_unchecked(p, i)
         if c == "/" || c == "\\" || c == ":" { out = out + "_" }
         else { out = out + c }
@@ -623,8 +624,9 @@ fn _rtobj_runtime_fingerprint_v2_parts(parts) {
 fn _path_to_windows_sep(s) {
     if s == nil { return "" }
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
         if ch == "/" { out = out + "\\" }
         else { out = out + ch }

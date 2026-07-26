@@ -64,8 +64,9 @@ fn mangle_type_name(dotted) {
     // We intentionally keep it simple and deterministic: '.' -> '_'.
     if dotted == nil { return nil }
     var out = ""
+    var n = oren_string_len(dotted)
     var i = 0
-    while i < oren_string_len(dotted) {
+    while i < n {
         var ch = oren_string_char_at(dotted, i)
         if ch == "." { out = out + "_" }
         else { out = out + ch }

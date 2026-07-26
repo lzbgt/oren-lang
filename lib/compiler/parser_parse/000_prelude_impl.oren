@@ -29,8 +29,9 @@ fn _impl_mangle_type_part(s) {
     if s == nil { return "" }
 
     var out = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var c = oren_string_char_at(s, i)
 
         if c == "." {
@@ -45,7 +46,7 @@ fn _impl_mangle_type_part(s) {
         }
         if c == "[" {
             // Typed-buffer prefix `[]`.
-            if i+1 < oren_string_len(s) && oren_string_char_at(s, i+1) == "]" {
+            if i+1 < n && oren_string_char_at(s, i+1) == "]" {
                 out = out + "slice_"
                 i = i + 2
                 continue
@@ -54,11 +55,11 @@ fn _impl_mangle_type_part(s) {
             // Fixed array suffix `[N]` (parser only emits numeric dims here).
             var j = i + 1
             var dims = ""
-            while j < oren_string_len(s) && oren_string_char_at(s, j) != "]" {
+            while j < n && oren_string_char_at(s, j) != "]" {
                 dims = dims + oren_string_char_at(s, j)
                 j = j + 1
             }
-            if j < oren_string_len(s) && oren_string_char_at(s, j) == "]" && dims != "" {
+            if j < n && oren_string_char_at(s, j) == "]" && dims != "" {
                 out = out + "arr" + dims + "_"
                 i = j + 1
                 continue

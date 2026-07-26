@@ -396,8 +396,9 @@ fn split_csv(s) {
     if s == nil { return out }
     if s == "" { return out }
     var cur = ""
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at_unchecked(s, i)
         if ch == "," {
             if cur != "" { oren_list_push(out, cur) }

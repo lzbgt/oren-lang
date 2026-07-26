@@ -2,10 +2,11 @@ fn _unit_prefix_from_function_name(name) {
     // Functions from imported modules are prefixed as `M<N>_foo` (e.g. `M12_len`).
     // Root functions are unprefixed.
     if name == nil || name == "" { return "root" }
-    if oren_string_len(name) < 3 { return "root" }
+    var name_len = oren_string_len(name)
+    if name_len < 3 { return "root" }
     if oren_string_char_at(name, 0) != "M" { return "root" }
     var i = 1
-    while i < oren_string_len(name) {
+    while i < name_len {
         var ch = oren_string_char_at(name, i)
         var is_digit = false
         if ch != "" {
@@ -19,7 +20,7 @@ fn _unit_prefix_from_function_name(name) {
         break
     }
     if i == 1 { return "root" }
-    if i < oren_string_len(name) && oren_string_char_at(name, i) == "_" {
+    if i < name_len && oren_string_char_at(name, i) == "_" {
         return oren_string_slice(name, 0, i)
     }
     return "root"

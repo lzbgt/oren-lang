@@ -155,8 +155,9 @@ fn _mv_import_ann_info(ann, aliases) {
     }
 
     var base = ann
+    var ann_len = oren_string_len(ann)
     var i = 0
-    while i < oren_string_len(ann) {
+    while i < ann_len {
         if oren_string_char_at(ann, i) == "[" {
             base = oren_string_slice(ann, 0, i)
             break
@@ -165,8 +166,9 @@ fn _mv_import_ann_info(ann, aliases) {
     }
 
     var dot = -1
+    var base_len = oren_string_len(base)
     i = 0
-    while i < oren_string_len(base) {
+    while i < base_len {
         if oren_string_char_at(base, i) == "." {
             dot = i
             break
@@ -176,7 +178,7 @@ fn _mv_import_ann_info(ann, aliases) {
     if dot < 0 { return nil }
 
     var head = oren_string_slice(base, 0, dot)
-    var tail = oren_string_slice(base, dot + 1, oren_string_len(base))
+    var tail = oren_string_slice(base, dot + 1, base_len)
     if head == nil || head == "" || tail == nil || tail == "" { return nil }
     var dep_prefix = aliases[head]
     if dep_prefix == nil { return nil }

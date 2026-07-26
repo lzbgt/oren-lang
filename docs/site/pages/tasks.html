@@ -134,6 +134,12 @@
 <p>     first ASCII byte directly instead of scanning an uppercase alphabet string</p>
 <p>     per name.</p>
 <ul>
+<li>Current compiler/std helper cleanup caches immutable string lengths before</li>
+</ul>
+<p>     index iteration across module-prefix, type-annotation, bytecode integer,</p>
+<p>     parser, ABI, JSON, and runtime-object path scans, and the hotpath guard now</p>
+<p>     rejects new <code>while i &lt; oren_string_len(...)</code> style loops.</p>
+<ul>
 <li>Current ARM64/x64 native <code>g_storage</code> resolution uses shared byte-suffix helpers</li>
 </ul>
 <p>     and cached resolver calls instead of duplicated <code>oren_string_char_at</code> suffix</p>

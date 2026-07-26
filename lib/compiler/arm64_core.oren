@@ -273,7 +273,8 @@ fn int_from_string(s) {
     var i = 0
     var n = 0
     var neg = false
-    if oren_string_len(s) > 0 {
+    var s_len = oren_string_len(s)
+    if s_len > 0 {
         var c0 = oren_string_char_at(s, 0)
         if c0 == "-" { neg = true; i = 1 }
         else {
@@ -282,7 +283,7 @@ fn int_from_string(s) {
     }
 
     var base = 10
-    if i + 1 < oren_string_len(s) && oren_string_char_at(s, i) == "0" {
+    if i + 1 < s_len && oren_string_char_at(s, i) == "0" {
         var c1 = oren_string_char_at(s, i + 1)
         if c1 == "x" || c1 == "X" { base = 16; i = i + 2 }
         else {
@@ -292,7 +293,7 @@ fn int_from_string(s) {
             }
         }
     }
-    while i < oren_string_len(s) {
+    while i < s_len {
         var ch = oren_string_char_at(s, i)
         var digit = 0
         if ch == "_" { i = i + 1; continue }

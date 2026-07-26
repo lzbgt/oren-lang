@@ -64,6 +64,10 @@ This file is the concise task view. Detailed implementation status lives in
    - Current native runtime bundle constant-global name classification checks the
      first ASCII byte directly instead of scanning an uppercase alphabet string
      per name.
+   - Current compiler/std helper cleanup caches immutable string lengths before
+     index iteration across module-prefix, type-annotation, bytecode integer,
+     parser, ABI, JSON, and runtime-object path scans, and the hotpath guard now
+     rejects new `while i < oren_string_len(...)` style loops.
    - Current ARM64/x64 native `g_storage` resolution uses shared byte-suffix helpers
      and cached resolver calls instead of duplicated `oren_string_char_at` suffix
      scans in boolean singleton, tail normalization, and runtime helper paths.

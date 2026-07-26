@@ -36,11 +36,12 @@ fn _rename_ann_type(pairs, ann) {
     // Split base name vs array suffixes like `T[16][4]`.
     var base = ann
     var suffix = ""
+    var ann_len = oren_string_len(ann)
     var i = 0
-    while i < oren_string_len(ann) {
+    while i < ann_len {
         if oren_string_char_at(ann, i) == "[" {
             base = oren_string_slice(ann, 0, i)
-            suffix = oren_string_slice(ann, i, oren_string_len(ann))
+            suffix = oren_string_slice(ann, i, ann_len)
             break
         }
         i = i + 1
@@ -57,11 +58,12 @@ fn _rename_ann_type(pairs, ann) {
     }
 
     // Dotted: rename only the leftmost segment (alias).
+    var base_len = oren_string_len(base)
     i = 0
-    while i < oren_string_len(base) {
+    while i < base_len {
         if oren_string_char_at(base, i) == "." {
             var head = oren_string_slice(base, 0, i)
-            var tail = oren_string_slice(base, i, oren_string_len(base))
+            var tail = oren_string_slice(base, i, base_len)
             var head2 = rename_lookup(pairs, head)
             if head2 != "" {
                 return stars + slices + head2 + tail + suffix

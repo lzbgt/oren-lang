@@ -83,6 +83,12 @@
 <p>  validated string spans directly into reserved <code>u8_buf</code> storage instead of</p>
 <p>  looping through per-byte string reads.</p>
 <ul>
+<li>Compiler parser/codegen helper scans now cache immutable string lengths before</li>
+</ul>
+<p>  index iteration across module-prefix, type-annotation, metadata, bytecode</p>
+<p>  integer, cache-path, and ABI/parser lowering helpers; the byte-hotpath guard</p>
+<p>  rejects new <code>while i &lt; oren_string_len(...)</code> style loops in compiler/std code.</p>
+<ul>
 <li>Compiler bytecode NIL constant tags now route through byte-builder</li>
 </ul>
 <p>  zero-extension instead of a single zero-byte push, matching the linked-OBC NIL</p>

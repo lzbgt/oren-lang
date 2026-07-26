@@ -44,6 +44,10 @@ design evidence lives under `project-doc/`.
 - Compiler ASTBIN dyn writers and scan-cache save strings now bulk-copy
   validated string spans directly into reserved `u8_buf` storage instead of
   looping through per-byte string reads.
+- Compiler parser/codegen helper scans now cache immutable string lengths before
+  index iteration across module-prefix, type-annotation, metadata, bytecode
+  integer, cache-path, and ABI/parser lowering helpers; the byte-hotpath guard
+  rejects new `while i < oren_string_len(...)` style loops in compiler/std code.
 - Compiler bytecode NIL constant tags now route through byte-builder
   zero-extension instead of a single zero-byte push, matching the linked-OBC NIL
   tag emission shape.

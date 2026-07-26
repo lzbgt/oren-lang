@@ -28,10 +28,11 @@
 fn _split_base_and_suffix(s) {
     // Split `T[16][4]` into base=`T` and suffix=`[16][4]`.
     if s == nil { return {"base": nil, "suffix": ""} }
+    var s_len = oren_string_len(s)
     var i = 0
-    while i < oren_string_len(s) {
+    while i < s_len {
         if oren_string_char_at(s, i) == "[" {
-            return {"base": oren_string_slice(s, 0, i), "suffix": oren_string_slice(s, i, oren_string_len(s))}
+            return {"base": oren_string_slice(s, 0, i), "suffix": oren_string_slice(s, i, s_len)}
         }
         i = i + 1
     }
@@ -61,8 +62,9 @@ fn _resolve_ann_type(ann, aliases, type_ns, errors, tok) {
 
     // Only handle one-dot `alias.Type` forms.
     var dot = -1
+    var base_len = oren_string_len(base)
     var i = 0
-    while i < oren_string_len(base) {
+    while i < base_len {
         if oren_string_char_at(base, i) == "." {
             dot = i
             break
@@ -74,7 +76,7 @@ fn _resolve_ann_type(ann, aliases, type_ns, errors, tok) {
     }
 
     var head = oren_string_slice(base, 0, dot)
-    var tail = oren_string_slice(base, dot + 1, oren_string_len(base))
+    var tail = oren_string_slice(base, dot + 1, base_len)
     if head == nil || tail == nil || head == "" || tail == "" {
         return stars + slices + base + suffix
     }
