@@ -98,6 +98,11 @@
 <p>  alignment helpers or exact zero-extension spans for dylib-id, exit-stub,</p>
 <p>  debug-data, page, and section-table padding.</p>
 <ul>
+<li>ARM64/x64 ELF final executable page padding now extends the output prefix</li>
+</ul>
+<p>  directly with exact zero spans instead of allocating and copying a temporary</p>
+<p>  <code>code_pad</code> builder.</p>
+<ul>
 <li>ARM64 native expression C-string literals now align and append through</li>
 </ul>
 <p>  byte-builder span helpers while preserving original long-string dedupe keys;</p>

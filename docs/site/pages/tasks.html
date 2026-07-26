@@ -103,6 +103,11 @@
 </ul>
 <p>     through existing alignment helpers and exact zero-extension spans.</p>
 <ul>
+<li>Current ELF page-padding cleanup extends the output prefix directly with</li>
+</ul>
+<p>     exact zero spans instead of allocating and copying a temporary <code>code_pad</code></p>
+<p>     builder.</p>
+<ul>
 <li>Current ARM64 native data cleanup routes C-string literal append, global</li>
 </ul>
 <p>     slots, and C-string table alignment through byte-builder span helpers.</p>

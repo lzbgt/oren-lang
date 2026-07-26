@@ -1121,8 +1121,6 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var text_end_off = hdr_size + code_len
     var data_file_off = align_up(text_end_off, page)
     var pad_len = data_file_off - text_end_off
-    var code_pad = bytes_new()
-    bytes_extend_zeros(code_pad, pad_len)
 
     // Patch debug static addr constant now that we know the final data segment base address.
     if debug_mode && debug_off != nil && ctx["debug_static_addr_pos"] != nil {
@@ -1448,7 +1446,7 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
 
     var prefix = elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off, is_shared == true)
     bytes_extend(prefix, code)
-    bytes_extend(prefix, code_pad)
+    bytes_extend_zeros(prefix, pad_len)
     bytes_extend(prefix, data)
     
     var w3 = oren_write_bytes(out_path, bytes_finalize(prefix))

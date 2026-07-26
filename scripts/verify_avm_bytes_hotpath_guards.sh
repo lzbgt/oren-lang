@@ -1153,8 +1153,10 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return codegen.bytes_extend_zeros(b
   ! grep -Fq 'var rem = int_mod(bytes_len(buf), align)' <<<"$x64_elf_align_impl" ||
   ! grep -Fq 'if rem != 0 { bytes_extend_zeros(buf, align - rem) }' <<<"$x64_elf_align_impl" ||
   ! grep -Fq '_bytes_align(data, 8)' <<<"$arm64_elf_layout_impl" ||
-  ! grep -Fq 'bytes_extend_zeros(code_pad, pad_len)' <<<"$arm64_elf_layout_impl" ||
-  ! grep -Fq 'bytes_extend_zeros(code_pad, pad_len)' <<<"$x64_elf_page_layout_impl" ||
+  ! grep -Fq 'bytes_extend_zeros(prefix, pad_len)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'bytes_extend_zeros(prefix, pad_len)' lib/compiler/x64_elf.oren ||
+  grep -Fq 'var code_pad = bytes_new()' lib/compiler/arm64_elf.oren ||
+  grep -Fq 'var code_pad = bytes_new()' lib/compiler/x64_elf.oren ||
   test "$(grep -Fc '_bytes_align(prefix, 16)' <<<"$x64_elf_shstr_layout_impl")" != "2" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl" ||

@@ -1184,13 +1184,11 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     var code_len = bytes_len(code)
 
     // Ensure the data segment begins on a page boundary (required for PT_LOAD alignment).
-    var code_pad = bytes_new()
     var page = 4096
     var text_end_off = hdr_size + code_len
     var data_file_off = align_up(text_end_off, page)
     var pad_len = data_file_off - text_end_off
-    bytes_extend_zeros(code_pad, pad_len)
-    var data_base_off = code_len + bytes_len(code_pad)
+    var data_base_off = code_len + pad_len
     if phase_log != nil {
         _elf_phase_log_append(phase_log, "x64.elf.layout.done",
             "code_bytes=" + oren_int_to_string(code_len) +
@@ -1428,7 +1426,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
 
     var prefix = elf_build_prefix_x64(base, hdr_size, phdrs, ctx["entry_off"], is_shared_lib)
     bytes_extend(prefix, code)
-    bytes_extend(prefix, code_pad)
+    bytes_extend_zeros(prefix, pad_len)
     bytes_extend(prefix, data)
     if phase_log != nil {
         _elf_phase_log_append(phase_log, "x64.elf.prefix.done",

@@ -44,6 +44,8 @@ surfaces, but the following blockers remain:
   zero-extension helpers instead of open-coded zero-byte push loops.
 - ARM64 Mach-O and ARM64/x64 ELF executable finalization now use helper-based
   alignment or exact zero-extension spans for residual output padding loops.
+- ARM64/x64 ELF page padding now extends the final output prefix directly with
+  exact zero spans, avoiding a temporary `code_pad` builder allocation/copy.
 - ARM64 native expression literals, global slots, and C-string tables now share
   byte-builder span helpers for data alignment/string append without changing
   long-string dedupe keys.

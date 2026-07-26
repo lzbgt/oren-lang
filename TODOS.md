@@ -53,6 +53,9 @@ design evidence lives under `project-doc/`.
 - ARM64 Mach-O plus ARM64/x64 ELF final executable padding now uses existing
   alignment helpers or exact zero-extension spans for dylib-id, exit-stub,
   debug-data, page, and section-table padding.
+- ARM64/x64 ELF final executable page padding now extends the output prefix
+  directly with exact zero spans instead of allocating and copying a temporary
+  `code_pad` builder.
 - ARM64 native expression C-string literals now align and append through
   byte-builder span helpers while preserving original long-string dedupe keys;
   ARM64 global slots and C-string tables reuse the shared data-alignment helper.

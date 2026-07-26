@@ -94,6 +94,10 @@
 </ul>
 <p>  alignment or exact zero-extension spans for residual output padding loops.</p>
 <ul>
+<li>ARM64/x64 ELF page padding now extends the final output prefix directly with</li>
+</ul>
+<p>  exact zero spans, avoiding a temporary <code>code_pad</code> builder allocation/copy.</p>
+<ul>
 <li>ARM64 native expression literals, global slots, and C-string tables now share</li>
 </ul>
 <p>  byte-builder span helpers for data alignment/string append without changing</p>
