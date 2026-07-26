@@ -106,13 +106,22 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     //
     // Stack usage: writes at [rsp+0x20] and [rsp+0x28] within the pre-reserved shadow area.
 
-    // --- GetStdHandle(STD_OUTPUT_HANDLE=-11) ---
+    _emit_windows_get_stdout_handle(ctx)
+    _emit_windows_writefile_stdout_handle(ctx, ptr_reg, len_reg)
+    return nil
+}
+
+fn _emit_windows_get_stdout_handle(ctx) {
+    // GetStdHandle(STD_OUTPUT_HANDLE=-11)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
     var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
     bytes_extend(ctx["code"], core.insn_call_rax())
+    return nil
+}
 
+fn _emit_windows_writefile_stdout_handle(ctx, ptr_reg, len_reg) {
     // rcx = hStdout
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0))
     // r8 = len  (do this before clobbering any potential len_reg == rdx)
@@ -126,7 +135,6 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     // r9 = &written (arg4)
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(9, 40))
 
-    // --- WriteFile ---
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_WriteFile")

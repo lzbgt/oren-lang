@@ -114,6 +114,10 @@ design evidence lives under `project-doc/`.
 - X64 hash literal insertion and callable lambda scanning/wrapper synthesis now
   use focused helper loops, keeping parser bodies bounded while preserving
   literal insertion order and lambda phase logging.
+- X64 system-call/panic/data-table codegen now splits Windows gettimeofday
+  labels/body/finalization, Linux nanosleep timespec/syscall emission, Windows
+  stdout panic writes, and cstr0/debug-info table preparation/emission into
+  focused helper bodies.
 - `std:net/url` concat helpers plus percent encode/decode unchanged runs now use
   direct string-slice copies into their exact-size output `u8_buf`s; `%XX`
   transformed bytes and query `+` spaces remain explicit scalar writes, with

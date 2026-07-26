@@ -124,6 +124,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 literal/callable cleanup splits hash literal insertion and
      lambda scanning/wrapper synthesis into focused helper loops while
      preserving source-order map insertion and lambda phase logging.
+   - Current x64 system/data cleanup splits Windows gettimeofday, Linux
+     nanosleep, Windows panic stdout writes, and cstr0/debug-info table
+     finalization into focused helper bodies without changing emitted order.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

@@ -298,6 +298,37 @@ fn _data_patch_cstr0_table_slot(ctx, slot_off, table_off) {
     return nil
 }
 
+fn _data_cstr0_table_prepare(ctx) {
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+
+    var slot_off = _data_cstr0_table_slot_off(ctx)
+    if slot_off == nil {
+        // If the backend didn't reserve a slot, do nothing (rolling safety).
+        return nil
+    }
+
+    var offs = ctx["cstr0_list"]
+    if offs == nil { offs = [] }
+    return {
+        "slot_off": slot_off,
+        "offs": offs,
+        "rt_count": _data_cstr0_runtime_count(ctx),
+        "user_count": oren_list_len(offs),
+    }
+}
+
+fn _data_emit_cstr0_table(ctx, state) {
+    _data_align8(ctx)
+    var table_off = bytes_len(ctx["data"])
+    // Always emit a table (even if empty) so entry stubs can call init unconditionally.
+    push_u64_le(ctx["data"], table_off)
+    push_u64_le(ctx["data"], state["rt_count"] + state["user_count"])
+    _data_append_runtime_cstr0_offsets(ctx)
+    _data_append_user_cstr0_offsets(ctx, state["offs"], state["user_count"])
+    return table_off
+}
+
 fn _data_finalize_cstr0_table(ctx) {
     // Build a compact table of all unique embedded C-string literals so the program entry stub can
     // register them once via `oren_init_static_cstr0_table` (native runtime).
@@ -311,31 +342,12 @@ fn _data_finalize_cstr0_table(ctx) {
     //   data_base = table_ptr - table_off
     //
     // This is PIE-safe (no absolute pointers in `.data`) and works across x64/arm64 emitters.
-    if ctx == nil { return nil }
-    if ctx["data"] == nil { ctx["data"] = bytes_new() }
-
-    var slot_off = _data_cstr0_table_slot_off(ctx)
-    if slot_off == nil {
-        // If the backend didn't reserve a slot, do nothing (rolling safety).
-        return nil
-    }
-
-    var offs = ctx["cstr0_list"]
-    if offs == nil { offs = [] }
-    var rt_count = _data_cstr0_runtime_count(ctx)
-    var user_count = oren_list_len(offs)
-
-    _data_align8(ctx)
-    var table_off = bytes_len(ctx["data"])
-
-    // Always emit a table (even if empty) so entry stubs can call init unconditionally.
-    push_u64_le(ctx["data"], table_off)
-    push_u64_le(ctx["data"], rt_count + user_count)
-    _data_append_runtime_cstr0_offsets(ctx)
-    _data_append_user_cstr0_offsets(ctx, offs, user_count)
+    var state = _data_cstr0_table_prepare(ctx)
+    if state == nil { return nil }
+    var table_off = _data_emit_cstr0_table(ctx, state)
 
     // Write table_off into the reserved slot as a u64 (little-endian).
-    _data_patch_cstr0_table_slot(ctx, slot_off, table_off)
+    _data_patch_cstr0_table_slot(ctx, state["slot_off"], table_off)
     return table_off
 }
 
@@ -874,6 +886,24 @@ fn _data_patch_dbginfo_table_slot(ctx, slot_off, table_off) {
     return nil
 }
 
+fn _data_prepare_dbginfo_table(ctx, platform) {
+    var slot_off = _data_dbginfo_slot_off(ctx, platform)
+    if slot_off == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+
+    var entries = _data_collect_dbginfo_entries(ctx)
+    _data_sort_dbginfo_entries_by_off(entries)
+    return {"slot_off": slot_off, "entries": entries}
+}
+
+fn _data_emit_dbginfo_table(ctx, platform, entries) {
+    _data_align8(ctx)
+    var table_off = bytes_len(ctx["data"])
+    push_u64_le(ctx["data"], oren_list_len(entries))
+    _data_emit_dbginfo_entries(ctx, platform, entries)
+    return table_off
+}
+
 fn _data_finalize_dbginfo_table(ctx, platform) {
     // Emit an embedded debug-info table (function-range map) for runtime symbolication.
     //
@@ -895,23 +925,11 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
     // - x64 emitters are fixed-base and do not emit relocations, so PCs are resolved using
     //   absolute addresses `text_base + code_off`.
     // - We only emit this in debug builds to keep release artifacts small.
-    var slot_off = _data_dbginfo_slot_off(ctx, platform)
-    if slot_off == nil { return nil }
-    if ctx["data"] == nil { ctx["data"] = bytes_new() }
-
-    // Collect entries (name + code offset). Include a synthetic entry for the entry stub.
-    var entries = _data_collect_dbginfo_entries(ctx)
-    _data_sort_dbginfo_entries_by_off(entries)
-
-    // Align `.data` to 8B for u64 reads.
-    _data_align8(ctx)
-    var table_off = bytes_len(ctx["data"])
-
-    // Build the table.
-    push_u64_le(ctx["data"], oren_list_len(entries))
-    _data_emit_dbginfo_entries(ctx, platform, entries)
+    var state = _data_prepare_dbginfo_table(ctx, platform)
+    if state == nil { return nil }
+    var table_off = _data_emit_dbginfo_table(ctx, platform, state["entries"])
 
     // Patch table_off into the reserved slot as a u64 (little-endian).
-    _data_patch_dbginfo_table_slot(ctx, slot_off, table_off)
+    _data_patch_dbginfo_table_slot(ctx, state["slot_off"], table_off)
     return table_off
 }

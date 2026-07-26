@@ -976,6 +976,13 @@ fn _emit_nanosleep_timespec_syscall_x64(ctx, tmp_ns) {
     // - rax = __NR_nanosleep (35)
     // - rdi = &timespec
     // - rsi = NULL
+    _emit_nanosleep_timespec_on_stack_x64(ctx, tmp_ns)
+    _emit_nanosleep_syscall_from_rsp_x64(ctx)
+    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(16))
+    return nil
+}
+
+fn _emit_nanosleep_timespec_on_stack_x64(ctx, tmp_ns) {
     // rax = ns
     _intr_load_x64(ctx, 0, tmp_ns)
     // rdx:rax = sign-extend rax (ns is positive here)
@@ -991,7 +998,10 @@ fn _emit_nanosleep_timespec_syscall_x64(ctx, tmp_ns) {
     _emit_mov_mrsp_r64(ctx, 0, 0)
     // [rsp+8] = tv_nsec (rdx)
     _emit_mov_mrsp_r64(ctx, 8, 2)
+    return nil
+}
 
+fn _emit_nanosleep_syscall_from_rsp_x64(ctx) {
     // rdi = req = rsp
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 4)) // rdi = rsp
     // rsi = rem = 0
@@ -999,7 +1009,6 @@ fn _emit_nanosleep_timespec_syscall_x64(ctx, tmp_ns) {
 
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_nanosleep()))
     bytes_extend(ctx["code"], core.insn_syscall())
-    bytes_extend(ctx["code"], core.insn_add_rsp_imm32(16))
     return nil
 }
 

@@ -128,6 +128,10 @@ surfaces, but the following blockers remain:
 - X64 hash literal insertion and callable lambda scanning/wrapper synthesis now
   use focused helper loops, keeping parser bodies bounded while preserving
   literal insertion order and lambda phase logging.
+- X64 system-call/panic/data-table codegen now splits Windows gettimeofday
+  labels/body/finalization, Linux nanosleep timespec/syscall emission, Windows
+  stdout panic writes, and cstr0/debug-info table preparation/emission into
+  focused helper bodies.
 - iOS Metal retained image/text/model upload helpers now guard Objective-C
   resource allocation before CF dictionary insertion, and prepared image/text
   run appends report lazy run-array allocation failure instead of silently
