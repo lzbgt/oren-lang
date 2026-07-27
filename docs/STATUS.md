@@ -32,6 +32,9 @@ surfaces, but the following blockers remain:
   string length before byte-offset line/column scans, with the hotpath guard
   catching combined-condition regressions. Generic-call declaration scans also
   cache statement counts plus specialization-name lengths before iteration.
+- Regex byte-class matching now caches compiled class range counts before
+  per-byte range probes, with the selected stdlib list-length guard catching
+  compound-condition regressions.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.

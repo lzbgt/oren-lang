@@ -72,6 +72,11 @@
 <p>  catching combined-condition regressions. Generic-call declaration scans also</p>
 <p>  cache statement counts plus specialization-name lengths before iteration.</p>
 <ul>
+<li>Regex byte-class matching now caches compiled class range counts before</li>
+</ul>
+<p>  per-byte range probes, with the selected stdlib list-length guard catching</p>
+<p>  compound-condition regressions.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>

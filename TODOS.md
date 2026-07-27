@@ -44,6 +44,8 @@ design evidence lives under `project-doc/`.
 - Parser diagnostic and ARM64 native source-location helpers now cache source
   string length before byte-offset line/column scans, and generic-call
   declaration scans cache statement counts plus specialization-name lengths.
+- Regex byte-class matching now caches compiled class range counts before
+  per-byte range probes.
 - The AVM bytes hotpath guard now delegates its largest x64 system/data
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, keeping the public guard entrypoint below the

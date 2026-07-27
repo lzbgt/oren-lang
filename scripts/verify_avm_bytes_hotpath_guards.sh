@@ -1783,7 +1783,7 @@ if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(m[0], m[1] + wr * m[4], row
   exit 1
 fi
 
-if grep -nE 'while [A-Za-z_][A-Za-z0-9_]* < list\.len\(' \
+if grep -nE 'while .*< list\.len\(' \
   lib/std/xml.oren lib/std/json.oren lib/std/cbor.oren lib/std/yaml.oren lib/std/argparse.oren \
   lib/std/net/hpack.oren lib/std/linalg/axpy.oren lib/std/regex.oren >&2; then
   echo "ERROR: std XML/JSON/CBOR/YAML/argparse/HPACK/linalg/regex loops must cache immutable list lengths before iteration" >&2

@@ -441,7 +441,9 @@ fn _class_match(st, b) {
     var ranges = st["ranges"]
     var i = 0
     var hit = false
-    while ranges != nil && i < list.len(ranges) {
+    var range_count = 0
+    if ranges != nil { range_count = list.len(ranges) }
+    while i < range_count {
         var lo = ranges[i][0]
         var hi = ranges[i][1]
         if b >= lo && b <= hi { hit = true; break }
