@@ -47,8 +47,9 @@ fn _idx_by_key(cs) {
     // If duplicate keys exist, the first wins.
     var m = {}
     if cs == nil { return m }
+    var ncs = oren_list_len(cs)
     var i = 0
-    while i < oren_list_len(cs) {
+    while i < ncs {
         var n = cs[i]
         var k = n["k"]
         if k != nil && m[k] == nil {
@@ -99,10 +100,12 @@ fn diff(old_node, new_node) {
 
     var old_idx = _idx_by_key(old_c)
     var new_idx = _idx_by_key(new_c)
+    var old_count = oren_list_len(old_c)
+    var new_count = oren_list_len(new_c)
 
     // Removals: any old key not present in new.
     var i = 0
-    while i < oren_list_len(old_c) {
+    while i < old_count {
         var ok = old_c[i]["k"]
         if ok != nil && new_idx[ok] == nil {
             oren_list_push(out, {"op": "remove", "path": [], "key": ok})
@@ -112,7 +115,7 @@ fn diff(old_node, new_node) {
 
     // Inserts + replaces (by key).
     var j = 0
-    while j < oren_list_len(new_c) {
+    while j < new_count {
         var nn = new_c[j]
         var nk = nn["k"]
         if nk == nil {
@@ -125,8 +128,9 @@ fn diff(old_node, new_node) {
         } else {
             var sub = diff(old_c[oi], nn)
             // Prefix child key path.
+            var sub_count = oren_list_len(sub)
             var k = 0
-            while k < oren_list_len(sub) {
+            while k < sub_count {
                 var op = sub[k]
                 var p = op["path"]
                 if p == nil { p = [] }
@@ -159,9 +163,10 @@ fn clone_node(n) {
     var p = _clone_map_shallow(n["p"])
     var cs = n["c"]
     if cs == nil { cs = [] }
+    var child_count = oren_list_len(cs)
     var out_children = []
     var i = 0
-    while i < oren_list_len(cs) {
+    while i < child_count {
         oren_list_push(out_children, clone_node(cs[i]))
         i = i + 1
     }
@@ -209,8 +214,9 @@ fn node_equal(a, b) {
 
 fn _find_child_index_by_key(cs, k) {
     if cs == nil || k == nil { return nil }
+    var count = oren_list_len(cs)
     var i = 0
-    while i < oren_list_len(cs) {
+    while i < count {
         var n = cs[i]
         if n != nil && n["k"] == k { return i }
         i = i + 1
@@ -222,8 +228,9 @@ fn _get_node_at_path(root, path) {
     if root == nil { return nil }
     if path == nil { return root }
     var cur = root
+    var path_count = oren_list_len(path)
     var i = 0
-    while i < oren_list_len(path) {
+    while i < path_count {
         var k = path[i]
         var cs = cur["c"]
         if cs == nil { return nil }
@@ -257,8 +264,9 @@ fn _list_insert_at(xs, idx, v) {
 fn _list_remove_key(xs, k) {
     if xs == nil { return [] }
     var out = []
+    var count = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < count {
         var n = xs[i]
         if n == nil || n["k"] != k {
             oren_list_push(out, n)
@@ -291,8 +299,9 @@ fn apply_patch(root, ops) {
     // Note: this may mutate nodes reachable from `root`. Use `clone_node` first if you need persistence.
     if ops == nil { return root }
     var out_root = root
+    var op_count = oren_list_len(ops)
     var i = 0
-    while i < oren_list_len(ops) {
+    while i < op_count {
         var opm = ops[i]
         if opm == nil { i = i + 1; continue }
         var op = opm["op"]

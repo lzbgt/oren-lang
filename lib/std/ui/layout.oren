@@ -99,17 +99,19 @@ fn _layout_at(n, x0, y0) {
     if tag == "Row" {
         var gap = _i(p["gap"])
         var out_children = []
+        var child_count = oren_list_len(cs)
         var wsum = 0
         var hmax = 0
         var i = 0
-        while i < oren_list_len(cs) {
+        while i < child_count {
             var cb0 = _layout_at(cs[i], 0, 0)
             oren_list_push(out_children, cb0)
             wsum = wsum + cb0["w"]
             if cb0["h"] > hmax { hmax = cb0["h"] }
             i = i + 1
         }
-        if oren_list_len(out_children) > 1 { wsum = wsum + gap * (oren_list_len(out_children) - 1) }
+        var out_count = oren_list_len(out_children)
+        if out_count > 1 { wsum = wsum + gap * (out_count - 1) }
         var content_w = wsum
         var content_h = hmax
         var total_w = pad_l + pad_r + content_w
@@ -119,12 +121,12 @@ fn _layout_at(n, x0, y0) {
         var align_y = p["align_y"]
         var x = x0 + pad_l
         var j = 0
-        while j < oren_list_len(out_children) {
+        while j < out_count {
             var cb = out_children[j]
             cb["x"] = x
             cb["y"] = y0 + pad_t + _align_off(align_y, content_h, cb["h"])
             x = x + cb["w"]
-            if j != oren_list_len(out_children) - 1 { x = x + gap }
+            if j != out_count - 1 { x = x + gap }
             j = j + 1
         }
         return _box(tag, key, p, x0, y0, total_w, total_h, out_children)
@@ -133,17 +135,19 @@ fn _layout_at(n, x0, y0) {
     if tag == "Column" {
         var gap2 = _i(p["gap"])
         var out_children2 = []
+        var child_count2 = oren_list_len(cs)
         var hsum = 0
         var wmax = 0
         var j = 0
-        while j < oren_list_len(cs) {
+        while j < child_count2 {
             var cb20 = _layout_at(cs[j], 0, 0)
             oren_list_push(out_children2, cb20)
             hsum = hsum + cb20["h"]
             if cb20["w"] > wmax { wmax = cb20["w"] }
             j = j + 1
         }
-        if oren_list_len(out_children2) > 1 { hsum = hsum + gap2 * (oren_list_len(out_children2) - 1) }
+        var out_count2 = oren_list_len(out_children2)
+        if out_count2 > 1 { hsum = hsum + gap2 * (out_count2 - 1) }
         var content_w2 = wmax
         var content_h2 = hsum
         var total_w2 = pad_l + pad_r + content_w2
@@ -152,12 +156,12 @@ fn _layout_at(n, x0, y0) {
         var align_x = p["align_x"]
         var y = y0 + pad_t
         var j2 = 0
-        while j2 < oren_list_len(out_children2) {
+        while j2 < out_count2 {
             var cb2 = out_children2[j2]
             cb2["x"] = x0 + pad_l + _align_off(align_x, content_w2, cb2["w"])
             cb2["y"] = y
             y = y + cb2["h"]
-            if j2 != oren_list_len(out_children2) - 1 { y = y + gap2 }
+            if j2 != out_count2 - 1 { y = y + gap2 }
             j2 = j2 + 1
         }
         return _box(tag, key, p, x0, y0, total_w2, total_h2, out_children2)
@@ -165,20 +169,22 @@ fn _layout_at(n, x0, y0) {
 
     if tag == "Stack" {
         var out_children3 = []
+        var child_count3 = oren_list_len(cs)
         var wmax2 = 0
         var hmax2 = 0
         var k = 0
-        while k < oren_list_len(cs) {
+        while k < child_count3 {
             var cb30 = _layout_at(cs[k], 0, 0)
             oren_list_push(out_children3, cb30)
             if cb30["w"] > wmax2 { wmax2 = cb30["w"] }
             if cb30["h"] > hmax2 { hmax2 = cb30["h"] }
             k = k + 1
         }
+        var out_count3 = oren_list_len(out_children3)
         var total_w3 = pad_l + pad_r + wmax2
         var total_h3 = pad_t + pad_b + hmax2
         var k2 = 0
-        while k2 < oren_list_len(out_children3) {
+        while k2 < out_count3 {
             out_children3[k2]["x"] = x0 + pad_l
             out_children3[k2]["y"] = y0 + pad_t
             k2 = k2 + 1
@@ -188,20 +194,22 @@ fn _layout_at(n, x0, y0) {
 
     // Unknown tag: treat as zero-sized container, still layout children at origin.
     var out_children4 = []
+    var child_count4 = oren_list_len(cs)
     var wmax4 = 0
     var hmax4 = 0
     var m = 0
-    while m < oren_list_len(cs) {
+    while m < child_count4 {
         var cb40 = _layout_at(cs[m], 0, 0)
         oren_list_push(out_children4, cb40)
         if cb40["w"] > wmax4 { wmax4 = cb40["w"] }
         if cb40["h"] > hmax4 { hmax4 = cb40["h"] }
         m = m + 1
     }
+    var out_count4 = oren_list_len(out_children4)
     var total_w4 = pad_l + pad_r + wmax4
     var total_h4 = pad_t + pad_b + hmax4
     var m2 = 0
-    while m2 < oren_list_len(out_children4) {
+    while m2 < out_count4 {
         out_children4[m2]["x"] = x0 + pad_l
         out_children4[m2]["y"] = y0 + pad_t
         m2 = m2 + 1

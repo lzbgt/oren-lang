@@ -48,6 +48,9 @@ design evidence lives under `project-doc/`.
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
   rasterization now cache immutable command-list lengths before traversal.
+- `std:ui` core diff/patch, render/layout, scene3d asset/model expansion, and
+  scene3d generated-shape packers now cache immutable list lengths before
+  traversal, with the hotpath guard covering all `lib/std/ui/*.oren` sources.
 - The AVM bytes hotpath guard now delegates its largest x64 system/data
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, keeping the public guard entrypoint below the
@@ -2898,6 +2901,10 @@ design evidence lives under `project-doc/`.
   and keeps explicit image-data length guards before pointer-backed sampling.
 - `std:ui/commands`, `std:ui/avm`, and `std:ui/raster` now cache command-list
   lengths before validation, OGF0 frame-size/encode, and raster traversal loops.
+- `std:ui/core`, `std:ui/render`, `std:ui/layout`, `std:ui/scene3d`, and
+  scene3d generated-shape packers now cache immutable child/path/asset/point
+  list counts before traversal; the byte-hotpath guard rejects direct
+  `while ... < oren_list_len(...)` loops across `lib/std/ui`.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

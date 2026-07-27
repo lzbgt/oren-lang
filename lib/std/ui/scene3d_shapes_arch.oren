@@ -170,8 +170,9 @@ fn pack_curbs_xy(curbs, ctx) {
         var width = shapes._line_width(curb, "curb", ctx)
         var z0 = shapes._z(curb, "z_min", "min_z", ctx + ".z_min")
         var z1 = shapes._z(curb, "z_max", "max_z", ctx + ".z_max")
+        var point_count = oren_list_len(points)
         var i = 1
-        while i < oren_list_len(points) {
+        while i < point_count {
             var rc = _store_curb_segment(out, off, points[i - 1], points[i], width, z0, z1, ctx + ".curb")
             if oren_is_err(rc) { return rc }
             off = off + 432
@@ -319,8 +320,9 @@ fn pack_posts_xy(posts, ctx) {
         var width = _post_width(post, ctx)
         var z0 = shapes._z(post, "z_min", "min_z", ctx + ".z_min")
         var z1 = shapes._z(post, "z_max", "max_z", ctx + ".z_max")
+        var point_count = oren_list_len(points)
         var i = 0
-        while i < oren_list_len(points) {
+        while i < point_count {
             var rc = _store_post(out, off, points[i], width, z0, z1, ctx + ".post")
             if oren_is_err(rc) { return rc }
             off = off + 432
@@ -403,8 +405,9 @@ fn pack_fences_xy(fences, ctx) {
         var z0 = shapes._z(fence, "z_min", "min_z", ctx + ".z_min")
         var z1 = shapes._z(fence, "z_max", "max_z", ctx + ".z_max")
         var rail_count = _fence_rail_count(fence, ctx)
+        var point_count = oren_list_len(points)
         var i = 0
-        while i < oren_list_len(points) {
+        while i < point_count {
             var rc = _store_post(out, off, points[i], post_width, z0, z1, ctx + ".post")
             if oren_is_err(rc) { return rc }
             off = off + 432

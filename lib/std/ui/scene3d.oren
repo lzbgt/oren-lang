@@ -85,8 +85,9 @@ fn destroy_material(id) {
 
 fn _push_all(out, xs) {
     if xs == nil { return 0 }
+    var n = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < n {
         list.push(out, xs[i])
         i = i + 1
     }
@@ -95,8 +96,9 @@ fn _push_all(out, xs) {
 
 fn _push_draws(out, xs) {
     if xs == nil { return 0 }
+    var n = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < n {
         var d = xs[i]
         if _is_int(d) {
             list.push(out, draw_model(d))
@@ -987,8 +989,9 @@ fn _asset_mesh(m) {
 fn _index_names(xs) {
     var out = {}
     if xs == nil { return out }
+    var n = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < n {
         var item = xs[i]
         if item != nil {
             var name = item["name"]
@@ -1123,8 +1126,9 @@ fn _sample_keyframes(kfs, time_milli, model, ctx) {
     if _is_int(time_milli) == false || time_milli < 0 { return oren_err(4, ctx + ": invalid sample time") }
     var prev = nil; var prev_t = -1
     var next = nil; var next_t = -1
+    var keyframe_count = oren_list_len(kfs)
     var i = 0
-    while i < oren_list_len(kfs) {
+    while i < keyframe_count {
         var k = kfs[i]
         if k == nil { return oren_err(4, ctx + ": keyframe is nil") }
         var kt = _keyframe_time(k, ctx)
@@ -1159,8 +1163,9 @@ fn _sample_keyframes(kfs, time_milli, model, ctx) {
 }
 
 fn _find_model(models, target, target_id) {
+    var n = oren_list_len(models)
     var i = 0
-    while i < oren_list_len(models) {
+    while i < n {
         var m = models[i]
         if target_id != nil && m["id"] == target_id { return m }
         if target != nil && m["name"] == target { return m }
@@ -1171,8 +1176,9 @@ fn _find_model(models, target, target_id) {
 
 fn _max_model_id(models) {
     var out = 0
+    var n = oren_list_len(models)
     var i = 0
-    while i < oren_list_len(models) {
+    while i < n {
         var m = models[i]
         if m != nil && m["id"] != nil && m["id"] > out { out = m["id"] }
         i = i + 1
@@ -1220,8 +1226,9 @@ fn _draw_model_override(d, models, model_names, mesh_names, material_names, gene
 
 fn _apply_animations(models, animations, time_milli) {
     if animations == nil { return 0 }
+    var n = oren_list_len(animations)
     var i = 0
-    while i < oren_list_len(animations) {
+    while i < n {
         var a = animations[i]
         if a == nil { return oren_err(4, "ui.scene3d: animation is nil") }
         var target = a["target"]
@@ -1242,8 +1249,9 @@ fn _apply_animations(models, animations, time_milli) {
 fn _map_list(xs, map_fn) {
     var out = []
     if xs == nil { return out }
+    var n = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < n {
         var item = map_fn(xs[i])
         if oren_is_err(item) { return item }
         list.push(out, item)
@@ -1254,8 +1262,9 @@ fn _map_list(xs, map_fn) {
 
 fn _push_asset_models(out, xs, mesh_names, material_names) {
     if xs == nil { return 0 }
+    var n = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < n {
         var item = _asset_model(xs[i], mesh_names, material_names)
         if oren_is_err(item) { return item }
         list.push(out, item)
@@ -1266,8 +1275,9 @@ fn _push_asset_models(out, xs, mesh_names, material_names) {
 
 fn _push_asset_instances(out, xs, templates, mesh_names, material_names) {
     if xs == nil { return 0 }
+    var n = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < n {
         var item = _asset_instance(xs[i], templates, mesh_names, material_names)
         if oren_is_err(item) { return item }
         list.push(out, item)
@@ -1278,8 +1288,9 @@ fn _push_asset_instances(out, xs, templates, mesh_names, material_names) {
 
 fn _push_asset_instance_groups(out, groups, templates, mesh_names, material_names) {
     if groups == nil { return 0 }
+    var group_count = oren_list_len(groups)
     var gi = 0
-    while gi < oren_list_len(groups) {
+    while gi < group_count {
         var g = groups[gi]
         if g == nil { return oren_err(4, "ui.scene3d: instance_group is nil") }
         var gx = _position_axis(g, 0); if oren_is_err(gx) { return gx }
@@ -1292,8 +1303,9 @@ fn _push_asset_instance_groups(out, groups, templates, mesh_names, material_name
         if oren_is_err(gscale) { return gscale }
         var xs = g["instances"]
         if xs == nil { return oren_err(4, "ui.scene3d: instance_group missing instances") }
+        var instance_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < instance_count {
             var item = _asset_instance(xs[i], templates, mesh_names, material_names)
             if oren_is_err(item) { return item }
             item = _compose_group_model(item, gx, gy, gz, gscale, "ui.scene3d instance_group")
@@ -1316,8 +1328,9 @@ fn _json_to_plain(jv) {
     if t == "array" {
         var a = jv["a"]
         var out = []
+        var n = oren_list_len(a)
         var i = 0
-        while i < oren_list_len(a) {
+        while i < n {
             list.push(out, _json_to_plain(a[i]))
             i = i + 1
         }
@@ -1401,8 +1414,9 @@ fn scene_from_asset_at(asset, time_milli) {
     var materials = []
     var mats = asset["materials"]
     if mats != nil {
+        var mat_count = oren_list_len(mats)
         var mi = 0
-        while mi < oren_list_len(mats) {
+        while mi < mat_count {
             var mat = mats[mi]
             var mat_color = _asset_color(mat, "ui.scene3d material")
             if oren_is_err(mat_color) { return mat_color }
@@ -1414,8 +1428,9 @@ fn scene_from_asset_at(asset, time_milli) {
     var templates = {}
     var model_templates = asset["model_templates"]
     if model_templates != nil {
+        var template_count = oren_list_len(model_templates)
         var ti = 0
-        while ti < oren_list_len(model_templates) {
+        while ti < template_count {
             var tpl = model_templates[ti]
             var tpl_name = tpl["name"]
             if tpl_name != nil { oren_map_set_str(templates, tpl_name, tpl) }
@@ -1439,7 +1454,8 @@ fn scene_from_asset_at(asset, time_milli) {
     if raw_draws != nil {
         var di = 0
         var next_draw_model_id = _max_model_id(models) + 1
-        while di < oren_list_len(raw_draws) {
+        var raw_draw_count = oren_list_len(raw_draws)
+        while di < raw_draw_count {
             var d = raw_draws[di]
             if oren_type_tag(d) == 4 {
                 var draw_id = oren_map_get_str(model_names, d)

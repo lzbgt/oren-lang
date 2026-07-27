@@ -88,6 +88,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current `std:ui` command validation, OGF0 frame sizing/encoding, and
      software rasterization cache immutable command-list lengths before
      traversal.
+   - Current `std:ui` core diff/patch, render/layout, scene3d asset/model
+     expansion, and scene3d generated-shape packers cache immutable list counts
+     before traversal, with source guards covering all UI helper files.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public

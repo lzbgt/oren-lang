@@ -743,8 +743,9 @@ fn pack_walls_xy(walls, ctx) {
         var points = _wall_points(wall)
         var z0 = _z(wall, "z_min", "min_z", ctx + ".z_min")
         var z1 = _z(wall, "z_max", "max_z", ctx + ".z_max")
+        var point_count = oren_list_len(points)
         var i = 1
-        while i < oren_list_len(points) {
+        while i < point_count {
             var p0 = points[i - 1]
             var p1 = points[i]
             var rc = _store_triangle(out, off, p0[0], p0[1], z0, p1[0], p1[1], z0, p1[0], p1[1], z1, ctx + ".wall0")

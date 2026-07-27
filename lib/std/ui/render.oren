@@ -64,11 +64,11 @@ fn _emit_box(b, out) {
 
     var cs = b["children"]
     if cs == nil { cs = [] }
+    var child_count = oren_list_len(cs)
     var i = 0
-    while i < oren_list_len(cs) {
+    while i < child_count {
         _emit_box(cs[i], out)
         i = i + 1
     }
     return 0
 }
-

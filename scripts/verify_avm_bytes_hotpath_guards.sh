@@ -1789,9 +1789,8 @@ if grep -nE 'while .*< list\.len\(' \
   echo "ERROR: std XML/JSON/CBOR/YAML/argparse/HPACK/linalg/regex loops must cache immutable list lengths before iteration" >&2
   exit 1
 fi
-if grep -nE 'while .*< oren_list_len\(cmds\)' \
-  lib/std/ui/commands.oren lib/std/ui/avm.oren lib/std/ui/raster.oren >&2; then
-  echo "ERROR: std:ui command traversal loops must cache command list lengths before iteration" >&2
+if find lib/std/ui -name '*.oren' -print0 | xargs -0 grep -nE 'while .*< oren_list_len\(' >&2; then
+  echo "ERROR: std:ui traversal loops must cache immutable list lengths before iteration" >&2
   exit 1
 fi
 
