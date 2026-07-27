@@ -4765,10 +4765,11 @@ make docs-site
   format emitters.
 - X64 and ARM64 ELF emitters now share `elf_artifact.oren` for common
   dynamic-link scaffolding: default glibc-compatible DT_NEEDED libs, dynamic
-  string-table/name-offset assembly, dynsym function entries, ELF64 RELA row
-  packing, one-bucket SysV hash construction, dynamic table blob placement, and
-  stable DT_DYNAMIC tags while leaving import validation, export resolution, and
-  RELA relocation selection/generation in the arch emitters.
+  string-table/name-offset assembly, imported/exported dynsym function entries
+  and export append diagnostics routing, ELF64 RELA row packing, one-bucket
+  SysV hash construction, dynamic table blob placement, and stable DT_DYNAMIC
+  tags while leaving import validation, export error prefixes, and RELA
+  relocation selection/generation in the arch emitters.
 
 ## Documentation Guardrail
 

@@ -136,6 +136,11 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'return export_wrappers[name]' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn push_dynamic_export_symbol(dynsym, sym_dynstr_offs, name, text_addr)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'push_dynsym_text_func(dynsym, name_off, text_addr)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn diag_escape(msg)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn append_dynamic_export_symbols(dynsym, sym_dynstr_offs, exports, functions, export_wrappers, text_base, missing_export_prefix, emit_diag)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'var fn_off = dynamic_export_offset(functions, export_wrappers, enm)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'print("OREN_DIAG kind=codegen code=1 msg=" + diag_escape(e2))' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'push_dynamic_export_symbol(dynsym, sym_dynstr_offs, enm, text_base + fn_off)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn append_dynamic_prelude(data, interp, is_shared_lib)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_string_z(data, interp)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.push_u64_le(data, 0)' <<<"$elf_artifact_dyn_impl" ||
@@ -192,10 +197,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, "x64 elf: internal: dyn import missing name", nil)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dynsym = elfart.build_dynamic_import_symbols(imports, sym_dynstr_offs)' <<<"$arm64_elf_dynsym_impl" ||
   ! grep -Fq 'var dynsym = elfart.build_dynamic_import_symbols(imports, sym_dynstr_offs)' <<<"$x64_elf_dynsym_impl" ||
-  ! grep -Fq 'var fn_off = elfart.dynamic_export_offset(functions, export_wrappers, enm)' <<<"$arm64_elf_dynsym_impl" ||
-  ! grep -Fq 'var fn_off = elfart.dynamic_export_offset(functions, export_wrappers, enm)' <<<"$x64_elf_dynsym_impl" ||
-  ! grep -Fq 'elfart.push_dynamic_export_symbol(dynsym, sym_dynstr_offs, enm, text_base + fn_off)' <<<"$arm64_elf_dynsym_impl" ||
-  ! grep -Fq 'elfart.push_dynamic_export_symbol(dynsym, sym_dynstr_offs, enm, text_base + fn_off)' <<<"$x64_elf_dynsym_impl" ||
+  ! grep -Fq 'elfart.append_dynamic_export_symbols(dynsym, sym_dynstr_offs, exports, functions, export_wrappers, text_base, "native backend (arm64-linux): internal: export name not found in functions: ", true)' <<<"$arm64_elf_dynsym_impl" ||
+  ! grep -Fq 'elfart.append_dynamic_export_symbols(dynsym, sym_dynstr_offs, exports, functions, export_wrappers, text_base, "x64 elf: internal: export name not found in functions: ", false)' <<<"$x64_elf_dynsym_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset0, 0, rela_type_relative, add0)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_dynamic_import_rela(rela, base, data_file_off, got_off, i_rel, rela_type_glob_dat)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset0, 0, rela_type_relative, add0)' <<<"$x64_elf_dynmeta_impl" ||
@@ -224,6 +227,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'ctx["elf_dyn_got_offs_enc"] = {}' lib/compiler/x64_native_program/072_ffi.oren ||
   grep -Fq 'oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})' lib/compiler/arm64_elf.oren ||
   grep -Fq 'oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})' lib/compiler/x64_native_program/072_ffi.oren ||
+  grep -Fq 'var fn_off = elfart.dynamic_export_offset(functions, export_wrappers, enm)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'elfart.push_dynamic_export_symbol(dynsym, sym_dynstr_offs, enm, text_base + fn_off)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'export_wrappers[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'functions[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'var name_off2 = sym_dynstr_offs[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
