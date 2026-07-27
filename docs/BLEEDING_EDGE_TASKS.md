@@ -108,8 +108,8 @@ This file is the concise task view. Detailed implementation status lives in
      ELF64 RELA row packing, dynamic import GOT bookkeeping and relocation row
      construction, import/export-sized SysV hash emission, PT_INTERP/init-array
      prelude placement, dynamic-table blob placement, and final dynamic section
-     offset/length metadata, plus common DT_DYNAMIC tags through
-     `elf_artifact.oren` while keeping arch GOT-cell reservation, import
+     offset/length metadata plus return-map assembly, and common DT_DYNAMIC tags
+     through `elf_artifact.oren` while keeping arch GOT-cell reservation, import
      validation, relocation type constants, and export diagnostics local.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.

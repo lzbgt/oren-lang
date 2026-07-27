@@ -409,3 +409,15 @@ fn append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, 
 
     return {"dynamic_off": dynamic_off, "dynamic_len": dynamic_len}
 }
+
+fn finish_dynamic_metadata(data, base, data_file_off, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off, interp_off, interp_len) {
+    var data_addr = base + data_file_off
+    var dyn_tail = append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)
+    return {
+        "interp_off": interp_off,
+        "interp_len": interp_len,
+        "dynamic_off": dyn_tail["dynamic_off"],
+        "dynamic_len": dyn_tail["dynamic_len"],
+        "init_array_off": init_array_off,
+    }
+}

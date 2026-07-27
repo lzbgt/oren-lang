@@ -273,13 +273,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     }
 
     var hash = elfart.build_dynamic_hash(imports, exports)
-
-    var data_addr = base + data_file_off
-    var dyn_tail = elfart.append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)
-    var dynamic_off = dyn_tail["dynamic_off"]
-    var dynamic_len = dyn_tail["dynamic_len"]
-
-    return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len, "init_array_off": init_array_off}
+    return elfart.finish_dynamic_metadata(data, base, data_file_off, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off, interp_off, interp_len)
 }
 
 fn elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off, is_shared_lib) {

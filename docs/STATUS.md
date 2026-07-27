@@ -42,6 +42,8 @@ surfaces, but the following blockers remain:
 - X64/ARM64 Linux ELF dynamic import bookkeeping now shares encoded GOT-offset
   reuse plus `elf_dyn_imports` record insertion through `elf_artifact.oren`,
   while each backend still reserves the actual zeroed GOT cell locally.
+- X64/ARM64 ELF dynamic metadata finalization now shares final dynamic-section
+  append, offset extraction, and return-map assembly through `elf_artifact.oren`.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.
