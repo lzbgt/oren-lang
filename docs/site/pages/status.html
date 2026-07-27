@@ -66,6 +66,11 @@
 <p>  table append, <code>.dynamic</code> emission, and final offset/length metadata through</p>
 <p>  <code>elf_artifact.oren</code>, leaving relocation selection in the arch emitters.</p>
 <ul>
+<li>X64/ARM64 ELF dynsym construction now shares the STN_UNDEF row plus imported</li>
+</ul>
+<p>  function symbol rows through <code>elf_artifact.oren</code>, while arch emitters still</p>
+<p>  own exported symbol resolution and their existing diagnostic behavior.</p>
+<ul>
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>

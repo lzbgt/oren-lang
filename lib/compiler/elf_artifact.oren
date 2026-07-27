@@ -234,6 +234,23 @@ fn push_dynsym_text_func(dynsym, name_off, text_addr) {
     return nil
 }
 
+fn build_dynamic_import_symbols(imports, sym_dynstr_offs) {
+    var dynsym = artifact.bytes_new()
+    artifact.bytes_extend_zeros(dynsym, 24) // STN_UNDEF
+
+    var i_sym = 0
+    while imports != nil && i_sym < oren_list_len(imports) {
+        var imp = imports[i_sym]
+        var nm = imp["name"]
+        var name_off = nil
+        if sym_dynstr_offs != nil { name_off = sym_dynstr_offs[nm] }
+        push_dynsym_undef_func(dynsym, name_off)
+        i_sym = i_sym + 1
+    }
+
+    return dynsym
+}
+
 fn push_rela(rela, r_offset, sym_idx, rela_type, addend) {
     if r_offset == nil { r_offset = 0 }
     if addend == nil { addend = 0 }
