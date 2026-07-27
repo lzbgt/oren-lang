@@ -59,6 +59,24 @@ def main() -> int:
         fail("Metal view must not inline shader compilation or pipeline descriptor setup")
     if "newLibraryWithSource:" not in pipeline_text or "newRenderPipelineStateWithDescriptor:" not in pipeline_text:
         fail("Metal pipeline helper must compile shaders and create render pipeline states")
+    pipeline_source_text = PIPELINE_SOURCE.read_text()
+    if "static id<MTLRenderPipelineState> OrenAVMMetalCreateBlendedPipeline" not in pipeline_source_text:
+        fail("Metal pipeline helper must share descriptor/function preflight across geometry and text states")
+    pipeline_helper_start = pipeline_source_text.find("static id<MTLRenderPipelineState> OrenAVMMetalCreateBlendedPipeline")
+    pipeline_helper_end = pipeline_source_text.find("BOOL OrenAVMMetalBuildPipelineStates", pipeline_helper_start)
+    if pipeline_helper_start < 0 or pipeline_helper_end < 0:
+        fail("missing Metal blended pipeline helper body")
+    pipeline_helper = pipeline_source_text[pipeline_helper_start:pipeline_helper_end]
+    require_before(pipeline_helper,
+                   "if (!vertexFunction || !fragmentFunction) return nil;",
+                   "MTLRenderPipelineDescriptor* descriptor = [[MTLRenderPipelineDescriptor alloc] init];",
+                   "Metal pipeline creation must validate shader function lookup before descriptor allocation")
+    require_before(pipeline_helper,
+                   "if (!descriptor) return nil;",
+                   "descriptor.vertexFunction = vertexFunction;",
+                   "Metal pipeline creation must guard descriptor allocation before descriptor use")
+    if pipeline_source_text.count("newRenderPipelineStateWithDescriptor:descriptor") != 1:
+        fail("Metal geometry/text pipelines must share the single guarded descriptor creation path")
     configure_start = text.find("- (void)orenConfigureMetalView")
     configure_end = text.find("- (void)setTargetHzMilli:", configure_start)
     if configure_start < 0 or configure_end < 0:

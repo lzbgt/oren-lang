@@ -39,6 +39,8 @@ design evidence lives under `project-doc/`.
 - Metal text atlas creation and retained-image uploads now guard wrapper and
   descriptor allocation before GPU texture creation, and standalone text
   textures release glyph pixels if descriptor allocation fails before upload.
+- Metal render pipeline startup now shares a guarded function/descriptor
+  preflight before creating geometry and text pipeline states.
 - The AVM bytes hotpath guard now delegates its largest x64 system/data
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, keeping the public guard entrypoint below the

@@ -61,6 +61,11 @@
 <p>  and descriptor allocation before GPU texture creation, and standalone text</p>
 <p>  texture fallback releases glyph pixels if descriptor allocation fails.</p>
 <ul>
+<li>Metal render pipeline startup now validates shader function lookup and</li>
+</ul>
+<p>  descriptor allocation through one shared helper before creating geometry/text</p>
+<p>  pipeline states.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>

@@ -2,6 +2,35 @@
 
 #if TARGET_OS_IPHONE
 
+static void OrenAVMMetalConfigureAlphaBlending(MTLRenderPipelineColorAttachmentDescriptor* attachment,
+                                               MTLPixelFormat pixelFormat) {
+    if (!attachment) return;
+    attachment.pixelFormat = pixelFormat;
+    attachment.blendingEnabled = YES;
+    attachment.sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    attachment.destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    attachment.sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+    attachment.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+}
+
+static id<MTLRenderPipelineState> OrenAVMMetalCreateBlendedPipeline(id<MTLDevice> device,
+                                                                    id<MTLLibrary> library,
+                                                                    NSString* vertexName,
+                                                                    NSString* fragmentName,
+                                                                    MTLPixelFormat pixelFormat) {
+    if (!device || !library || !vertexName || !fragmentName) return nil;
+    id<MTLFunction> vertexFunction = [library newFunctionWithName:vertexName];
+    id<MTLFunction> fragmentFunction = [library newFunctionWithName:fragmentName];
+    if (!vertexFunction || !fragmentFunction) return nil;
+    MTLRenderPipelineDescriptor* descriptor = [[MTLRenderPipelineDescriptor alloc] init];
+    if (!descriptor) return nil;
+    descriptor.vertexFunction = vertexFunction;
+    descriptor.fragmentFunction = fragmentFunction;
+    OrenAVMMetalConfigureAlphaBlending(descriptor.colorAttachments[0], pixelFormat);
+    NSError* error = nil;
+    return [device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+}
+
 BOOL OrenAVMMetalBuildPipelineStates(id<MTLDevice> device,
                                      MTLPixelFormat pixelFormat,
                                      id<MTLRenderPipelineState>* geometryPipelineOut,
@@ -32,28 +61,18 @@ BOOL OrenAVMMetalBuildPipelineStates(id<MTLDevice> device,
     id<MTLLibrary> library = [device newLibraryWithSource:source options:nil error:&error];
     if (!library) return NO;
 
-    MTLRenderPipelineDescriptor* descriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    descriptor.vertexFunction = [library newFunctionWithName:@"oren_vertex"];
-    descriptor.fragmentFunction = [library newFunctionWithName:@"oren_fragment"];
-    descriptor.colorAttachments[0].pixelFormat = pixelFormat;
-    descriptor.colorAttachments[0].blendingEnabled = YES;
-    descriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-    descriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    id<MTLRenderPipelineState> geometryPipeline = [device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+    id<MTLRenderPipelineState> geometryPipeline = OrenAVMMetalCreateBlendedPipeline(device,
+                                                                                   library,
+                                                                                   @"oren_vertex",
+                                                                                   @"oren_fragment",
+                                                                                   pixelFormat);
     if (!geometryPipeline) return NO;
 
-    MTLRenderPipelineDescriptor* textDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    textDescriptor.vertexFunction = [library newFunctionWithName:@"oren_text_vertex"];
-    textDescriptor.fragmentFunction = [library newFunctionWithName:@"oren_text_fragment"];
-    textDescriptor.colorAttachments[0].pixelFormat = pixelFormat;
-    textDescriptor.colorAttachments[0].blendingEnabled = YES;
-    textDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    textDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    textDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-    textDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    id<MTLRenderPipelineState> textPipeline = [device newRenderPipelineStateWithDescriptor:textDescriptor error:&error];
+    id<MTLRenderPipelineState> textPipeline = OrenAVMMetalCreateBlendedPipeline(device,
+                                                                               library,
+                                                                               @"oren_text_vertex",
+                                                                               @"oren_text_fragment",
+                                                                               pixelFormat);
     if (!textPipeline) return NO;
 
     if (geometryPipelineOut) *geometryPipelineOut = geometryPipeline;
