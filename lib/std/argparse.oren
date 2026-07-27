@@ -449,8 +449,10 @@ fn _suggest_option(cmd, tok) {
     var best = nil
     var bestd = 999
     var oi = 0
-    while oi < list.len(cmd["options"]) {
-        var o = cmd["options"][oi]
+    var opts = cmd["options"]
+    var opts_len = list.len(opts)
+    while oi < opts_len {
+        var o = opts[oi]
         var ln = o[1]
         if ln != nil && _starts_with(ln, "--") {
             var cand = _normalize_key(ln)
@@ -476,8 +478,10 @@ fn _suggest_command(p, name) {
     var best = nil
     var bestd = 999
     var ci = 0
-    while ci < list.len(p["commands"]) {
-        var c = p["commands"][ci]
+    var commands = p["commands"]
+    var commands_len = list.len(commands)
+    while ci < commands_len {
+        var c = commands[ci]
         var cn = c["name"]
         if cn != nil && !_streq(cn, "") {
             var d = _edit_distance_limited(want, cn, 3)
@@ -591,8 +595,10 @@ fn _render_command_usage_line(p, cmd) {
     if cmd != nil {
         if list.len(cmd["options"]) > 0 { s = s + " [options]" }
         var pi = 0
-        while pi < list.len(cmd["positionals"]) {
-            var pos = cmd["positionals"][pi]
+        var positionals = cmd["positionals"]
+        var positionals_len = list.len(positionals)
+        while pi < positionals_len {
+            var pos = positionals[pi]
             if pos[1] { s = s + " <" + pos[0] + ">" }
             else { s = s + " [" + pos[0] + "]" }
             pi = pi + 1
@@ -722,8 +728,10 @@ fn render_help_json(p, cmd_name) {
     out = out + "\"commands\":["
     if cmd == p["root"] && p["commands"] != nil {
         var ci = 0
-        while ci < list.len(p["commands"]) {
-            var c = p["commands"][ci]
+        var commands = p["commands"]
+        var commands_len = list.len(commands)
+        while ci < commands_len {
+            var c = commands[ci]
             if ci != 0 { out = out + "," }
             out = out + "{"
             out = out + "\"name\":" + _json_str(c["name"]) + ","
@@ -738,8 +746,10 @@ fn render_help_json(p, cmd_name) {
     out = out + "\"options\":["
     if cmd != nil && cmd["options"] != nil {
         var oi = 0
-        while oi < list.len(cmd["options"]) {
-            var o = cmd["options"][oi]
+        var opts = cmd["options"]
+        var opts_len = list.len(opts)
+        while oi < opts_len {
+            var o = opts[oi]
             if oi != 0 { out = out + "," }
             var kind = o[0]
             var kind_s = "flag"
@@ -806,8 +816,10 @@ fn render_help_json(p, cmd_name) {
     out = out + "\"positionals\":["
     if cmd != nil && cmd["positionals"] != nil {
         var pi = 0
-        while pi < list.len(cmd["positionals"]) {
-            var pos = cmd["positionals"][pi]
+        var positionals = cmd["positionals"]
+        var positionals_len = list.len(positionals)
+        while pi < positionals_len {
+            var pos = positionals[pi]
             if pi != 0 { out = out + "," }
             out = out + "{"
             out = out + "\"name\":" + _json_str(pos[0]) + ","
@@ -1126,8 +1138,9 @@ fn parse(p, argv) {
     var cmd = root_cmd
     var cmd_name = ""
     var i = 0
+    var argv_len = list.len(argv)
 
-    while i < list.len(argv) {
+    while i < argv_len {
         var tok0 = argv[i]
         if _streq(tok0, "--") {
             // End of option parsing on root; remaining tokens are treated as root args (no command).
@@ -1195,7 +1208,7 @@ fn parse(p, argv) {
     var rest = []
     var stop_opts = false
 
-    while i < list.len(argv) {
+    while i < argv_len {
         var tok = argv[i]
         if stop_opts != true && _streq(tok, "--") {
             stop_opts = true
@@ -1268,7 +1281,8 @@ fn parse(p, argv) {
     // even when a subcommand is selected.
     var req_cmd = _opts_required_keys(cmd)
     var ri = 0
-    while ri < list.len(req_cmd) {
+    var req_cmd_len = list.len(req_cmd)
+    while ri < req_cmd_len {
         var rk = req_cmd[ri]
         if oren_map_get_str(res["seen"], rk) != true {
             res["err"] = "missing required option: --" + rk
@@ -1279,7 +1293,8 @@ fn parse(p, argv) {
     }
     var req_root = _opts_required_keys(root_cmd)
     var rj = 0
-    while rj < list.len(req_root) {
+    var req_root_len = list.len(req_root)
+    while rj < req_root_len {
         var rk2 = req_root[rj]
         if oren_map_get_str(res["seen"], rk2) != true {
             res["err"] = "missing required option: --" + rk2

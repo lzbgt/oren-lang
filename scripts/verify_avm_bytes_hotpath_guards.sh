@@ -1784,8 +1784,8 @@ if ! grep -Fq 'oren_u8_buf_copy_from_string_slice_at(m[0], m[1] + wr * m[4], row
 fi
 
 if grep -nE 'while [A-Za-z_][A-Za-z0-9_]* < list\.len\(' \
-  lib/std/xml.oren lib/std/json.oren lib/std/cbor.oren lib/std/yaml.oren >&2; then
-  echo "ERROR: std XML/JSON/CBOR/YAML codec loops must cache immutable list lengths before iteration" >&2
+  lib/std/xml.oren lib/std/json.oren lib/std/cbor.oren lib/std/yaml.oren lib/std/argparse.oren >&2; then
+  echo "ERROR: std XML/JSON/CBOR/YAML/argparse loops must cache immutable list lengths before iteration" >&2
   exit 1
 fi
 
