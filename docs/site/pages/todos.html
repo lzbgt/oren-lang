@@ -4757,9 +4757,10 @@
 <p>  <code>std:ui/scene3d_binary</code>, reducing <code>std:ui/scene3d</code> to 1538 lines while</p>
 <p>  preserving the public wrapper API and iOS package-store asset coverage.</p>
 <ul>
-<li>Std math inverse-trig and hypotenuse helpers now live in</li>
+<li>Std math inverse-trig/hypotenuse helpers now live in <code>std/math/atan_hypot.oren</code>,</li>
 </ul>
-<p>  <code>std/math/atan_hypot.oren</code>, reducing <code>std/math.oren</code> to 1738 lines while</p>
+<p>  and internal huge-trig Payne-Hanek reduction helpers now live in</p>
+<p>  <code>std/math/trig_reduce.oren</code>, reducing <code>std/math.oren</code> to 1441 lines while</p>
 <p>  preserving the <code>std:math</code> import surface through compile-time include</p>
 <p>  expansion.</p>
 <ul>

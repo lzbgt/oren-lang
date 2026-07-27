@@ -3320,8 +3320,9 @@ design evidence lives under `project-doc/`.
 - Scene3D byte-native `.os3d` binary package loading now lives in
   `std:ui/scene3d_binary`, reducing `std:ui/scene3d` to 1538 lines while
   preserving the public wrapper API and iOS package-store asset coverage.
-- Std math inverse-trig and hypotenuse helpers now live in
-  `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
+- Std math inverse-trig/hypotenuse helpers now live in `std/math/atan_hypot.oren`,
+  and internal huge-trig Payne-Hanek reduction helpers now live in
+  `std/math/trig_reduce.oren`, reducing `std/math.oren` to 1441 lines while
   preserving the `std:math` import surface through compile-time include
   expansion.
 - iOS SDK symbol verification now caches `nm` output once per archive and

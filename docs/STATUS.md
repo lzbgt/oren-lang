@@ -3330,8 +3330,9 @@ Working evidence:
   marking and spawn-entry helpers now live in `010_prelude_gc_mark_spawn.inc`,
   reducing `010_prelude.inc` to 1805 lines. Runtime SHA-256 helpers now live
   in `050_io_misc_sha256.inc`, reducing `050_io_misc.inc` to 1705 lines. Std
-  math inverse-trig and hypotenuse helpers now live in
-  `std/math/atan_hypot.oren`, reducing `std/math.oren` to 1738 lines while
+  math inverse-trig/hypotenuse helpers now live in `std/math/atan_hypot.oren`,
+  and internal huge-trig Payne-Hanek reduction helpers now live in
+  `std/math/trig_reduce.oren`, reducing `std/math.oren` to 1441 lines while
   preserving the `std:math` import surface through compile-time include
   expansion. Example build and cross-compile smoke targets now live in
   `mk/examples.mk`, and native all-test, full verify, AVM build, libavm

@@ -1936,6 +1936,7 @@ This file is the concise task view. Detailed implementation status lives in
      `expm1`/`log1p`, release-gated hyperbolic `sinh`, `cosh`, and `tanh`,
      inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated
      `sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, `acos`, and approximate
+     huge-trig Payne-Hanek reduction split below the source-line guardrail,
      real-valued `erf`/`erfc` bytecode coverage.
    - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
