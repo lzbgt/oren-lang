@@ -516,7 +516,8 @@
 </ul>
 <p>  Objective-C resource allocation before CF dictionary insertion, matching the</p>
 <p>  Metal retained-resource failure boundary; <code>scripts/verify_ios_gfx_retained_painter.py</code></p>
-<p>  guards the shape.</p>
+<p>  also guards provider cleanup when retained-image RGB color-space allocation</p>
+<p>  fails before <code>CGImageCreate</code>.</p>
 <ul>
 <li>iOS Metal text-cache misses now guard typed cache-key, lazy cache/order</li>
 </ul>

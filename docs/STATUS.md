@@ -281,7 +281,8 @@ surfaces, but the following blockers remain:
 - iOS CoreGraphics retained image/text/model upload helpers now guard
   Objective-C resource allocation before CF dictionary insertion, matching the
   Metal retained-resource failure boundary; `scripts/verify_ios_gfx_retained_painter.py`
-  guards the shape.
+  also guards provider cleanup when retained-image RGB color-space allocation
+  fails before `CGImageCreate`.
 - iOS Metal text-cache misses now guard typed cache-key, lazy cache/order
   storage, cache-entry, and text-run allocation before dictionary lookup, UIKit
   attribute lookup, glyph rasterization storage, or vertex writes, keeping failed

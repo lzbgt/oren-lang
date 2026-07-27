@@ -306,6 +306,15 @@ def main() -> int:
         fail("CoreGraphics retained image uploads must use provider-owned raw bytes, not NSData wrappers")
     if "CGDataProviderCreateWithData(NULL, imageBytes" not in text or "OrenAVMGfxReleaseImageBytes" not in text:
         fail("CoreGraphics retained image uploads must transfer raw bytes to the CG provider release callback")
+    image_rgba_start = resource_source_text.find("UIImage* OrenAVMGfxImageRGBA")
+    image_rgba_end = resource_source_text.find("BOOL OrenAVMGfxPutImageResource", image_rgba_start)
+    if image_rgba_start < 0 or image_rgba_end < 0:
+        fail("missing CoreGraphics retained image factory")
+    image_rgba_body = resource_source_text[image_rgba_start:image_rgba_end]
+    require_before(image_rgba_body,
+                   "if (!colorSpace) {\n        CGDataProviderRelease(provider);\n        return nil;\n    }",
+                   "CGImageRef image = CGImageCreate",
+                   "CoreGraphics retained image factory must release provider on color-space allocation failure")
     put_image_start = resource_source_text.find("BOOL OrenAVMGfxPutImageResource")
     put_image_end = resource_source_text.find("void OrenAVMGfxRemoveImageResource", put_image_start)
     if put_image_start < 0 or put_image_end < 0:

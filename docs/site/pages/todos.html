@@ -450,7 +450,9 @@
 <ul>
 <li>CoreGraphics retained image uploads now preflight byte size, image budgets,</li>
 </ul>
-<p>  and scalar-map storage before creating provider-backed <code>UIImage</code> objects.</p>
+<p>  and scalar-map storage before creating provider-backed <code>UIImage</code> objects, and</p>
+<p>  the image factory releases provider-owned bytes if RGB color-space allocation</p>
+<p>  fails before <code>CGImageCreate</code>.</p>
 <ul>
 <li>CoreGraphics and Metal retained text, mesh, and model uploads now preflight</li>
 </ul>

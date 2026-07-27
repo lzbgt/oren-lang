@@ -72,6 +72,10 @@ UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t heigh
         return nil;
     }
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    if (!colorSpace) {
+        CGDataProviderRelease(provider);
+        return nil;
+    }
     CGImageRef image = CGImageCreate((size_t)width,
                                      (size_t)height,
                                      8,

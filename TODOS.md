@@ -258,7 +258,9 @@ design evidence lives under `project-doc/`.
   allocating or filling `MTLTexture` objects, avoiding GPU work when the
   retained-image table cannot be created.
 - CoreGraphics retained image uploads now preflight byte size, image budgets,
-  and scalar-map storage before creating provider-backed `UIImage` objects.
+  and scalar-map storage before creating provider-backed `UIImage` objects, and
+  the image factory releases provider-owned bytes if RGB color-space allocation
+  fails before `CGImageCreate`.
 - CoreGraphics and Metal retained text, mesh, and model uploads now preflight
   scalar-map storage before retained string/object allocation or raw payload
   copies.
