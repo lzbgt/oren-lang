@@ -41,6 +41,9 @@ design evidence lives under `project-doc/`.
   textures release glyph pixels if descriptor allocation fails before upload.
 - Metal render pipeline startup now shares a guarded function/descriptor
   preflight before creating geometry and text pipeline states.
+- Parser diagnostic and ARM64 native source-location helpers now cache source
+  string length before byte-offset line/column scans, and generic-call
+  declaration scans cache statement counts plus specialization-name lengths.
 - The AVM bytes hotpath guard now delegates its largest x64 system/data
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, keeping the public guard entrypoint below the

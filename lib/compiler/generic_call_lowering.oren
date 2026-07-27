@@ -87,7 +87,8 @@ fn collect_declared_functions(linked) {
     var ss = linked["statements"]
     if ss == nil { return {"declared": declared, "bases": bases, "generic_templates": generic_templates} }
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         if st != nil && st["type"] == "ExprStmt" {
             var e = st["expr"]
@@ -101,7 +102,8 @@ fn collect_declared_functions(linked) {
 
                     // If it's a specialization name like `foo__i32`, record `foo` as a base.
                     var j = 0
-                    while j + 1 < oren_string_len(name) {
+                    var name_len = oren_string_len(name)
+                    while j + 1 < name_len {
                         if oren_string_char_at(name, j) == "_" && oren_string_char_at(name, j + 1) == "_" {
                             var base = oren_string_slice(name, 0, j)
                             if base != nil && base != "" { bases[base] = true }

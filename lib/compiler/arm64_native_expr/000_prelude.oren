@@ -14,7 +14,8 @@ fn native_src_line_col(src, pos) {
     var line = 1
     var col = 1
     var i = 0
-    while i < pos && i < oren_string_len(src) {
+    var src_len = oren_string_len(src)
+    while i < pos && i < src_len {
         var ch = oren_string_char_at(src, i)
         if ch == token.CH_LF {
             line = line + 1

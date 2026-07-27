@@ -66,6 +66,12 @@
 <p>  descriptor allocation through one shared helper before creating geometry/text</p>
 <p>  pipeline states.</p>
 <ul>
+<li>Parser diagnostic and ARM64 native source-location helpers now cache source</li>
+</ul>
+<p>  string length before byte-offset line/column scans, with the hotpath guard</p>
+<p>  catching combined-condition regressions. Generic-call declaration scans also</p>
+<p>  cache statement counts plus specialization-name lengths before iteration.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>

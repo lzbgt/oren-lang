@@ -28,6 +28,10 @@ surfaces, but the following blockers remain:
 - Metal render pipeline startup now validates shader function lookup and
   descriptor allocation through one shared helper before creating geometry/text
   pipeline states.
+- Parser diagnostic and ARM64 native source-location helpers now cache source
+  string length before byte-offset line/column scans, with the hotpath guard
+  catching combined-condition regressions. Generic-call declaration scans also
+  cache statement counts plus specialization-name lengths before iteration.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
