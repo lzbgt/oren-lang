@@ -80,6 +80,11 @@
 </ul>
 <p>  sizing plus one-bucket SysV hash emission through <code>elf_artifact.oren</code>.</p>
 <ul>
+<li>X64/ARM64 ELF dynamic import relocation rows now share dynsym-index and GOT</li>
+</ul>
+<p>  address row construction through <code>elf_artifact.oren</code>; each arch emitter still</p>
+<p>  owns import validation diagnostics and relocation type constants.</p>
+<ul>
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>

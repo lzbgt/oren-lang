@@ -36,6 +36,9 @@ surfaces, but the following blockers remain:
   export diagnostics architecture-local.
 - X64/ARM64 ELF dynamic hash construction now shares import/export symbol-count
   sizing plus one-bucket SysV hash emission through `elf_artifact.oren`.
+- X64/ARM64 ELF dynamic import relocation rows now share dynsym-index and GOT
+  address row construction through `elf_artifact.oren`; each arch emitter still
+  owns import validation diagnostics and relocation type constants.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

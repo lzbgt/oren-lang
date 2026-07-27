@@ -789,10 +789,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
             oren_exit(1)
             return nil
         }
-        // dynsym index: 1 + i_rel (STN_UNDEF is 0)
-        var sym_idx = 1 + i_rel
-        var r_offset = base + data_file_off + got_off
-        elfart.push_rela(rela, r_offset, sym_idx, rela_type_glob_dat, 0)
+        elfart.push_dynamic_import_rela(rela, base, data_file_off, got_off, i_rel, rela_type_glob_dat)
         i_rel = i_rel + 1
     }
 

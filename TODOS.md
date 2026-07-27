@@ -55,7 +55,8 @@ design evidence lives under `project-doc/`.
 - X64/ARM64 ELF emitters now share `elf_artifact.oren` for common dynamic-link
   scaffold emission: default DT_NEEDED libs, dynamic string-table/name-offset
   assembly, imported dynsym function entries, exported dynsym offset/row helpers,
-  ELF64 RELA row packing, dynamic SysV hash sizing/tables,
+  ELF64 RELA row packing, dynamic import GOT relocation row construction,
+  dynamic SysV hash sizing/tables,
   PT_INTERP/init-array prelude placement, dynamic table blob placement, final
   dynamic section append/metadata offsets, and stable DT_DYNAMIC tags.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast

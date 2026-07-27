@@ -276,6 +276,14 @@ fn push_rela(rela, r_offset, sym_idx, rela_type, addend) {
     return nil
 }
 
+fn push_dynamic_import_rela(rela, base, data_file_off, got_off, import_index, rela_type) {
+    // STN_UNDEF occupies dynsym row 0; dynamic imports are appended in source order.
+    var sym_idx = 1 + import_index
+    var r_offset = base + data_file_off + got_off
+    push_rela(rela, r_offset, sym_idx, rela_type, 0)
+    return nil
+}
+
 fn build_sysv_hash(nchain) {
     var hash = artifact.bytes_new()
     var nbucket = 1
