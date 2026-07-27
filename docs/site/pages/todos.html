@@ -89,6 +89,10 @@
 </ul>
 <p>  per-byte range probes.</p>
 <ul>
+<li><code>std:ui</code> command validation, OGF0 frame sizing/encoding, and software</li>
+</ul>
+<p>  rasterization now cache immutable command-list lengths before traversal.</p>
+<ul>
 <li>The AVM bytes hotpath guard now delegates its largest x64 system/data</li>
 </ul>
 <p>  source-shape checks and shared compiler artifact byte-output checks to</p>
@@ -4088,6 +4092,10 @@
 <p>  triangle, 3D mesh, text-position, image RGBA, mesh RGBA, and image-rect byte</p>
 <p>  reads, calls shared <code>std:bytes</code> backing-aware readers inside guarded hot loops,</p>
 <p>  and keeps explicit image-data length guards before pointer-backed sampling.</p>
+<ul>
+<li><code>std:ui/commands</code>, <code>std:ui/avm</code>, and <code>std:ui/raster</code> now cache command-list</li>
+</ul>
+<p>  lengths before validation, OGF0 frame-size/encode, and raster traversal loops.</p>
 <ul>
 <li><code>std:ui/scene3d_binary</code> <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>

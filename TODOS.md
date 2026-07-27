@@ -46,6 +46,8 @@ design evidence lives under `project-doc/`.
   declaration scans cache statement counts plus specialization-name lengths.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
+- `std:ui` command validation, OGF0 frame sizing/encoding, and software
+  rasterization now cache immutable command-list lengths before traversal.
 - The AVM bytes hotpath guard now delegates its largest x64 system/data
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, keeping the public guard entrypoint below the
@@ -2894,6 +2896,8 @@ design evidence lives under `project-doc/`.
   triangle, 3D mesh, text-position, image RGBA, mesh RGBA, and image-rect byte
   reads, calls shared `std:bytes` backing-aware readers inside guarded hot loops,
   and keeps explicit image-data length guards before pointer-backed sampling.
+- `std:ui/commands`, `std:ui/avm`, and `std:ui/raster` now cache command-list
+  lengths before validation, OGF0 frame-size/encode, and raster traversal loops.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

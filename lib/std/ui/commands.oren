@@ -81,7 +81,7 @@ fn validate(cmds, w, h, opts) {
     if _n == nil || oren_is_err(_n) { return oren_err(4, "ui.validate: cmds must be list") }
 
     var i = 0
-    while i < oren_list_len(cmds) {
+    while i < _n {
         var c = cmds[i]
         if c == nil { return oren_err(4, "ui.validate: cmd is nil") }
         // Command is expected to be a map-like value (indexing by string keys).

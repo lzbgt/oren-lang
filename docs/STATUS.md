@@ -35,6 +35,8 @@ surfaces, but the following blockers remain:
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes, with the selected stdlib list-length guard catching
   compound-condition regressions.
+- `std:ui` command validation, OGF0 frame sizing/encoding, and software
+  rasterization now cache immutable command-list lengths before traversal.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
@@ -3085,7 +3087,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
   XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,
-  linalg, and regex loops now cache
+  linalg, regex, and `std:ui` command traversal loops now cache
   immutable list lengths before iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,

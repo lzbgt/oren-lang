@@ -233,8 +233,9 @@ fn _cmd_frame_len(c) {
 
 fn _frame_len(cmds) {
     var total = 40
+    var cmd_count = oren_list_len(cmds)
     var i = 0
-    while i < oren_list_len(cmds) {
+    while i < cmd_count {
         var n = _cmd_frame_len(cmds[i])
         if oren_is_err(n) { return n }
         total = total + n
@@ -662,10 +663,11 @@ fn frame_bytes(cmds, w, h, opts) {
     var out = raw.u8_new_uninit(frame_len)
     if oren_is_err(out) { return out }
     var wr = _writer(out)
-    _push_frame_header(wr, w, h, scale_milli, oren_list_len(cmds), sequence, drawable_w, drawable_h, target_hz_milli)
+    var cmd_count = oren_list_len(cmds)
+    _push_frame_header(wr, w, h, scale_milli, cmd_count, sequence, drawable_w, drawable_h, target_hz_milli)
 
     var i = 0
-    while i < oren_list_len(cmds) {
+    while i < cmd_count {
         var rc = _push_cmd(wr, cmds[i])
         if oren_is_err(rc) { return rc }
         i = i + 1

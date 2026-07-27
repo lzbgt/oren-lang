@@ -85,6 +85,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 index/list lowering separates map-vs-generic runtime-fast
      index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
      negative/upper-bound guards into focused helpers.
+   - Current `std:ui` command validation, OGF0 frame sizing/encoding, and
+     software rasterization cache immutable command-list lengths before
+     traversal.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public

@@ -730,6 +730,7 @@ fn rasterize(cmds, w, h, opts) {
     }
 
     if cmds == nil { return buf }
+    var cmd_count = oren_list_len(cmds)
 
     var clip_stack = {}
     var clip_depth = 0
@@ -748,7 +749,7 @@ fn rasterize(cmds, w, h, opts) {
     var materials = {}
     var models = {}
     var ci = 0
-    while ci < oren_list_len(cmds) {
+    while ci < cmd_count {
         var opm = cmds[ci]
         var op = opm["op"]
         if op == "push_clip_rect" {
