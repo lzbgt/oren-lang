@@ -738,6 +738,11 @@
 <li>Oren LSP indexed/returned/for-in container member regressions now live in dedicated test shards while keeping the container-inference cases grouped below the source-line guard.</li>
 <li>Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing <code>server_test.go</code> to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.</li>
 <li>Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.</li>
+<li>XML DOM traversal/text extraction plus JSON/CBOR/YAML codec loops now cache</li>
+</ul>
+<p>  immutable list lengths before iteration, avoiding repeated dynamic length</p>
+<p>  calls while preserving canonical sort and encode order.</p>
+<ul>
 <li>Parallel module parsing now emits setup and per-module worker phase markers under</li>
 </ul>
 <p>  <code>OREN_TRACE_BUILD_PHASES_PATH</code> for both thread and fork worker modes. Fresh x64</p>

@@ -275,7 +275,8 @@ fn _find_into(n, selector, out) {
     var cs = n["children"]
     if cs == nil { return nil }
     var i = 0
-    while i < list.len(cs) {
+    var ncs = list.len(cs)
+    while i < ncs {
         _find_into(cs[i], selector, out)
         i = i + 1
     }
@@ -313,7 +314,8 @@ fn text(n) {
     var cs = n["children"]
     if cs == nil { return out }
     var i = 0
-    while i < list.len(cs) {
+    var ncs = list.len(cs)
+    while i < ncs {
         out = out + text(cs[i])
         i = i + 1
     }

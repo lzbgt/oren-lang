@@ -124,7 +124,8 @@ fn _ok(v, pos) {
 
 fn _match_lit(src, pos, lit_bytes) {
     var i = 0
-    while i < list.len(lit_bytes) {
+    var n = list.len(lit_bytes)
+    while i < n {
         if _byte_at(src, pos + i) != lit_bytes[i] { return 0 }
         i = i + 1
     }
@@ -401,7 +402,8 @@ fn encode(jv) {
         var a = jv.a
         var out = "["
         var i = 0
-        while i < list.len(a) {
+        var n = list.len(a)
+        while i < n {
             if i > 0 { out = out + "," }
             out = out + encode(a[i])
             i = i + 1

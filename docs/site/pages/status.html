@@ -3492,6 +3492,9 @@
 <p>  list-of-byte reconstruction, and XML/HTML parser literal matching,</p>
 <p>  class-selector scans, DOM parsing, and streaming readers use direct</p>
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
+<p>  XML DOM traversal/text extraction plus JSON/CBOR/YAML codec loops now cache</p>
+<p>  immutable list lengths before iteration, avoiding repeated dynamic length</p>
+<p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>
 <p>  upgrade headers read directly into reserved header storage without scratch</p>
 <p>  copies, receive-side frame headers/ext lengths/masks parse through one</p>

@@ -338,7 +338,8 @@ fn _parse_scalar(tok, line_no) {
 
 fn _peek_next_nonempty(lines, idx) {
     var i = idx
-    while i < list.len(lines) {
+    var n = list.len(lines)
+    while i < n {
         var ln = lines[i]
         if ln != nil && _streq(_trim(ln), "") != true { return i }
         i = i + 1
@@ -364,7 +365,8 @@ fn _parse_block(lines, idx, indent) {
     if is_seq {
         var items = []
         var i = first_i
-        while i < list.len(lines) {
+        var line_count = list.len(lines)
+        while i < line_count {
             var raw = lines[i]
             if raw == nil { i = i + 1; continue }
             var raw2 = _trim(raw)
@@ -401,7 +403,8 @@ fn _parse_block(lines, idx, indent) {
     // mapping
     var obj = {}
     var i2 = first_i
-    while i2 < list.len(lines) {
+    var line_count2 = list.len(lines)
+    while i2 < line_count2 {
         var rawm = lines[i2]
         if rawm == nil { i2 = i2 + 1; continue }
         var rawm2 = _trim(rawm)
@@ -479,7 +482,8 @@ fn decode(s) {
     var lines0 = _split_lines(s2)
     var plines = []
     var i = 0
-    while i < list.len(lines0) {
+    var nlines0 = list.len(lines0)
+    while i < nlines0 {
         var raw = lines0[i]
         if raw == nil { raw = "" }
         list.push(plines, raw)
@@ -536,7 +540,8 @@ fn _key_lt(a, b) {
 
 fn _sort_keys(keys) {
     var i = 1
-    while i < list.len(keys) {
+    var n = list.len(keys)
+    while i < n {
         var k = keys[i]
         var j = i - 1
         while j >= 0 && _key_lt(k, keys[j]) {
@@ -636,7 +641,8 @@ fn _encode_block(v, indent) {
         if a == nil || list.len(a) == 0 { return "[]" }
         var out = ""
         var i = 0
-        while i < list.len(a) {
+        var an = list.len(a)
+        while i < an {
             var item = a[i]
             var inl2 = _encode_inline(item)
             if inl2 != nil {
@@ -656,10 +662,11 @@ fn _encode_block(v, indent) {
         var keys = []
         for k in o { list.push(keys, k) }
         _sort_keys(keys)
-        if list.len(keys) == 0 { return "{}" }
+        var kn = list.len(keys)
+        if kn == 0 { return "{}" }
         var out2 = ""
         var i2 = 0
-        while i2 < list.len(keys) {
+        while i2 < kn {
             var k2 = keys[i2]
             var key_enc = k2
             if !_safe_bare_ident(k2) { key_enc = "\"" + _escape_string(k2) + "\"" }

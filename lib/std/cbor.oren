@@ -195,7 +195,8 @@ fn _key_lt(a, b) {
 fn _sort_keys_canonical(keys) {
     // Insertion sort (small N typical; deterministic).
     var i = 1
-    while i < list.len(keys) {
+    var n = list.len(keys)
+    while i < n {
         var k = keys[i]
         var j = i - 1
         while j >= 0 && _key_lt(k, keys[j]) {
@@ -257,9 +258,10 @@ fn _encode_value(out, v) {
     }
     if _streq(t, "array") {
         var a = v["a"]
-        _emit_uint(out, 4, list.len(a))
+        var an = list.len(a)
+        _emit_uint(out, 4, an)
         var i4 = 0
-        while i4 < list.len(a) {
+        while i4 < an {
             _encode_value(out, a[i4])
             i4 = i4 + 1
         }
@@ -273,9 +275,10 @@ fn _encode_value(out, v) {
             list.push(keys, k)
         }
         _sort_keys_canonical(keys)
-        _emit_uint(out, 5, list.len(keys))
+        var kn = list.len(keys)
+        _emit_uint(out, 5, kn)
         var i5 = 0
-        while i5 < list.len(keys) {
+        while i5 < kn {
             var k2 = keys[i5]
             _encode_value(out, cstring(k2))
             _encode_value(out, oren_map_get_str(m, k2))

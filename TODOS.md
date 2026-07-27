@@ -439,6 +439,9 @@ design evidence lives under `project-doc/`.
 - Oren LSP indexed/returned/for-in container member regressions now live in dedicated test shards while keeping the container-inference cases grouped below the source-line guard.
 - Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing `server_test.go` to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.
 - Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
+- XML DOM traversal/text extraction plus JSON/CBOR/YAML codec loops now cache
+  immutable list lengths before iteration, avoiding repeated dynamic length
+  calls while preserving canonical sort and encode order.
 - Parallel module parsing now emits setup and per-module worker phase markers under
   `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
   self-host evidence shows the active macOS stage2 path is thread mode (`fork=0`),

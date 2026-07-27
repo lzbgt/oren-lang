@@ -3070,6 +3070,9 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   list-of-byte reconstruction, and XML/HTML parser literal matching,
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
+  XML DOM traversal/text extraction plus JSON/CBOR/YAML codec loops now cache
+  immutable list lengths before iteration, avoiding repeated dynamic length
+  calls while preserving canonical sort and encode order.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,
   upgrade headers read directly into reserved header storage without scratch
   copies, receive-side frame headers/ext lengths/masks parse through one
