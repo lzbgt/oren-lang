@@ -251,6 +251,32 @@ fn build_dynamic_import_symbols(imports, sym_dynstr_offs) {
     return dynsym
 }
 
+fn dynamic_import_existing_got_off(ctx, sym_name) {
+    if ctx == nil { return nil }
+    if sym_name == nil || sym_name == "" { return nil }
+    var m = ctx["elf_dyn_got_offs_enc"]
+    if m == nil { return nil }
+    var existing_enc = m[sym_name]
+    if oren_type_tag(existing_enc) == 1 {
+        if existing_enc > 0 { return existing_enc - 1 }
+    }
+    return nil
+}
+
+fn record_dynamic_import_got_off(ctx, sym_name, got_off) {
+    if ctx == nil { return nil }
+    if sym_name == nil || sym_name == "" { return nil }
+    if oren_type_tag(got_off) == 0 { return nil }
+    if ctx["elf_dyn_got_offs_enc"] == nil { ctx["elf_dyn_got_offs_enc"] = {} }
+    var m = ctx["elf_dyn_got_offs_enc"]
+    // Store as off+1 so a real offset 0 does not alias native-runtime `nil`.
+    m[sym_name] = got_off + 1
+
+    if ctx["elf_dyn_imports"] == nil { ctx["elf_dyn_imports"] = [] }
+    oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})
+    return got_off
+}
+
 fn dynamic_export_offset(functions, export_wrappers, name) {
     if export_wrappers != nil && export_wrappers[name] != nil {
         return export_wrappers[name]

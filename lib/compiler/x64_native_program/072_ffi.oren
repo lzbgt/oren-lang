@@ -469,20 +469,11 @@ fn _x64_linux_dyn_import_got_off(ctx, sym_name) {
     if ctx == nil { return nil }
     if sym_name == nil || sym_name == "" { return nil }
 
-    if ctx["elf_dyn_got_offs_enc"] == nil { ctx["elf_dyn_got_offs_enc"] = {} }
-    var m = ctx["elf_dyn_got_offs_enc"]
-    var existing_enc = m[sym_name]
-    if oren_type_tag(existing_enc) == 1 {
-        if existing_enc > 0 { return existing_enc - 1 }
-    }
+    var existing = elfart.dynamic_import_existing_got_off(ctx, sym_name)
+    if existing != nil { return existing }
 
     var got_off = _data_add_u64(ctx, 0)
-    // Store as off+1 so a real offset 0 doesn't alias native-runtime `nil`.
-    m[sym_name] = got_off + 1
-
-    if ctx["elf_dyn_imports"] == nil { ctx["elf_dyn_imports"] = [] }
-    oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})
-    return got_off
+    return elfart.record_dynamic_import_got_off(ctx, sym_name, got_off)
 }
 
 fn _x64_emit_call_got_rax_linux(ctx, got_off) {

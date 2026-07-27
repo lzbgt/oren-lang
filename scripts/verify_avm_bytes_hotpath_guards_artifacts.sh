@@ -126,6 +126,12 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'fn build_dynamic_import_symbols(imports, sym_dynstr_offs)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(dynsym, 24) // STN_UNDEF' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'push_dynsym_undef_func(dynsym, name_off)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn dynamic_import_existing_got_off(ctx, sym_name)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'var m = ctx["elf_dyn_got_offs_enc"]' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'if existing_enc > 0 { return existing_enc - 1 }' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn record_dynamic_import_got_off(ctx, sym_name, got_off)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'm[sym_name] = got_off + 1' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn dynamic_export_offset(functions, export_wrappers, name)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'return export_wrappers[name]' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn push_dynamic_export_symbol(dynsym, sym_dynstr_offs, name, text_addr)' <<<"$elf_artifact_dyn_impl" ||
@@ -171,6 +177,11 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'push_dynamic_entry(dyn, 0, 0) // DT_NULL' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'return elfart.dyn_needed_libs(user_link_libs)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'return elfart.dyn_needed_libs(user_link_libs)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'var existing = elfart.dynamic_import_existing_got_off(ctx, sym_name)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'return elfart.record_dynamic_import_got_off(ctx, sym_name, got_off)' lib/compiler/arm64_elf.oren ||
+  ! grep -Fq 'import elfart "elf_artifact.oren"' lib/compiler/x64_native_program/000_prelude.oren ||
+  ! grep -Fq 'var existing = elfart.dynamic_import_existing_got_off(ctx, sym_name)' lib/compiler/x64_native_program/072_ffi.oren ||
+  ! grep -Fq 'return elfart.record_dynamic_import_got_off(ctx, sym_name, got_off)' lib/compiler/x64_native_program/072_ffi.oren ||
   ! grep -Fq 'var dyn_prelude = elfart.append_dynamic_prelude(data, "/lib/ld-linux-aarch64.so.1", is_shared_lib)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn_prelude = elfart.append_dynamic_prelude(data, "/lib64/ld-linux-x86-64.so.2", is_shared_lib)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, missing_import, elf_diag_escape(missing_import))' <<<"$arm64_elf_dynmeta_impl" ||
@@ -205,6 +216,10 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'push_u64_le(dynsym, 0); push_u64_le(dynsym, 0); push_u64_le(dynsym, 0)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'bytes_extend_zeros(dynsym, 24)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'elfart.push_dynsym_undef_func(dynsym, name_off)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'ctx["elf_dyn_got_offs_enc"] = {}' lib/compiler/arm64_elf.oren ||
+  grep -Fq 'ctx["elf_dyn_got_offs_enc"] = {}' lib/compiler/x64_native_program/072_ffi.oren ||
+  grep -Fq 'oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})' lib/compiler/arm64_elf.oren ||
+  grep -Fq 'oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})' lib/compiler/x64_native_program/072_ffi.oren ||
   grep -Fq 'export_wrappers[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'functions[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'var name_off2 = sym_dynstr_offs[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
