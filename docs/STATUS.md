@@ -4756,7 +4756,8 @@ make docs-site
 - X64 and ARM64 ELF emitters now share `elf_artifact.oren` for identical ELF64
   file-header, program-header table, and final PHDR list emission, byte
   alignment, UTF-8/debug string packing, NUL-terminated string-table insertion,
-  and unique DT_NEEDED collection while leaving machine IDs, section-table
+  unique DT_NEEDED collection, and minimal `.text`/`.data`/`.shstrtab`
+  tooling section-table byte emission while leaving machine IDs, section-table
   policy, relocation policy, codegen, and ABI rules in the arch emitters.
 - ARM64 ELF and Mach-O emitters now share `native_debug_artifact.oren` for
   stable native debug user-function record bytes, aligned UTF-8 fields, and

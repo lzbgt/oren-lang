@@ -47,7 +47,8 @@ design evidence lives under `project-doc/`.
 - X64/ARM64 ELF emitters now share `elf_artifact.oren` for identical ELF64
   file-header, program-header table, and final PHDR list emission, byte
   alignment, UTF-8/debug string packing, NUL-terminated string-table insertion,
-  and unique DT_NEEDED collection.
+  unique DT_NEEDED collection, and minimal `.text`/`.data`/`.shstrtab`
+  tooling section-table byte emission.
 - ARM64 ELF and Mach-O emitters now share `native_debug_artifact.oren` for
   stable native debug user-function records, aligned UTF-8 fields, and zeroed
   runtime record slots while leaving object-format placement and fixup/patch

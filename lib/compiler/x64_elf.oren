@@ -44,25 +44,6 @@ fn push_u64_le(buf, n) { return artifact.push_u64_le(buf, n) }
 fn set_u32_le(buf, offset, n) { return artifact.set_u32_le(buf, offset, n) }
 fn int_mod(a, b) { return artifact.int_mod(a, b) }
 
-fn _elf_push_shdr(sh, name_off, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize) {
-    // Emit one ELF64_Shdr (64 bytes) into `sh`.
-    push_u32_le(sh, name_off)
-    push_u32_le(sh, sh_type)
-    push_u64_le(sh, sh_flags)
-    push_u64_le(sh, sh_addr)
-    push_u64_le(sh, sh_offset)
-    push_u64_le(sh, sh_size)
-    push_u32_le(sh, sh_link)
-    push_u32_le(sh, sh_info)
-    push_u64_le(sh, sh_addralign)
-    push_u64_le(sh, sh_entsize)
-    return nil
-}
-
-fn set_u64_le(buf, offset, n) {
-    return artifact.set_u64_le(buf, offset, n)
-}
-
 fn align_up(n, align) {
     return artifact.align_up(n, align)
 }
@@ -1121,55 +1102,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     //   [ELF hdrs + PHDRs] [code] [pad] [data] [shstrtab] [SHT]
     //
     // NOTE: section tables are not mapped by PT_LOAD; they are metadata for tools.
-    var base2 = base
-    var hdr2 = hdr_size
-    var code_off = hdr2
-    var code_addr = base2 + hdr2
-    var data_off2 = data_file_off
-    var data_addr = base2 + data_off2
-    var data_sz = bytes_len(data)
-
-    // Build shstrtab.
-    var shstr = bytes_new()
-    bytes_extend_zeros(shstr, 1) // leading NUL => name index 0 is ""
-    var off_text = bytes_len(shstr)
-    bytes_extend_string_z(shstr, ".text")
-    var off_data = bytes_len(shstr)
-    bytes_extend_string_z(shstr, ".data")
-    var off_shstr = bytes_len(shstr)
-    bytes_extend_string_z(shstr, ".shstrtab")
-
-    // Align and append shstrtab.
-    _bytes_align(prefix, 16)
-    var shstr_off = bytes_len(prefix)
-    bytes_extend(prefix, shstr)
-    _bytes_align(prefix, 16)
-
-    // Build section header table (SHT).
-    // ELF64_Shdr size is 64 bytes.
-    //
-    // We emit 4 sections:
-    //  0: NULL
-    //  1: .text
-    //  2: .data
-    //  3: .shstrtab
-    var sht_off = bytes_len(prefix)
-    var sht = bytes_new()
-
-    // SHT_NULL
-    _elf_push_shdr(sht, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    // .text: SHT_PROGBITS, SHF_ALLOC|SHF_EXECINSTR
-    _elf_push_shdr(sht, off_text, 1, 6, code_addr, code_off, code_len, 0, 0, 16, 0)
-    // .data: SHT_PROGBITS, SHF_ALLOC|SHF_WRITE
-    _elf_push_shdr(sht, off_data, 1, 3, data_addr, data_off2, data_sz, 0, 0, 8, 0)
-    // .shstrtab: SHT_STRTAB (not allocated)
-    _elf_push_shdr(sht, off_shstr, 3, 0, 0, shstr_off, bytes_len(shstr), 0, 0, 1, 0)
-
-    bytes_extend(prefix, sht)
-
-    // Patch ELF header with SHT metadata.
-    // e_shoff (u64) at offset 40 in ELF64_Ehdr
-    set_u64_le(prefix, 40, sht_off)
+    elfart.append_minimal_text_data_sections(prefix, base, hdr_size, code_len, data_file_off, bytes_len(data))
 
     var w = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w) {

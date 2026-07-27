@@ -5600,7 +5600,8 @@ make docs-site</code></pre>
 </ul>
 <p>  file-header, program-header table, and final PHDR list emission, byte</p>
 <p>  alignment, UTF-8/debug string packing, NUL-terminated string-table insertion,</p>
-<p>  and unique DT_NEEDED collection while leaving machine IDs, section-table</p>
+<p>  unique DT_NEEDED collection, and minimal <code>.text</code>/<code>.data</code>/<code>.shstrtab</code></p>
+<p>  tooling section-table byte emission while leaving machine IDs, section-table</p>
 <p>  policy, relocation policy, codegen, and ABI rules in the arch emitters.</p>
 <ul>
 <li>ARM64 ELF and Mach-O emitters now share <code>native_debug_artifact.oren</code> for</li>

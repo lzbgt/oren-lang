@@ -98,6 +98,53 @@ fn build_program_headers(base, phnum, dyn, is_shared_lib, data_file_off, data_le
     return phdrs
 }
 
+fn push_shdr(sh, name_off, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize) {
+    artifact.push_u32_le(sh, name_off)
+    artifact.push_u32_le(sh, sh_type)
+    artifact.push_u64_le(sh, sh_flags)
+    artifact.push_u64_le(sh, sh_addr)
+    artifact.push_u64_le(sh, sh_offset)
+    artifact.push_u64_le(sh, sh_size)
+    artifact.push_u32_le(sh, sh_link)
+    artifact.push_u32_le(sh, sh_info)
+    artifact.push_u64_le(sh, sh_addralign)
+    artifact.push_u64_le(sh, sh_entsize)
+    return nil
+}
+
+fn append_minimal_text_data_sections(prefix, base, hdr_size, code_len, data_file_off, data_len) {
+    // ELF section headers are not loader input; this compact table keeps tooling useful.
+    bytes_align(prefix, 16)
+
+    var shstr = artifact.bytes_new()
+    artifact.bytes_extend_zeros(shstr, 1) // leading NUL => name index 0 is ""
+    var off_text = artifact.bytes_len(shstr)
+    artifact.bytes_extend_string_z(shstr, ".text")
+    var off_data = artifact.bytes_len(shstr)
+    artifact.bytes_extend_string_z(shstr, ".data")
+    var off_shstr = artifact.bytes_len(shstr)
+    artifact.bytes_extend_string_z(shstr, ".shstrtab")
+
+    var shstr_off = artifact.bytes_len(prefix)
+    artifact.bytes_extend(prefix, shstr)
+    bytes_align(prefix, 16)
+
+    var sht_off = artifact.bytes_len(prefix)
+    var sht = artifact.bytes_new()
+    var code_off = hdr_size
+    var code_addr = base + hdr_size
+    var data_addr = base + data_file_off
+
+    push_shdr(sht, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    push_shdr(sht, off_text, 1, 6, code_addr, code_off, code_len, 0, 0, 16, 0)
+    push_shdr(sht, off_data, 1, 3, data_addr, data_file_off, data_len, 0, 0, 8, 0)
+    push_shdr(sht, off_shstr, 3, 0, 0, shstr_off, artifact.bytes_len(shstr), 0, 0, 1, 0)
+
+    artifact.bytes_extend(prefix, sht)
+    artifact.set_u64_le(prefix, 40, sht_off)
+    return nil
+}
+
 fn bytes_align(buf, align) {
     if buf == nil { return nil }
     if align == nil || align <= 1 { return nil }

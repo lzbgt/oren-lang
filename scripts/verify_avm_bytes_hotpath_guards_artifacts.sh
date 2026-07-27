@@ -34,6 +34,7 @@ if ! grep -Fq 'import artifact "artifact_bytes.oren"' lib/compiler/elf_artifact.
   ! grep -Fq 'return elfart.build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, 62, 4, 3)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'var phdrs = elfart.build_program_headers(base, phnum, dyn, is_shared == true, data_file_off, bytes_len(data), dyn_meta)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'var phdrs = elfart.build_program_headers(base, phnum, dyn, is_shared_lib, data_file_off, bytes_len(data), dyn_meta)' lib/compiler/x64_elf.oren ||
+  ! grep -Fq 'elfart.append_minimal_text_data_sections(prefix, base, hdr_size, code_len, data_file_off, bytes_len(data))' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/arm64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_align(buf, align)' lib/compiler/x64_elf.oren ||
   ! grep -Fq 'return elfart.bytes_add_str0(buf, s)' lib/compiler/arm64_elf.oren ||
@@ -105,6 +106,7 @@ arm64_elf_layout_impl="$(sed -n '/Append debug info (Linux ELF)/,/Patch debug st
 x64_elf_page_layout_impl="$(sed -n '/Ensure the data segment begins on a page boundary/,/If `--link` is used/p' lib/compiler/x64_elf.oren)"
 x64_elf_build_shstr_impl="$(sed -n '/Build shstrtab/,/Align and append shstrtab/p' lib/compiler/x64_elf.oren)"
 x64_elf_shstr_layout_impl="$(sed -n '/Align and append shstrtab/,/Build section header table/p' lib/compiler/x64_elf.oren)"
+elf_artifact_sections_impl="$(sed -n '/fn push_shdr/,/fn bytes_align/p' lib/compiler/elf_artifact.oren)"
 arm64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/arm64_elf.oren)"
 x64_elf_dynsym_impl="$(sed -n '/Build dynsym (DT_SYMTAB)/,/Build .rela.dyn/p' lib/compiler/x64_elf.oren)"
 arm64_elf_dynmeta_impl="$(sed -n '/fn _elf_arm64_append_dyn_metadata/,/fn elf_build_prefix_arm64/p' lib/compiler/arm64_elf.oren)"
@@ -165,6 +167,12 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'oren_list_push(phdrs, {"type": 1, "flags": 6, "offset": data_file_off' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'oren_list_push(phdrs, {"type": 2, "flags": 6, "offset": dynamic_off' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'oren_list_push(phdrs, {"type": 1685382481, "flags": 6' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'fn push_shdr(sh, name_off, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize)' <<<"$elf_artifact_sections_impl" ||
+  ! grep -Fq 'fn append_minimal_text_data_sections(prefix, base, hdr_size, code_len, data_file_off, data_len)' <<<"$elf_artifact_sections_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string_z(shstr, ".text")' <<<"$elf_artifact_sections_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string_z(shstr, ".data")' <<<"$elf_artifact_sections_impl" ||
+  ! grep -Fq 'artifact.bytes_extend_string_z(shstr, ".shstrtab")' <<<"$elf_artifact_sections_impl" ||
+  ! grep -Fq 'artifact.set_u64_le(prefix, 40, sht_off)' <<<"$elf_artifact_sections_impl" ||
   ! grep -Fq 'fn build_sysv_hash(nchain)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(hash, (nbucket + nchain) * 4)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn build_dynamic_hash(imports, exports)' <<<"$elf_artifact_dyn_impl" ||
@@ -259,7 +267,7 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'oren_list_push(phdrs, {"type": 6' lib/compiler/x64_elf.oren ||
   grep -Fq 'oren_list_push(phdrs, {"type": 1685382481' lib/compiler/arm64_elf.oren ||
   grep -Fq 'oren_list_push(phdrs, {"type": 1685382481' lib/compiler/x64_elf.oren ||
-  test "$(grep -Fc '_bytes_align(prefix, 16)' <<<"$x64_elf_shstr_layout_impl")" != "2" ||
+  test "$(grep -Fc 'bytes_align(prefix, 16)' <<<"$elf_artifact_sections_impl")" != "2" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$arm64_elf_align_impl" ||
   grep -Fq 'while int_mod(bytes_len(buf), align) != 0' <<<"$x64_elf_align_impl" ||
   grep -Fq 'while int_mod(bytes_len(data), 8) != 0' <<<"$arm64_elf_layout_impl" ||
@@ -302,8 +310,8 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   ! grep -Fq 'elfart.append_dynamic_prelude(data, "/lib64/ld-linux-x86-64.so.2", is_shared_lib)' <<<"$x64_elf_dynamic_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(dynstr, 1) // leading NUL' <<<"$elf_artifact_string_impl$elf_artifact_dyn_impl" ||
   ! grep -Fq 'bytes_extend_string_z(data, s)' <<<"$arm64_elf_data_cstr_impl" ||
-  ! grep -Fq 'bytes_extend_zeros(shstr, 1)' <<<"$x64_elf_build_shstr_impl" ||
-  test "$(grep -Fc 'bytes_extend_string_z(shstr,' <<<"$x64_elf_build_shstr_impl")" != "3" ||
+  ! grep -Fq 'artifact.bytes_extend_zeros(shstr, 1)' <<<"$elf_artifact_sections_impl" ||
+  test "$(grep -Fc 'artifact.bytes_extend_string_z(shstr,' <<<"$elf_artifact_sections_impl")" != "3" ||
   ! grep -Fq 'bytes_extend_string(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'bytes_extend_string_z(buf, s)' <<<"$arm64_macho_string_impl" ||
   ! grep -Fq 'return debugart.push_utf8_aligned(p, s)' <<<"$arm64_macho_string_impl" ||
@@ -335,7 +343,9 @@ if ! grep -Fq 'fn bytes_extend_string_z(b, s) { return artifact.bytes_extend_str
   grep -Fq 'push_u64_le(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl" ||
   grep -Fq 'bytes_push(data, 0)' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$arm64_elf_data_cstr_impl" ||
   grep -Fq 'bytes_push(dynstr, 0) // leading NUL' <<<"$arm64_elf_dynamic_impl$x64_elf_dynamic_impl$elf_artifact_dyn_impl" ||
-  grep -Fq 'bytes_push(shstr, 0)' <<<"$x64_elf_build_shstr_impl" ||
+  grep -Fq 'bytes_push(shstr, 0)' <<<"$x64_elf_build_shstr_impl$elf_artifact_sections_impl" ||
+  grep -Fq '_elf_push_shdr(' lib/compiler/x64_elf.oren ||
+  grep -Fq 'set_u64_le(prefix, 40, sht_off)' lib/compiler/x64_elf.oren ||
   grep -Fq 'bytes_push(strtab, 0)' <<<"$arm64_macho_file_impl" ||
   grep -Fq 'bytes_push(symtab, 0) // n_sect' <<<"$arm64_macho_file_impl" ||
   grep -Fq 'oren_string_byte_at_unchecked(bind_name' <<<"$arm64_macho_file_impl" ||
