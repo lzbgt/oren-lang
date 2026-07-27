@@ -71,6 +71,11 @@
 <p>  function symbol rows through <code>elf_artifact.oren</code>, while arch emitters still</p>
 <p>  own exported symbol resolution and their existing diagnostic behavior.</p>
 <ul>
+<li>X64/ARM64 ELF exported dynsym construction now shares wrapper-vs-function</li>
+</ul>
+<p>  offset selection and named <code>.text</code> symbol row emission, while keeping missing</p>
+<p>  export diagnostics architecture-local.</p>
+<ul>
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked</p>

@@ -126,6 +126,10 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'fn build_dynamic_import_symbols(imports, sym_dynstr_offs)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(dynsym, 24) // STN_UNDEF' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'push_dynsym_undef_func(dynsym, name_off)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn dynamic_export_offset(functions, export_wrappers, name)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'return export_wrappers[name]' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn push_dynamic_export_symbol(dynsym, sym_dynstr_offs, name, text_addr)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'push_dynsym_text_func(dynsym, name_off, text_addr)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn append_dynamic_prelude(data, interp, is_shared_lib)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_string_z(data, interp)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.push_u64_le(data, 0)' <<<"$elf_artifact_dyn_impl" ||
@@ -167,8 +171,10 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'var dyn_names = elfart.build_dynamic_name_tables(needed, imports, exports, "x64 elf: internal: dyn import missing name", nil)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dynsym = elfart.build_dynamic_import_symbols(imports, sym_dynstr_offs)' <<<"$arm64_elf_dynsym_impl" ||
   ! grep -Fq 'var dynsym = elfart.build_dynamic_import_symbols(imports, sym_dynstr_offs)' <<<"$x64_elf_dynsym_impl" ||
-  ! grep -Fq 'elfart.push_dynsym_text_func(dynsym, name_off2, text_base + fn_off)' <<<"$arm64_elf_dynsym_impl" ||
-  ! grep -Fq 'elfart.push_dynsym_text_func(dynsym, name_off2, text_base + fn_off)' <<<"$x64_elf_dynsym_impl" ||
+  ! grep -Fq 'var fn_off = elfart.dynamic_export_offset(functions, export_wrappers, enm)' <<<"$arm64_elf_dynsym_impl" ||
+  ! grep -Fq 'var fn_off = elfart.dynamic_export_offset(functions, export_wrappers, enm)' <<<"$x64_elf_dynsym_impl" ||
+  ! grep -Fq 'elfart.push_dynamic_export_symbol(dynsym, sym_dynstr_offs, enm, text_base + fn_off)' <<<"$arm64_elf_dynsym_impl" ||
+  ! grep -Fq 'elfart.push_dynamic_export_symbol(dynsym, sym_dynstr_offs, enm, text_base + fn_off)' <<<"$x64_elf_dynsym_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset0, 0, rela_type_relative, add0)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset, sym_idx, rela_type_glob_dat, 0)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset0, 0, rela_type_relative, add0)' <<<"$x64_elf_dynmeta_impl" ||
@@ -193,6 +199,10 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'push_u64_le(dynsym, 0); push_u64_le(dynsym, 0); push_u64_le(dynsym, 0)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'bytes_extend_zeros(dynsym, 24)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'elfart.push_dynsym_undef_func(dynsym, name_off)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'export_wrappers[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'functions[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'var name_off2 = sym_dynstr_offs[enm]' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
+  grep -Fq 'elfart.push_dynsym_text_func(dynsym, name_off2, text_base + fn_off)' <<<"$arm64_elf_dynsym_impl$x64_elf_dynsym_impl" ||
   grep -Fq 'needed_dynstr_offs[lib] = _bytes_add_str0(dynstr, lib)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'sym_dynstr_offs[nm] = _bytes_add_str0(dynstr, nm)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'sym_dynstr_offs[nm3] = _bytes_add_str0(dynstr, nm3)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||

@@ -251,6 +251,22 @@ fn build_dynamic_import_symbols(imports, sym_dynstr_offs) {
     return dynsym
 }
 
+fn dynamic_export_offset(functions, export_wrappers, name) {
+    if export_wrappers != nil && export_wrappers[name] != nil {
+        return export_wrappers[name]
+    }
+    if functions == nil { return nil }
+    return functions[name]
+}
+
+fn push_dynamic_export_symbol(dynsym, sym_dynstr_offs, name, text_addr) {
+    if name == nil || name == "" { return nil }
+    var name_off = nil
+    if sym_dynstr_offs != nil { name_off = sym_dynstr_offs[name] }
+    push_dynsym_text_func(dynsym, name_off, text_addr)
+    return nil
+}
+
 fn push_rela(rela, r_offset, sym_idx, rela_type, addend) {
     if r_offset == nil { r_offset = 0 }
     if addend == nil { addend = 0 }
