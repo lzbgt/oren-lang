@@ -323,6 +323,23 @@ def main() -> int:
         fail("Metal text cache must expose a typed immutable cache-key object")
     if "+ (instancetype)keyWithText:(NSString*)text rgba:(const uint8_t*)rgba scaleMilli:(uint32_t)scaleMilli" not in text_source:
         fail("Metal text cache must build compact typed cache keys")
+    atlas_start = text_source.find("static OrenAVMMetalTextAtlas* OrenAVMMetalCreateTextAtlas")
+    atlas_end = text_source.find("static BOOL OrenAVMMetalAtlasReserve", atlas_start)
+    if atlas_start < 0 or atlas_end < 0:
+        fail("missing Metal text atlas creation helper")
+    atlas_body = text_source[atlas_start:atlas_end]
+    require_before(atlas_body,
+                   "OrenAVMMetalTextAtlas* atlas = [[OrenAVMMetalTextAtlas alloc] init];",
+                   "id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor]",
+                   "Metal text atlas creation must guard wrapper allocation before GPU texture allocation")
+    require_before(atlas_body,
+                   "if (!atlas) return nil;",
+                   "id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor]",
+                   "Metal text atlas creation must reject wrapper allocation failure before GPU texture allocation")
+    require_before(atlas_body,
+                   "if (!descriptor) return nil;",
+                   "descriptor.usage = MTLTextureUsageShaderRead",
+                   "Metal text atlas creation must guard descriptor allocation before descriptor use")
     atlas_rotate = text_source.find("OrenAVMMetalClearTextTextureCache(cache, order, cachePixels)")
     atlas_recreate = text_source.find("*atlas = OrenAVMMetalCreateTextAtlas(device)", atlas_rotate)
     if atlas_rotate < 0 or atlas_recreate < 0:
@@ -343,6 +360,11 @@ def main() -> int:
         fail("Metal text cache misses must use raw temporary glyph pixels with explicit cleanup")
     if "withBytes:pixels.bytes" in text_source or "pixels.mutableBytes" in text_source:
         fail("Metal text texture uploads must use raw glyph pixel pointers")
+    fallback_descriptor = text_source.find("width:pixelWidth")
+    fallback_texture = text_source.find("id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor]", fallback_descriptor)
+    fallback_guard = text_source.find("if (!descriptor) {\n            free(pixels);\n            return nil;\n        }", fallback_descriptor)
+    if fallback_descriptor < 0 or fallback_texture < 0 or fallback_guard < 0 or fallback_guard > fallback_texture:
+        fail("Metal text standalone texture uploads must guard descriptor allocation and release glyph pixels before GPU texture allocation")
     if "OrenAVMMetalTextureQuad" in text_source or "OrenAVMMetalTextureQuad" in text_header:
         fail("single Metal texture/text quads must use caller-owned mutable vertex buffers")
     if "dataWithBytes:out length:sizeof(out)" in text_source:
@@ -759,6 +781,18 @@ def main() -> int:
         fail("retained Metal image upload helper missing scalar map or texture upload path")
     if image_map_alloc > texture_alloc or image_map_alloc > texture_upload:
         fail("retained Metal image uploads must preflight scalar-map storage before allocating/filling MTLTexture")
+    require_before(put_image_body,
+                   "OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];",
+                   "id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor]",
+                   "retained Metal image uploads must allocate the resource wrapper before GPU texture allocation")
+    require_before(put_image_body,
+                   "if (!resource) return NO;",
+                   "id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor]",
+                   "retained Metal image uploads must guard resource allocation before GPU texture allocation")
+    require_before(put_image_body,
+                   "if (!descriptor) return NO;",
+                   "descriptor.usage = MTLTextureUsageShaderRead",
+                   "retained Metal image uploads must guard texture descriptor allocation before descriptor use")
     require_before(put_image_body,
                    "if (!resource) return NO;",
                    "CFDictionarySetValue(*imagesByID",

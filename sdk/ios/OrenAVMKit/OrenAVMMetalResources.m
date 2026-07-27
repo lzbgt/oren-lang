@@ -89,10 +89,13 @@ BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
     if (!*imagesByID) *imagesByID = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (!*imagesByID) return NO;
 
+    OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
+    if (!resource) return NO;
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                           width:(NSUInteger)width
                                                                                          height:(NSUInteger)height
                                                                                       mipmapped:NO];
+    if (!descriptor) return NO;
     descriptor.usage = MTLTextureUsageShaderRead;
     id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
     if (!texture) return NO;
@@ -101,8 +104,6 @@ BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
                  withBytes:rgba
                bytesPerRow:(NSUInteger)width * 4u];
 
-    OrenAVMMetalImageResource* resource = [[OrenAVMMetalImageResource alloc] init];
-    if (!resource) return NO;
     resource.texture = texture;
     resource.pixels = pixels;
     CFDictionarySetValue(*imagesByID, OrenAVMMetalRetainedImageKey(imageID), (__bridge const void*)resource);

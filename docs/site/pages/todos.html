@@ -71,6 +71,11 @@
 </table>
 <h2 id="current-done-evidence">Current Done Evidence</h2>
 <ul>
+<li>Metal text atlas creation and retained-image uploads now guard wrapper and</li>
+</ul>
+<p>  descriptor allocation before GPU texture creation, and standalone text</p>
+<p>  textures release glyph pixels if descriptor allocation fails before upload.</p>
+<ul>
 <li>The AVM bytes hotpath guard now delegates its largest x64 system/data</li>
 </ul>
 <p>  source-shape checks and shared compiler artifact byte-output checks to</p>

@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- Metal text atlas creation and retained-image uploads now guard cheap wrapper
+  and descriptor allocation before GPU texture creation, and standalone text
+  texture fallback releases glyph pixels if descriptor allocation fails.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.

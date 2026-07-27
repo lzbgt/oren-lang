@@ -129,14 +129,16 @@ static void OrenAVMMetalTrimTextCache(NSMutableDictionary<OrenAVMMetalTextCacheK
 
 static OrenAVMMetalTextAtlas* OrenAVMMetalCreateTextAtlas(id<MTLDevice> device) {
     if (!device) return nil;
+    OrenAVMMetalTextAtlas* atlas = [[OrenAVMMetalTextAtlas alloc] init];
+    if (!atlas) return nil;
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                          width:OrenAVMMetalTextAtlasSize
                                                                                         height:OrenAVMMetalTextAtlasSize
                                                                                      mipmapped:NO];
+    if (!descriptor) return nil;
     descriptor.usage = MTLTextureUsageShaderRead;
     id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
     if (!texture) return nil;
-    OrenAVMMetalTextAtlas* atlas = [[OrenAVMMetalTextAtlas alloc] init];
     atlas.texture = texture;
     atlas.width = OrenAVMMetalTextAtlasSize;
     atlas.height = OrenAVMMetalTextAtlasSize;
@@ -358,6 +360,10 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
                                                                                              width:pixelWidth
                                                                                             height:pixelHeight
                                                                                          mipmapped:NO];
+        if (!descriptor) {
+            free(pixels);
+            return nil;
+        }
         descriptor.usage = MTLTextureUsageShaderRead;
         id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
         if (!texture) {
