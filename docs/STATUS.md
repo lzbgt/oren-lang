@@ -34,6 +34,8 @@ surfaces, but the following blockers remain:
 - X64/ARM64 ELF exported dynsym construction now shares wrapper-vs-function
   offset selection and named `.text` symbol row emission, while keeping missing
   export diagnostics architecture-local.
+- X64/ARM64 ELF dynamic hash construction now shares import/export symbol-count
+  sizing plus one-bucket SysV hash emission through `elf_artifact.oren`.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

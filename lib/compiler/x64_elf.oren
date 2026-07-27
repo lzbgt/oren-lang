@@ -796,8 +796,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         i_rel = i_rel + 1
     }
 
-    var nchain = 1 + oren_list_len(imports) + oren_list_len(exports)
-    var hash = elfart.build_sysv_hash(nchain)
+    var hash = elfart.build_dynamic_hash(imports, exports)
 
     var data_addr = base + data_file_off
     var dyn_tail = elfart.append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)

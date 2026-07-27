@@ -297,6 +297,14 @@ fn build_sysv_hash(nchain) {
     return hash
 }
 
+fn build_dynamic_hash(imports, exports) {
+    var import_count = 0
+    if imports != nil { import_count = oren_list_len(imports) }
+    var export_count = 0
+    if exports != nil { export_count = oren_list_len(exports) }
+    return build_sysv_hash(1 + import_count + export_count)
+}
+
 fn append_dyn_tables(data, hash, dynstr, dynsym, rela) {
     bytes_align(data, 8)
     var hash_off = artifact.bytes_len(data)

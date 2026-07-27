@@ -156,6 +156,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'oren_list_push(phdrs, {"type": 1685382481, "flags": 6' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'fn build_sysv_hash(nchain)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_extend_zeros(hash, (nbucket + nchain) * 4)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'fn build_dynamic_hash(imports, exports)' <<<"$elf_artifact_dyn_impl" ||
+  ! grep -Fq 'return build_sysv_hash(1 + import_count + export_count)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn append_dyn_tables(data, hash, dynstr, dynsym, rela)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'fn append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)' <<<"$elf_artifact_dyn_impl" ||
@@ -182,8 +184,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'elfart.push_rela(rela, r_offset1, 0, rela_type_relative, add1)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset2, 0, rela_type_relative, add2)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'elfart.push_rela(rela, r_offset, sym_idx, rela_type_glob_dat, 0)' <<<"$x64_elf_dynmeta_impl" ||
-  ! grep -Fq 'var hash = elfart.build_sysv_hash(nchain)' <<<"$arm64_elf_dynmeta_impl" ||
-  ! grep -Fq 'var hash = elfart.build_sysv_hash(nchain)' <<<"$x64_elf_dynmeta_impl" ||
+  ! grep -Fq 'var hash = elfart.build_dynamic_hash(imports, exports)' <<<"$arm64_elf_dynmeta_impl" ||
+  ! grep -Fq 'var hash = elfart.build_dynamic_hash(imports, exports)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn_tail = elfart.append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)' <<<"$arm64_elf_dynmeta_impl" ||
   ! grep -Fq 'var dyn_tail = elfart.append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)' <<<"$x64_elf_dynmeta_impl" ||
   ! grep -Fq 'var rem = artifact.int_mod(artifact.bytes_len(buf), align)' <<<"$elf_artifact_align_impl" ||
@@ -209,6 +211,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   grep -Fq 'var r_info' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'push_u64_le(rela, r_info' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'while ci < nchain' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
+  grep -Fq 'var nchain = 1 + oren_list_len(imports) + oren_list_len(exports)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
+  grep -Fq 'elfart.build_sysv_hash(nchain)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'push_u64_le(dyn, 1)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'push_u64_le(dyn, 0); push_u64_le(dyn, 0)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
   grep -Fq 'elfart.append_dyn_tables(data, hash, dynstr, dynsym, rela)' <<<"$arm64_elf_dynmeta_impl$x64_elf_dynmeta_impl" ||
