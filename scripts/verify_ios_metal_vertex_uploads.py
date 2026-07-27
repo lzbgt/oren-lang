@@ -279,6 +279,14 @@ def main() -> int:
                    "OrenAVMMetalTextCacheEntry* cached = cache[cacheKey]",
                    "Metal text cache lookups must guard typed cache-key allocation before dictionary access")
     require_before(text_source,
+                   "if (!OrenAVMMetalEnsureTextTextureCache(cacheRef, orderRef)) return nil;",
+                   "OrenAVMMetalEnsureTextAttributeCache(attributesCacheRef)",
+                   "Metal text cache misses must guard lazy cache/order allocation before UIKit attribute lookup")
+    require_before(text_source,
+                   "if (!OrenAVMMetalEnsureTextTextureCache(cacheRef, orderRef)) return nil;",
+                   "uint8_t* pixels = (uint8_t*)malloc(pixelBytes)",
+                   "Metal text cache misses must guard lazy cache/order allocation before glyph rasterization storage")
+    require_before(text_source,
                    "OrenAVMMetalTextCacheEntry* entry = [[OrenAVMMetalTextCacheEntry alloc] init];",
                    "uint8_t* pixels = (uint8_t*)malloc(pixelBytes)",
                    "Metal text cache misses must allocate the cache entry before glyph rasterization storage")

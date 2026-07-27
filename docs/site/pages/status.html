@@ -518,10 +518,11 @@
 <p>  Metal retained-resource failure boundary; <code>scripts/verify_ios_gfx_retained_painter.py</code></p>
 <p>  guards the shape.</p>
 <ul>
-<li>iOS Metal text-cache misses now guard typed cache-key, cache-entry, and text-run</li>
+<li>iOS Metal text-cache misses now guard typed cache-key, lazy cache/order</li>
 </ul>
-<p>  allocation before dictionary lookup, glyph rasterization storage, or vertex</p>
-<p>  writes, keeping failed allocations on the cheap path.</p>
+<p>  storage, cache-entry, and text-run allocation before dictionary lookup, UIKit</p>
+<p>  attribute lookup, glyph rasterization storage, or vertex writes, keeping failed</p>
+<p>  allocations on the cheap path.</p>
 <ul>
 <li>iOS Metal prepared geometry/text/image run arrays now cap their initial lazy</li>
 </ul>

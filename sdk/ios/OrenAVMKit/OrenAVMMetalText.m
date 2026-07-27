@@ -279,6 +279,9 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
         OrenAVMMetalTouchTextCacheKey(order, cacheKey);
         return cached;
     }
+    if (!OrenAVMMetalEnsureTextTextureCache(cacheRef, orderRef)) return nil;
+    cache = *cacheRef;
+    order = *orderRef;
     NSDictionary<NSAttributedStringKey, id>* attrs = OrenAVMMetalTextAttributesForRGBA(
         OrenAVMMetalEnsureTextAttributeCache(attributesCacheRef),
         rgba);
@@ -372,9 +375,6 @@ static OrenAVMMetalTextCacheEntry* OrenAVMMetalTextCacheEntryForText(
         entry.v1 = 1.0f;
     }
     free(pixels);
-    if (!OrenAVMMetalEnsureTextTextureCache(cacheRef, orderRef)) return nil;
-    cache = *cacheRef;
-    order = *orderRef;
     cache[cacheKey] = entry;
     *cachePixels += entry.pixelCount;
     OrenAVMMetalTouchTextCacheKey(order, cacheKey);

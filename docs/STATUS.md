@@ -282,9 +282,10 @@ surfaces, but the following blockers remain:
   Objective-C resource allocation before CF dictionary insertion, matching the
   Metal retained-resource failure boundary; `scripts/verify_ios_gfx_retained_painter.py`
   guards the shape.
-- iOS Metal text-cache misses now guard typed cache-key, cache-entry, and text-run
-  allocation before dictionary lookup, glyph rasterization storage, or vertex
-  writes, keeping failed allocations on the cheap path.
+- iOS Metal text-cache misses now guard typed cache-key, lazy cache/order
+  storage, cache-entry, and text-run allocation before dictionary lookup, UIKit
+  attribute lookup, glyph rasterization storage, or vertex writes, keeping failed
+  allocations on the cheap path.
 - iOS Metal prepared geometry/text/image run arrays now cap their initial lazy
   reservation to 4096 entries, so large frame-derived op counts do not force a
   large pointer-array allocation on the first valid run append.

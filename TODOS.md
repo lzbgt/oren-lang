@@ -277,9 +277,9 @@ design evidence lives under `project-doc/`.
   failure boundary.
 - CoreGraphics and Metal views now leave retained-resource and touch maps nil at
   startup; shared input/resource helpers allocate the scalar maps on first use.
-- Metal text cache misses now guard typed cache-key, cache-entry, and run
-  allocation before dictionary lookup, glyph rasterization storage, or vertex
-  writes.
+- Metal text cache misses now guard typed cache-key, lazy cache/order storage,
+  cache-entry, and run allocation before dictionary lookup, UIKit attribute
+  lookup, glyph rasterization storage, or vertex writes.
 - Metal single and batched image-run construction now guards run allocation
   before inline vertex writes or exact heap vertex allocation.
 - Metal immediate text draws now reject invalid UTF-8 before entering
@@ -438,7 +438,7 @@ design evidence lives under `project-doc/`.
 - Oren LSP nested container facts now cover same-kind list-of-list and map-of-map field-chain completion/definition, alias preservation, returned-container propagation, and mixed-shape invalidation; imported constructor-field nested container facts retain regression proof for list-of-map and map-of-list chains across imported struct constructors.
 - Oren LSP indexed/returned/for-in container member regressions now live in dedicated test shards while keeping the container-inference cases grouped below the source-line guard.
 - Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing `server_test.go` to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.
-- Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
+- Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
 - Parallel module parsing now emits setup and per-module worker phase markers under
   `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
   self-host evidence shows the active macOS stage2 path is thread mode (`fork=0`),
