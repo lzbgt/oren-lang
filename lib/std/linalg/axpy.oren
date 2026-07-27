@@ -47,7 +47,8 @@ fn axpy_f32(alpha: f64, x, y) {
     if oren_is_err(out) { return out }
     // Round each element to float32 boundary.
     var i = 0
-    while i < list.len(out) {
+    var out_len = list.len(out)
+    while i < out_len {
         out[i] = f32(out[i])
         i = i + 1
     }

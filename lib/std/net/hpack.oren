@@ -582,7 +582,8 @@ fn _table_clone(t) {
     var copy = []
     if es != nil {
         var i = 0
-        while i < list.len(es) {
+        var es_len = list.len(es)
+        while i < es_len {
             var e = es[i]
             list.push(copy, {"name": oren_map_get_str(e, "name"), "value": oren_map_get_str(e, "value")})
             i = i + 1
@@ -1007,7 +1008,8 @@ fn _encoded_header_block_len(table, headers, use_huffman, tmax) {
     }
 
     var i = 0
-    while i < list.len(headers) {
+    var headers_len = list.len(headers)
+    while i < headers_len {
         var h = headers[i]
         var name = oren_map_get_str(h, "name")
         var value = oren_map_get_str(h, "value")
@@ -1060,7 +1062,8 @@ fn _encode_header_block_write(table, headers, use_huffman, tmax, out, dst, liter
     }
 
     var i = 0
-    while i < list.len(headers) {
+    var headers_len = list.len(headers)
+    while i < headers_len {
         var h = headers[i]
         var name = oren_map_get_str(h, "name")
         var value = oren_map_get_str(h, "value")

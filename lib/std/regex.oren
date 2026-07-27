@@ -220,7 +220,8 @@ fn _re2post(pattern) {
             list.push(out, 2000 + neg)
             list.push(out, list.len(ranges))
             var ri = 0
-            while ri < list.len(ranges) {
+            var ranges_len = list.len(ranges)
+            while ri < ranges_len {
                 list.push(out, ranges[ri][0])
                 list.push(out, ranges[ri][1])
                 ri = ri + 1
@@ -293,7 +294,8 @@ fn _post2nfa(post) {
 
     var stack = []
     var i = 0
-    while i < list.len(post) {
+    var post_len = list.len(post)
+    while i < post_len {
         var tok = post[i]
         if tok == 46 { // concat
             var e2 = stack[list.len(stack)-1]
@@ -478,7 +480,8 @@ fn _step(nfa, clist, b, pos, endpos) {
     var nlist = []
     var visited = {}
     var i = 0
-    while i < list.len(clist) {
+    var clist_len = list.len(clist)
+    while i < clist_len {
         var si = clist[i]
         var st = states[si]
         var k = st["kind"]
@@ -512,7 +515,8 @@ fn is_match_compiled(nfa, text) {
         while true {
             // check match state present
             var mi = 0
-            while mi < list.len(clist) {
+            var clist_len = list.len(clist)
+            while mi < clist_len {
                 if nfa["states"][clist[mi]]["kind"] == "match" { return true }
                 mi = mi + 1
             }
@@ -523,7 +527,8 @@ fn is_match_compiled(nfa, text) {
         }
         // one more check at end
         var mi2 = 0
-        while mi2 < list.len(clist) {
+        var clist_len2 = list.len(clist)
+        while mi2 < clist_len2 {
             if nfa["states"][clist[mi2]]["kind"] == "match" { return true }
             mi2 = mi2 + 1
         }
