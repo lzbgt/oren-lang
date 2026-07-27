@@ -106,8 +106,9 @@ This file is the concise task view. Detailed implementation status lives in
      construction, dynamic string-table/name-offset assembly, dynsym
      import/export function entries, ELF64 RELA row packing, one-bucket SysV hash emission,
      PT_INTERP/init-array prelude placement, dynamic-table blob placement, and
-     common DT_DYNAMIC tags through `elf_artifact.oren` while keeping arch import
-     validation and RELA relocation semantics local.
+     final dynamic section offset/length metadata, plus common DT_DYNAMIC tags
+     through `elf_artifact.oren` while keeping arch import validation and RELA
+     relocation semantics local.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

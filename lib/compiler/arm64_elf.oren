@@ -302,17 +302,10 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     var nchain = 1 + oren_list_len(imports) + oren_list_len(exports)
     var hash = elfart.build_sysv_hash(nchain)
 
-    // --- Append all dynamic tables into the main `.data` blob ---
-    var table_offsets = elfart.append_dyn_tables(data, hash, dynstr, dynsym, rela)
-
-    // --- Build .dynamic (DT_DYNAMIC) ---
     var data_addr = base + data_file_off
-    var dyn = elfart.build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off)
-
-    _bytes_align(data, 8)
-    var dynamic_off = bytes_len(data)
-    bytes_extend(data, dyn)
-    var dynamic_len = bytes_len(dyn)
+    var dyn_tail = elfart.append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off)
+    var dynamic_off = dyn_tail["dynamic_off"]
+    var dynamic_len = dyn_tail["dynamic_len"]
 
     return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len, "init_array_off": init_array_off}
 }

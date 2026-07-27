@@ -56,7 +56,7 @@ design evidence lives under `project-doc/`.
   scaffold emission: default DT_NEEDED libs, dynamic string-table/name-offset
   assembly, dynsym function entries, ELF64 RELA row packing, one-bucket SysV hash
   tables, PT_INTERP/init-array prelude placement, dynamic table blob placement,
-  and stable DT_DYNAMIC tags.
+  final dynamic section append/metadata offsets, and stable DT_DYNAMIC tags.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

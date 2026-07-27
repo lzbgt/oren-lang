@@ -25,6 +25,9 @@ surfaces, but the following blockers remain:
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
+- X64/ARM64 ELF dynamic section finalization now shares hash/dynstr/dynsym/RELA
+  table append, `.dynamic` emission, and final offset/length metadata through
+  `elf_artifact.oren`, leaving relocation selection in the arch emitters.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

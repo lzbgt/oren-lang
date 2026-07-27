@@ -322,3 +322,15 @@ fn build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dyn
     push_dynamic_entry(dyn, 0, 0) // DT_NULL
     return dyn
 }
+
+fn append_dynamic_sections(data, data_addr, hash, dynstr, dynsym, rela, needed, needed_dynstr_offs, init_array_off) {
+    var table_offsets = append_dyn_tables(data, hash, dynstr, dynsym, rela)
+    var dyn = build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off)
+
+    bytes_align(data, 8)
+    var dynamic_off = artifact.bytes_len(data)
+    artifact.bytes_extend(data, dyn)
+    var dynamic_len = artifact.bytes_len(dyn)
+
+    return {"dynamic_off": dynamic_off, "dynamic_len": dynamic_len}
+}
