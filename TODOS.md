@@ -457,7 +457,7 @@ design evidence lives under `project-doc/`.
 - Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing `server_test.go` to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.
 - Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
 - XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,
-  linalg, and regex loops now cache
+  linalg, regex, URL allow-list, and HTTP/2 decoded-header loops now cache
   immutable list lengths before iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.
 - Parallel module parsing now emits setup and per-module worker phase markers under
@@ -2905,6 +2905,9 @@ design evidence lives under `project-doc/`.
   scene3d generated-shape packers now cache immutable child/path/asset/point
   list counts before traversal; the byte-hotpath guard rejects direct
   `while ... < oren_list_len(...)` loops across `lib/std/ui`.
+- `std:net/url` endpoint allow-list scans and `std:net/http2_client`
+  decoded-header scans now cache immutable list lengths before traversal, with
+  byte-hotpath guard coverage for direct `oren_list_len` loop conditions.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

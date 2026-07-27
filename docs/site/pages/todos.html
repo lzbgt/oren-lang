@@ -769,7 +769,7 @@
 <li>Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.</li>
 <li>XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,</li>
 </ul>
-<p>  linalg, and regex loops now cache</p>
+<p>  linalg, regex, URL allow-list, and HTTP/2 decoded-header loops now cache</p>
 <p>  immutable list lengths before iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <ul>
@@ -4107,6 +4107,11 @@
 <p>  scene3d generated-shape packers now cache immutable child/path/asset/point</p>
 <p>  list counts before traversal; the byte-hotpath guard rejects direct</p>
 <p>  <code>while ... &lt; oren_list_len(...)</code> loops across <code>lib/std/ui</code>.</p>
+<ul>
+<li><code>std:net/url</code> endpoint allow-list scans and <code>std:net/http2_client</code></li>
+</ul>
+<p>  decoded-header scans now cache immutable list lengths before traversal, with</p>
+<p>  byte-hotpath guard coverage for direct <code>oren_list_len</code> loop conditions.</p>
 <ul>
 <li><code>std:ui/scene3d_binary</code> <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>

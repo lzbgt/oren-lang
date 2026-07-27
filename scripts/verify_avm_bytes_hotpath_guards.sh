@@ -1793,6 +1793,11 @@ if find lib/std/ui -name '*.oren' -print0 | xargs -0 grep -nE 'while .*< oren_li
   echo "ERROR: std:ui traversal loops must cache immutable list lengths before iteration" >&2
   exit 1
 fi
+if grep -nE 'while .*< oren_list_len\(' \
+  lib/std/net/url.oren lib/std/net/http2_client.oren >&2; then
+  echo "ERROR: std:net URL/HTTP2 traversal loops must cache immutable list lengths before iteration" >&2
+  exit 1
+fi
 
 buffer_u8_mat_list_impl="$(sed -n '/fn _u8_mat_copy_flat_list/,/fn _u8_mat_copy_from_u8_buf/p;/fn u8_mat_copy_from_rows/,/fn u8_mat_copy_from_strings/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'ptr_set_byte(data + m[1] + i, xs[i] & 255)' <<<"$buffer_u8_mat_list_impl" ||

@@ -180,8 +180,9 @@ fn _parse_content_length_value(v) {
 
 fn _headers_content_length(hs) {
     var found = 0 - 1
+    var header_count = oren_list_len(hs)
     var i = 0
-    while i < oren_list_len(hs) {
+    while i < header_count {
         var h = hs[i]
         if h != nil && h["name"] != nil && h["value"] != nil && _str_eq_bytes(h["name"], "content-length") == true {
             var v = _parse_content_length_value(h["value"])
@@ -444,8 +445,9 @@ fn _request_state(c, headers, body_bytes, opts) {
 
     // Extract :status (first match).
     var status = 0
+    var header_count = oren_list_len(hs)
     var i = 0
-    while i < oren_list_len(hs) {
+    while i < header_count {
         var h = hs[i]
         if h != nil && h["name"] != nil && h["value"] != nil && _str_eq_bytes(h["name"], ":status") == true {
             status = oren_int_from_string(h["value"])

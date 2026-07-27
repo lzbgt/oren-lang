@@ -40,6 +40,8 @@ surfaces, but the following blockers remain:
 - `std:ui` core diff/patch, render/layout, scene3d asset/model expansion, and
   scene3d generated-shape packers now cache immutable list lengths before
   traversal, with the hotpath guard covering all UI sources.
+- `std:net/url` endpoint allow-list scans and `std:net/http2_client`
+  decoded-header scans now cache immutable list lengths before traversal.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
@@ -3090,7 +3092,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
   XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,
-  linalg, regex, and `std:ui` traversal loops now cache
+  linalg, regex, `std:ui`, URL allow-list, and HTTP/2 header traversal loops now cache
   immutable list lengths before iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,

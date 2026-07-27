@@ -86,6 +86,10 @@
 <p>  scene3d generated-shape packers now cache immutable list lengths before</p>
 <p>  traversal, with the hotpath guard covering all UI sources.</p>
 <ul>
+<li><code>std:net/url</code> endpoint allow-list scans and <code>std:net/http2_client</code></li>
+</ul>
+<p>  decoded-header scans now cache immutable list lengths before traversal.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>
@@ -3524,7 +3528,7 @@
 <p>  class-selector scans, DOM parsing, and streaming readers use direct</p>
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,</p>
-<p>  linalg, regex, and <code>std:ui</code> traversal loops now cache</p>
+<p>  linalg, regex, <code>std:ui</code>, URL allow-list, and HTTP/2 header traversal loops now cache</p>
 <p>  immutable list lengths before iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>

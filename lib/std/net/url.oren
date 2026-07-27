@@ -712,7 +712,8 @@ fn endpoint_origin(url) {
 fn allowed_by_host_or_origin(url, allowed) {
     if allowed == nil { return true }
     if oren_type_tag(allowed) != 6 { return oren_err(4, "url.allowed_by_host_or_origin: allowed must be list") }
-    if oren_list_len(allowed) == 0 { return true }
+    var allowed_len = oren_list_len(allowed)
+    if allowed_len == 0 { return true }
 
     var r = _parse_endpoint_origin_record(url)
     if r["ok"] != 1 { return _err_from_record(r, "url.allowed_by_host_or_origin failed") }
@@ -722,7 +723,7 @@ fn allowed_by_host_or_origin(url, allowed) {
     if oren_is_err(target_origin) { return target_origin }
 
     var i = 0
-    while i < oren_list_len(allowed) {
+    while i < allowed_len {
         var entry = allowed[i]
         if oren_type_tag(entry) == 4 && oren_string_len(entry) > 0 {
             if _scheme_separator_pos(entry) >= 0 {
