@@ -2,16 +2,20 @@
     // even when the full gradual-typing pass is disabled.
     if trace_passes { print("[trace] pass: nil_compare_guard") }
     typecheck.nil_scalar_compare_guard_linked_program_in_place(linked)
-    if linked["nil_compare_errors"] != nil && oren_list_len(linked["nil_compare_errors"]) > 0 {
-        var first_err0 = linked["nil_compare_errors"][0]
-        emit_diag("compile", 1, first_err0)
-        print("Nil-compare guard errors:")
-        var ei_ng = 0
-        while ei_ng < oren_list_len(linked["nil_compare_errors"]) {
-            print(linked["nil_compare_errors"][ei_ng])
-            ei_ng = ei_ng + 1
+    var nil_compare_errors = linked["nil_compare_errors"]
+    if nil_compare_errors != nil {
+        var nil_compare_errors_len = oren_list_len(nil_compare_errors)
+        if nil_compare_errors_len > 0 {
+            var first_err0 = nil_compare_errors[0]
+            emit_diag("compile", 1, first_err0)
+            print("Nil-compare guard errors:")
+            var ei_ng = 0
+            while ei_ng < nil_compare_errors_len {
+                print(nil_compare_errors[ei_ng])
+                ei_ng = ei_ng + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.nil_compare_guard.done", "", t0) }
 
@@ -23,16 +27,20 @@
         if trace_passes { print("[trace] pass: typecheck") }
         typecheck.typecheck_linked_program_in_place(linked)
     }
-    if linked["typecheck_errors"] != nil && oren_list_len(linked["typecheck_errors"]) > 0 {
-        var first_err = linked["typecheck_errors"][0]
-        emit_diag("typecheck", 1, first_err)
-        print("Typecheck errors:")
-        var ei2 = 0
-        while ei2 < oren_list_len(linked["typecheck_errors"]) {
-            print(linked["typecheck_errors"][ei2])
-            ei2 = ei2 + 1
+    var typecheck_errors = linked["typecheck_errors"]
+    if typecheck_errors != nil {
+        var typecheck_errors_len = oren_list_len(typecheck_errors)
+        if typecheck_errors_len > 0 {
+            var first_err = typecheck_errors[0]
+            emit_diag("typecheck", 1, first_err)
+            print("Typecheck errors:")
+            var ei2 = 0
+            while ei2 < typecheck_errors_len {
+                print(typecheck_errors[ei2])
+                ei2 = ei2 + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
 
 
@@ -52,16 +60,20 @@
     // This is a v0 stepping stone toward full generics + monomorphization, with zero runtime cost.
     if trace_passes { print("[trace] pass: generic_calls") }
     gen_calls.lower_linked_program_in_place(linked)
-    if linked["generic_call_errors"] != nil && oren_list_len(linked["generic_call_errors"]) > 0 {
-        var first_err = linked["generic_call_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Generic call errors:")
-        var ei0 = 0
-        while ei0 < oren_list_len(linked["generic_call_errors"]) {
-            print(linked["generic_call_errors"][ei0])
-            ei0 = ei0 + 1
+    var generic_call_errors = linked["generic_call_errors"]
+    if generic_call_errors != nil {
+        var generic_call_errors_len = oren_list_len(generic_call_errors)
+        if generic_call_errors_len > 0 {
+            var first_err = generic_call_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Generic call errors:")
+            var ei0 = 0
+            while ei0 < generic_call_errors_len {
+                print(generic_call_errors[ei0])
+                ei0 = ei0 + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt6 = oren_time_now_ns() - t0
@@ -73,16 +85,20 @@
     //   fn f[T](...) + f[T](...) calls  ->  fn f__T(...)
     if trace_passes { print("[trace] pass: generic_mono") }
     gen_mono.lower_linked_program_in_place(linked)
-    if linked["generic_monomorph_errors"] != nil && oren_list_len(linked["generic_monomorph_errors"]) > 0 {
-        var first_err = linked["generic_monomorph_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Generic monomorphization errors:")
-        var ei = 0
-        while ei < oren_list_len(linked["generic_monomorph_errors"]) {
-            print(linked["generic_monomorph_errors"][ei])
-            ei = ei + 1
+    var generic_monomorph_errors = linked["generic_monomorph_errors"]
+    if generic_monomorph_errors != nil {
+        var generic_monomorph_errors_len = oren_list_len(generic_monomorph_errors)
+        if generic_monomorph_errors_len > 0 {
+            var first_err = generic_monomorph_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Generic monomorphization errors:")
+            var ei = 0
+            while ei < generic_monomorph_errors_len {
+                print(generic_monomorph_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt7 = oren_time_now_ns() - t0
@@ -96,16 +112,20 @@
     linked["impl_lowering_errors"] = nil
     if trace_passes { print("[trace] pass: impl_lowering.post_generic_mono") }
     impl_lowering.lower_linked_program_in_place(linked)
-    if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
-        var first_impl_err = linked["impl_lowering_errors"][0]
-        emit_diag("compile", 1, first_impl_err)
-        print("Impl lowering errors:")
-        var ei_impl = 0
-        while ei_impl < oren_list_len(linked["impl_lowering_errors"]) {
-            print(linked["impl_lowering_errors"][ei_impl])
-            ei_impl = ei_impl + 1
+    var impl_lowering_errors = linked["impl_lowering_errors"]
+    if impl_lowering_errors != nil {
+        var impl_lowering_errors_len = oren_list_len(impl_lowering_errors)
+        if impl_lowering_errors_len > 0 {
+            var first_impl_err = impl_lowering_errors[0]
+            emit_diag("compile", 1, first_impl_err)
+            print("Impl lowering errors:")
+            var ei_impl = 0
+            while ei_impl < impl_lowering_errors_len {
+                print(impl_lowering_errors[ei_impl])
+                ei_impl = ei_impl + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt7b = oren_time_now_ns() - t0
@@ -117,16 +137,20 @@
     // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
     if trace_passes { print("[trace] pass: abi_layout") }
     abi_layout.lower_linked_program_in_place(linked)
-    if linked["abi_layout_errors"] != nil && oren_list_len(linked["abi_layout_errors"]) > 0 {
-        var first_err = linked["abi_layout_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("ABI layout errors:")
-        var ei = 0
-        while ei < oren_list_len(linked["abi_layout_errors"]) {
-            print(linked["abi_layout_errors"][ei])
-            ei = ei + 1
+    var abi_layout_errors = linked["abi_layout_errors"]
+    if abi_layout_errors != nil {
+        var abi_layout_errors_len = oren_list_len(abi_layout_errors)
+        if abi_layout_errors_len > 0 {
+            var first_err = abi_layout_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("ABI layout errors:")
+            var ei = 0
+            while ei < abi_layout_errors_len {
+                print(abi_layout_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt8 = oren_time_now_ns() - t0

@@ -731,11 +731,13 @@ fn _ml_parse_program_from_src(file, src) {
         oren_exit(1)
     }
 
-    if oren_list_len(p["errors"]) > 0 {
+    var parse_errors = p["errors"]
+    var parse_errors_len = oren_list_len(parse_errors)
+    if parse_errors_len > 0 {
         print("Parse errors in " + file + ":")
         var i = 0
-        while i < oren_list_len(p["errors"]) {
-            print(p["errors"][i])
+        while i < parse_errors_len {
+            print(parse_errors[i])
             i = i + 1
         }
         oren_exit(1)
@@ -796,11 +798,13 @@ fn _ml_parse_program_from_src_result(file, src) {
         return {"ok": false, "err": "parse returned invalid program"}
     }
 
-    if oren_list_len(p["errors"]) > 0 {
+    var parse_errors = p["errors"]
+    var parse_errors_len = oren_list_len(parse_errors)
+    if parse_errors_len > 0 {
         var errs = []
         var i = 0
-        while i < oren_list_len(p["errors"]) {
-            oren_list_push(errs, p["errors"][i])
+        while i < parse_errors_len {
+            oren_list_push(errs, parse_errors[i])
             i = i + 1
         }
         // Drop scaffolding.
@@ -827,8 +831,9 @@ fn _ml_parse_include_bucket(bucket, out_dir) {
     if out_dir == nil { return 1 }
     ensure_dir(out_dir)
 
+    var bucket_len = oren_list_len(bucket)
     var i = 0
-    while i < oren_list_len(bucket) {
+    while i < bucket_len {
         var inc_full = bucket[i]
         var rr = expand_includes_file_result(inc_full, [])
         if rr["ok"] != true {
@@ -884,9 +889,11 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
         }
         var prog = pr["prog"]
         if prog != nil && prog["statements"] != nil && oren_is_list(prog["statements"]) == true {
+            var prog_statements = prog["statements"]
+            var prog_statements_len = oren_list_len(prog_statements)
             var pi = 0
-            while pi < oren_list_len(prog["statements"]) {
-                var s = prog["statements"][pi]
+            while pi < prog_statements_len {
+                var s = prog_statements[pi]
                 if s != nil && s["type"] == "Import" {
                     var alias = s["name"]["value"]
                     var path = s["path"]
@@ -1067,8 +1074,9 @@ fn _ml_scan_imports_for_module(full_path, config) {
     }
 
     var out = []
+    var includes_len = oren_list_len(includes)
     var i = 0
-    while i < oren_list_len(includes) {
+    while i < includes_len {
         var inc_full = includes[i]
         var src2 = oren_read_file(inc_full)
         if oren_is_err(src2) {
@@ -1081,13 +1089,15 @@ fn _ml_scan_imports_for_module(full_path, config) {
         // - if the included file itself is an include-aggregator, recurse structurally.
         var sub_includes = _ml_include_list_from_src_if_aggregator(inc_full, src2)
         if sub_includes != nil {
+            var sub_includes_len = oren_list_len(sub_includes)
             var ri = 0
-            while ri < oren_list_len(sub_includes) {
+            while ri < sub_includes_len {
                 var r0 = _ml_scan_imports_for_module(sub_includes[ri], config)
                 if r0["ok"] != true { return r0 }
                 var imps0 = r0["imports"]
+                var imps0_len = oren_list_len(imps0)
                 var j0 = 0
-                while j0 < oren_list_len(imps0) {
+                while j0 < imps0_len {
                     oren_list_push(out, imps0[j0])
                     j0 = j0 + 1
                 }
