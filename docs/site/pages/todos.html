@@ -96,6 +96,11 @@
 <p>  string length before byte-offset line/column scans, and generic-call</p>
 <p>  declaration scans cache statement counts plus specialization-name lengths.</p>
 <ul>
+<li>Compiler loop-list reset optimizer passes now cache immutable AST list counts</li>
+</ul>
+<p>  before unsafe-use, sink/rewrite, hoist/reset, and reserve traversals, with the</p>
+<p>  byte-hotpath guard rejecting direct <code>oren_list_len</code> loop bounds in that pass.</p>
+<ul>
 <li>Regex byte-class matching now caches compiled class range counts before</li>
 </ul>
 <p>  per-byte range probes.</p>
@@ -4123,6 +4128,11 @@
 </ul>
 <p>  decoded-header scans now cache immutable list lengths before traversal, with</p>
 <p>  byte-hotpath guard coverage for direct <code>oren_list_len</code> loop conditions.</p>
+<ul>
+<li>Compiler loop-list reset optimizer traversals now cache immutable AST list</li>
+</ul>
+<p>  counts before unsafe-use, sink/rewrite, hoist/reset, and reserve scans; the</p>
+<p>  byte-hotpath guard rejects direct <code>oren_list_len</code> loop bounds in that pass.</p>
 <ul>
 <li><code>std:ui/scene3d_binary</code> <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>

@@ -1798,6 +1798,10 @@ if grep -nE 'while .*< oren_list_len\(' \
   echo "ERROR: std:net URL/HTTP2 traversal loops must cache immutable list lengths before iteration" >&2
   exit 1
 fi
+if grep -nE 'while .*< oren_list_len\(' lib/compiler/optimizer_loops_list_reset.oren >&2; then
+  echo "ERROR: compiler loop-list reset optimizer traversals must cache immutable list lengths before iteration" >&2
+  exit 1
+fi
 
 buffer_u8_mat_list_impl="$(sed -n '/fn _u8_mat_copy_flat_list/,/fn _u8_mat_copy_from_u8_buf/p;/fn u8_mat_copy_from_rows/,/fn u8_mat_copy_from_strings/p' lib/std/buffer/mat_u8.oren)"
 if ! grep -Fq 'ptr_set_byte(data + m[1] + i, xs[i] & 255)' <<<"$buffer_u8_mat_list_impl" ||

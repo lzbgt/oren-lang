@@ -45,6 +45,9 @@ surfaces, but the following blockers remain:
   traversal, with the hotpath guard covering all UI sources.
 - `std:net/url` endpoint allow-list scans and `std:net/http2_client`
   decoded-header scans now cache immutable list lengths before traversal.
+- Compiler loop-list reset optimizer traversals now cache immutable AST list
+  counts before unsafe-use, sink/rewrite, hoist/reset, and reserve scans; the
+  hotpath guard rejects direct `oren_list_len` loop bounds in that pass.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.

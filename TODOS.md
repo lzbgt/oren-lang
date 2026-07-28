@@ -51,6 +51,9 @@ design evidence lives under `project-doc/`.
 - Parser diagnostic and ARM64 native source-location helpers now cache source
   string length before byte-offset line/column scans, and generic-call
   declaration scans cache statement counts plus specialization-name lengths.
+- Compiler loop-list reset optimizer passes now cache immutable AST list counts
+  before unsafe-use, sink/rewrite, hoist/reset, and reserve traversals, with the
+  byte-hotpath guard rejecting direct `oren_list_len` loop bounds in that pass.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
@@ -2915,6 +2918,9 @@ design evidence lives under `project-doc/`.
 - `std:net/url` endpoint allow-list scans and `std:net/http2_client`
   decoded-header scans now cache immutable list lengths before traversal, with
   byte-hotpath guard coverage for direct `oren_list_len` loop conditions.
+- Compiler loop-list reset optimizer traversals now cache immutable AST list
+  counts before unsafe-use, sink/rewrite, hoist/reset, and reserve scans; the
+  byte-hotpath guard rejects direct `oren_list_len` loop bounds in that pass.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

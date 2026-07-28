@@ -183,6 +183,12 @@
 </ul>
 <p>     decoded-header scans cache immutable list counts before traversal.</p>
 <ul>
+<li>Current compiler loop-list reset optimizer traversals cache immutable AST</li>
+</ul>
+<p>     list counts before unsafe-use, sink/rewrite, hoist/reset, and reserve</p>
+<p>     scans, with source guards rejecting direct <code>oren_list_len</code> loop bounds in</p>
+<p>     that pass.</p>
+<ul>
 <li>Current AVM bytes hotpath guard maintenance delegates the largest x64</li>
 </ul>
 <p>     system/data source-shape checks and shared compiler artifact byte-output</p>

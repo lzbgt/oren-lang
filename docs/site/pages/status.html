@@ -95,6 +95,11 @@
 </ul>
 <p>  decoded-header scans now cache immutable list lengths before traversal.</p>
 <ul>
+<li>Compiler loop-list reset optimizer traversals now cache immutable AST list</li>
+</ul>
+<p>  counts before unsafe-use, sink/rewrite, hoist/reset, and reserve scans; the</p>
+<p>  hotpath guard rejects direct <code>oren_list_len</code> loop bounds in that pass.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>
