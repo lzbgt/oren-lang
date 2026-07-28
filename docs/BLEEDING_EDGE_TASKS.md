@@ -93,10 +93,11 @@ This file is the concise task view. Detailed implementation status lives in
      before traversal, with source guards covering all UI helper files.
    - Current `std:net/url` endpoint allow-list and `std:net/http2_client`
      decoded-header scans cache immutable list counts before traversal.
-   - Current compiler loop-list reset optimizer traversals cache immutable AST
-     list counts before unsafe-use, sink/rewrite, hoist/reset, and reserve
-     scans, with source guards rejecting direct `oren_list_len` loop bounds in
-     that pass.
+   - Current compiler loop-list reset and list-int lowering optimizer
+     traversals cache immutable AST list counts before unsafe-use,
+     sink/rewrite, hoist/reset, reserve, candidate, touch, and rewrite scans,
+     with source guards rejecting direct `oren_list_len` loop bounds in those
+     passes.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public
