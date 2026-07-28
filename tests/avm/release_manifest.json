@@ -600,6 +600,7 @@
     {"path": "tests/avm/test_std_math_pow.oren"},
     {"path": "tests/avm/test_std_math_decompose.oren"},
     {"path": "tests/avm/test_std_math_exp_log.oren"},
+    {"path": "tests/avm/test_std_math_gamma.oren"},
     {"path": "tests/avm/test_std_math_trig.oren"},
     {"path": "tests/avm/test_std_math_mat4.oren"},
     {"path": "tests/avm/test_std_math_quat.oren"},

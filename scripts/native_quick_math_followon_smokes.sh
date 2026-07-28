@@ -130,6 +130,19 @@ run_step_checked "math erf smoke (bytecode)" "$math_erf_log" \
   "$compiler" test "$math_erf_src" --backend bytecode --platform "$platform" --no-cache
 tail -n 8 "$math_erf_log"
 
+echo "== math gamma smoke (native/C/bytecode) =="
+math_gamma_src="tests/modules/test_math_gamma.oren"
+math_gamma_log="build/logs/${compiler_base}_math_gamma.log"
+rm -f "$math_gamma_log" 2>/dev/null || true
+
+run_step_checked "math gamma smoke (native)" "$math_gamma_log" \
+  "$compiler" test "$math_gamma_src" --backend native --platform "$platform" --no-cache
+run_step_checked "math gamma smoke (C)" "$math_gamma_log" \
+  "$compiler" test "$math_gamma_src" --backend c --platform "$platform" --no-cache
+run_step_checked "math gamma smoke (bytecode)" "$math_gamma_log" \
+  "$compiler" test "$math_gamma_src" --backend bytecode --platform "$platform" --no-cache
+tail -n 8 "$math_gamma_log"
+
 echo "== math quat smoke (native/C/bytecode) =="
 math_quat_src="tests/modules/test_math_quat.oren"
 math_quat_log="build/logs/${compiler_base}_math_quat.log"

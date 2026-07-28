@@ -1945,7 +1945,8 @@ This file is the concise task view. Detailed implementation status lives in
      inverse hyperbolic `asinh`, `acosh`, and `atanh`, plus release-gated
      `sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, `acos`, and approximate
      huge-trig Payne-Hanek reduction split below the source-line guardrail,
-     real-valued `erf`/`erfc` bytecode coverage.
+     real-valued `erf`/`erfc`, and scalar `lgamma`/`tgamma` Lanczos/reflection
+     bytecode/C/native coverage.
    - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
 5. **Native scheduler / green-task integration**

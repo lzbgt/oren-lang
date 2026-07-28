@@ -91,6 +91,7 @@ AVM_TESTS ?= \
 	tests/avm/test_std_math_pow.oren \
 	tests/avm/test_std_math_decompose.oren \
 	tests/avm/test_std_math_exp_log.oren \
+	tests/avm/test_std_math_gamma.oren \
 	tests/avm/test_std_math_trig.oren \
 	tests/avm/test_std_bytes_portable.oren \
 	tests/avm/test_std_buffer_views_portable.oren \

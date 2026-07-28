@@ -1439,3 +1439,4 @@ fn tan(x: f64) {
 }
 
 // @include "math/atan_hypot.oren"
+// @include "math/gamma.oren"

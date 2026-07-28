@@ -1,0 +1,93 @@
+// --- gamma / log-gamma (deterministic, no host libm) ---
+//
+// Lanczos approximation with reflection for finite real inputs. `lgamma` returns
+// log(abs(gamma(x))); `tgamma` returns the signed gamma value when finite.
+
+fn _gamma_lanczos_sum(z: f64) {
+    var a = 0.99999999999980993
+    a = a + 676.5203681218851 / (z + 1.0)
+    a = a + (0.0 - 1259.1392167224028) / (z + 2.0)
+    a = a + 771.32342877765313 / (z + 3.0)
+    a = a + (0.0 - 176.61502916214059) / (z + 4.0)
+    a = a + 12.507343278686905 / (z + 5.0)
+    a = a + (0.0 - 0.13857109526572012) / (z + 6.0)
+    a = a + 9.9843695780195716e-6 / (z + 7.0)
+    a = a + 1.5056327351493116e-7 / (z + 8.0)
+    return a
+}
+
+fn _gamma_is_integer_finite(x: f64) {
+    if !is_finite(x) { return false }
+    var ax = abs_f(x)
+    if ax >= 4503599627370496.0 { return true } // all represented values are integral at this scale.
+    var xi = trunc_i64_from_f(x)
+    if oren_is_err(xi) { return false }
+    var xf: f64 = f64(xi)
+    return xf == x
+}
+
+fn _lgamma_lanczos_positive(x: f64) {
+    var z: f64 = x - 1.0
+    var a: f64 = _gamma_lanczos_sum(z)
+    var t: f64 = z + 7.5
+    var lt: f64 = ln(t)
+    if oren_is_err(lt) { return lt }
+    var la: f64 = ln(a)
+    if oren_is_err(la) { return la }
+    var LOG_SQRT_2PI: f64 = 0.9189385332046727
+    return LOG_SQRT_2PI + (z + 0.5) * lt - t + la
+}
+
+fn _lgamma_finite(x: f64) {
+    if x <= 0.0 && _gamma_is_integer_finite(x) {
+        return oren_err(4, "lgamma: pole")
+    }
+    if x < 0.5 {
+        var s: f64 = sin(pi() * x)
+        if oren_is_err(s) { return s }
+        if s == 0.0 { return oren_err(4, "lgamma: pole") }
+        var lgs: f64 = _lgamma_finite(1.0 - x)
+        if oren_is_err(lgs) { return lgs }
+        var ls: f64 = ln(abs_f(s))
+        if oren_is_err(ls) { return ls }
+        return 1.1447298858494002 - ls - lgs // log(pi)
+    }
+    return _lgamma_lanczos_positive(x)
+}
+
+fn lgamma(x: f64) {
+    if is_nan(x) { return oren_err(4, "lgamma: NaN") }
+    if is_inf(x) {
+        if signbit(x) { return oren_err(4, "lgamma: negative infinity") }
+        return x
+    }
+    return _lgamma_finite(x)
+}
+
+fn _gamma_sign_finite(x: f64) {
+    if x >= 0.5 { return 1.0 }
+    var s: f64 = sin(pi() * x)
+    if oren_is_err(s) { return s }
+    if s < 0.0 { return 0.0 - 1.0 }
+    return 1.0
+}
+
+fn tgamma(x: f64) {
+    if is_nan(x) { return oren_err(4, "tgamma: NaN") }
+    if is_inf(x) {
+        if signbit(x) { return oren_err(4, "tgamma: negative infinity") }
+        return x
+    }
+    if x <= 0.0 && _gamma_is_integer_finite(x) {
+        return oren_err(4, "tgamma: pole")
+    }
+    var lg = _lgamma_finite(x)
+    if oren_is_err(lg) { return lg }
+    var lgv: f64 = lg
+    if lgv > 709.782712893384 { return inf() }
+    var mag: f64 = exp(lgv)
+    if oren_is_err(mag) { return mag }
+    var sg: f64 = _gamma_sign_finite(x)
+    if oren_is_err(sg) { return sg }
+    return sg * mag
+}
