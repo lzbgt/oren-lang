@@ -118,11 +118,11 @@
 <p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in those support</p>
 <p>  paths.</p>
 <ul>
-<li>Module-linking prelude parse/import scans, pipeline worker/merge/import/table</li>
+<li>Module-linking prelude parse/import scans, parse-stage dependency/worklist/include</li>
 </ul>
-<p>  traversals, and tail diagnostic aggregation now cache immutable list counts</p>
-<p>  before traversal, with hotpath guard coverage rejecting direct <code>oren_list_len</code></p>
-<p>  loop bounds in those link stages.</p>
+<p>  aggregation, pipeline worker/merge/import/table traversals, and tail diagnostic</p>
+<p>  aggregation now cache immutable list counts before traversal, with hotpath guard</p>
+<p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in those link stages.</p>
 <ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
@@ -3563,7 +3563,7 @@
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,</p>
 <p>  linalg, regex, <code>std:ui</code>, URL allow-list, HTTP/2 header traversal, and</p>
-<p>  module-linking prelude/pipeline/tail loops now cache immutable list lengths before</p>
+<p>  module-linking prelude/parse/pipeline/tail loops now cache immutable list lengths before</p>
 <p>  iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>

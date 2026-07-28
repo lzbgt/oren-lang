@@ -120,11 +120,11 @@
 <p>  byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
 <p>  those compiler support paths.</p>
 <ul>
-<li>Module-linking prelude parse/import scans, pipeline worker/merge/import/table</li>
+<li>Module-linking prelude parse/import scans, parse-stage dependency/worklist/include</li>
 </ul>
-<p>  traversals, and tail diagnostic aggregation now cache immutable list counts</p>
-<p>  before traversal, with byte-hotpath guard coverage rejecting direct</p>
-<p>  <code>oren_list_len</code> loop bounds in those link stages.</p>
+<p>  aggregation, pipeline worker/merge/import/table traversals, and tail diagnostic</p>
+<p>  aggregation now cache immutable list counts before traversal, with byte-hotpath</p>
+<p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in those link stages.</p>
 <ul>
 <li>Regex byte-class matching now caches compiled class range counts before</li>
 </ul>
@@ -4178,12 +4178,12 @@
 <p>  byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
 <p>  those compiler support paths.</p>
 <ul>
-<li>Module-linking prelude parse/import scans, pipeline worker/merge/import/table</li>
+<li>Module-linking prelude parse/import scans, parse-stage dependency/worklist/include</li>
 </ul>
-<p>  traversals, and tail diagnostic aggregation now cache immutable parse-error,</p>
-<p>  include, imported-symbol, statement, module-order, root-import, trait, and</p>
-<p>  diagnostic-list counts before traversal, with byte-hotpath guard coverage for</p>
-<p>  those link stages.</p>
+<p>  aggregation, pipeline worker/merge/import/table traversals, and tail diagnostic</p>
+<p>  aggregation now cache immutable parse-error, include, imported-symbol, statement,</p>
+<p>  module-order, root-import, trait, and diagnostic-list counts before traversal,</p>
+<p>  with byte-hotpath guard coverage for those link stages.</p>
 <ul>
 <li><code>std:ui/scene3d_binary</code> <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>

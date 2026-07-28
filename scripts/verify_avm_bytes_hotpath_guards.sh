@@ -1806,6 +1806,7 @@ if grep -nE 'while .*< oren_list_len\(' \
 	  lib/compiler/dump.oren \
 	  lib/compiler/arm64_macho_resolve.oren \
 	  lib/compiler/compiler/020_modules_linking/000_prelude.oren \
+	  lib/compiler/compiler/020_modules_linking/010_parse.oren \
 	  lib/compiler/compiler/020_modules_linking/020_pipeline.oren \
 	  lib/compiler/compiler/020_modules_linking/090_tail.oren >&2; then
   echo "ERROR: compiler traversals must cache immutable list lengths before iteration" >&2

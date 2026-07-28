@@ -1,8 +1,9 @@
             var r = _ml_scan_imports_in_src(inc_full, src2, config)
             if r["ok"] != true { return r }
             var imps = r["imports"]
+            var scan_src_imps_len = oren_list_len(imps)
             var j = 0
-            while j < oren_list_len(imps) {
+            while j < scan_src_imps_len {
                 oren_list_push(out, imps[j])
                 j = j + 1
             }
@@ -74,8 +75,9 @@ fn _ml_collect_toplevel_identity_pairs(prog) {
     var pairs = {}
     if prog == nil || prog["statements"] == nil { return pairs }
     var stmts = prog["statements"]
+    var identity_stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < identity_stmts_len {
         var name = _ml_stmt_symbol_name(stmts[i])
         if name != nil && name != "" { pairs[name] = name }
         i = i + 1
@@ -89,13 +91,14 @@ fn _ml_collect_module_public_renames(dep) {
     var prefix = dep["prefix"]
     var stmts = dep["program"]["statements"]
     var has_pub = false
+    var pub_stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < pub_stmts_len {
         if _ml_stmt_symbol_name(stmts[i]) != nil && _ml_stmt_is_pub(stmts[i]) == true { has_pub = true }
         i = i + 1
     }
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < pub_stmts_len {
         var st = stmts[i]
         var name = _ml_stmt_symbol_name(st)
         if name != nil && name != "" && (has_pub != true || _ml_stmt_is_pub(st) == true) {
@@ -112,8 +115,9 @@ fn _ml_collect_module_current_toplevel_pairs(mod) {
     if mod == nil || mod["program"] == nil || mod["program"]["statements"] == nil { return pairs }
     var prefix = mod["prefix"]
     var stmts = mod["program"]["statements"]
+    var current_pairs_stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < current_pairs_stmts_len {
         var name = _ml_stmt_symbol_name(stmts[i])
         if name != nil && name != "" {
             pairs[_ml_strip_module_prefix(name, prefix)] = name
@@ -140,8 +144,9 @@ fn _ml_apply_anonymous_imports_to_program_in_place(owner_full, prog, imports, pa
     if prog == nil { return {"ok": true} }
     if pairs == nil { pairs = renamer.collect_toplevel_rename_pairs(prog, "") }
     if imports == nil { imports = [] }
+    var anon_imports_len = oren_list_len(imports)
     var i = 0
-    while i < oren_list_len(imports) {
+    while i < anon_imports_len {
         var imp = imports[i]
         if imp != nil && imp["anonymous"] == true {
             var dep = imp["dep"]
@@ -158,8 +163,9 @@ fn _ml_apply_anonymous_imports_to_program_in_place(owner_full, prog, imports, pa
 
 fn _ml_imports_have_anonymous(imports) {
     if imports == nil { return false }
+    var imports_have_anon_len = oren_list_len(imports)
     var i = 0
-    while i < oren_list_len(imports) {
+    while i < imports_have_anon_len {
         var imp = imports[i]
         if imp != nil && imp["anonymous"] == true { return true }
         i = i + 1
@@ -168,8 +174,9 @@ fn _ml_imports_have_anonymous(imports) {
 }
 
 fn _ml_apply_anonymous_imports_to_modules_in_place() {
+    var anon_module_order_len = oren_list_len(MODULE_ORDER)
     var i = 0
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < anon_module_order_len {
         var m = MODULE_ORDER[i]
         if m != nil && m["program"] != nil && _ml_imports_have_anonymous(m["imports"]) == true {
             var pairs = _ml_collect_module_current_toplevel_pairs(m)
@@ -202,18 +209,24 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     // so later passes (rename/serde/type lowering) do not see conflicting duplicates.
     if config != nil {
         cfg_lowering.lower_program_in_place(prog, config)
-        if prog["cfg_errors"] != nil && oren_is_list(prog["cfg_errors"]) == true && oren_list_len(prog["cfg_errors"]) > 0 {
-            var first_err = prog["cfg_errors"][0]
-            var msg0 = "cfg filtering failed in " + full
-            if first_err != nil { msg0 = msg0 + ": " + first_err }
-            return {"ok": false, "err": msg0, "errors": prog["cfg_errors"]}
+        var prepare_cfg_errors = prog["cfg_errors"]
+        if prepare_cfg_errors != nil && oren_is_list(prepare_cfg_errors) == true {
+            var prepare_cfg_errors_len = oren_list_len(prepare_cfg_errors)
+            if prepare_cfg_errors_len > 0 {
+                var first_err = prepare_cfg_errors[0]
+                var msg0 = "cfg filtering failed in " + full
+                if first_err != nil { msg0 = msg0 + ": " + first_err }
+                return {"ok": false, "err": msg0, "errors": prepare_cfg_errors}
+            }
         }
     }
 
     var pairs = renamer.collect_toplevel_rename_pairs(prog, prefix)
+    var prepare_statements = prog["statements"]
+    var prepare_statements_len = oren_list_len(prepare_statements)
     var i = 0
-    while i < oren_list_len(prog["statements"]) {
-        var s = prog["statements"][i]
+    while i < prepare_statements_len {
+        var s = prepare_statements[i]
         if s["type"] == "Import" {
             var alias = _ml_import_alias_from_stmt(s)
             if alias != "." {
@@ -228,11 +241,15 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     renamer.rename_program_in_place(prog, pairs)
 
     serde_json.lower_program_in_place(prog, prefix)
-    if prog["serde_json_errors"] != nil && oren_is_list(prog["serde_json_errors"]) == true && oren_list_len(prog["serde_json_errors"]) > 0 {
-        var first_err = prog["serde_json_errors"][0]
-        var msg = "serde_json lowering failed in " + full
-        if first_err != nil { msg = msg + ": " + first_err }
-        return {"ok": false, "err": msg, "errors": prog["serde_json_errors"]}
+    var prepare_serde_json_errors = prog["serde_json_errors"]
+    if prepare_serde_json_errors != nil && oren_is_list(prepare_serde_json_errors) == true {
+        var prepare_serde_json_errors_len = oren_list_len(prepare_serde_json_errors)
+        if prepare_serde_json_errors_len > 0 {
+            var first_err = prepare_serde_json_errors[0]
+            var msg = "serde_json lowering failed in " + full
+            if first_err != nil { msg = msg + ": " + first_err }
+            return {"ok": false, "err": msg, "errors": prepare_serde_json_errors}
+        }
     }
 
     return {"ok": true}
@@ -353,8 +370,9 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     } else {
         var merged_stmts = []
         var merged_traits = []
+        var parse_result_includes_len = oren_list_len(includes)
         var ii = 0
-        while ii < oren_list_len(includes) {
+        while ii < parse_result_includes_len {
             var inc_full = includes[ii]
             if profile_parse { t_part = oren_time_now_ns() }
             var rr2 = expand_includes_file_result(inc_full, [])
@@ -393,15 +411,19 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
             if pr2["prepend_ms"] != nil { prepend_ms = prepend_ms + pr2["prepend_ms"] }
             var prog2 = pr2["prog"]
             if profile_parse { t_part = oren_time_now_ns() }
+            var prog2_statements = prog2["statements"]
+            var prog2_statements_len = oren_list_len(prog2_statements)
             var si = 0
-            while si < oren_list_len(prog2["statements"]) {
-                oren_list_push(merged_stmts, prog2["statements"][si])
+            while si < prog2_statements_len {
+                oren_list_push(merged_stmts, prog2_statements[si])
                 si = si + 1
             }
             if prog2["traits"] != nil {
+                var prog2_traits = prog2["traits"]
+                var prog2_traits_len = oren_list_len(prog2_traits)
                 var ti = 0
-                while ti < oren_list_len(prog2["traits"]) {
-                    oren_list_push(merged_traits, prog2["traits"][ti])
+                while ti < prog2_traits_len {
+                    oren_list_push(merged_traits, prog2_traits[ti])
                     ti = ti + 1
                 }
             }
@@ -505,8 +527,9 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
     oren_write_file(log_path, log)
     var phase_log_path = _ml_phase_log_path()
 
+    var parse_bucket_len = oren_list_len(bucket)
     var bi = 0
-    while bi < oren_list_len(bucket) {
+    while bi < parse_bucket_len {
         var item = bucket[bi]
         var full = item["path"]
         var prefix = item["prefix"]
@@ -514,10 +537,10 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
         if phase_log_path != nil {
             mod_t0 = oren_time_now_ns()
             _ml_phase_log_append(phase_log_path, "link.parse_worker_module.start",
-                "path=" + full +
-                " bucket_index=" + oren_int_to_string(bi) +
-                " bucket_total=" + oren_int_to_string(oren_list_len(bucket)),
-                mod_t0)
+                    "path=" + full +
+                    " bucket_index=" + oren_int_to_string(bi) +
+                    " bucket_total=" + oren_int_to_string(parse_bucket_len),
+                    mod_t0)
         }
 
         log = log + "module: " + full + "\n"
@@ -530,9 +553,11 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
             log = log + "FAIL: " + full + "\n"
             if rr["err"] != nil { log = log + rr["err"] + "\n" }
             if rr["errors"] != nil {
+                var parse_bucket_errors = rr["errors"]
+                var parse_bucket_errors_len = oren_list_len(parse_bucket_errors)
                 var ei = 0
-                while ei < oren_list_len(rr["errors"]) {
-                    log = log + rr["errors"][ei] + "\n"
+                while ei < parse_bucket_errors_len {
+                    log = log + parse_bucket_errors[ei] + "\n"
                     ei = ei + 1
                 }
             }
@@ -620,10 +645,11 @@ fn _ml_parse_module_bucket_mem(bucket, config) {
     // Contract: returns a structured result so the parent can surface errors deterministically.
     // This is only used when `spawn` is backed by threads (shared memory).
     if bucket == nil { return {"ok": true, "count": 0} }
+    var parse_bucket_mem_len = oren_list_len(bucket)
     var bi = 0
     var trace = (oren_env("OREN_PARSE_WORKER_TRACE") != nil)
     var phase_log_path = _ml_phase_log_path()
-    while bi < oren_list_len(bucket) {
+    while bi < parse_bucket_mem_len {
         var item = bucket[bi]
         var full = item["path"]
         var prefix = item["prefix"]
@@ -633,7 +659,7 @@ fn _ml_parse_module_bucket_mem(bucket, config) {
             _ml_phase_log_append(phase_log_path, "link.parse_thread_module.start",
                 "path=" + full +
                 " bucket_index=" + oren_int_to_string(bi) +
-                " bucket_total=" + oren_int_to_string(oren_list_len(bucket)),
+                " bucket_total=" + oren_int_to_string(parse_bucket_mem_len),
                 mod_t0)
         }
         if trace {
@@ -667,7 +693,7 @@ fn _ml_parse_module_bucket_mem(bucket, config) {
         }
         bi = bi + 1
     }
-    return {"ok": true, "count": oren_list_len(bucket)}
+    return {"ok": true, "count": parse_bucket_mem_len}
 }
 
 fn _ml_parse_program_for_module(full, config) {
@@ -699,15 +725,16 @@ fn _ml_parse_program_for_module(full, config) {
     if jobs <= 1 {
         var merged_stmts = []
         var merged_traits = []
+        var serial_includes_len = oren_list_len(includes)
         var ii = 0
-        while ii < oren_list_len(includes) {
+        while ii < serial_includes_len {
             var inc_full = includes[ii]
             if want_progress {
                 // Rate-limit to avoid huge logs: check time only every 64 includes.
                 if _imod(ii, 64) == 0 {
                     var now_ns = oren_time_now_ns()
                     if now_ns >= next_progress_ns {
-                        print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(ii) + "/" + oren_int_to_string(oren_list_len(includes)))
+                        print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(ii) + "/" + oren_int_to_string(serial_includes_len))
                         next_progress_ns = now_ns + 1000000000
                     }
                 }
@@ -720,22 +747,26 @@ fn _ml_parse_program_for_module(full, config) {
             }
             var src2 = rr2["src"]
             var prog2 = _ml_parse_program_from_src(inc_full, src2)
+            var serial_prog2_statements = prog2["statements"]
+            var serial_prog2_statements_len = oren_list_len(serial_prog2_statements)
             var si = 0
-            while si < oren_list_len(prog2["statements"]) {
-                oren_list_push(merged_stmts, prog2["statements"][si])
+            while si < serial_prog2_statements_len {
+                oren_list_push(merged_stmts, serial_prog2_statements[si])
                 si = si + 1
             }
             if prog2["traits"] != nil {
+                var serial_prog2_traits = prog2["traits"]
+                var serial_prog2_traits_len = oren_list_len(serial_prog2_traits)
                 var ti = 0
-                while ti < oren_list_len(prog2["traits"]) {
-                    oren_list_push(merged_traits, prog2["traits"][ti])
+                while ti < serial_prog2_traits_len {
+                    oren_list_push(merged_traits, serial_prog2_traits[ti])
                     ti = ti + 1
                 }
             }
             ii = ii + 1
         }
         if want_progress {
-            print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(oren_list_len(includes)) + "/" + oren_int_to_string(oren_list_len(includes)))
+            print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(serial_includes_len) + "/" + oren_int_to_string(serial_includes_len))
         }
         return {"statements": merged_stmts, "traits": merged_traits}
     }
@@ -751,15 +782,17 @@ fn _ml_parse_program_for_module(full, config) {
         bi = bi + 1
     }
     var ix = 0
-    while ix < oren_list_len(includes) {
+    var parallel_includes_len = oren_list_len(includes)
+    while ix < parallel_includes_len {
         var b = _imod(ix, jobs)
         oren_list_push(buckets[b], includes[ix])
         ix = ix + 1
     }
 
     var handles = []
+    var include_buckets_len = oren_list_len(buckets)
     bi = 0
-    while bi < oren_list_len(buckets) {
+    while bi < include_buckets_len {
         if oren_list_len(buckets[bi]) > 0 {
             var h = spawn _ml_parse_include_bucket(buckets[bi], out_dir)
             oren_list_push(handles, h)
@@ -768,8 +801,9 @@ fn _ml_parse_program_for_module(full, config) {
     }
 
     // While workers run, the parent stays on CPU (dependency loading below happens after parse).
+    var include_handles_len = oren_list_len(handles)
     var hi = 0
-    while hi < oren_list_len(handles) {
+    while hi < include_handles_len {
         var rc = oren_join(handles[hi])
         if rc != 0 {
             print("Include parse worker failed for module: " + full)
@@ -781,7 +815,7 @@ fn _ml_parse_program_for_module(full, config) {
     var merged_stmts2 = []
     var merged_traits2 = []
     ix = 0
-    while ix < oren_list_len(includes) {
+    while ix < parallel_includes_len {
         var inc_full3 = includes[ix]
         var p = path_norm(out_dir + "/" + _sha256_hex_string(inc_full3) + ".astbin")
         var bs2 = oren_read_u8_buf(p)
@@ -796,15 +830,19 @@ fn _ml_parse_program_for_module(full, config) {
             print("Failed to decode astbin: " + p)
             oren_exit(1)
         }
+        var prog3_statements = prog3["statements"]
+        var prog3_statements_len = oren_list_len(prog3_statements)
         var si2 = 0
-        while si2 < oren_list_len(prog3["statements"]) {
-            oren_list_push(merged_stmts2, prog3["statements"][si2])
+        while si2 < prog3_statements_len {
+            oren_list_push(merged_stmts2, prog3_statements[si2])
             si2 = si2 + 1
         }
         if prog3["traits"] != nil {
+            var prog3_traits = prog3["traits"]
+            var prog3_traits_len = oren_list_len(prog3_traits)
             var ti2 = 0
-            while ti2 < oren_list_len(prog3["traits"]) {
-                oren_list_push(merged_traits2, prog3["traits"][ti2])
+            while ti2 < prog3_traits_len {
+                oren_list_push(merged_traits2, prog3_traits[ti2])
                 ti2 = ti2 + 1
             }
         }
@@ -858,8 +896,9 @@ fn discover_module(base, path, config) {
     }
 
     // Cycle check
+    var discover_stack_len = oren_list_len(MODULE_STACK)
     var k = 0
-    while k < oren_list_len(MODULE_STACK) {
+    while k < discover_stack_len {
         if MODULE_STACK[k] == full {
             print("Cyclic import detected: " + full)
             oren_exit(1)
@@ -908,10 +947,11 @@ fn discover_module(base, path, config) {
     var dir = dirname(full)
     var imports = scan["imports"]
     if LINK_GC_ROOT != nil { LINK_GC_ROOT["scan_tmp"] = scan; LINK_GC_ROOT["imports_tmp"] = imports }
+    var discover_imports_len = oren_list_len(imports)
     var i = 0
     var deps_t0 = 0
     if phase_log_path != nil { deps_t0 = oren_time_now_ns() }
-    while i < oren_list_len(imports) {
+    while i < discover_imports_len {
         var e = imports[i]
         var alias = e["alias"]
         if alias == nil { alias = "" }
@@ -954,7 +994,7 @@ fn discover_module(base, path, config) {
         if total_ms >= slow_ms || scan_ms >= slow_ms || deps_ms >= slow_ms || resolve_ms >= slow_ms {
             _ml_phase_log_append(phase_log_path, "link.discover_module.done",
                 "path=" + full +
-                " imports=" + oren_int_to_string(oren_list_len(imports)) +
+                " imports=" + oren_int_to_string(discover_imports_len) +
                 " resolve_ms=" + oren_int_to_string(resolve_ms) +
                 " scan_ms=" + oren_int_to_string(scan_ms) +
                 " deps_ms=" + oren_int_to_string(deps_ms) +
@@ -966,9 +1006,10 @@ fn discover_module(base, path, config) {
 }
 
 fn _ml_parse_discovered_modules_serial(config) {
+    var serial_module_order_len = oren_list_len(MODULE_ORDER)
     var i = 0
     var phase_log_path = _ml_phase_log_path()
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < serial_module_order_len {
         var m = MODULE_ORDER[i]
         if m["program"] == nil {
             if oren_env("OREN_PARSE_WORKER_TRACE") != nil {
@@ -980,7 +1021,7 @@ fn _ml_parse_discovered_modules_serial(config) {
                 _ml_phase_log_append(phase_log_path, "link.parse_module.start",
                     "path=" + m["path"] +
                     " index=" + oren_int_to_string(i) +
-                    " total=" + oren_int_to_string(oren_list_len(MODULE_ORDER)),
+                    " total=" + oren_int_to_string(serial_module_order_len),
                     mod_t0)
             }
             var rr = _ml_parse_and_prepare_module_result(m["path"], m["prefix"], config)
@@ -988,9 +1029,11 @@ fn _ml_parse_discovered_modules_serial(config) {
                 print("Failed to parse module: " + m["path"])
                 if rr["err"] != nil { print(rr["err"]) }
                 if rr["errors"] != nil {
+                    var serial_rr_errors = rr["errors"]
+                    var serial_rr_errors_len = oren_list_len(serial_rr_errors)
                     var ei = 0
-                    while ei < oren_list_len(rr["errors"]) {
-                        print(rr["errors"][ei])
+                    while ei < serial_rr_errors_len {
+                        print(serial_rr_errors[ei])
                         ei = ei + 1
                     }
                 }
@@ -1087,8 +1130,9 @@ fn _ml_parse_discovered_modules_parallel(config) {
     // Build a worklist in deterministic MODULE_ORDER.
     var work = []
     if LINK_GC_ROOT != nil { LINK_GC_ROOT["parse_work"] = work }
+    var parallel_module_order_len = oren_list_len(MODULE_ORDER)
     var i = 0
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < parallel_module_order_len {
         var m = MODULE_ORDER[i]
         // Skip external stdlib (already has a program).
         if m["program"] == nil {
@@ -1096,18 +1140,19 @@ fn _ml_parse_discovered_modules_parallel(config) {
         }
         i = i + 1
     }
-    if oren_list_len(work) == 0 { return 0 }
+    var work_len = oren_list_len(work)
+    if work_len == 0 { return 0 }
     if phase_log_path != nil {
         _ml_phase_log_append(phase_log_path, "link.parse_parallel.worklist.done",
-            "modules=" + oren_int_to_string(oren_list_len(MODULE_ORDER)) +
-            " work=" + oren_int_to_string(oren_list_len(work)),
+            "modules=" + oren_int_to_string(parallel_module_order_len) +
+            " work=" + oren_int_to_string(work_len),
             parallel_t0)
     }
 
     // Debug mode: isolate failures by running one module per worker bucket.
     // Enable with: OREN_PARSE_DEBUG_SINGLE=1
     if oren_env("OREN_PARSE_DEBUG_SINGLE") != nil {
-        jobs = oren_list_len(work)
+        jobs = work_len
         if jobs < 1 { jobs = 1 }
         if jobs > 64 { jobs = 64 } // keep bounded
     }
@@ -1120,7 +1165,7 @@ fn _ml_parse_discovered_modules_parallel(config) {
         bi = bi + 1
     }
     i = 0
-    while i < oren_list_len(work) {
+    while i < work_len {
         var b = _imod(i, jobs)
         if oren_env("OREN_PARSE_DEBUG_SINGLE") != nil {
             // Force one module per bucket (first N modules if jobs is capped).
@@ -1134,13 +1179,14 @@ fn _ml_parse_discovered_modules_parallel(config) {
     if phase_log_path != nil {
         _ml_phase_log_append(phase_log_path, "link.parse_parallel.buckets.done",
             "jobs=" + oren_int_to_string(jobs) +
-            " work=" + oren_int_to_string(oren_list_len(work)),
+            " work=" + oren_int_to_string(work_len),
             parallel_t0)
     }
 
     var handles = []
+    var module_buckets_len = oren_list_len(buckets)
     bi = 0
-    while bi < oren_list_len(buckets) {
+    while bi < module_buckets_len {
         if oren_list_len(buckets[bi]) > 0 {
             if fork_mode {
                 var lp = path_norm(out_dir + "/logs/worker_" + oren_int_to_string(bi) + ".log")
@@ -1157,6 +1203,7 @@ fn _ml_parse_discovered_modules_parallel(config) {
     if LINK_GC_ROOT != nil { LINK_GC_ROOT["parse_handles"] = handles }
 
     var failed = false
+    var handles_len = oren_list_len(handles)
     // Join strategy:
     // - In fork mode we must `join` directly (process boundary).
     // - In thread mode, joining one handle at a time can cause long "no output" gaps and
@@ -1166,4 +1213,4 @@ fn _ml_parse_discovered_modules_parallel(config) {
     // short sleeps so `OREN_TRACE_PHASES` users see forward motion without external scripts.
     if fork_mode {
         var hi = 0
-        while hi < oren_list_len(handles) {
+        while hi < handles_len {
