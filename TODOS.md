@@ -55,6 +55,10 @@ design evidence lives under `project-doc/`.
   immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,
   reserve, candidate, touch, and rewrite traversals, with the byte-hotpath guard
   rejecting direct `oren_list_len` loop bounds in those passes.
+- Native runtime bundle injection now caches immutable runtime/user statement,
+  root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
+  guard coverage rejecting direct `oren_list_len` loop bounds in that shared
+  x64/ARM64 runtime-injection path.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
@@ -2923,6 +2927,10 @@ design evidence lives under `project-doc/`.
   immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,
   reserve, candidate, touch, and rewrite scans; the byte-hotpath guard rejects
   direct `oren_list_len` loop bounds in those passes.
+- Native runtime bundle injection now caches immutable runtime/user statement,
+  root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
+  guard coverage rejecting direct `oren_list_len` loop bounds in that shared
+  x64/ARM64 runtime-injection path.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

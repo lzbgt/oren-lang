@@ -49,6 +49,10 @@ surfaces, but the following blockers remain:
   immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,
   reserve, candidate, touch, and rewrite scans; the hotpath guard rejects direct
   `oren_list_len` loop bounds in those passes.
+- Native runtime bundle injection now caches immutable runtime/user statement,
+  root, parse-error, decoded-list, and merge traversal counts, with hotpath guard
+  coverage rejecting direct `oren_list_len` loop bounds in that shared x64/ARM64
+  runtime-injection path.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.

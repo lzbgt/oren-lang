@@ -98,6 +98,10 @@ This file is the concise task view. Detailed implementation status lives in
      sink/rewrite, hoist/reset, reserve, candidate, touch, and rewrite scans,
      with source guards rejecting direct `oren_list_len` loop bounds in those
      passes.
+   - Current native runtime bundle injection caches immutable runtime/user
+     statement, root, parse-error, decoded-list, and merge traversal counts,
+     with source guards rejecting direct `oren_list_len` loop bounds in that
+     shared x64/ARM64 runtime-injection path.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public

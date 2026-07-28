@@ -130,8 +130,9 @@ fn _rt_bundle_ensure_dir(path) {
 fn _bundle_clone_list(xs) {
     if xs == nil { return [] }
     var out = []
+    var xs_len_clone = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len_clone {
         oren_list_push(out, xs[i])
         i = i + 1
     }
@@ -140,8 +141,9 @@ fn _bundle_clone_list(xs) {
 
 fn _bundle_list_contains(xs, v) {
     if xs == nil { return false }
+    var xs_len_contains = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len_contains {
         if xs[i] == v { return true }
         i = i + 1
     }
@@ -159,8 +161,9 @@ fn _rt_bundle_validate_runtime_prog(ctx, runtime_prog, runtime_path) {
     // execution order inside `__top_level__`.
     var sts = runtime_prog["statements"]
     if sts == nil { sts = [] }
+    var sts_len_validate = oren_list_len(sts)
     var si = 0
-    while si < oren_list_len(sts) {
+    while si < sts_len_validate {
         var st = sts[si]
         if st == nil { si = si + 1; continue }
         if st["type"] == "Function" { si = si + 1; continue }
@@ -195,8 +198,9 @@ fn _rt_bundle_apply_cfg_in_place(ctx, runtime_prog, runtime_path, platform) {
     cfg_lowering.lower_program_in_place(runtime_prog, cfg)
     if runtime_prog["cfg_errors"] != nil && oren_list_len(runtime_prog["cfg_errors"]) > 0 {
         _bundle_err(ctx, "Cfg filtering failed in injected runtime: " + runtime_path)
+        var cfg_errors_len = oren_list_len(runtime_prog["cfg_errors"])
         var cei = 0
-        while cei < oren_list_len(runtime_prog["cfg_errors"]) {
+        while cei < cfg_errors_len {
             _bundle_err(ctx, runtime_prog["cfg_errors"][cei])
             cei = cei + 1
         }
@@ -231,8 +235,9 @@ fn _rt_bundle_cache_sanity_ok_rec(v, budget_ref) {
     if oren_is_u8_buf(v) == true { return true }
 
     if oren_is_list(v) == true {
+        var v_len_sanity = oren_list_len(v)
         var i = 0
-        while i < oren_list_len(v) {
+        while i < v_len_sanity {
             if _rt_bundle_cache_sanity_ok_rec(v[i], budget_ref) != true { return false }
             i = i + 1
         }
@@ -392,8 +397,9 @@ fn _bundle_roots_for_backend(backend, platform) {
     var extra = []
     if backend == "arm64" { extra = _bundle_roots_arm64_extra(platform) }
     else if backend == "x64" { extra = _bundle_roots_x64_extra(platform) }
+    var extra_len_roots = oren_list_len(extra)
     var i = 0
-    while i < oren_list_len(extra) {
+    while i < extra_len_roots {
         if _bundle_list_contains(roots, extra[i]) == false {
             oren_list_push(roots, extra[i])
         }
@@ -425,8 +431,9 @@ fn _bundle_config_merge_roots(cfg0, roots_add) {
         roots = _bundle_clone_list(cfg0["roots"])
     }
     if roots_add != nil {
+        var roots_add_len = oren_list_len(roots_add)
         var i = 0
-        while i < oren_list_len(roots_add) {
+        while i < roots_add_len {
             var nm = roots_add[i]
             if nm != nil && nm != "" && _bundle_list_contains(roots, nm) == false {
                 oren_list_push(roots, nm)
@@ -440,8 +447,9 @@ fn _bundle_config_merge_roots(cfg0, roots_add) {
 
 fn _bundle_tag_stmt_list(stmts, is_runtime) {
     if stmts == nil { return nil }
+    var stmts_len_tag = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len_tag {
         var st = stmts[i]
         if st != nil {
             st["__oren_from_runtime"] = is_runtime
@@ -473,8 +481,9 @@ fn _rt_bundle_trace_fn_shape(runtime_prog, stage) {
     var sts = runtime_prog["statements"]
     if sts == nil { return nil }
 
+    var sts_len_trace = oren_list_len(sts)
     var i = 0
-    while i < oren_list_len(sts) {
+    while i < sts_len_trace {
         var st = sts[i]
         var fn0 = nil
         if st != nil && st["type"] == "Function" {
@@ -561,8 +570,9 @@ fn _bundle_split_stmt_list_by_runtime_tag(stmts) {
     var runtime = []
     var user = []
     if stmts == nil { return {"runtime": runtime, "user": user} }
+    var stmts_len_split = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len_split {
         var st = stmts[i]
         if st != nil && st["__oren_from_runtime"] == true {
             oren_list_push(runtime, st)
@@ -610,8 +620,9 @@ fn _bundle_maybe_get_toplevel_function_node(stmt) {
 
 fn _bundle_find_toplevel_function(stmts, name) {
     if stmts == nil { return nil }
+    var stmts_len_find = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len_find {
         var fn0 = _bundle_maybe_get_toplevel_function_node(stmts[i])
         if fn0 != nil && fn0["name"] == name { return fn0 }
         i = i + 1
@@ -632,8 +643,9 @@ fn _bundle_collect_assigned_names_stmt(out, stmt) {
     if t == "Block" {
         var xs = stmt["stmts"]
         if xs == nil { return nil }
+        var xs_len_assign = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < xs_len_assign {
             _bundle_collect_assigned_names_stmt(out, xs[i])
             i = i + 1
         }
@@ -690,8 +702,9 @@ fn _bundle_validate_runtime_global_consts(ctx, runtime_prog) {
     if init_fn == nil { _bundle_err(ctx, "native runtime bundle: missing native_runtime_init"); return false }
     var assigned = _bundle_collect_assigned_names_in_fn(init_fn)
 
+    var sts_len_consts = oren_list_len(sts)
     var i = 0
-    while i < oren_list_len(sts) {
+    while i < sts_len_consts {
         var st = sts[i]
         if st == nil { i = i + 1; continue }
         if st["type"] == "Var" {
@@ -1174,8 +1187,9 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     }
     if p2 != nil && p2["errors"] != nil && oren_list_len(p2["errors"]) != 0 {
         _bundle_err(ctx, "Parse errors in " + runtime_path)
+        var parse_errors_len = oren_list_len(p2["errors"])
         var ei = 0
-        while ei < oren_list_len(p2["errors"]) {
+        while ei < parse_errors_len {
             _bundle_err(ctx, p2["errors"][ei])
             ei = ei + 1
         }
@@ -1261,9 +1275,11 @@ fn inject_runtime_into_linked_and_dce(ctx, backend, linked, runtime_prog, platfo
 
     var merged = []
     var i = 0
-    while i < oren_list_len(rs) { oren_list_push(merged, rs[i]); i = i + 1 }
+    var rs_len_merge = oren_list_len(rs)
+    while i < rs_len_merge { oren_list_push(merged, rs[i]); i = i + 1 }
     i = 0
-    while i < oren_list_len(us) { oren_list_push(merged, us[i]); i = i + 1 }
+    var us_len_merge = oren_list_len(us)
+    while i < us_len_merge { oren_list_push(merged, us[i]); i = i + 1 }
 
     var cfg0 = linked["config"]
     var roots = _bundle_roots_for_backend(backend, platform)

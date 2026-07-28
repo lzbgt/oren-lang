@@ -102,6 +102,12 @@
 <p>  reserve, candidate, touch, and rewrite traversals, with the byte-hotpath guard</p>
 <p>  rejecting direct <code>oren_list_len</code> loop bounds in those passes.</p>
 <ul>
+<li>Native runtime bundle injection now caches immutable runtime/user statement,</li>
+</ul>
+<p>  root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath</p>
+<p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that shared</p>
+<p>  x64/ARM64 runtime-injection path.</p>
+<ul>
 <li>Regex byte-class matching now caches compiled class range counts before</li>
 </ul>
 <p>  per-byte range probes.</p>
@@ -4135,6 +4141,12 @@
 <p>  immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,</p>
 <p>  reserve, candidate, touch, and rewrite scans; the byte-hotpath guard rejects</p>
 <p>  direct <code>oren_list_len</code> loop bounds in those passes.</p>
+<ul>
+<li>Native runtime bundle injection now caches immutable runtime/user statement,</li>
+</ul>
+<p>  root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath</p>
+<p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that shared</p>
+<p>  x64/ARM64 runtime-injection path.</p>
 <ul>
 <li><code>std:ui/scene3d_binary</code> <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>
