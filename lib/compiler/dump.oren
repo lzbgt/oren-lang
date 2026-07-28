@@ -132,16 +132,18 @@ fn linked_summary_json(linked, entry_path) {
     var traits = []
 
     if linked["traits"] != nil {
+        var linked_traits_len = oren_list_len(linked["traits"])
         var ti = 0
-        while ti < oren_list_len(linked["traits"]) {
+        while ti < linked_traits_len {
             oren_list_push(traits, linked["traits"][ti]["name"])
             ti = ti + 1
         }
     }
 
     var ss = linked["statements"]
+    var ss_len_summary = oren_list_len(ss)
     var i = 0
-    while i < oren_list_len(ss) {
+    while i < ss_len_summary {
         var s = ss[i]
         if s == nil { i = i + 1; continue }
         var entry = analysis.top_level_function_surface_entry(s)
@@ -170,15 +172,17 @@ fn linked_summary_json(linked, entry_path) {
     }
 
     var function_parts = []
+    var functions_len_summary = oren_list_len(functions)
     i = 0
-    while i < oren_list_len(functions) {
+    while i < functions_len_summary {
         oren_list_push(function_parts, json_string(functions[i]))
         i = i + 1
     }
 
     var function_detail_parts = []
+    var function_details_len_summary = oren_list_len(function_details)
     i = 0
-    while i < oren_list_len(function_details) {
+    while i < function_details_len_summary {
         var func = function_details[i]
         var name = analysis.function_surface_name(func, functions[i])
         var yield_info = analysis.function_yield_info(func)
@@ -227,22 +231,25 @@ fn linked_summary_json(linked, entry_path) {
     }
 
     var struct_parts = []
+    var structs_len_summary = oren_list_len(structs)
     i = 0
-    while i < oren_list_len(structs) {
+    while i < structs_len_summary {
         oren_list_push(struct_parts, json_string(structs[i]))
         i = i + 1
     }
 
     var enum_parts = []
+    var enums_len_summary = oren_list_len(enums)
     i = 0
-    while i < oren_list_len(enums) {
+    while i < enums_len_summary {
         oren_list_push(enum_parts, json_string(enums[i]))
         i = i + 1
     }
 
     var trait_parts = []
+    var traits_len_summary = oren_list_len(traits)
     i = 0
-    while i < oren_list_len(traits) {
+    while i < traits_len_summary {
         oren_list_push(trait_parts, json_string(traits[i]))
         i = i + 1
     }
@@ -283,8 +290,9 @@ fn module_graph_json(graph) {
 
     // Root imports (deterministic, in source order).
     out = out + "  \"imports\": [\n"
+    var imports_len_graph = oren_list_len(imports)
     var i = 0
-    while i < oren_list_len(imports) {
+    while i < imports_len_graph {
         var imp = imports[i]
         if i != 0 { out = out + ",\n" }
         out = out + "    { "
@@ -299,8 +307,9 @@ fn module_graph_json(graph) {
 
     // Module list + their import edges (deterministic, module order then source order).
     out = out + "  \"modules\": [\n"
+    var modules_len_graph = oren_list_len(modules)
     i = 0
-    while i < oren_list_len(modules) {
+    while i < modules_len_graph {
         var m = modules[i]
         if i != 0 { out = out + ",\n" }
         out = out + "    {\n"
@@ -310,8 +319,9 @@ fn module_graph_json(graph) {
         var imps = m["imports"]
         if imps == nil { imps = [] }
         out = out + "      \"imports\": [\n"
+        var imps_len_graph = oren_list_len(imps)
         var j = 0
-        while j < oren_list_len(imps) {
+        while j < imps_len_graph {
             var ei = imps[j]
             if j != 0 { out = out + ",\n" }
             out = out + "        { "

@@ -142,8 +142,9 @@ fn _macho_lookup_function_linear(names, offs, meta_keys, buckets, counts, ctx, f
     var bucket = nil
     if buckets != nil && name_first >= 0 && name_first < oren_list_len(buckets) { bucket = buckets[name_first] }
     if bucket != nil {
+        var bucket_len = oren_list_len(bucket)
         var bi = 0
-        while bi < oren_list_len(bucket) {
+        while bi < bucket_len {
             var i = bucket[bi]
             scan_steps = scan_steps + 1
             if meta_keys[i] == name_key {
@@ -200,11 +201,12 @@ fn _macho_lookup_top_counts_detail(names, counts, prefix) {
     while rank <= 5 {
         var best_i = -1
         var best_count = 0
+        var used_len_rank = oren_list_len(used)
         var i = 0
         while i < names_n {
             var already = false
             var u = 0
-            while u < oren_list_len(used) {
+            while u < used_len_rank {
                 if used[u] == i { already = true; break }
                 u = u + 1
             }

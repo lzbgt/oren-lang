@@ -56,6 +56,10 @@ surfaces, but the following blockers remain:
 - C transpiler constructor, lambda, block, branch, call, array, and function body
   emission now caches immutable AST list counts before traversal, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that backend.
+- Compiler linked-summary/module-graph dumps and ARM64 Mach-O function-offset
+  lookup ranking now cache immutable list counts before traversal, with hotpath
+  guard coverage rejecting direct `oren_list_len` loop bounds in those support
+  paths.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
