@@ -4,8 +4,9 @@
                 failed = true
                 print("Module parse worker failed; bucket modules:")
                 var b = item["bucket"]
+                var b_len = oren_list_len(b)
                 var mi = 0
-                while mi < oren_list_len(b) {
+                while mi < b_len {
                     print("  - " + b[mi]["path"])
                     mi = mi + 1
                 }
@@ -26,7 +27,7 @@
         // In that mode, join sequentially (each join drives the scheduler).
         if _ml_spawn_is_cooperative() == true {
             var hi2 = 0
-            while hi2 < oren_list_len(handles) {
+            while hi2 < total {
                 var item2 = handles[hi2]
                 var h2 = item2["h"]
                 var res2 = oren_join(h2)
@@ -41,9 +42,11 @@
                         print("  err: " + res2["err"])
                     }
                     if res2 != nil && res2["errors"] != nil {
+                        var res2_errors = res2["errors"]
+                        var res2_errors_len = oren_list_len(res2_errors)
                         var ei2 = 0
-                        while ei2 < oren_list_len(res2["errors"]) {
-                            print("  " + res2["errors"][ei2])
+                        while ei2 < res2_errors_len {
+                            print("  " + res2_errors[ei2])
                             ei2 = ei2 + 1
                         }
                     }
@@ -58,8 +61,9 @@
         var remaining = handles
         while oren_list_len(remaining) > 0 {
             var next_remaining = []
+            var remaining_len = oren_list_len(remaining)
             var i0 = 0
-            while i0 < oren_list_len(remaining) {
+            while i0 < remaining_len {
                 var item0 = remaining[i0]
                 var h0 = item0["h"]
                 if oren_is_done(h0) == true {
@@ -75,9 +79,11 @@
                             print("  err: " + res0["err"])
                         }
                         if res0 != nil && res0["errors"] != nil {
+                            var res0_errors = res0["errors"]
+                            var res0_errors_len = oren_list_len(res0_errors)
                             var ei = 0
-                            while ei < oren_list_len(res0["errors"]) {
-                                print("  " + res0["errors"][ei])
+                            while ei < res0_errors_len {
+                                print("  " + res0_errors[ei])
                                 ei = ei + 1
                             }
                         }
@@ -118,8 +124,9 @@
 
     if fork_mode {
         // Read results back and attach to MODULE_ORDER entries.
+        var module_order_len = oren_list_len(MODULE_ORDER)
         i = 0
-        while i < oren_list_len(MODULE_ORDER) {
+        while i < module_order_len {
             var m2 = MODULE_ORDER[i]
             if m2["program"] == nil {
                 var p = path_norm(out_dir + "/" + _sha256_hex_string(m2["path"]) + ".astbin")
@@ -171,8 +178,9 @@ fn load_module(base, path, config) {
     }
 
     // Cycle check
+    var module_stack_len = oren_list_len(MODULE_STACK)
     var k = 0
-    while k < oren_list_len(MODULE_STACK) {
+    while k < module_stack_len {
         if MODULE_STACK[k] == full {
             print("Cyclic import detected: " + full)
             oren_exit(1)
@@ -221,9 +229,11 @@ fn load_module(base, path, config) {
 
     var dir = dirname(full)
     var seen_alias = {}
+    var prog_statements = prog["statements"]
+    var prog_statements_len = oren_list_len(prog_statements)
     var i = 0
-    while i < oren_list_len(prog["statements"]) {
-        var s = prog["statements"][i]
+    while i < prog_statements_len {
+        var s = prog_statements[i]
         if s["type"] == "Import" {
             var alias = _ml_import_alias_from_stmt(s)
             var dep = load_module(dir, s["path"], config)
@@ -250,8 +260,8 @@ fn load_module(base, path, config) {
     // Let's put module logic in `compiler.oren` for now as it orchestrates loading.
     var pairs = renamer.collect_toplevel_rename_pairs(prog, mod["prefix"])
     i = 0
-    while i < oren_list_len(prog["statements"]) {
-        var s2 = prog["statements"][i]
+    while i < prog_statements_len {
+        var s2 = prog_statements[i]
         if s2["type"] == "Import" {
             var alias2 = _ml_import_alias_from_stmt(s2)
             if alias2 != "." {
@@ -269,8 +279,8 @@ fn load_module(base, path, config) {
     //
     // Example: within module prefix "M5_", `lexer.new_lexer(...)` becomes `M5_lexer.new_lexer(...)`.
     i = 0
-    while i < oren_list_len(prog["statements"]) {
-        var s3 = prog["statements"][i]
+    while i < prog_statements_len {
+        var s3 = prog_statements[i]
         if s3["type"] == "Import" {
             var a3 = _ml_import_alias_from_stmt(s3)
             if a3 != "." { pairs[a3] = mod["prefix"] + a3 }
@@ -288,16 +298,20 @@ fn load_module(base, path, config) {
     // Must run *after* module renaming so generated functions are naturally prefixed
     // via the (already-prefixed) type names.
     serde_json.lower_program_in_place(prog, mod["prefix"])
-    if prog["serde_json_errors"] != nil && oren_list_len(prog["serde_json_errors"]) > 0 {
-        var first_err = prog["serde_json_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Serde JSON lowering errors in " + full + ":")
-        var ei = 0
-        while ei < oren_list_len(prog["serde_json_errors"]) {
-            print(prog["serde_json_errors"][ei])
-            ei = ei + 1
+    var serde_json_errors = prog["serde_json_errors"]
+    if serde_json_errors != nil {
+        var serde_json_errors_len = oren_list_len(serde_json_errors)
+        if serde_json_errors_len > 0 {
+            var first_err = serde_json_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Serde JSON lowering errors in " + full + ":")
+            var ei = 0
+            while ei < serde_json_errors_len {
+                print(serde_json_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
 
     if mod["added"] != true {
@@ -322,8 +336,9 @@ fn _ml_collect_test_funcs_from_stmts(stmts) {
     var out = []
     if stmts == nil { return out }
     var seen = {}
+    var stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         var s = stmts[i]
         if s != nil && s["type"] == "ExprStmt" {
             var e = s["expr"]
@@ -350,8 +365,9 @@ fn _ml_collect_test_funcs_from_stmts(stmts) {
 
 fn _ml_append_test_runner_calls(stmts, tests) {
     if stmts == nil || tests == nil { return nil }
+    var tests_len = oren_list_len(tests)
     var i = 0
-    while i < oren_list_len(tests) {
+    while i < tests_len {
         var t = tests[i]
         var name = t["name"]
         var tok = {"type": "IDENT", "literal": name}
@@ -361,7 +377,7 @@ fn _ml_append_test_runner_calls(stmts, tests) {
         oren_list_push(stmts, stmt)
         i = i + 1
     }
-    if oren_list_len(tests) > 0 {
+    if tests_len > 0 {
         var msg_tok = {"type": "STRING", "literal": "ok: tests passed"}
         var msg = ast.new_string(msg_tok)
         var print_tok = {"type": "IDENT", "literal": "print"}
@@ -430,22 +446,28 @@ fn link_program(entry_path, root_prog, config) {
     debug_sugar.lower_program_in_place(root_prog, config)
     if config != nil {
         cfg_lowering.lower_program_in_place(root_prog, config)
-        if root_prog["cfg_errors"] != nil && oren_is_list(root_prog["cfg_errors"]) == true && oren_list_len(root_prog["cfg_errors"]) > 0 {
-            var first_err0 = root_prog["cfg_errors"][0]
-            emit_diag("compile", 1, first_err0)
-            print("Cfg filtering errors in " + entry_path + ":")
-            var ei0 = 0
-            while ei0 < oren_list_len(root_prog["cfg_errors"]) {
-                print(root_prog["cfg_errors"][ei0])
-                ei0 = ei0 + 1
+        var cfg_errors = root_prog["cfg_errors"]
+        if cfg_errors != nil && oren_is_list(cfg_errors) == true {
+            var cfg_errors_len = oren_list_len(cfg_errors)
+            if cfg_errors_len > 0 {
+                var first_err0 = cfg_errors[0]
+                emit_diag("compile", 1, first_err0)
+                print("Cfg filtering errors in " + entry_path + ":")
+                var ei0 = 0
+                while ei0 < cfg_errors_len {
+                    print(cfg_errors[ei0])
+                    ei0 = ei0 + 1
+                }
+                oren_exit(1)
             }
-            oren_exit(1)
         }
     }
     
+    var root_statements = root_prog["statements"]
+    var root_statements_len = oren_list_len(root_statements)
     var i = 0
-    while i < oren_list_len(root_prog["statements"]) {
-        var s = root_prog["statements"][i]
+    while i < root_statements_len {
+        var s = root_statements[i]
         if s["type"] == "Import" {
             var alias = _ml_import_alias_from_stmt(s)
             var mod = discover_module(base, s["path"], config)
@@ -480,8 +502,8 @@ fn link_program(entry_path, root_prog, config) {
     var root_pairs = {}
     if root_has_anonymous_imports == true { root_pairs = _ml_collect_toplevel_identity_pairs(root_prog) }
     i = 0
-    while i < oren_list_len(root_prog["statements"]) {
-        var s0 = root_prog["statements"][i]
+    while i < root_statements_len {
+        var s0 = root_statements[i]
         if s0["type"] == "Import" {
             var a0 = _ml_import_alias_from_stmt(s0)
             if a0 != "." { root_pairs[a0] = root_prefix + a0 }
@@ -503,17 +525,25 @@ fn link_program(entry_path, root_prog, config) {
     // Attribute-driven JSON serde codegen for the root module.
     // Root is not renamed, so prefix is empty.
     serde_json.lower_program_in_place(root_prog, "")
-    if root_prog["serde_json_errors"] != nil && oren_list_len(root_prog["serde_json_errors"]) > 0 {
-        var first_err = root_prog["serde_json_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Serde JSON lowering errors in " + entry_path + ":")
-        var ei = 0
-        while ei < oren_list_len(root_prog["serde_json_errors"]) {
-            print(root_prog["serde_json_errors"][ei])
-            ei = ei + 1
+    var root_serde_json_errors = root_prog["serde_json_errors"]
+    if root_serde_json_errors != nil {
+        var root_serde_json_errors_len = oren_list_len(root_serde_json_errors)
+        if root_serde_json_errors_len > 0 {
+            var first_err = root_serde_json_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Serde JSON lowering errors in " + entry_path + ":")
+            var ei = 0
+            while ei < root_serde_json_errors_len {
+                print(root_serde_json_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
+
+    // Root serde lowering can append generated helpers; refresh before merge.
+    root_statements = root_prog["statements"]
+    root_statements_len = oren_list_len(root_statements)
     
     var merged_stmts = []
     var merged_traits = []
@@ -524,19 +554,23 @@ fn link_program(entry_path, root_prog, config) {
         LINK_GC_ROOT["type_ns"] = type_ns
     }
     
+    var module_order_len = oren_list_len(MODULE_ORDER)
     i = 0
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < module_order_len {
         var mod = MODULE_ORDER[i]
         var stmts = mod["program"]["statements"]
         if mod["program"]["traits"] != nil {
+            var traits = mod["program"]["traits"]
+            var traits_len = oren_list_len(traits)
             var ti = 0
-            while ti < oren_list_len(mod["program"]["traits"]) {
-                oren_list_push(merged_traits, mod["program"]["traits"][ti])
+            while ti < traits_len {
+                oren_list_push(merged_traits, traits[ti])
                 ti = ti + 1
             }
         }
+        var stmts_len = oren_list_len(stmts)
         var j = 0
-        while j < oren_list_len(stmts) {
+        while j < stmts_len {
             var st = stmts[j]
             if st["type"] == "Type" {
                 type_ns[st["name"]["value"]] = true
@@ -550,8 +584,8 @@ fn link_program(entry_path, root_prog, config) {
     }
     
     i = 0
-    while i < oren_list_len(root_prog["statements"]) {
-        var st = root_prog["statements"][i]
+    while i < root_statements_len {
+        var st = root_statements[i]
         if st["type"] == "Type" {
             type_ns[st["name"]["value"]] = true
         }
@@ -562,9 +596,11 @@ fn link_program(entry_path, root_prog, config) {
     }
 
     if root_prog["traits"] != nil {
+        var root_traits = root_prog["traits"]
+        var root_traits_len = oren_list_len(root_traits)
         var rti = 0
-        while rti < oren_list_len(root_prog["traits"]) {
-            oren_list_push(merged_traits, root_prog["traits"][rti])
+        while rti < root_traits_len {
+            oren_list_push(merged_traits, root_traits[rti])
             rti = rti + 1
         }
     }
@@ -585,7 +621,7 @@ fn link_program(entry_path, root_prog, config) {
     // Provide a deterministic module graph surface for tooling.
     var module_summaries = []
     i = 0
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < module_order_len {
         var m = MODULE_ORDER[i]
         oren_list_push(module_summaries, {"prefix": m["prefix"], "path": m["path"], "imports": m["imports"]})
         i = i + 1
@@ -602,8 +638,9 @@ fn link_program(entry_path, root_prog, config) {
     // - after namespacing, aliases must be globally unique; any collision is a bug
     var all_aliases = {}
     // root aliases first
+    var root_imports_len = oren_list_len(root_imports)
     var ri = 0
-    while ri < oren_list_len(root_imports) {
+    while ri < root_imports_len {
         var e = root_imports[ri]
         if e != nil && e["anonymous"] != true && e["alias_ns"] != nil {
             all_aliases[e["alias_ns"]] = e["prefix"]
@@ -612,12 +649,13 @@ fn link_program(entry_path, root_prog, config) {
     }
     // merge module aliases in deterministic order (MODULE_ORDER, then per-module import order)
     i = 0
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < module_order_len {
         var m2 = MODULE_ORDER[i]
         var imps = m2["imports"]
         if imps != nil {
+            var imps_len = oren_list_len(imps)
             var ii = 0
-            while ii < oren_list_len(imps) {
+            while ii < imps_len {
                 var ie = imps[ii]
                 var a2 = ie["alias_ns"]
                 var p2 = ie["prefix"]
@@ -648,7 +686,7 @@ fn link_program(entry_path, root_prog, config) {
     var external_impl_methods = {}
     var external_impl_trait_methods = {}
     i = 0
-    while i < oren_list_len(MODULE_ORDER) {
+    while i < module_order_len {
         var emod = MODULE_ORDER[i]
         var api = emod["external_api"]
         if api != nil {
@@ -677,8 +715,10 @@ fn link_program(entry_path, root_prog, config) {
                 }
             }
             var traits_ext = api["traits"]
+            var traits_ext_len = 0
+            if traits_ext != nil { traits_ext_len = oren_list_len(traits_ext) }
             var ti_ext = 0
-            while traits_ext != nil && ti_ext < oren_list_len(traits_ext) {
+            while ti_ext < traits_ext_len {
                 oren_list_push(merged_traits, traits_ext[ti_ext])
                 ti_ext = ti_ext + 1
             }
@@ -703,16 +743,20 @@ fn link_program(entry_path, root_prog, config) {
     // contract stable if that pipeline evolves.)
     if trace_passes { print("[trace] pass: cfg") }
     cfg_lowering.lower_linked_program_in_place(linked)
-    if linked["cfg_errors"] != nil && oren_list_len(linked["cfg_errors"]) > 0 {
-        var first_cfg = linked["cfg_errors"][0]
-        emit_diag("compile", 1, first_cfg)
-        print("Cfg filtering errors:")
-        var cei = 0
-        while cei < oren_list_len(linked["cfg_errors"]) {
-            print(linked["cfg_errors"][cei])
-            cei = cei + 1
+    var linked_cfg_errors = linked["cfg_errors"]
+    if linked_cfg_errors != nil {
+        var linked_cfg_errors_len = oren_list_len(linked_cfg_errors)
+        if linked_cfg_errors_len > 0 {
+            var first_cfg = linked_cfg_errors[0]
+            emit_diag("compile", 1, first_cfg)
+            print("Cfg filtering errors:")
+            var cei = 0
+            while cei < linked_cfg_errors_len {
+                print(linked_cfg_errors[cei])
+                cei = cei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
 
     // Rolling module visibility:
@@ -720,16 +764,20 @@ fn link_program(entry_path, root_prog, config) {
     // - modules without `pub` remain legacy-open during migration
     if trace_passes { print("[trace] pass: module_visibility") }
     module_visibility.lower_linked_program_in_place(linked)
-    if linked["visibility_errors"] != nil && oren_list_len(linked["visibility_errors"]) > 0 {
-        var first_vis = linked["visibility_errors"][0]
-        emit_diag("compile", 1, first_vis)
-        print("Module visibility errors:")
-        var vei = 0
-        while vei < oren_list_len(linked["visibility_errors"]) {
-            print(linked["visibility_errors"][vei])
-            vei = vei + 1
+    var visibility_errors = linked["visibility_errors"]
+    if visibility_errors != nil {
+        var visibility_errors_len = oren_list_len(visibility_errors)
+        if visibility_errors_len > 0 {
+            var first_vis = visibility_errors[0]
+            emit_diag("compile", 1, first_vis)
+            print("Module visibility errors:")
+            var vei = 0
+            while vei < visibility_errors_len {
+                print(visibility_errors[vei])
+                vei = vei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
 
     // Normalize cross-module type annotation spellings:
@@ -738,16 +786,20 @@ fn link_program(entry_path, root_prog, config) {
     // Must run before lowerings that consult annotations for dispatch decisions.
     if trace_passes { print("[trace] pass: type_name_resolve") }
     type_resolve.lower_linked_program_in_place(linked)
-    if linked["type_name_errors"] != nil && oren_list_len(linked["type_name_errors"]) > 0 {
-        var first_err = linked["type_name_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Type name resolution errors:")
-        var ei = 0
-        while ei < oren_list_len(linked["type_name_errors"]) {
-            print(linked["type_name_errors"][ei])
-            ei = ei + 1
+    var type_name_errors = linked["type_name_errors"]
+    if type_name_errors != nil {
+        var type_name_errors_len = oren_list_len(type_name_errors)
+        if type_name_errors_len > 0 {
+            var first_err = type_name_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Type name resolution errors:")
+            var ei = 0
+            while ei < type_name_errors_len {
+                print(type_name_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt4 = oren_time_now_ns() - t0
@@ -760,16 +812,20 @@ fn link_program(entry_path, root_prog, config) {
     // - enforces deterministic coherence (ambiguous overlap is a compile error)
     if trace_passes { print("[trace] pass: impl_lowering") }
     impl_lowering.lower_linked_program_in_place(linked)
-    if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
-        var first_err = linked["impl_lowering_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Impl lowering errors:")
-        var ei = 0
-        while ei < oren_list_len(linked["impl_lowering_errors"]) {
-            print(linked["impl_lowering_errors"][ei])
-            ei = ei + 1
+    var linked_impl_lowering_errors = linked["impl_lowering_errors"]
+    if linked_impl_lowering_errors != nil {
+        var linked_impl_lowering_errors_len = oren_list_len(linked_impl_lowering_errors)
+        if linked_impl_lowering_errors_len > 0 {
+            var first_err = linked_impl_lowering_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Impl lowering errors:")
+            var ei = 0
+            while ei < linked_impl_lowering_errors_len {
+                print(linked_impl_lowering_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt5 = oren_time_now_ns() - t0
@@ -780,16 +836,20 @@ fn link_program(entry_path, root_prog, config) {
     // Compile-time lowering: packed struct views over bytes.
     if trace_passes { print("[trace] pass: packview") }
     packview.lower_linked_program_in_place(linked)
-    if linked["packview_errors"] != nil && oren_list_len(linked["packview_errors"]) > 0 {
-        var first_err = linked["packview_errors"][0]
-        emit_diag("compile", 1, first_err)
-        print("Packview errors:")
-        var ei = 0
-        while ei < oren_list_len(linked["packview_errors"]) {
-            print(linked["packview_errors"][ei])
-            ei = ei + 1
+    var packview_errors = linked["packview_errors"]
+    if packview_errors != nil {
+        var packview_errors_len = oren_list_len(packview_errors)
+        if packview_errors_len > 0 {
+            var first_err = packview_errors[0]
+            emit_diag("compile", 1, first_err)
+            print("Packview errors:")
+            var ei = 0
+            while ei < packview_errors_len {
+                print(packview_errors[ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
         }
-        oren_exit(1)
     }
     if trace_phases {
         var dt5b = oren_time_now_ns() - t0
