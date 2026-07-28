@@ -1806,6 +1806,10 @@ if grep -nE 'while .*< oren_list_len\(' \
 	  lib/compiler/dump.oren \
 	  lib/compiler/arm64_macho_resolve.oren \
 	  lib/compiler/compiler/012_build_cache.oren \
+	  lib/compiler/compiler/040_build_pipeline/000_prelude.oren \
+	  lib/compiler/compiler/040_build_pipeline/005_helpers.oren \
+	  lib/compiler/compiler/040_build_pipeline/008_introspection_commands.oren \
+	  lib/compiler/compiler/040_build_pipeline/010_main.oren \
 	  lib/compiler/compiler/020_modules_linking/000_prelude.oren \
 	  lib/compiler/compiler/020_modules_linking/010_parse.oren \
 	  lib/compiler/compiler/020_modules_linking/020_pipeline.oren \

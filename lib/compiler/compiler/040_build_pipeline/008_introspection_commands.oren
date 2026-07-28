@@ -291,14 +291,16 @@ fn _parse_introspection_program_or_die(path, src, strict_attrs, attr_allow_prefi
     // than compiler-injected generator helper declarations.
     p["_skip_generator_core_inject"] = true
     var prog = parser.parse_program(p)
-    if oren_list_len(p["errors"]) > 0 {
+    var dump_parse_errors = p["errors"]
+    var dump_parse_errors_len = oren_list_len(dump_parse_errors)
+    if dump_parse_errors_len > 0 {
         var first_err = nil
-        if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+        if dump_parse_errors_len > 0 { first_err = dump_parse_errors[0] }
         emit_diag("parse", 1, first_err)
         print("Parse errors:")
         var ei = 0
-        while ei < oren_list_len(p["errors"]) {
-            print(p["errors"][ei])
+        while ei < dump_parse_errors_len {
+            print(dump_parse_errors[ei])
             ei = ei + 1
         }
         oren_exit(1)

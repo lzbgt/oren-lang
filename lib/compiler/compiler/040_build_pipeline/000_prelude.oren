@@ -66,8 +66,9 @@ fn _build_collect_ffi_link_libs_from_ffi_stmt(st, target, out, seen) {
     if st["type"] != "FFI" { return nil }
     var attrs = st["attrs"]
     if attrs == nil { return nil }
+    var ffi_stmt_attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < ffi_stmt_attrs_len {
         var a = attrs[i]
         if a == nil || a["type"] != "Attr" { i = i + 1; continue }
         var nm = a["name"]
@@ -114,8 +115,9 @@ fn _build_collect_ffi_link_libs(linked, target) {
     var stmts = linked["statements"]
     if stmts == nil { return out }
     var seen = {}
+    var ffi_link_stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < ffi_link_stmts_len {
         _build_collect_ffi_link_libs_from_ffi_stmt(stmts[i], target, out, seen)
         i = i + 1
     }
@@ -127,8 +129,9 @@ fn _build_merge_link_libs(user_link_libs, implicit_link_libs) {
     var out = []
     var seen = {}
     if user_link_libs != nil {
+        var merge_user_link_libs_len = oren_list_len(user_link_libs)
         var i = 0
-        while i < oren_list_len(user_link_libs) {
+        while i < merge_user_link_libs_len {
             var s = user_link_libs[i]
             if s != nil && s != "" && seen[s] == nil {
                 seen[s] = true
@@ -138,8 +141,9 @@ fn _build_merge_link_libs(user_link_libs, implicit_link_libs) {
         }
     }
     if implicit_link_libs != nil {
+        var merge_implicit_link_libs_len = oren_list_len(implicit_link_libs)
         var j = 0
-        while j < oren_list_len(implicit_link_libs) {
+        while j < merge_implicit_link_libs_len {
             var s2 = implicit_link_libs[j]
             if s2 != nil && s2 != "" && seen[s2] == nil {
                 seen[s2] = true
@@ -172,8 +176,9 @@ fn _build_collect_ffi_export_names_from_stmt(st, out, seen) {
     var fn_name = fn_node["name"]
     if fn_name == nil || fn_name == "" { return nil }
 
+    var ffi_export_attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < ffi_export_attrs_len {
         var a = attrs[i]
         if a == nil || a["type"] != "Attr" { i = i + 1; continue }
         if !_build_str_eq_bytes(a["name"], "ffi.export") { i = i + 1; continue }
@@ -194,11 +199,11 @@ fn _build_collect_ffi_export_names(linked) {
     var stmts = linked["statements"]
     if stmts == nil { return out }
     var seen = {}
+    var ffi_export_stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < ffi_export_stmts_len {
         _build_collect_ffi_export_names_from_stmt(stmts[i], out, seen)
         i = i + 1
     }
     return out
 }
-

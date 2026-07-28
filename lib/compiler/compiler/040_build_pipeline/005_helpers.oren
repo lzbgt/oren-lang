@@ -197,8 +197,9 @@ fn _python_embed_probe_info() {
         oren_list_push(candidates, "python")
         oren_list_push(candidates, "py -3")
     }
+    var py_probe_candidates_len = oren_list_len(candidates)
     var i = 0
-    while i < oren_list_len(candidates) {
+    while i < py_probe_candidates_len {
         var c0 = candidates[i]
         var c_strip = _string_strip_wrapping_quotes(c0)
         var cmd = nil
@@ -269,8 +270,9 @@ fn _msvc_python_embed_flags() {
     }
     if oren_list_len(libdirs) == 0 { return nil }
     oren_list_push(flags, "/link")
+    var msvc_libdirs_len = oren_list_len(libdirs)
     var j = 0
-    while j < oren_list_len(libdirs) {
+    while j < msvc_libdirs_len {
         var d = libdirs[j]
         if d != nil && d != "" {
             if host_is_windows() { d = _path_to_windows_sep(d) }

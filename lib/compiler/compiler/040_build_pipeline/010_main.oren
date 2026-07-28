@@ -1,8 +1,9 @@
 fn _build_obx_api_surface(linked) {
     var surface = {"function_returns": {}, "impls": []}
     var stmts = linked["statements"]
+    var obx_surface_stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < obx_surface_stmts_len {
         var entry = analysis.top_level_function_surface_entry(stmts[i])
         if entry != nil {
             var name = entry["name"]
@@ -60,8 +61,9 @@ fn compiler_main() {
     // Rolling legacy alias: `oren --emit-c <file>` is treated as `oren emit-c <file>`.
     if oren_list_len(argv) > 0 && argv[0] == "--emit-c" {
         var argv2 = ["emit-c"]
+        var legacy_emit_c_argv_len = oren_list_len(argv)
         var j = 1
-        while j < oren_list_len(argv) {
+        while j < legacy_emit_c_argv_len {
             oren_list_push(argv2, argv[j])
             j = j + 1
         }
@@ -695,14 +697,16 @@ fn compiler_main() {
     if trace_phase_path != nil {
         _build_phase_log_append(trace_phase_path, "build.parse.done", "errors=" + oren_int_to_string(oren_list_len(p["errors"])), t_sum0)
     }
-    if oren_list_len(p["errors"]) > 0 {
+    var build_parse_errors = p["errors"]
+    var build_parse_errors_len = oren_list_len(build_parse_errors)
+    if build_parse_errors_len > 0 {
         var first_err = nil
-        if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+        if build_parse_errors_len > 0 { first_err = build_parse_errors[0] }
         emit_diag("parse", 1, first_err)
         print("Parse errors:")
         var i = 0
-        while i < oren_list_len(p["errors"]) {
-            print(p["errors"][i])
+        while i < build_parse_errors_len {
+            print(build_parse_errors[i])
             i = i + 1
         }
         oren_exit(1)
@@ -713,14 +717,15 @@ fn compiler_main() {
     }
     _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0, backend, prog)
     _trace_yield_lowering_v0_if_requested(backend, prog)
-	    if backend == "bytecode" {
-	        var allow_undef = false
-	        var need_link = false
-	        if stdlib_mode == "obc" { need_link = true }
-	        if oren_list_len(link_obc) > 0 { need_link = true }
-	        if stdlib_mode == "obc" { allow_undef = true }
-	        if oren_list_len(link_obc) > 0 { allow_undef = true }
-	        if obc_lib { allow_undef = true }
+		    if backend == "bytecode" {
+		        var allow_undef = false
+		        var need_link = false
+		        var bytecode_link_obc_len = oren_list_len(link_obc)
+		        if stdlib_mode == "obc" { need_link = true }
+		        if bytecode_link_obc_len > 0 { need_link = true }
+		        if stdlib_mode == "obc" { allow_undef = true }
+		        if bytecode_link_obc_len > 0 { allow_undef = true }
+		        if obc_lib { allow_undef = true }
 
 		        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "stdlib_obc": stdlib_obc, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
 	        if trace_phase_path != nil {
@@ -751,17 +756,21 @@ fn compiler_main() {
 	            else if ctx != nil && ctx["code"] != nil { n_code_bc = oren_list_len(ctx["code"]) }
 	            _build_phase_log_append(trace_phase_path, "build.bytecode.codegen.done", "constants=" + oren_int_to_string(n_consts_bc) + " code=" + oren_int_to_string(n_code_bc), t_sum0)
 	        }
-	        if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-	            var first_err = ctx["errors"][0]
-	            emit_diag("codegen", 1, first_err)
-            print("Bytecode codegen errors:")
-            var ei = 0
-            while ei < oren_list_len(ctx["errors"]) {
-                print(ctx["errors"][ei])
-                ei = ei + 1
-            }
-            oren_exit(1)
-        }
+		        if ctx != nil && ctx["errors"] != nil {
+		            var bytecode_ctx_errors = ctx["errors"]
+		            var bytecode_ctx_errors_len = oren_list_len(bytecode_ctx_errors)
+		            if bytecode_ctx_errors_len > 0 {
+		                var first_err = bytecode_ctx_errors[0]
+		                emit_diag("codegen", 1, first_err)
+		                print("Bytecode codegen errors:")
+		                var ei = 0
+		                while ei < bytecode_ctx_errors_len {
+		                    print(bytecode_ctx_errors[ei])
+		                    ei = ei + 1
+		                }
+		                oren_exit(1)
+		            }
+		        }
 
 
         // Rolling: embed metadata into the `.obc` constant pool as a BYTES constant so:
@@ -820,14 +829,15 @@ fn compiler_main() {
                 oren_list_push(libs, stdlib_obc)
             }
             var li = 0
-            while li < oren_list_len(link_obc) {
+            while li < bytecode_link_obc_len {
                 oren_list_push(libs, link_obc[li])
                 li = li + 1
             }
 
             var parsed = []
+            var bytecode_libs_len = oren_list_len(libs)
             li = 0
-            while li < oren_list_len(libs) {
+            while li < bytecode_libs_len {
                 var p = obc_link.obc_read_file(libs[li])
                 if p["error"] != nil {
                     emit_diag("compile", 2, "Failed to read/link obc: " + libs[li] + " (" + p["error"] + ")")
@@ -846,9 +856,11 @@ fn compiler_main() {
 
             // Build an in-memory OBC object from the just-compiled ctx.
             var consts2 = []
+            var bytecode_constants = ctx["constants"]
+            var bytecode_constants_len = oren_list_len(bytecode_constants)
             var ci = 0
-            while ci < oren_list_len(ctx["constants"]) {
-                oren_list_push(consts2, ctx["constants"][ci])
+            while ci < bytecode_constants_len {
+                oren_list_push(consts2, bytecode_constants[ci])
                 ci = ci + 1
             }
             if ctx["meta_bytes"] != nil && _bytes_len_any(ctx["meta_bytes"]) > 0 {
@@ -986,18 +998,22 @@ fn compiler_main() {
         if is_shared_lib != true {
             if target == "macos" && (arch == nil || arch == "arm64") {
                 var exp2 = _build_collect_ffi_export_names(linked)
-                if exp2 != nil && oren_list_len(exp2) != 0 {
+                var exp2_len = 0
+                if exp2 != nil { exp2_len = oren_list_len(exp2) }
+                if exp2_len != 0 {
                     var ei2 = 0
-                    while ei2 < oren_list_len(exp2) {
+                    while ei2 < exp2_len {
                         oren_list_push(export_names, exp2[ei2])
                         ei2 = ei2 + 1
                     }
                 }
             } else if target == "linux" {
                 var exp3 = _build_collect_ffi_export_names(linked)
-                if exp3 != nil && oren_list_len(exp3) != 0 {
+                var exp3_len = 0
+                if exp3 != nil { exp3_len = oren_list_len(exp3) }
+                if exp3_len != 0 {
                     var ei3 = 0
-                    while ei3 < oren_list_len(exp3) {
+                    while ei3 < exp3_len {
                         oren_list_push(export_names, exp3[ei3])
                         ei3 = ei3 + 1
                     }
@@ -1006,9 +1022,11 @@ fn compiler_main() {
                 // Windows x64 can export function symbols from executables via the PE export table.
                 // This enables `GetProcAddress(GetModuleHandle(NULL), "...")` for callback-style interop.
                 var exp4 = _build_collect_ffi_export_names(linked)
-                if exp4 != nil && oren_list_len(exp4) != 0 {
+                var exp4_len = 0
+                if exp4 != nil { exp4_len = oren_list_len(exp4) }
+                if exp4_len != 0 {
                     var ei4 = 0
-                    while ei4 < oren_list_len(exp4) {
+                    while ei4 < exp4_len {
                         oren_list_push(export_names, exp4[ei4])
                         ei4 = ei4 + 1
                     }
@@ -1020,8 +1038,9 @@ fn compiler_main() {
             var header_path = default_output_path(out_path) + ".h"
             var h_content = "#ifndef OREN_LIB_H\n#define OREN_LIB_H\n\n#include <stdint.h>\n\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n"
             var stmts = linked["statements"]
+            var shared_header_stmts_len = oren_list_len(stmts)
             var si = 0
-            while si < oren_list_len(stmts) {
+            while si < shared_header_stmts_len {
                 var s = stmts[si]
                 var fn_node = nil
                 
@@ -1382,21 +1401,24 @@ fn compiler_main() {
             var cl_args = ["/nologo", "/std:c11", "/O2", "/Fe:" + out_win, c_win, "lib\\runtime.c", "lib\\runtime_buf.c", "/Ilib"]
             if no_gc { oren_list_push(cl_args, "/DOREN_NO_GC") }
             if msvc_python_flags != nil {
+                var msvc_python_flags_len = oren_list_len(msvc_python_flags)
                 var pf_i2 = 0
-                while pf_i2 < oren_list_len(msvc_python_flags) {
+                while pf_i2 < msvc_python_flags_len {
                     oren_list_push(cl_args, msvc_python_flags[pf_i2])
                     pf_i2 = pf_i2 + 1
                 }
             }
+            var msvc_link_libs_len = oren_list_len(link_libs)
             var j_lib = 0
-            while j_lib < oren_list_len(link_libs) {
+            while j_lib < msvc_link_libs_len {
                 // Best-effort: pass as-is (can be .lib path or object file).
                 oren_list_push(cl_args, _path_to_windows_sep(link_libs[j_lib]))
                 j_lib = j_lib + 1
             }
             oren_list_push(parts, cmd_quote(cc))
+            var msvc_cl_args_len = oren_list_len(cl_args)
             var j = 0
-            while j < oren_list_len(cl_args) {
+            while j < msvc_cl_args_len {
                 oren_list_push(parts, " ")
                 oren_list_push(parts, cmd_quote(cl_args[j]))
                 j = j + 1
@@ -1416,8 +1438,9 @@ fn compiler_main() {
         } else {
             // gcc/clang-style compiler on Windows (MSYS2). Keep the existing flag shape.
             cmd = cc + " -O2 -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib"
+            var win_posix_link_libs_len = oren_list_len(link_libs)
             var k_lib = 0
-            while k_lib < oren_list_len(link_libs) {
+            while k_lib < win_posix_link_libs_len {
                 cmd = cmd + " " + shell_quote(link_libs[k_lib])
                 k_lib = k_lib + 1
             }
@@ -1443,8 +1466,9 @@ fn compiler_main() {
         }
     } else {
         cmd = cc + " -O2 -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"
+        var posix_link_libs_len = oren_list_len(link_libs)
         var k_lib = 0
-        while k_lib < oren_list_len(link_libs) {
+        while k_lib < posix_link_libs_len {
             cmd = cmd + " " + shell_quote(link_libs[k_lib])
             k_lib = k_lib + 1
         }
