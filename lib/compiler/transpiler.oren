@@ -90,10 +90,10 @@ fn transpile_type_ctor(t, type_decl) {
     emit(t, fnwrap_sig_by_name(ctor_name) + " {")
     indent_more(t)
     emit(t, "(void)env;")
-    emit(t, "if (argc != " + int_str(oren_list_len(type_decl["fields"])) + ") { oren_panic(\"arity mismatch\"); }")
+    emit(t, "if (argc != " + int_str(n) + ") { oren_panic(\"arity mismatch\"); }")
     var args2 = ""
     var k = 0
-    while k < oren_list_len(type_decl["fields"]) {
+    while k < n {
         if k > 0 { args2 = args2 + ", " }
         args2 = args2 + "argv[" + int_str(k) + "]"
         k = k + 1
@@ -128,13 +128,14 @@ fn transpile_lambda_def(t, def) {
     emit(t, lambda_sig_by_name(lname) + " {")
     indent_more(t)
 
-    if oren_list_len(caps) == 0 {
+    var caps_len_lambda = oren_list_len(caps)
+    if caps_len_lambda == 0 {
         emit(t, "(void)env;")
     } else {
         emit(t, "OrenList* __env = (OrenList*)env;")
-        emit(t, "if (!__env || __env->count != " + oren_int_to_string(oren_list_len(caps)) + ") { oren_panic(\"closure env mismatch\"); }")
+        emit(t, "if (!__env || __env->count != " + oren_int_to_string(caps_len_lambda) + ") { oren_panic(\"closure env mismatch\"); }")
         var i = 0
-        while i < oren_list_len(caps) {
+        while i < caps_len_lambda {
             var nm = caps[i]
             emit(t, "OrenValue " + c_ident(nm) + " = __env->items[" + oren_int_to_string(i) + "];")
             i = i + 1
@@ -173,8 +174,9 @@ fn transpile_lambda_def(t, def) {
     emit(t, "oren_call_depth_enter();")
 
     var body = fun["body"]["stmts"]
+    var body_len_lambda = oren_list_len(body)
     var k = 0
-    while k < oren_list_len(body) {
+    while k < body_len_lambda {
         emit(t, transpile_statement(t, body[k]))
         k = k + 1
     }
@@ -216,8 +218,9 @@ fn transpile_statement(t, stmt) {
         var inty_prev = _transpiler_inty_clone(_transpiler_inty_list(t))
         oren_list_push(parts, "{")
         oren_list_push(parts, CH_LF)
+        var stmts_len_block = oren_list_len(stmts)
         var i = 0
-        while i < oren_list_len(stmts) {
+        while i < stmts_len_block {
             oren_list_push(parts, "    " + transpile_statement(t, stmts[i]))
             oren_list_push(parts, CH_LF)
             i = i + 1
@@ -325,9 +328,11 @@ fn transpile_statement(t, stmt) {
         var inner2_parts = []
         oren_list_push(inner2_parts, "    if (((" + tick2 + "++) & 255u) == 0u) { oren_gc_safepoint(); }")
         oren_list_push(inner2_parts, CH_LF)
+        var body2_stmts = stmt["body"]["stmts"]
+        var body2_len = oren_list_len(body2_stmts)
         var j = 0
-        while j < oren_list_len(stmt["body"]["stmts"]) {
-            oren_list_push(inner2_parts, "    " + transpile_statement(t, stmt["body"]["stmts"][j]))
+        while j < body2_len {
+            oren_list_push(inner2_parts, "    " + transpile_statement(t, body2_stmts[j]))
             oren_list_push(inner2_parts, CH_LF)
             j = j + 1
         }
@@ -355,9 +360,11 @@ fn transpile_if(t, expr) {
     oren_list_push(parts, "if (oren_is_truthy(" + cond + ")) {")
     oren_list_push(parts, CH_LF)
     t["inty"] = _transpiler_inty_clone(inty_base)
+    var consq_stmts = expr["consq"]["stmts"]
+    var consq_len = oren_list_len(consq_stmts)
     var i = 0
-    while i < oren_list_len(expr["consq"]["stmts"]) {
-        oren_list_push(parts, "    " + transpile_statement(t, expr["consq"]["stmts"][i]))
+    while i < consq_len {
+        oren_list_push(parts, "    " + transpile_statement(t, consq_stmts[i]))
         oren_list_push(parts, CH_LF)
         i = i + 1
     }
@@ -367,9 +374,11 @@ fn transpile_if(t, expr) {
         t["inty"] = _transpiler_inty_clone(inty_base)
         oren_list_push(parts, " else {")
         oren_list_push(parts, CH_LF)
+        var alt_stmts = expr["alt"]["stmts"]
+        var alt_len = oren_list_len(alt_stmts)
         i = 0
-        while i < oren_list_len(expr["alt"]["stmts"]) {
-            oren_list_push(parts, "    " + transpile_statement(t, expr["alt"]["stmts"][i]))
+        while i < alt_len {
+            oren_list_push(parts, "    " + transpile_statement(t, alt_stmts[i]))
             oren_list_push(parts, CH_LF)
             i = i + 1
         }
@@ -429,15 +438,17 @@ fn transpile_expression(t, exp) {
         var lname = exp["lambda_name"]
         if lname == nil { return "/* lambda not collected */ OREN_NIL" }
         var caps = exp["captures"]
-        if caps == nil || oren_list_len(caps) == 0 { return "oren_closure(" + lname + ", 0)" }
+        var caps_len_expr = 0
+        if caps != nil { caps_len_expr = oren_list_len(caps) }
+        if caps_len_expr == 0 { return "oren_closure(" + lname + ", 0)" }
         var args = ""
         var i = 0
-        while i < oren_list_len(caps) {
+        while i < caps_len_expr {
             if i > 0 { args = args + ", " }
             args = args + transpile_expression(t, {"type": "Identifier", "value": caps[i]})
             i = i + 1
         }
-        return "oren_closure_from_array(" + lname + ", " + oren_int_to_string(oren_list_len(caps)) + ", (OrenValue[]){" + args + "})"
+        return "oren_closure_from_array(" + lname + ", " + oren_int_to_string(caps_len_expr) + ", (OrenValue[]){" + args + "})"
     }
     if et == "Prefix" {
         var right = transpile_expression(t, exp["right"])
@@ -516,8 +527,9 @@ fn transpile_expression(t, exp) {
         var spread = exp["spread"]
 
         var args_s = ""
+        var args_len_call = oren_list_len(exp["args"])
         var i = 0
-        while i < oren_list_len(exp["args"]) {
+        while i < args_len_call {
             if i > 0 { args_s = args_s + ", " }
             args_s = args_s + transpile_expression(t, exp["args"][i])
             i = i + 1
@@ -525,7 +537,7 @@ fn transpile_expression(t, exp) {
 
         if exp["fn"]["type"] == "Identifier" {
             var name = exp["fn"]["value"]
-            var argc = oren_list_len(exp["args"])
+            var argc = args_len_call
             if spread == nil {
                 if (str_eq(name, "oren_list_int_len") || str_eq(name, "STD_list_int_len")) && argc == 1 {
                     return "oren_list_int_len_fast(" + args_s + ")"
@@ -635,7 +647,7 @@ fn transpile_expression(t, exp) {
             use_call_obj = true
         }
         if use_call_obj {
-            var argc = oren_list_len(exp["args"])
+            var argc = args_len_call
             if spread != nil {
                 return "oren_call_obj_spread(" + fn_expr + ", " + transpile_args_list_expr(t, exp["args"]) + ", " + transpile_expression(t, spread) + ")"
             }
@@ -690,13 +702,13 @@ fn transpile_expression(t, exp) {
     }
     if et == "Array" {
         var els = ""
+        var count = oren_list_len(exp["elements"])
         var i = 0
-        while i < oren_list_len(exp["elements"]) {
+        while i < count {
             if i > 0 { els = els + ", " }
             els = els + transpile_expression(t, exp["elements"][i])
             i = i + 1
         }
-        var count = oren_list_len(exp["elements"])
         if count == 0 { return "oren_new_list(0)" }
         return "oren_new_list_from_array(" + int_str(count) + ", (OrenValue[]){" + els + "})"
     }
@@ -732,9 +744,11 @@ fn transpile_function(t, func_decl) {
     t["const_ints"] = {}
     // Stack safety: deterministic recursion guard for C backend binaries.
     emit(t, "oren_call_depth_enter();")
+    var fn_body_stmts = func_decl["body"]["stmts"]
+    var fn_body_len = oren_list_len(fn_body_stmts)
     var i = 0
-    while i < oren_list_len(func_decl["body"]["stmts"]) {
-        emit(t, transpile_statement(t, func_decl["body"]["stmts"][i]))
+    while i < fn_body_len {
+        emit(t, transpile_statement(t, fn_body_stmts[i]))
         i = i + 1
     }
     emit(t, "oren_call_depth_exit(); return OREN_NIL;")

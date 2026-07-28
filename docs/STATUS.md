@@ -53,6 +53,9 @@ surfaces, but the following blockers remain:
   root, parse-error, decoded-list, and merge traversal counts, with hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that shared x64/ARM64
   runtime-injection path.
+- C transpiler constructor, lambda, block, branch, call, array, and function body
+  emission now caches immutable AST list counts before traversal, with hotpath
+  guard coverage rejecting direct `oren_list_len` loop bounds in that backend.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
