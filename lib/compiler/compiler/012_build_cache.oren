@@ -113,8 +113,9 @@ fn _cache_hash_u8_buf(ub, build_cfg) {
 fn _cache_sort_strings(xs) {
     // Insertion sort (small lists expected).
     if xs == nil { return [] }
+    var sort_xs_len = oren_list_len(xs)
     var i = 1
-    while i < oren_list_len(xs) {
+    while i < sort_xs_len {
         var key = xs[i]
         var j = i - 1
         while j >= 0 && xs[j] > key {
@@ -195,8 +196,9 @@ fn _cache_native_build_env_names(build_cfg) {
             "OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT",
             "OREN_ARM64_FAST_LIST_PUSH_TICK_MASK"
         ]
+        var arm64_names_len = oren_list_len(arm64_names)
         var i = 0
-        while i < oren_list_len(arm64_names) {
+        while i < arm64_names_len {
             oren_list_push(names, arm64_names[i])
             i = i + 1
         }
@@ -205,8 +207,9 @@ fn _cache_native_build_env_names(build_cfg) {
             "OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS",
             "OREN_X64_SKIP_RTOBJ"
         ]
+        var x64_names_len = oren_list_len(x64_names)
         var j = 0
-        while j < oren_list_len(x64_names) {
+        while j < x64_names_len {
             oren_list_push(names, x64_names[j])
             j = j + 1
         }
@@ -443,8 +446,9 @@ fn _cache_hash_includes_closure_fingerprint(full_path, src, includes, build_cfg,
 
     // Include-cycle check (keep it deterministic and safe).
     if include_stack != nil {
+        var closure_stack_len = oren_list_len(include_stack)
         var si = 0
-        while si < oren_list_len(include_stack) {
+        while si < closure_stack_len {
             if include_stack[si] == full_path {
                 return "include_cycle:" + full_path
             }
@@ -453,8 +457,9 @@ fn _cache_hash_includes_closure_fingerprint(full_path, src, includes, build_cfg,
     }
     var next_stack = []
     if include_stack != nil {
+        var closure_copy_stack_len = oren_list_len(include_stack)
         var ci = 0
-        while ci < oren_list_len(include_stack) { oren_list_push(next_stack, include_stack[ci]); ci = ci + 1 }
+        while ci < closure_copy_stack_len { oren_list_push(next_stack, include_stack[ci]); ci = ci + 1 }
     }
     oren_list_push(next_stack, full_path)
 
@@ -462,7 +467,9 @@ fn _cache_hash_includes_closure_fingerprint(full_path, src, includes, build_cfg,
     var h2 = _fnv1a63_string(src, 1099511628211)
 
     var ii = 0
-    while includes != nil && ii < oren_list_len(includes) {
+    var closure_includes_len = 0
+    if includes != nil { closure_includes_len = oren_list_len(includes) }
+    while ii < closure_includes_len {
         var incp = includes[ii]
         if incp != nil && incp != "" {
             var child_src = oren_read_file(incp)
@@ -595,7 +602,8 @@ fn _scan_cache_load(cache_dir) {
     var out = {}
     var i = 1
     var records = 0
-    while i < oren_list_len(lines) && records < SCAN_CACHE_MAX_RECORDS {
+    var load_lines_len = oren_list_len(lines)
+    while i < load_lines_len && records < SCAN_CACHE_MAX_RECORDS {
         // Fixed-order record:
         //   path
         //   mtime_ns
@@ -608,7 +616,7 @@ fn _scan_cache_load(cache_dir) {
         //   closure_hash
         //   n_imports_merged
         //   imports_merged...
-        if i + 5 >= oren_list_len(lines) { break }
+        if i + 5 >= load_lines_len { break }
         var path = lines[i]; i = i + 1
         var mline = lines[i]; i = i + 1
         var szline = lines[i]; i = i + 1
@@ -622,28 +630,28 @@ fn _scan_cache_load(cache_dir) {
         var ninc = _scan_cache_parse_u32(ninc_line)
         var incs = []
         var j = 0
-        while j < ninc && i < oren_list_len(lines) {
+        while j < ninc && i < load_lines_len {
             oren_list_push(incs, lines[i])
             i = i + 1
             j = j + 1
         }
-        if i >= oren_list_len(lines) { break }
+        if i >= load_lines_len { break }
         var nself = _scan_cache_parse_u32(lines[i]); i = i + 1
         var self_imps = []
         var j2 = 0
-        while j2 < nself && i < oren_list_len(lines) {
+        while j2 < nself && i < load_lines_len {
             oren_list_push(self_imps, lines[i])
             i = i + 1
             j2 = j2 + 1
         }
-        if i >= oren_list_len(lines) { break }
+        if i >= load_lines_len { break }
         var hh = lines[i]; i = i + 1
         if hh == nil { hh = "" }
-        if i >= oren_list_len(lines) { break }
+        if i >= load_lines_len { break }
         var nmerged = _scan_cache_parse_u32(lines[i]); i = i + 1
         var merged = []
         var j3 = 0
-        while j3 < nmerged && i < oren_list_len(lines) {
+        while j3 < nmerged && i < load_lines_len {
             oren_list_push(merged, lines[i])
             i = i + 1
             j3 = j3 + 1
@@ -752,7 +760,8 @@ fn _scan_cache_save(cache_dir, cache_map) {
     _scan_cache_bytes_push_str(b, "OREN_SCAN_CACHE_V3\n")
     var i = 0
     var saved = 0
-    while i < oren_list_len(paths) && saved < SCAN_CACHE_MAX_RECORDS {
+    var save_paths_len = oren_list_len(paths)
+    while i < save_paths_len && saved < SCAN_CACHE_MAX_RECORDS {
         var path = paths[i]
         var rec = cache_map[path]
         if rec == nil { i = i + 1; continue }
@@ -764,12 +773,15 @@ fn _scan_cache_save(cache_dir, cache_map) {
         if raw == nil { raw = "" }
         var incs = rec["includes"]
         if incs == nil { incs = [] }
+        var save_incs_len = oren_list_len(incs)
         var self_imps = rec["imports_self"]
         if self_imps == nil { self_imps = [] }
+        var save_self_imps_len = oren_list_len(self_imps)
         var hh = rec["hash"]
         if hh == nil { hh = "" }
         var merged = rec["imports"]
         if merged == nil { merged = [] }
+        var save_merged_len = oren_list_len(merged)
         _scan_cache_bytes_push_str(b, path)
         _scan_cache_bytes_push_byte(b, 10)
         _scan_cache_bytes_push_str(b, oren_int_to_string(mtime))
@@ -778,20 +790,20 @@ fn _scan_cache_save(cache_dir, cache_map) {
         _scan_cache_bytes_push_byte(b, 10)
         _scan_cache_bytes_push_str(b, raw)
         _scan_cache_bytes_push_byte(b, 10)
-        _scan_cache_bytes_push_str(b, oren_int_to_string(oren_list_len(incs)))
+        _scan_cache_bytes_push_str(b, oren_int_to_string(save_incs_len))
         _scan_cache_bytes_push_byte(b, 10)
         var j = 0
-        while j < oren_list_len(incs) {
+        while j < save_incs_len {
             var inc = incs[j]
             if inc == nil { inc = "" }
             _scan_cache_bytes_push_str(b, inc)
             _scan_cache_bytes_push_byte(b, 10)
             j = j + 1
         }
-        _scan_cache_bytes_push_str(b, oren_int_to_string(oren_list_len(self_imps)))
+        _scan_cache_bytes_push_str(b, oren_int_to_string(save_self_imps_len))
         _scan_cache_bytes_push_byte(b, 10)
         var j2 = 0
-        while j2 < oren_list_len(self_imps) {
+        while j2 < save_self_imps_len {
             var imp = self_imps[j2]
             if imp == nil { imp = "" }
             _scan_cache_bytes_push_str(b, imp)
@@ -800,10 +812,10 @@ fn _scan_cache_save(cache_dir, cache_map) {
         }
         _scan_cache_bytes_push_str(b, hh)
         _scan_cache_bytes_push_byte(b, 10)
-        _scan_cache_bytes_push_str(b, oren_int_to_string(oren_list_len(merged)))
+        _scan_cache_bytes_push_str(b, oren_int_to_string(save_merged_len))
         _scan_cache_bytes_push_byte(b, 10)
         var j3 = 0
-        while j3 < oren_list_len(merged) {
+        while j3 < save_merged_len {
             var imp2 = merged[j3]
             if imp2 == nil { imp2 = "" }
             _scan_cache_bytes_push_str(b, imp2)
@@ -944,8 +956,9 @@ fn _cache_hash_includes_closure_stat(full_path, build_cfg, scan_state, include_s
 
     // Include-cycle check (keep it deterministic and safe).
     if include_stack != nil {
+        var stat_stack_len = oren_list_len(include_stack)
         var si = 0
-        while si < oren_list_len(include_stack) {
+        while si < stat_stack_len {
             if include_stack[si] == full_path {
                 return "include_cycle:" + full_path
             }
@@ -954,8 +967,9 @@ fn _cache_hash_includes_closure_stat(full_path, build_cfg, scan_state, include_s
     }
     var next_stack = []
     if include_stack != nil {
+        var stat_copy_stack_len = oren_list_len(include_stack)
         var ci = 0
-        while ci < oren_list_len(include_stack) { oren_list_push(next_stack, include_stack[ci]); ci = ci + 1 }
+        while ci < stat_copy_stack_len { oren_list_push(next_stack, include_stack[ci]); ci = ci + 1 }
     }
     oren_list_push(next_stack, full_path)
 
@@ -979,7 +993,8 @@ fn _cache_hash_includes_closure_stat(full_path, build_cfg, scan_state, include_s
     h1 = mm["h1"]; h2 = mm["h2"]
 
     var ii = 0
-    while ii < oren_list_len(incs) {
+    var stat_incs_len = oren_list_len(incs)
+    while ii < stat_incs_len {
         var incp = incs[ii]
         if incp != nil && incp != "" {
             var child_hash = _cache_hash_includes_closure_stat(incp, build_cfg, scan_state, next_stack)
@@ -1050,8 +1065,9 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
     var seen_imp = {}
     var self_imps = rec["imports_self"]
     if self_imps == nil { self_imps = [] }
+    var cached_self_imps_len = oren_list_len(self_imps)
     var si = 0
-    while si < oren_list_len(self_imps) {
+    while si < cached_self_imps_len {
         var dep0 = self_imps[si]
         if dep0 != nil && dep0 != "" && seen_imp[dep0] != true {
             seen_imp[dep0] = true
@@ -1062,16 +1078,18 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
 
     var incs2 = rec["includes"]
     if incs2 == nil { incs2 = [] }
+    var cached_incs2_len = oren_list_len(incs2)
     var ii2 = 0
-    while ii2 < oren_list_len(incs2) {
+    while ii2 < cached_incs2_len {
         var ip = incs2[ii2]
         if ip != nil && ip != "" {
             var r2 = _cache_scan_imports_for_file_cached(ip, config, scan_state)
             if r2["ok"] == true {
                 var im2 = r2["imports"]
                 if im2 != nil {
+                    var cached_im2_len = oren_list_len(im2)
                     var jj = 0
-                    while jj < oren_list_len(im2) {
+                    while jj < cached_im2_len {
                         var dep = im2[jj]
                         if dep != nil && dep != "" && seen_imp[dep] != true {
                             seen_imp[dep] = true
@@ -1175,8 +1193,9 @@ fn _cache_hash_c_runtime_inputs(inputs, build_cfg, scan_state) {
         }
         inputs["RUNTIME_C:" + path] = _cache_hash_string(src, build_cfg)
         var incs = _cache_scan_c_includes_from_src(src, path)
+        var runtime_incs_len = oren_list_len(incs)
         var i = 0
-        while i < oren_list_len(incs) {
+        while i < runtime_incs_len {
             var inc_path = incs[i]
             if inc_path != nil && inc_path != "" {
                 stack[sp] = inc_path
@@ -1237,8 +1256,9 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         inputs[pth] = r["src_hash"]
         var imps = r["imports"]
         if imps == nil { imps = [] }
+        var key_imps_len = oren_list_len(imps)
         var ii = 0
-        while ii < oren_list_len(imps) {
+        while ii < key_imps_len {
             // push onto stack (reuse capacity where possible)
             if sp < oren_list_len(stack) { stack[sp] = imps[ii] }
             else { oren_list_push(stack, imps[ii]) }
@@ -1272,9 +1292,11 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         }
     }
     if build_cfg != nil && build_cfg["link_obc"] != nil {
+        var link_obc = build_cfg["link_obc"]
+        var link_obc_len = oren_list_len(link_obc)
         var li = 0
-        while li < oren_list_len(build_cfg["link_obc"]) {
-            var lp = build_cfg["link_obc"][li]
+        while li < link_obc_len {
+            var lp = link_obc[li]
             if lp != nil && lp != "" {
                 // OBC blobs can be large; use u8_buf to keep memory bounded.
                 var bs2 = oren_read_u8_buf(lp)
@@ -1394,8 +1416,9 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         if cds == nil { cds = [] }
         cds = _cache_sort_strings(cds)
         s = s + "cap_domains="
+        var cap_domains_len = oren_list_len(cds)
         var ci = 0
-        while ci < oren_list_len(cds) {
+        while ci < cap_domains_len {
             if ci != 0 { s = s + "," }
             s = s + cds[ci]
             ci = ci + 1
@@ -1404,8 +1427,9 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         s = s + "stdlib_mode=" + build_cfg["stdlib_mode"] + "\n"
         if build_cfg["backend"] == "native" {
             var env_names = _cache_native_build_env_names(build_cfg)
+            var env_names_len = oren_list_len(env_names)
             var ei = 0
-            while ei < oren_list_len(env_names) {
+            while ei < env_names_len {
                 s = _cache_append_env_key_field(s, env_names[ei])
                 ei = ei + 1
             }
@@ -1418,8 +1442,9 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         oren_list_push(keys, k)
     }
     keys = _cache_sort_strings(keys)
+    var input_keys_len = oren_list_len(keys)
     var ki = 0
-    while ki < oren_list_len(keys) {
+    while ki < input_keys_len {
         var k2 = keys[ki]
         s = s + "in " + k2 + " " + inputs[k2] + "\n"
         ki = ki + 1
