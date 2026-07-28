@@ -22,6 +22,9 @@ surfaces, but the following blockers remain:
 
 ## Recent Evidence
 
+- CoreGraphics and Metal retained image uploads now validate width/height byte
+  counts with overflow-safe dimension helpers before retained map, image, or
+  texture allocation work.
 - Metal text atlas creation and retained-image uploads now guard cheap wrapper
   and descriptor allocation before GPU texture creation, and standalone text
   texture fallback releases glyph pixels if descriptor allocation fails.

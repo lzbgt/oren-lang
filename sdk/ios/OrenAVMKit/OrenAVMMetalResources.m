@@ -63,6 +63,20 @@ OrenAVMMetalImageResource* OrenAVMMetalRetainedImageResource(CFDictionaryRef ima
     return (__bridge OrenAVMMetalImageResource*)CFDictionaryGetValue(images, OrenAVMMetalRetainedImageKey(imageID));
 }
 
+static BOOL OrenAVMMetalImageDimensions(uint32_t width,
+                                        uint32_t height,
+                                        uint32_t byteCount,
+                                        NSUInteger* pixelsOut) {
+    if (width == 0 || height == 0) return NO;
+    uint64_t heightByteFactor = (uint64_t)height * 4ull;
+    if ((uint64_t)width > UINT64_MAX / heightByteFactor) return NO;
+    uint64_t pixel64 = (uint64_t)width * (uint64_t)height;
+    uint64_t expected = pixel64 * 4ull;
+    if (expected != (uint64_t)byteCount || pixel64 > (uint64_t)NSUIntegerMax) return NO;
+    if (pixelsOut) *pixelsOut = (NSUInteger)pixel64;
+    return YES;
+}
+
 BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
                                   id<MTLDevice> device,
                                   uint32_t imageID,
@@ -74,9 +88,8 @@ BOOL OrenAVMMetalPutImageResource(CFMutableDictionaryRef* imagesByID,
                                   NSUInteger retainedImagePixelLimit,
                                   NSUInteger* retainedImagePixelCount) {
     if (!imagesByID || !device || imageID == 0 || width == 0 || height == 0 || !rgba || !retainedImagePixelCount) return NO;
-    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
-    if (expected != (uint64_t)byteCount) return NO;
-    NSUInteger pixels = (NSUInteger)width * (NSUInteger)height;
+    NSUInteger pixels = 0;
+    if (!OrenAVMMetalImageDimensions(width, height, byteCount, &pixels)) return NO;
     OrenAVMMetalImageResource* oldResource = OrenAVMMetalRetainedImageResource(*imagesByID, imageID);
     NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;
     NSUInteger imageCount = *imagesByID ? (NSUInteger)CFDictionaryGetCount(*imagesByID) : 0;

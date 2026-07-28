@@ -36,6 +36,9 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- CoreGraphics and Metal retained image uploads now validate width/height byte
+  counts with overflow-safe dimension helpers before retained map, image, or
+  texture allocation work.
 - Metal text atlas creation and retained-image uploads now guard wrapper and
   descriptor allocation before GPU texture creation, and standalone text
   textures release glyph pixels if descriptor allocation fails before upload.

@@ -60,9 +60,22 @@ static void OrenAVMGfxReleaseImageBytes(void* info, const void* data, size_t siz
     free((void*)data);
 }
 
+static BOOL OrenAVMGfxImageDimensions(uint32_t width,
+                                      uint32_t height,
+                                      uint32_t byteCount,
+                                      NSUInteger* pixelsOut) {
+    if (width == 0 || height == 0) return NO;
+    uint64_t heightByteFactor = (uint64_t)height * 4ull;
+    if ((uint64_t)width > UINT64_MAX / heightByteFactor) return NO;
+    uint64_t pixel64 = (uint64_t)width * (uint64_t)height;
+    uint64_t expected = pixel64 * 4ull;
+    if (expected != (uint64_t)byteCount || pixel64 > (uint64_t)NSUIntegerMax) return NO;
+    if (pixelsOut) *pixelsOut = (NSUInteger)pixel64;
+    return YES;
+}
+
 UIImage* OrenAVMGfxImageRGBA(const uint8_t* rgba, uint32_t width, uint32_t height, uint32_t byteCount) {
-    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
-    if (!rgba || width == 0 || height == 0 || expected != (uint64_t)byteCount) return nil;
+    if (!rgba || !OrenAVMGfxImageDimensions(width, height, byteCount, NULL)) return nil;
     uint8_t* imageBytes = (uint8_t*)malloc((size_t)byteCount);
     if (!imageBytes) return nil;
     memcpy(imageBytes, rgba, (size_t)byteCount);
@@ -105,11 +118,8 @@ BOOL OrenAVMGfxPutImageResource(CFMutableDictionaryRef* imagesByID,
                                 NSUInteger retainedImagePixelLimit,
                                 NSUInteger* retainedImagePixelCount) {
     if (!imagesByID || !rgba || imageID == 0 || width == 0 || height == 0 || !retainedImagePixelCount) return NO;
-    uint64_t expected = (uint64_t)width * (uint64_t)height * 4ull;
-    if (expected != (uint64_t)byteCount) return NO;
-    uint64_t pixel64 = (uint64_t)width * (uint64_t)height;
-    if (pixel64 > (uint64_t)NSUIntegerMax) return NO;
-    NSUInteger pixels = (NSUInteger)pixel64;
+    NSUInteger pixels = 0;
+    if (!OrenAVMGfxImageDimensions(width, height, byteCount, &pixels)) return NO;
     const void* key = OrenAVMGfxRetainedImageKey(imageID);
     OrenAVMGfxImageResource* oldResource = OrenAVMGfxRetainedImageResource(*imagesByID, imageID);
     NSUInteger oldPixels = oldResource ? oldResource.pixels : 0;

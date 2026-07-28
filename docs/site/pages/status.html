@@ -56,6 +56,11 @@
 <p>  app package.</p>
 <h2 id="recent-evidence">Recent Evidence</h2>
 <ul>
+<li>CoreGraphics and Metal retained image uploads now validate width/height byte</li>
+</ul>
+<p>  counts with overflow-safe dimension helpers before retained map, image, or</p>
+<p>  texture allocation work.</p>
+<ul>
 <li>Metal text atlas creation and retained-image uploads now guard cheap wrapper</li>
 </ul>
 <p>  and descriptor allocation before GPU texture creation, and standalone text</p>

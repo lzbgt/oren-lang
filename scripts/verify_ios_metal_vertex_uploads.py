@@ -160,6 +160,15 @@ def main() -> int:
         fail("Metal geometry vertex runs must expose raw bytes with explicit cleanup")
     if "OrenAVMMetalVertexBufferTakeBytes" not in frame_text or "run.vertexBytes = vertexBytes" not in frame_text:
         fail("Metal geometry flush must transfer raw vertex buffers into runs")
+    for token in (
+        "static BOOL OrenAVMMetalImageDimensions",
+        "uint64_t heightByteFactor = (uint64_t)height * 4ull;",
+        "if ((uint64_t)width > UINT64_MAX / heightByteFactor) return NO;",
+        "if (expected != (uint64_t)byteCount || pixel64 > (uint64_t)NSUIntegerMax) return NO;",
+        "if (!OrenAVMMetalImageDimensions(width, height, byteCount, &pixels)) return NO;",
+    ):
+        if token not in resource_text:
+            fail(f"Metal retained image dimensions must be overflow-checked before texture allocation: {token}")
     flush_start = frame_source.find("void OrenAVMMetalFlushVertexRun")
     flush_end = frame_source.find("static BOOL OrenAVMMetalVertexRunScissorEqual", flush_start)
     if flush_start < 0 or flush_end < 0:

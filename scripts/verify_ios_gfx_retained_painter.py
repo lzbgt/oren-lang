@@ -232,6 +232,16 @@ def main() -> int:
         fail("CoreGraphics retained text resources must use a scalar-key CF dictionary")
     if "OrenAVMGfxRetainedTextResource(texts, textID)" not in resource_text:
         fail("CoreGraphics retained text draws must use the typed scalar-map resource helper")
+    for token in (
+        "static BOOL OrenAVMGfxImageDimensions",
+        "uint64_t heightByteFactor = (uint64_t)height * 4ull;",
+        "if ((uint64_t)width > UINT64_MAX / heightByteFactor) return NO;",
+        "if (expected != (uint64_t)byteCount || pixel64 > (uint64_t)NSUIntegerMax) return NO;",
+        "if (!rgba || !OrenAVMGfxImageDimensions(width, height, byteCount, NULL)) return nil;",
+        "if (!OrenAVMGfxImageDimensions(width, height, byteCount, &pixels)) return NO;",
+    ):
+        if token not in resource_text:
+            fail(f"CoreGraphics retained image dimensions must be overflow-checked before allocation: {token}")
     if "OrenAVMGfxHandleTextCommand(ctx," not in frame_command_text:
         fail("CoreGraphics frame traversal must delegate retained text opcodes to OrenAVMGraphicsResources")
     if "OrenAVMGfxDrawTextResource(texts ? *texts : NULL, textID, x, y)" not in resource_text:
