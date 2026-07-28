@@ -384,6 +384,30 @@ fn erfc(x: f64, y: f64, z: f64) {
     return [math.erfc(x), math.erfc(y), math.erfc(z)]
 }
 
+fn lgamma(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.lgamma")
+    if oren_is_err(ok) { return ok }
+    var ox = math.lgamma(x)
+    if oren_is_err(ox) { return ox }
+    var oy = math.lgamma(y)
+    if oren_is_err(oy) { return oy }
+    var oz = math.lgamma(z)
+    if oren_is_err(oz) { return oz }
+    return [ox, oy, oz]
+}
+
+fn tgamma(x: f64, y: f64, z: f64) {
+    var ok = _finite3(x, y, z, "vec3.tgamma")
+    if oren_is_err(ok) { return ok }
+    var ox = math.tgamma(x)
+    if oren_is_err(ox) { return ox }
+    var oy = math.tgamma(y)
+    if oren_is_err(oy) { return oy }
+    var oz = math.tgamma(z)
+    if oren_is_err(oz) { return oz }
+    return [ox, oy, oz]
+}
+
 fn radians(x: f64, y: f64, z: f64) {
     var ok = _finite3(x, y, z, "vec3.radians")
     if oren_is_err(ok) { return ok }

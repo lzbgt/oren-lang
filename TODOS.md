@@ -37,8 +37,9 @@ design evidence lives under `project-doc/`.
 ## Current Done Evidence
 
 - `std:math` now includes deterministic scalar `lgamma` and `tgamma` helpers in
-  a focused gamma include shard, with Lanczos/reflection coverage across
-  bytecode, C, native, and the AVM release manifest.
+  a focused gamma include shard plus component-wise `vec2`/`vec3`/`vec4`
+  wrappers that propagate scalar domain errors, with Lanczos/reflection coverage
+  across bytecode, C, native, and the AVM release manifest.
 - CoreGraphics and Metal retained image uploads now validate width/height byte
   counts with overflow-safe dimension helpers before retained map, image, or
   texture allocation work.

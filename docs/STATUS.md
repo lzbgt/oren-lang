@@ -3563,7 +3563,8 @@ Working evidence:
   `ldexp`, `frexp`, `scalbn`, `scalbln`, `exp2`, `exp`, `expm1`, `exp10`, `log1p`, `log2`, `ln`,
   `log10`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `sin`, `cos`,
   `sincos`, `tan`, `atan`, `atan2`, `asin`, `acos`, `erf`, `erfc`,
-  `lgamma`, and `tgamma`.
+  `lgamma`, and `tgamma`, plus component-wise `vec2`/`vec3`/`vec4` gamma
+  wrappers that preserve scalar domain-error propagation.
 - `pow` / `power` cover the app-visible cases `power(2,-1)` and
   `power(2,4.3)` through deterministic integer-exponent and
   `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
@@ -3590,7 +3591,7 @@ Working evidence:
   `sinh`/`cosh`/`tanh`, and inverse hyperbolic `asinh`/`acosh`/`atanh`,
   component-wise vector classification plus finite vector `powi`/`pow2i`/`ldexp`/`scalbn`/`scalbln`/`frexp`/`ilogb`/`logb`/`modf` and `hypot`/`hypot3`, approximate real-valued error functions `erf`/`erfc`, finite sin/cos/sincos/tan reduction, quadrant `atan2`,
   inverse-trig `asin`/`acos`, scalar `lgamma`/`tgamma` Lanczos/reflection
-  behavior, and
+  behavior plus vector gamma wrappers, and
   non-finite error behavior in bytecode.
 - The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity
   vector and is release-gated in AVM plus native quick. The earlier 2^53 assertion was invalid:

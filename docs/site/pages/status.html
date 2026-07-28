@@ -4024,7 +4024,8 @@
 <p>  <code>ldexp</code>, <code>frexp</code>, <code>scalbn</code>, <code>scalbln</code>, <code>exp2</code>, <code>exp</code>, <code>expm1</code>, <code>exp10</code>, <code>log1p</code>, <code>log2</code>, <code>ln</code>,</p>
 <p>  <code>log10</code>, <code>sinh</code>, <code>cosh</code>, <code>tanh</code>, <code>asinh</code>, <code>acosh</code>, <code>atanh</code>, <code>sin</code>, <code>cos</code>,</p>
 <p>  <code>sincos</code>, <code>tan</code>, <code>atan</code>, <code>atan2</code>, <code>asin</code>, <code>acos</code>, <code>erf</code>, <code>erfc</code>,</p>
-<p>  <code>lgamma</code>, and <code>tgamma</code>.</p>
+<p>  <code>lgamma</code>, and <code>tgamma</code>, plus component-wise <code>vec2</code>/<code>vec3</code>/<code>vec4</code> gamma</p>
+<p>  wrappers that preserve scalar domain-error propagation.</p>
 <ul>
 <li><code>pow</code> / <code>power</code> cover the app-visible cases <code>power(2,-1)</code> and</li>
 </ul>
@@ -4055,7 +4056,7 @@
 <p>  <code>sinh</code>/<code>cosh</code>/<code>tanh</code>, and inverse hyperbolic <code>asinh</code>/<code>acosh</code>/<code>atanh</code>,</p>
 <p>  component-wise vector classification plus finite vector <code>powi</code>/<code>pow2i</code>/<code>ldexp</code>/<code>scalbn</code>/<code>scalbln</code>/<code>frexp</code>/<code>ilogb</code>/<code>logb</code>/<code>modf</code> and <code>hypot</code>/<code>hypot3</code>, approximate real-valued error functions <code>erf</code>/<code>erfc</code>, finite sin/cos/sincos/tan reduction, quadrant <code>atan2</code>,</p>
 <p>  inverse-trig <code>asin</code>/<code>acos</code>, scalar <code>lgamma</code>/<code>tgamma</code> Lanczos/reflection</p>
-<p>  behavior, and</p>
+<p>  behavior plus vector gamma wrappers, and</p>
 <p>  non-finite error behavior in bytecode.</p>
 <ul>
 <li>The huge-trig Payne-Hanek fixture now uses a meaningful 2^40 periodicity</li>

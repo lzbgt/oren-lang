@@ -423,6 +423,34 @@ fn erfc(x: f64, y: f64, z: f64, w: f64) {
     return [math.erfc(x), math.erfc(y), math.erfc(z), math.erfc(w)]
 }
 
+fn lgamma(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.lgamma")
+    if oren_is_err(ok) { return ok }
+    var ox = math.lgamma(x)
+    if oren_is_err(ox) { return ox }
+    var oy = math.lgamma(y)
+    if oren_is_err(oy) { return oy }
+    var oz = math.lgamma(z)
+    if oren_is_err(oz) { return oz }
+    var ow = math.lgamma(w)
+    if oren_is_err(ow) { return ow }
+    return [ox, oy, oz, ow]
+}
+
+fn tgamma(x: f64, y: f64, z: f64, w: f64) {
+    var ok = _finite4(x, y, z, w, "vec4.tgamma")
+    if oren_is_err(ok) { return ok }
+    var ox = math.tgamma(x)
+    if oren_is_err(ox) { return ox }
+    var oy = math.tgamma(y)
+    if oren_is_err(oy) { return oy }
+    var oz = math.tgamma(z)
+    if oren_is_err(oz) { return oz }
+    var ow = math.tgamma(w)
+    if oren_is_err(ow) { return ow }
+    return [ox, oy, oz, ow]
+}
+
 fn radians(x: f64, y: f64, z: f64, w: f64) {
     var ok = _finite4(x, y, z, w, "vec4.radians")
     if oren_is_err(ok) { return ok }
