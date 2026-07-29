@@ -1204,7 +1204,7 @@
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
 <tr><td>C</td><td>Portable bootstrap path through host C toolchain.</td><td>Useful baseline, not a stabilized external ABI promise.</td></tr>
 <tr><td>Native arm64 macOS</td><td>Most mature native path; broadest profile and fixture history.</td><td>Rolling Tier-1 intent.</td></tr>
-<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates. Arch host moved to <code>bruce@192.168.0.102</code>; x64 stage2 self-host builds and <code>oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache</code> now pass there after routing call-depth hooks through serialized x64 <code>call_rel32</code> rtobj fixups and bumping the x64 rtobj backend signature to <code>x64_v0_36</code>. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; Windows x64 thread syscalls now use positional helper records; x64 list/int length/get/set/push, index-set, and fast LIST/LIST_INT dot prep/label helper records have moved off transient keyed maps.</td><td>Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up.</td></tr>
+<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates. Arch host moved to <code>bruce@192.168.0.102</code>; x64 stage2 self-host builds and <code>oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache</code> now pass there after routing call-depth hooks through serialized x64 <code>call_rel32</code> rtobj fixups and bumping the x64 rtobj backend signature to <code>x64_v0_36</code>. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; Windows x64 thread/filesystem syscalls now use positional helper records; x64 list/int length/get/set/push, index-set, tracking, and fast LIST/LIST_INT dot prep/label helper records have moved off transient keyed maps.</td><td>Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up.</td></tr>
 <tr><td>Bytecode / AVM</td><td>Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces.</td><td>Experimental for production embedding.</td></tr>
 </table>
 <h2 id="avm-sdk-readiness">AVM SDK Readiness</h2>
@@ -4745,7 +4745,8 @@ make docs-site</code></pre>
 <li>X64 allocation tracking and allocation-trace request emission now share the</li>
 </ul>
 <p>  three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup</p>
-<p>  path while preserving each helper&#x27;s validation contract. The capped profile now</p>
+<p>  path using compact positional ABI/spill records while preserving each helper&#x27;s</p>
+<p>  validation contract. The capped profile now</p>
 <p>  shows <code>x64_native_program.oren</code> at about 67.7s total / 49.5s parse, with</p>
 <p>  <code>_x64_compile_program_prepare_top</code> exposed at about 118ms as the next parser</p>
 <p>  body.</p>
@@ -5111,7 +5112,8 @@ make docs-site</code></pre>
 <li>X64 tracking runtime-call helpers now share locals/runtime validation and</li>
 </ul>
 <p>  two-argument ABI lookup, while <code>oren_ensure_tracked</code> emission separates pointer</p>
-<p>  spilling, runtime call fixup, and authoritative RAX result materialization. The</p>
+<p>  spilling, runtime call fixup, and authoritative RAX result materialization;</p>
+<p>  tracked-node label/fixup and spill state now also use positional helper records. The</p>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at about 63.6s total / 46.2s</p>
 <p>  parse, with <code>_emit_panic_helper_fn_if_needed_x64</code> exposed at about 168ms as the</p>
 <p>  next parser body.</p>

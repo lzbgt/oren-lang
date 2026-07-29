@@ -1907,7 +1907,8 @@
 <li>X64 allocation tracking and allocation-trace request emission now share the</li>
 </ul>
 <p>  three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup</p>
-<p>  path while preserving each helper&#x27;s validation contract. The capped profile now</p>
+<p>  path using compact positional ABI/spill records while preserving each helper&#x27;s</p>
+<p>  validation contract. The capped profile now</p>
 <p>  shows <code>x64_native_program.oren</code> at ~67.7s total / ~49.5s parse, with</p>
 <p>  <code>_x64_compile_program_prepare_top</code> (~118ms) as the next parser-body target.</p>
 <ul>
@@ -3533,7 +3534,8 @@
 <li>X64 tracking runtime-call helpers now share locals/runtime validation and</li>
 </ul>
 <p>  two-argument ABI lookup, while <code>oren_ensure_tracked</code> emission separates pointer</p>
-<p>  spilling, runtime call fixup, and authoritative RAX result materialization. The</p>
+<p>  spilling, runtime call fixup, and authoritative RAX result materialization;</p>
+<p>  tracked-node label/fixup and spill state now also use positional helper records. The</p>
 <p>  capped profile now shows <code>x64_native_program.oren</code> at ~63.6s total / ~46.2s</p>
 <p>  parse, with <code>_emit_panic_helper_fn_if_needed_x64</code> exposed at ~168ms as the next</p>
 <p>  parser body.</p>

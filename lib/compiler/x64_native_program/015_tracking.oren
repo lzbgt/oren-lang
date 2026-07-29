@@ -27,12 +27,7 @@ fn _x64_find_tracked_require_runtime(ctx) {
 }
 
 fn _x64_find_tracked_state(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "done": _new_label(ctx, "trk_find_done"),
-        "call": _new_label(ctx, "trk_find_call")
-    }
+    return [{}, [], _new_label(ctx, "trk_find_done"), _new_label(ctx, "trk_find_call")]
 }
 
 fn _x64_find_tracked_emit_guards(ctx, ptr_reg, dst_node_reg, state) {
@@ -41,14 +36,14 @@ fn _x64_find_tracked_emit_guards(ctx, ptr_reg, dst_node_reg, state) {
 
     // ptr == 0 => done
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 0))
-    _emit_jcc_to_label(ctx, state["fixups"], "e", state["done"])
+    _emit_jcc_to_label(ctx, state[1], "e", state[2])
 
     // Match runtime safety/perf guard: small integers are not pointers.
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(ptr_reg, 4096))
-    _emit_jcc_to_label(ctx, state["fixups"], "ge", state["call"])
-    _emit_jmp_to_label(ctx, state["fixups"], state["done"])
+    _emit_jcc_to_label(ctx, state[1], "ge", state[3])
+    _emit_jmp_to_label(ctx, state[1], state[2])
 
-    _emit_label(ctx, state["labels"], state["call"])
+    _emit_label(ctx, state[0], state[3])
     return nil
 }
 
@@ -74,8 +69,8 @@ fn _x64_find_tracked_emit_index_call(ctx, ptr_reg, dst_node_reg) {
 }
 
 fn _x64_find_tracked_finish(ctx, state) {
-    _emit_label(ctx, state["labels"], state["done"])
-    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _emit_label(ctx, state[0], state[2])
+    _patch_local_fixups(ctx, state[0], state[1])
     return nil
 }
 
@@ -116,7 +111,7 @@ fn _x64_tracking_runtime_abi3(ctx, err_name) {
         err(ctx, "x64 native v0: missing ABI arg regs for " + err_name)
         return nil
     }
-    return {"a0": a0_enc - 1, "a1": a1_enc - 1, "a2": a2_enc - 1}
+    return [a0_enc - 1, a1_enc - 1, a2_enc - 1]
 }
 
 fn _x64_tracking_runtime_abi2(ctx, err_name) {
@@ -126,7 +121,7 @@ fn _x64_tracking_runtime_abi2(ctx, err_name) {
         err(ctx, "x64 native v0: missing ABI arg regs for " + err_name)
         return nil
     }
-    return {"a0": a0_enc - 1, "a1": a1_enc - 1}
+    return [a0_enc - 1, a1_enc - 1]
 }
 
 fn _x64_tracking_require_runtime(ctx, locals, op_name) {
@@ -151,7 +146,7 @@ fn _x64_tracking_spill1_ptr(ctx, locals, ptr_reg) {
         return nil
     }
     _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
-    return {"base": base, "off_ptr": off_ptr}
+    return [base, off_ptr]
 }
 
 fn _x64_tracking_spill3(ctx, locals, ptr_reg, size_reg, kind_reg) {
@@ -168,7 +163,7 @@ fn _x64_tracking_spill3(ctx, locals, ptr_reg, size_reg, kind_reg) {
     _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
     _emit_mov_mrbp_r64(ctx, 0 - off_size, size_reg)
     _emit_mov_mrbp_r64(ctx, 0 - off_kind, kind_reg)
-    return {"base": base, "off_ptr": off_ptr, "off_size": off_size, "off_kind": off_kind}
+    return [base, off_ptr, off_size, off_kind]
 }
 
 fn _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg, kind_reg, call_name, err_name) {
@@ -178,16 +173,16 @@ fn _x64_tracking_emit_runtime_call3_preserve_ptr(ctx, locals, ptr_reg, size_reg,
     var slots = _x64_tracking_spill3(ctx, locals, ptr_reg, size_reg, kind_reg)
     if slots == nil { return nil }
 
-    _emit_mov_r64_mrbp(ctx, abi3["a0"], 0 - slots["off_ptr"])
-    _emit_mov_r64_mrbp(ctx, abi3["a1"], 0 - slots["off_size"])
-    _emit_mov_r64_mrbp(ctx, abi3["a2"], 0 - slots["off_kind"])
+    _emit_mov_r64_mrbp(ctx, abi3[0], 0 - slots[1])
+    _emit_mov_r64_mrbp(ctx, abi3[1], 0 - slots[2])
+    _emit_mov_r64_mrbp(ctx, abi3[2], 0 - slots[3])
 
     var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": call_name})
 
-    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - slots["off_ptr"])
-    _intr_tmp_pop(ctx, slots["base"])
+    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - slots[1])
+    _intr_tmp_pop(ctx, slots[0])
     return nil
 }
 
@@ -215,8 +210,8 @@ fn _emit_trace_alloc_request_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
 }
 
 fn _x64_tracking_emit_ensure_call(ctx, abi2, slots, kind_imm) {
-    _emit_mov_r64_mrbp(ctx, abi2["a0"], 0 - slots["off_ptr"])
-    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(abi2["a1"], kind_imm))
+    _emit_mov_r64_mrbp(ctx, abi2[0], 0 - slots[1])
+    bytes_extend(ctx["code"], core.insn_mov_r32_imm32(abi2[1], kind_imm))
 
     var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
@@ -229,7 +224,7 @@ fn _x64_tracking_finish_ensure_ptr(ctx, slots, ptr_reg) {
     if ptr_reg != 0 {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(ptr_reg, 0))
     }
-    _intr_tmp_pop(ctx, slots["base"])
+    _intr_tmp_pop(ctx, slots[0])
     return nil
 }
 

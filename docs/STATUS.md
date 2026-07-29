@@ -747,7 +747,7 @@ surfaces, but the following blockers remain:
 | --- | --- | --- |
 | C | Portable bootstrap path through host C toolchain. | Useful baseline, not a stabilized external ABI promise. |
 | Native arm64 macOS | Most mature native path; broadest profile and fixture history. | Rolling Tier-1 intent. |
-| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; Windows x64 thread syscalls now use positional helper records; x64 list/int length/get/set/push, index-set, and fast LIST/LIST_INT dot prep/label helper records have moved off transient keyed maps. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
+| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; Windows x64 thread/filesystem syscalls now use positional helper records; x64 list/int length/get/set/push, index-set, tracking, and fast LIST/LIST_INT dot prep/label helper records have moved off transient keyed maps. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
 | Bytecode / AVM | Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces. | Experimental for production embedding. |
 
 ## AVM SDK Readiness
@@ -4103,7 +4103,8 @@ make docs-site
   parser body.
 - X64 allocation tracking and allocation-trace request emission now share the
   three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup
-  path while preserving each helper's validation contract. The capped profile now
+  path using compact positional ABI/spill records while preserving each helper's
+  validation contract. The capped profile now
   shows `x64_native_program.oren` at about 67.7s total / 49.5s parse, with
   `_x64_compile_program_prepare_top` exposed at about 118ms as the next parser
   body.
@@ -4375,7 +4376,8 @@ make docs-site
   the next parser body.
 - X64 tracking runtime-call helpers now share locals/runtime validation and
   two-argument ABI lookup, while `oren_ensure_tracked` emission separates pointer
-  spilling, runtime call fixup, and authoritative RAX result materialization. The
+  spilling, runtime call fixup, and authoritative RAX result materialization;
+  tracked-node label/fixup and spill state now also use positional helper records. The
   capped profile now shows `x64_native_program.oren` at about 63.6s total / 46.2s
   parse, with `_emit_panic_helper_fn_if_needed_x64` exposed at about 168ms as the
   next parser body.

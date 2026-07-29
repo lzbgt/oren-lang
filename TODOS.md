@@ -1265,7 +1265,8 @@ design evidence lives under `project-doc/`.
   target.
 - X64 allocation tracking and allocation-trace request emission now share the
   three-argument ABI setup, spill, runtime-call, pointer-restore, and cleanup
-  path while preserving each helper's validation contract. The capped profile now
+  path using compact positional ABI/spill records while preserving each helper's
+  validation contract. The capped profile now
   shows `x64_native_program.oren` at ~67.7s total / ~49.5s parse, with
   `_x64_compile_program_prepare_top` (~118ms) as the next parser-body target.
 - X64 top-level program preparation now separates top-function validation,
@@ -2477,7 +2478,8 @@ design evidence lives under `project-doc/`.
   parser body.
 - X64 tracking runtime-call helpers now share locals/runtime validation and
   two-argument ABI lookup, while `oren_ensure_tracked` emission separates pointer
-  spilling, runtime call fixup, and authoritative RAX result materialization. The
+  spilling, runtime call fixup, and authoritative RAX result materialization;
+  tracked-node label/fixup and spill state now also use positional helper records. The
   capped profile now shows `x64_native_program.oren` at ~63.6s total / ~46.2s
   parse, with `_emit_panic_helper_fn_if_needed_x64` exposed at ~168ms as the next
   parser body.
