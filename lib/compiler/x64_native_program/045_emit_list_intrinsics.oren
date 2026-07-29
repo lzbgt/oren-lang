@@ -1010,12 +1010,12 @@ fn _x64_alloc_list_int_reduce_sum_slots_unchecked_slots(ctx, locals) {
     if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "off_list": off_list}
+    return [base, off_list]
 }
 
 fn _x64_spill_list_int_reduce_sum_slots_unchecked_arg(ctx, locals, args, prep) {
-    var base = prep["base"]
-    var off_list = prep["off_list"]
+    var base = prep[0]
+    var off_list = prep[1]
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return 0 }
     _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
@@ -1023,23 +1023,23 @@ fn _x64_spill_list_int_reduce_sum_slots_unchecked_arg(ctx, locals, args, prep) {
 }
 
 fn _x64_list_int_reduce_sum_slots_unchecked_state(ctx, prep) {
-    return {
-        "base": prep["base"],
-        "off_list": prep["off_list"],
-        "labels": {},
-        "local_fixups": [],
-        "l_non_nil": _new_label(ctx, "list_int_reduce_sum_slots_unchecked_non_nil"),
-        "l_cond": _new_label(ctx, "list_int_reduce_sum_slots_unchecked_cond"),
-        "l_done": _new_label(ctx, "list_int_reduce_sum_slots_unchecked_done")
-    }
+    return [
+        prep[0],
+        prep[1],
+        {},
+        [],
+        _new_label(ctx, "list_int_reduce_sum_slots_unchecked_non_nil"),
+        _new_label(ctx, "list_int_reduce_sum_slots_unchecked_cond"),
+        _new_label(ctx, "list_int_reduce_sum_slots_unchecked_done")
+    ]
 }
 
 fn _x64_emit_list_int_reduce_sum_slots_unchecked_setup(ctx, st) {
-    var labels = st["labels"]
-    var local_fixups = st["local_fixups"]
-    var off_list = st["off_list"]
-    var l_non_nil = st["l_non_nil"]
-    var l_done = st["l_done"]
+    var labels = st[2]
+    var local_fixups = st[3]
+    var off_list = st[1]
+    var l_non_nil = st[4]
+    var l_done = st[6]
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_list) // r8 = list
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
@@ -1061,10 +1061,10 @@ fn _x64_emit_list_int_reduce_sum_slots_unchecked_setup(ctx, st) {
 }
 
 fn _x64_emit_list_int_reduce_sum_slots_unchecked_loop(ctx, locals, st) {
-    var labels = st["labels"]
-    var local_fixups = st["local_fixups"]
-    var l_cond = st["l_cond"]
-    var l_done = st["l_done"]
+    var labels = st[2]
+    var local_fixups = st[3]
+    var l_cond = st[5]
+    var l_done = st[6]
     _emit_label(ctx, labels, l_cond)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(11, 9))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_done)
@@ -1078,10 +1078,10 @@ fn _x64_emit_list_int_reduce_sum_slots_unchecked_loop(ctx, locals, st) {
 }
 
 fn _x64_emit_list_int_reduce_sum_slots_unchecked_finish(ctx, st) {
-    _emit_label(ctx, st["labels"], st["l_done"])
+    _emit_label(ctx, st[2], st[6])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
-    _patch_local_fixups(ctx, st["labels"], st["local_fixups"])
-    _intr_tmp_pop(ctx, st["base"])
+    _patch_local_fixups(ctx, st[2], st[3])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -1101,7 +1101,7 @@ fn _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals) {
     var state = _x64_list_int_dot_slots_unchecked_alloc_spill_slots(ctx, locals)
     if state == nil { return nil }
     if _x64_list_int_dot_slots_unchecked_spill_args(ctx, locals, args, state) != true {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return nil
     }
     return state
@@ -1131,7 +1131,7 @@ fn _x64_list_int_dot_slots_unchecked_alloc_spill_slots(ctx, locals) {
     var off_a = _intr_tmp_off(ctx, locals, base + 0)
     var off_b = _intr_tmp_off(ctx, locals, base + 1)
     if oren_type_tag(off_a) == 0 || oren_type_tag(off_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "off_a": off_a, "off_b": off_b}
+    return [base, off_a, off_b]
 }
 
 fn _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, arg, off) {
@@ -1142,36 +1142,36 @@ fn _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, arg, off) {
 }
 
 fn _x64_list_int_dot_slots_unchecked_spill_args(ctx, locals, args, state) {
-    if _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, args[0], state["off_a"]) != true { return false }
-    if _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, args[1], state["off_b"]) != true { return false }
+    if _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, args[0], state[1]) != true { return false }
+    if _x64_list_int_dot_slots_unchecked_spill_one(ctx, locals, args[1], state[2]) != true { return false }
     return true
 }
 
 fn _x64_list_int_dot_slots_unchecked_state(ctx, locals, off_a, off_b) {
-    return {
-        "locals": locals,
-        "off_a": off_a,
-        "off_b": off_b,
-        "labels": {},
-        "local_fixups": [],
-        "l_a_non_nil": _new_label(ctx, "list_int_dot_slots_unchecked_a_non_nil"),
-        "l_b_non_nil": _new_label(ctx, "list_int_dot_slots_unchecked_b_non_nil"),
-        "l_lengths_ok": _new_label(ctx, "list_int_dot_slots_unchecked_lengths_ok"),
-        "l_same_n": _new_label(ctx, "list_int_dot_slots_unchecked_same_n"),
-        "l_cond": _new_label(ctx, "list_int_dot_slots_unchecked_cond"),
-        "l_done": _new_label(ctx, "list_int_dot_slots_unchecked_done")
-    }
+    return [
+        locals,
+        off_a,
+        off_b,
+        {},
+        [],
+        _new_label(ctx, "list_int_dot_slots_unchecked_a_non_nil"),
+        _new_label(ctx, "list_int_dot_slots_unchecked_b_non_nil"),
+        _new_label(ctx, "list_int_dot_slots_unchecked_lengths_ok"),
+        _new_label(ctx, "list_int_dot_slots_unchecked_same_n"),
+        _new_label(ctx, "list_int_dot_slots_unchecked_cond"),
+        _new_label(ctx, "list_int_dot_slots_unchecked_done")
+    ]
 }
 
 fn _x64_emit_list_int_dot_slots_unchecked_nil_cases(ctx, st) {
-    var labels = st["labels"]
-    var local_fixups = st["local_fixups"]
-    var l_a_non_nil = st["l_a_non_nil"]
-    var l_b_non_nil = st["l_b_non_nil"]
-    var l_done = st["l_done"]
+    var labels = st[3]
+    var local_fixups = st[4]
+    var l_a_non_nil = st[5]
+    var l_b_non_nil = st[6]
+    var l_done = st[10]
 
-    var off_a = st["off_a"]
-    var off_b = st["off_b"]
+    var off_a = st[1]
+    var off_b = st[2]
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_a) // r8 = a
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_b) // r9 = b
 
@@ -1186,16 +1186,16 @@ fn _x64_emit_list_int_dot_slots_unchecked_nil_cases(ctx, st) {
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
     _emit_label(ctx, labels, l_a_non_nil)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(9, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", st["l_lengths_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", st[7])
     _emit_abort_panic_str(ctx, "list_int_dot_slots_unchecked: length mismatch")
     return nil
 }
 
 fn _x64_emit_list_int_dot_slots_unchecked_length_checks(ctx, st) {
-    var labels = st["labels"]
-    var local_fixups = st["local_fixups"]
-    var l_lengths_ok = st["l_lengths_ok"]
-    var l_same_n = st["l_same_n"]
+    var labels = st[3]
+    var local_fixups = st[4]
+    var l_lengths_ok = st[7]
+    var l_same_n = st[8]
 
     _emit_label(ctx, labels, l_lengths_ok)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 8))
@@ -1225,11 +1225,11 @@ fn _x64_emit_list_int_dot_slots_unchecked_ptrs(ctx) {
 }
 
 fn _x64_emit_list_int_dot_slots_unchecked_loop(ctx, st) {
-    var labels = st["labels"]
-    var local_fixups = st["local_fixups"]
-    var locals = st["locals"]
-    var l_cond = st["l_cond"]
-    var l_done = st["l_done"]
+    var labels = st[3]
+    var local_fixups = st[4]
+    var locals = st[0]
+    var l_cond = st[9]
+    var l_done = st[10]
 
     _emit_label(ctx, labels, l_cond)
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(1, 11))
@@ -1262,8 +1262,8 @@ fn _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, off_a, off_b) {
 fn _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     var state = _x64_prepare_list_int_dot_slots_unchecked_intrinsic(ctx, expr, locals)
     if state == nil { return nil }
-    var base = state["base"]
-    _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, state["off_a"], state["off_b"])
+    var base = state[0]
+    _x64_emit_list_int_dot_slots_unchecked_body(ctx, locals, state[1], state[2])
     _intr_tmp_pop(ctx, base)
     return nil
 }

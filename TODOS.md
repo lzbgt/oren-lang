@@ -3043,7 +3043,8 @@ design evidence lives under `project-doc/`.
   generate Clang oversized signed-literal warnings in math C smokes.
 - X64 fast list/list_int dot while lowering now uses positional helper records
   for offsets, validation slots, and left/right slot pairs instead of
-  short-lived keyed maps.
+  short-lived keyed maps. X64 list-int reduce/dot unchecked helper intrinsics now
+  use fixed positional records for spill slots, labels, and fixups as well.
 - Linux x64 syscall lowering now uses compact positional scratch-state lists for
   stat/path families, read/write fd-buffer setup, getrandom, futex wait, and
   fd-control/dup/ioctl plus syscall-tail helpers instead of transient keyed state
