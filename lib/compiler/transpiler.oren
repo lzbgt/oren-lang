@@ -53,6 +53,7 @@ fn type_ctor_sig(type_decl) { return cutils.type_ctor_sig(type_decl) }
 fn contains_curly_braces(s) { return cutils.contains_curly_braces(s) }
 fn c_escape_string(s) { return cutils.c_escape_string(s) }
 fn int_str(n) { return cutils.int_str(n) }
+fn c_oren_int(n) { return cutils.c_oren_int(n) }
 fn parse_int_lit(s) { return cutils.parse_int_lit(s) }
 fn function_sig(func_decl) { return cutils.function_sig(func_decl) }
 fn fnwrap_name(name) { return cutils.fnwrap_name(name) }
@@ -411,7 +412,7 @@ fn transpile_expression(t, exp) {
             }
         }
     }
-    if et == "Integer" { return "oren_int(" + int_str(parse_int_lit(exp["value"])) + ")" }
+    if et == "Integer" { return c_oren_int(parse_int_lit(exp["value"])) }
     if et == "Float" { return "oren_float(" + exp["value"] + ")" }
     if et == "String" { return "oren_string_const(" + CH_QUOTE + c_escape_string(exp["value"]) + CH_QUOTE + ")" }
     if et == "Boolean" {

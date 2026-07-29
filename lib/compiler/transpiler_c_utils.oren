@@ -207,6 +207,14 @@ fn c_escape_string(s) {
 
 fn int_str(n) { return oren_int_to_string(n) }
 
+fn c_i64_literal(n) {
+    var I64_MIN = 0 - 9223372036854775807 - 1
+    if n == I64_MIN { return "INT64_MIN" }
+    return int_str(n)
+}
+
+fn c_oren_int(n) { return "oren_int(" + c_i64_literal(n) + ")" }
+
 fn parse_int_lit(s) {
     // Transpiler int literal parser for the C backend.
     //

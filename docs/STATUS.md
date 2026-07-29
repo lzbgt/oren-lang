@@ -345,6 +345,9 @@ surfaces, but the following blockers remain:
   iteration across module-prefix, type-annotation, bytecode integer, parser,
   ABI, JSON, and runtime-object path helpers, with a guard rejecting new
   `while i < oren_string_len(...)` style loops.
+- C backend integer literal emission now formats the signed 64-bit minimum as
+  `INT64_MIN`, preserving Oren two's-complement literal semantics without
+  Clang's oversized signed-literal warning in math C smokes.
 - ARM64/x64 native expression/runtime `g_storage` resolution now uses shared
   byte-suffix helpers and cached resolver calls instead of duplicated
   `oren_string_char_at` suffix scans in boolean singleton, tail normalization,

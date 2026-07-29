@@ -559,6 +559,11 @@
 <p>  ABI, JSON, and runtime-object path helpers, with a guard rejecting new</p>
 <p>  <code>while i &lt; oren_string_len(...)</code> style loops.</p>
 <ul>
+<li>C backend integer literal emission now formats the signed 64-bit minimum as</li>
+</ul>
+<p>  <code>INT64_MIN</code>, preserving Oren two&#x27;s-complement literal semantics without</p>
+<p>  Clang&#x27;s oversized signed-literal warning in math C smokes.</p>
+<ul>
 <li>ARM64/x64 native expression/runtime <code>g_storage</code> resolution now uses shared</li>
 </ul>
 <p>  byte-suffix helpers and cached resolver calls instead of duplicated</p>
