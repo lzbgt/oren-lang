@@ -1801,6 +1801,7 @@ fi
 if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/optimizer_loops_list.oren \
   lib/compiler/optimizer_loops_list_reset.oren \
+  lib/compiler/analysis.oren \
   lib/compiler/optimizer_list_reserve.oren \
   lib/compiler/optimizer_list_int_lower.oren \
   lib/compiler/optimizer_dce.oren \

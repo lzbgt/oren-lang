@@ -50,6 +50,10 @@ surfaces, but the following blockers remain:
   new-list, identifier, unsafe-use, sink/rewrite, hoist/reset, reserve,
   candidate, touch, and rewrite scans; the hotpath guard rejects direct
   `oren_list_len` loop bounds in those passes.
+- Compiler function/yield analysis now caches immutable program, block,
+  parameter, expression, yield-point, generator-finalize, and function-list
+  traversal counts before iteration, with hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in that analysis pass.
 - Native runtime bundle injection now caches immutable runtime/user statement,
   root, parse-error, decoded-list, and merge traversal counts, with hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that shared x64/ARM64

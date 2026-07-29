@@ -1,9 +1,11 @@
 fn analyze_program(prog) {
     print("--- Scope Analysis ---")
     var depth = 0
+    var statements = prog["statements"]
+    var statements_len = oren_list_len(statements)
     var i = 0
-    while i < oren_list_len(prog["statements"]) {
-        analyze_stmt(prog["statements"][i], depth)
+    while i < statements_len {
+        analyze_stmt(statements[i], depth)
         i = i + 1
     }
     print("--- End Analysis ---")
@@ -21,7 +23,8 @@ fn analyze_stmt(stmt, depth) {
         print(prefix + "Block scope start")
         var stmts = stmt["stmts"]
         var j = 0
-        while j < oren_list_len(stmts) {
+        var stmts_len = oren_list_len(stmts)
+        while j < stmts_len {
             analyze_stmt(stmts[j], depth + 1)
             j = j + 1
         }
@@ -101,7 +104,8 @@ fn yield_value_expr_site(expr) {
 fn function_attrs_has_name(attrs, name) {
     if attrs == nil || name == nil { return false }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_len = oren_list_len(attrs)
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
         i = i + 1
@@ -395,11 +399,14 @@ fn yield_locals_mark_active_pending(ctx) {
     var frames = ctx["frames"]
     if frames == nil { return nil }
     var fi = 0
-    while fi < oren_list_len(frames) {
+    var frames_len = oren_list_len(frames)
+    while fi < frames_len {
         var frame = frames[fi]
         var names = frame["local_names"]
         var ni = 0
-        while names != nil && ni < oren_list_len(names) {
+        var names_len = 0
+        if names != nil { names_len = oren_list_len(names) }
+        while ni < names_len {
             frame["yielded"][names[ni]] = true
             ni = ni + 1
         }
@@ -446,7 +453,9 @@ fn yield_locals_walk_expr(ctx, expr) {
         yield_locals_walk_expr(ctx, expr["fn"])
         var args = expr["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             yield_locals_walk_expr(ctx, args[i])
             i = i + 1
         }
@@ -480,7 +489,9 @@ fn yield_locals_walk_expr(ctx, expr) {
     if et == "Array" {
         var elems = expr["elements"]
         var j = 0
-        while elems != nil && j < oren_list_len(elems) {
+        var elems_len = 0
+        if elems != nil { elems_len = oren_list_len(elems) }
+        while j < elems_len {
             yield_locals_walk_expr(ctx, elems[j])
             j = j + 1
         }
@@ -489,7 +500,9 @@ fn yield_locals_walk_expr(ctx, expr) {
     if et == "Hash" {
         var pairs = expr["pairs"]
         var k = 0
-        while pairs != nil && k < oren_list_len(pairs) {
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
+        while k < pairs_len {
             var pair = pairs[k]
             yield_locals_walk_expr(ctx, pair["key"])
             yield_locals_walk_expr(ctx, pair["value"])
@@ -550,7 +563,9 @@ fn yield_locals_walk_stmt(ctx, stmt) {
         yield_locals_push_scope(ctx)
         var stmts = stmt["stmts"]
         var i = 0
-        while stmts != nil && i < oren_list_len(stmts) {
+        var stmts_len = 0
+        if stmts != nil { stmts_len = oren_list_len(stmts) }
+        while i < stmts_len {
             yield_locals_walk_stmt(ctx, stmts[i])
             i = i + 1
         }
@@ -594,7 +609,9 @@ fn function_yield_locals_across(func) {
     yield_locals_push_scope(ctx)
     var params = func["params"]
     var i = 0
-    while params != nil && i < oren_list_len(params) {
+    var params_len = 0
+    if params != nil { params_len = oren_list_len(params) }
+    while i < params_len {
         var p = params[i]
         if p != nil && p["value"] != nil && p["value"] != "" {
             yield_locals_declare(ctx, p["value"])
@@ -620,7 +637,9 @@ fn function_yield_info_walk_expr(info, expr, depth, in_loop, context) {
         function_yield_info_walk_expr(info, expr["fn"], depth, in_loop, "call_callee")
         var args = expr["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             function_yield_info_walk_expr(info, args[i], depth, in_loop, "call_arg")
             i = i + 1
         }
@@ -654,7 +673,9 @@ fn function_yield_info_walk_expr(info, expr, depth, in_loop, context) {
     if et == "Array" {
         var elems = expr["elements"]
         var j = 0
-        while elems != nil && j < oren_list_len(elems) {
+        var elems_len = 0
+        if elems != nil { elems_len = oren_list_len(elems) }
+        while j < elems_len {
             function_yield_info_walk_expr(info, elems[j], depth, in_loop, "array_elem")
             j = j + 1
         }
@@ -663,7 +684,9 @@ fn function_yield_info_walk_expr(info, expr, depth, in_loop, context) {
     if et == "Hash" {
         var pairs = expr["pairs"]
         var k = 0
-        while pairs != nil && k < oren_list_len(pairs) {
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
+        while k < pairs_len {
             var pair = pairs[k]
             function_yield_info_walk_expr(info, pair["key"], depth, in_loop, "hash_key")
             function_yield_info_walk_expr(info, pair["value"], depth, in_loop, "hash_value")
@@ -707,7 +730,9 @@ fn function_yield_info_walk_stmt(info, stmt, depth, in_loop) {
     if ty == "Block" || ty == "StmtList" {
         var stmts = stmt["stmts"]
         var i = 0
-        while stmts != nil && i < oren_list_len(stmts) {
+        var stmts_len = 0
+        if stmts != nil { stmts_len = oren_list_len(stmts) }
+        while i < stmts_len {
             function_yield_info_walk_stmt(info, stmts[i], depth + 1, in_loop)
             i = i + 1
         }
@@ -750,7 +775,9 @@ fn function_yield_value_surface(info) {
     var seen = {}
     var i = 0
     var points = info["yield_value_points"]
-    while points != nil && i < oren_list_len(points) {
+    var points_len = 0
+    if points != nil { points_len = oren_list_len(points) }
+    while i < points_len {
         var point = points[i]
         var kind = nil
         if point != nil { kind = point["context"] }
@@ -785,7 +812,9 @@ fn function_yield_exchange_surface(info) {
     var has_context = false
     var i = 0
     var points = info["yield_exchange_points"]
-    while points != nil && i < oren_list_len(points) {
+    var points_len = 0
+    if points != nil { points_len = oren_list_len(points) }
+    while i < points_len {
         var point = points[i]
         var kind = nil
         if point != nil { kind = point["context"] }
@@ -862,7 +891,9 @@ fn function_generator_finalize_surface(info) {
     var api_seen = {}
     var points = info["generator_finalize_points"]
     var i = 0
-    while points != nil && i < oren_list_len(points) {
+    var points_len = 0
+    if points != nil { points_len = oren_list_len(points) }
+    while i < points_len {
         var point = points[i]
         var context_name = nil
         if point != nil { context_name = point["context"] }
@@ -951,7 +982,9 @@ fn function_yield_info(func) {
     if body != nil && (body["type"] == "Block" || body["type"] == "StmtList") {
         var stmts = body["stmts"]
         var i = 0
-        while stmts != nil && i < oren_list_len(stmts) {
+        var stmts_len = 0
+        if stmts != nil { stmts_len = oren_list_len(stmts) }
+        while i < stmts_len {
             function_yield_info_walk_stmt(info, stmts[i], 0, false)
             i = i + 1
         }
@@ -1001,7 +1034,9 @@ fn yield_v0_stmt_type_name(stmt) {
 fn yield_v0_stmt_type_names(stmts) {
     var out = []
     var i = 0
-    while stmts != nil && i < oren_list_len(stmts) {
+    var stmts_len = 0
+    if stmts != nil { stmts_len = oren_list_len(stmts) }
+    while i < stmts_len {
         oren_list_push(out, yield_v0_stmt_type_name(stmts[i]))
         i = i + 1
     }
@@ -1028,7 +1063,8 @@ fn function_yield_lowering_v0_prepared(func, info, locals_across_yield, gate) {
     var first_resume_state = -1
     var yield_count = 0
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         var stmt = stmts[i]
         if stmt != nil && stmt["yield_stmt"] == true {
             var site = yield_stmt_site(stmt)
@@ -1121,7 +1157,8 @@ fn function_yield_lowering_plan(func, info, locals_across_yield) {
     oren_list_push(states, {"id": 0, "kind": "entry"})
 
     var i = 0
-    while i < oren_list_len(sites) {
+    var sites_len = oren_list_len(sites)
+    while i < sites_len {
         var site = sites[i]
         var resume_state = i + 1
         oren_list_push(yield_points, {"id": i, "site": site, "resume_state": resume_state})
@@ -1148,7 +1185,9 @@ fn program_functions(prog) {
     if prog == nil { return out }
     var stmts = prog["statements"]
     var i = 0
-    while stmts != nil && i < oren_list_len(stmts) {
+    var stmts_len = 0
+    if stmts != nil { stmts_len = oren_list_len(stmts) }
+    while i < stmts_len {
         var s = stmts[i]
         var func = nil
         if s["type"] == "Function" {
@@ -1166,7 +1205,8 @@ fn program_yield_lowering_v0_violations(prog) {
     var out = []
     var funcs = program_functions(prog)
     var i = 0
-    while i < oren_list_len(funcs) {
+    var funcs_len = oren_list_len(funcs)
+    while i < funcs_len {
         var func = funcs[i]
         var info = function_yield_info(func)
         var plan = info["yield_lowering"]
