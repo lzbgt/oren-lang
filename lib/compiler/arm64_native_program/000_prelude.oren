@@ -158,8 +158,9 @@ fn _arm64_should_use_full_native_runtime_profile(linked) {
 
     var mods = g["modules"]
     if mods == nil { return false }
+    var mods_len = oren_list_len(mods)
     var i = 0
-    while i < oren_list_len(mods) {
+    while i < mods_len {
         var m = mods[i]
         if m != nil {
             var p = m["path"]
@@ -184,8 +185,9 @@ fn native_emit_errors_and_exit(ctx) {
     var first = ctx["errors"][0]
     print("OREN_DIAG kind=codegen code=1 msg=" + native_diag_escape(first))
     print("native backend errors:")
+    var errors_len = oren_list_len(ctx["errors"])
     var ei = 0
-    while ei < oren_list_len(ctx["errors"]) {
+    while ei < errors_len {
         print(ctx["errors"][ei])
         ei = ei + 1
     }
@@ -197,8 +199,9 @@ fn _arm64_linked_has_toplevel_fn_named(linked, name) {
     if linked == nil || name == nil { return false }
     var stmts = linked["statements"]
     if stmts == nil { return false }
+    var stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         var fn0 = coreir._stmt_to_function_decl(stmts[i])
         if fn0 != nil && fn0["name"] == name { return true }
         i = i + 1

@@ -34,8 +34,9 @@ fn _arm64_program_write_function_profile(ctx) {
     var rows = ctx["arm64_function_profile"]
     if path == nil || path == "" || rows == nil { return nil }
     var parts = []
+    var rows_len = oren_list_len(rows)
     var i = 0
-    while i < oren_list_len(rows) {
+    while i < rows_len {
         var row = rows[i]
         if row != nil {
             var phase = row["phase"]
@@ -645,14 +646,16 @@ fn native_compile_program_arm64(linked, platform) {
     // into lambdas+vars for Tier‑1 parity. Those lambdas must be collected too.
     var t_lamb0 = 0
     if trace { t_lamb0 = oren_time_now_ns() }
+    var user_stmts_len = oren_list_len(user_stmts)
     var li = 0
-    while li < oren_list_len(user_stmts) {
+    while li < user_stmts_len {
         callable.collect_lambdas_in_statement(ctx, user_stmts[li])
         li = li + 1
     }
     if used_rtobj != true {
+        var runtime_stmts_len = oren_list_len(runtime_stmts)
         li = 0
-        while li < oren_list_len(runtime_stmts) {
+        while li < runtime_stmts_len {
             callable.collect_lambdas_in_statement(ctx, runtime_stmts[li])
             li = li + 1
         }
@@ -902,8 +905,9 @@ fn native_compile_program_arm64(linked, platform) {
         }
 
         // Insertion sort (descending by off). Small N; keep it simple and deterministic.
+        var sym_entries_len = oren_list_len(sym_entries)
         var si = 1
-        while si < oren_list_len(sym_entries) {
+        while si < sym_entries_len {
             var key = sym_entries[si]
             var k_off = key["off"]
             var k = si - 1
@@ -924,7 +928,7 @@ fn native_compile_program_arm64(linked, platform) {
         oren_list_push(sym_parts, oren_int_to_string(base_addr))
         oren_list_push(sym_parts, " ")
         j = 0
-        while j < oren_list_len(sym_entries) {
+        while j < sym_entries_len {
             var e = sym_entries[j]
             oren_list_push(sym_parts, "if off >= ")
             oren_list_push(sym_parts, oren_int_to_string(e["off"]))
@@ -1007,8 +1011,9 @@ fn native_compile_program_arm64(linked, platform) {
         if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
             bytes_extend_u8_buf(ctx["data"], rt_offs_u8)
         } else if rt_offs_enc != nil {
+            var rt_offs_enc_len = oren_list_len(rt_offs_enc)
             var ri1 = 0
-            while ri1 < oren_list_len(rt_offs_enc) {
+            while ri1 < rt_offs_enc_len {
                 var rt_off1 = _rtobj_decode_int_enc(rt_offs_enc[ri1])
                 if rt_off1 != nil {
                     push_u64_le(ctx["data"], rt_off1)

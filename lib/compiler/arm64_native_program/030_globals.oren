@@ -120,8 +120,9 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
        native_env_str_eq(v_skip, "false") != true {
         ctx["skip_runtime_global_roots"] = 1
     }
+    var runtime_vars_len = oren_list_len(runtime_vars)
     var ri = 0
-    while ri < oren_list_len(runtime_vars) {
+    while ri < runtime_vars_len {
         var rst = runtime_vars[ri]
         if rst != nil && rst["name"] != nil {
             var rnm = rst["name"]["value"]
@@ -132,7 +133,7 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var i = 0
-    while i < oren_list_len(runtime_vars) {
+    while i < runtime_vars_len {
         var st = runtime_vars[i]
         if st != nil {
             // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
@@ -151,8 +152,9 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     var static_int_preinit = _arm64_top_level_static_int_preinit_enabled()
 
     // Allocate user globals; defer effectful initializers into __top_level__.
+    var user_vars_len = oren_list_len(user_vars)
     i = 0
-    while i < oren_list_len(user_vars) {
+    while i < user_vars_len {
         var st2 = user_vars[i]
         if st2 != nil {
             _arm64_alloc_global_slot(ctx, st2["name"], st2["value"], false)
@@ -170,8 +172,9 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     // Preserve source order across `var` initializers and executable top-level statements.
     // We rewrite `var x = expr` into a global-slot assignment at the same position.
     var top_stmts = []
+    var user_ordered_len = oren_list_len(user_ordered)
     var j = 0
-    while j < oren_list_len(user_ordered) {
+    while j < user_ordered_len {
         var stx = user_ordered[j]
         if stx != nil && stx["type"] == "Var" {
             if static_int_preinit && _arm64_is_plain_integer_literal(stx["value"]) {

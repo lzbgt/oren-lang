@@ -1853,7 +1853,12 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/parser_parse/020_parser_b.oren \
   lib/compiler/parser_parse/030_tail.oren \
   lib/compiler/elf_artifact.oren \
+  lib/compiler/arm64_native_expr/000_prelude.oren \
+  lib/compiler/arm64_native_program/000_prelude.oren \
+  lib/compiler/arm64_native_program/010_ctx.oren \
   lib/compiler/arm64_native_program/020_rtobj.oren \
+  lib/compiler/arm64_native_program/030_globals.oren \
+  lib/compiler/arm64_native_program/090_program.oren \
   lib/compiler/arm64_native_stmt_wrappers.oren \
   lib/compiler/arm64_native_gc.oren \
   lib/compiler/arm64_native_stmt.oren \

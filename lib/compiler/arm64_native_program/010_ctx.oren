@@ -227,8 +227,9 @@ fn _arm64_emit_global_roots_init(ctx) {
     var root_runtime_src = ctx["global_root_is_runtime"]
     if root_names_src != nil && root_offsets_src != nil &&
        oren_list_len(root_names_src) == oren_list_len(root_offsets_src) {
+        var root_offsets_src_len = oren_list_len(root_offsets_src)
         var gi = 0
-        while gi < oren_list_len(root_offsets_src) {
+        while gi < root_offsets_src_len {
             var gname = root_names_src[gi]
             if gname == "g_gc_reuse_bad_list_last_ptr" ||
                gname == "g_find_cache_ptr0" ||

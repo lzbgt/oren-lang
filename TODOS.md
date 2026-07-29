@@ -60,12 +60,14 @@ design evidence lives under `project-doc/`.
 - Generator import/yield regression probes now force `--no-cache` for traced
   bytecode builds so the semantic guard remains independent from artifact-cache
   restore/write behavior.
-- Native ops plus ARM64 Mach-O/ELF, ARM64 statement/list-loop emitter, and x64
-  ELF/PE traversal scans now cache immutable argument, expression, op, key,
-  library, debug-function, import/export, fixup, thunk-position, attribute,
-  break/continue patch-list, slow-jump, list-use, load, mul, push, and
-  fresh-list counts before iteration, with byte-hotpath guard coverage rejecting
-  direct `oren_list_len` loop bounds in those native shards.
+- Native ops plus ARM64 Mach-O/ELF, ARM64 expression/program/global/root
+  orchestration, ARM64 statement/list-loop emitter, and x64 ELF/PE traversal
+  scans now cache immutable argument, expression, module, error, global,
+  profile-row, lambda, symbol, cstr-offset, op, key, library, debug-function,
+  import/export, fixup, thunk-position, attribute, break/continue patch-list,
+  slow-jump, list-use, load, mul, push, and fresh-list counts before iteration,
+  with byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds
+  in those native shards.
 - Compiler loop-list analysis, arena, reset, and list-int lowering optimizer
   passes now cache immutable AST list counts before continue/exit, side-effect,
   new-list, identifier, unsafe-use, arena allocation/push-pop/pop-insertion,

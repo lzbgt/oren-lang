@@ -359,8 +359,9 @@ fn _arm64_expr_emit_load_singleton_ptr(ctx, tok, dst_reg, off) {
 fn _native_fp_offsets_push_unique(offs, fp_off) {
     if offs == nil { return 0 }
     if fp_off == nil || fp_off >= 0 { return 0 }
+    var offs_len = oren_list_len(offs)
     var i = 0
-    while i < oren_list_len(offs) {
+    while i < offs_len {
         if offs[i] == fp_off { return 0 }
         i = i + 1
     }
@@ -375,8 +376,9 @@ fn _native_trace_gc_collect_offsets(ctx, offs) {
     if ctx != nil && ctx["cur_fn_name"] != nil { fn_name = ctx["cur_fn_name"] }
     print("[arm64_gc_collect_offsets] fn=" + fn_name +
         " count=" + oren_int_to_string(oren_list_len(offs)))
+    var offs_len = oren_list_len(offs)
     var i = 0
-    while i < oren_list_len(offs) {
+    while i < offs_len {
         print("[arm64_gc_collect_offsets] i=" + oren_int_to_string(i) +
             " fp_off=" + oren_int_to_string(offs[i]))
         i = i + 1
@@ -423,9 +425,10 @@ fn _native_collect_active_local_fp_offsets(ctx) {
 
 fn native_emit_gc_root_push_locals_expr(ctx, fp_offsets) {
     if fp_offsets == nil { return 0 }
+    var fp_offsets_len = oren_list_len(fp_offsets)
     var i = 0
     var count = 0
-    while i < oren_list_len(fp_offsets) {
+    while i < fp_offsets_len {
         emit_ldr_reg_fp_any(ctx, 0, fp_offsets[i])
         native_emit_named_bl_expr(ctx, "native_gc_root_push")
         count = count + 1
@@ -493,8 +496,9 @@ fn native_emit_gc_collect_call_expr(ctx) {
 }
 
 fn native_emit_gc_safepoint_call_expr_pairs(ctx, reg_pairs) {
+    var reg_pairs_len = oren_list_len(reg_pairs)
     var i = 0
-    while i < oren_list_len(reg_pairs) {
+    while i < reg_pairs_len {
         var pair = reg_pairs[i]
         if pair != nil && oren_list_len(pair) >= 2 {
             push_u32_le(ctx["code"], insn_stp_pair_pre(pair[0], pair[1], 31, -16))
@@ -850,8 +854,9 @@ fn native_expr_is_list_stringy(ctx, expr) {
         var els = expr["elements"]
         if els == nil { return false }
         if oren_list_len(els) == 0 { return false }
+        var els_len = oren_list_len(els)
         var i = 0
-        while i < oren_list_len(els) {
+        while i < els_len {
             if native_expr_is_stringy(ctx, els[i]) != true { return false }
             i = i + 1
         }
