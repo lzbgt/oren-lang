@@ -82,6 +82,9 @@ surfaces, but the following blockers remain:
   C-string/debug-function encoding now cache immutable list counts before
   traversal, with hotpath guard coverage rejecting direct `oren_list_len` loop
   bounds in those artifact support paths.
+- Compiler debug-sugar lowering and capsule policy/domain scans now cache
+  immutable list counts before traversal, with hotpath guard coverage rejecting
+  direct `oren_list_len` loop bounds in those support passes.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
@@ -3134,7 +3137,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,
   linalg, regex, `std:ui`, URL allow-list, HTTP/2 header traversal, and
   module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,
-  compiler support, and compiler artifact-support loops now cache immutable list lengths before
+  compiler support, compiler artifact-support, debug-sugar, and capsule-policy loops now cache immutable list lengths before
   iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,

@@ -44,8 +44,9 @@ fn _dbg_make_print_call(call_expr, prefix) {
     var orig = nil
     if call_expr != nil { orig = call_expr["args"] }
     if orig != nil {
+        var orig_count = oren_list_len(orig)
         var i = 0
-        while i < oren_list_len(orig) {
+        while i < orig_count {
             oren_list_push(args, orig[i])
             i = i + 1
         }
@@ -68,8 +69,9 @@ fn _dbg_make_print_call_with_args(tok, args, prefix) {
         oren_list_push(out_args, prefix_expr)
     }
     if args != nil {
+        var arg_count = oren_list_len(args)
         var i = 0
-        while i < oren_list_len(args) {
+        while i < arg_count {
             oren_list_push(out_args, args[i])
             i = i + 1
         }
@@ -84,8 +86,9 @@ fn _dbg_new_ident(name) {
 
 fn _dbg_attrs_has_name(attrs, name) {
     if attrs == nil || name == nil { return false }
+    var attr_count = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attr_count {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
         i = i + 1
@@ -172,8 +175,9 @@ fn _dbg_lower_expr_in_place(expr, debug_mode) {
     }
     if t == "Array" {
         var xs = expr["elements"]
+        var elem_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < elem_count {
             xs[i] = _dbg_lower_expr_in_place(xs[i], debug_mode)
             i = i + 1
         }
@@ -181,8 +185,9 @@ fn _dbg_lower_expr_in_place(expr, debug_mode) {
     }
     if t == "Hash" {
         var ps = expr["pairs"]
+        var pair_count = oren_list_len(ps)
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        while i2 < pair_count {
             ps[i2]["key"] = _dbg_lower_expr_in_place(ps[i2]["key"], debug_mode)
             ps[i2]["value"] = _dbg_lower_expr_in_place(ps[i2]["value"], debug_mode)
             i2 = i2 + 1
@@ -206,8 +211,9 @@ fn _dbg_lower_expr_in_place(expr, debug_mode) {
         expr["fn"] = _dbg_lower_expr_in_place(expr["fn"], debug_mode)
         var args = expr["args"]
         if args != nil {
+            var arg_count = oren_list_len(args)
             var i3 = 0
-            while i3 < oren_list_len(args) {
+            while i3 < arg_count {
                 args[i3] = _dbg_lower_expr_in_place(args[i3], debug_mode)
                 i3 = i3 + 1
             }
@@ -288,8 +294,9 @@ fn _dbg_lower_stmt_in_place(stmt, debug_mode) {
     if t == "Switch" {
         var cases = stmt["cases"]
         if cases != nil {
+            var case_count = oren_list_len(cases)
             var ci = 0
-            while ci < oren_list_len(cases) {
+            while ci < case_count {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _dbg_lower_stmt_in_place(c["body"], debug_mode) }
                 ci = ci + 1
@@ -307,8 +314,9 @@ fn _dbg_lower_stmt_in_place(stmt, debug_mode) {
 
 fn _dbg_lower_stmt_list_in_place(stmts, debug_mode) {
     if stmts == nil { return nil }
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         _dbg_lower_stmt_in_place(stmts[i], debug_mode)
         i = i + 1
     }

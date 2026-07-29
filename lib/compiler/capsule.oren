@@ -42,8 +42,9 @@ fn ascii_upper(s) {
 fn build_allow_set(domains_csv_list) {
     var allow = {}
     if domains_csv_list == nil { return allow }
+    var domain_count = oren_list_len(domains_csv_list)
     var i = 0
-    while i < oren_list_len(domains_csv_list) {
+    while i < domain_count {
         var d = domains_csv_list[i]
         if d != nil && d != "" {
             allow[ascii_upper(d)] = true
@@ -57,8 +58,9 @@ fn attr_get_arg(attr, key) {
     if attr == nil { return nil }
     var args = attr["args"]
     if args == nil { return nil }
+    var arg_count = oren_list_len(args)
     var i = 0
-    while i < oren_list_len(args) {
+    while i < arg_count {
         var kv = args[i]
         if kv != nil && kv["key"] == key {
             return kv["value"]
@@ -73,8 +75,9 @@ fn fn_required_domains(fn_node) {
     if fn_node == nil { return out }
     var attrs = fn_node["attrs"]
     if attrs == nil { return out }
+    var attr_count = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attr_count {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == "cap.requires" {
             var dom_lit = attr_get_arg(a, "domain")
@@ -92,8 +95,9 @@ fn fn_required_domains(fn_node) {
 
 fn fn_info_add_in_place(out, stmts) {
     if stmts == nil { return out }
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var s = stmts[i]
         if s != nil {
             if s["type"] == "ExprStmt" {
@@ -151,8 +155,9 @@ fn check_callee_name(errors, callee_name, fn_info, allow_set) {
     var req = info["domains"]
     if req == nil || oren_list_len(req) == 0 { return nil }
 
+    var req_count = oren_list_len(req)
     var i = 0
-    while i < oren_list_len(req) {
+    while i < req_count {
         var d = req[i]
         if allow_set[d] != true {
             return capsule_violation(errors, "capsule: call to '" + callee_name + "' requires domain '" + d + "' (allow via --cap-allow-domains / OREN_CAP_ALLOW_DOMAINS)")
@@ -192,8 +197,9 @@ fn capsule_scan_stmt(errors, stmt, fn_info, allow_set, aliases) {
     }
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
+        var stmt_count = oren_list_len(stmts)
         var i = 0
-        while i < oren_list_len(stmts) {
+        while i < stmt_count {
             capsule_scan_stmt(errors, stmts[i], fn_info, allow_set, aliases)
             i = i + 1
         }
@@ -249,8 +255,9 @@ fn capsule_scan_expr(errors, expr, fn_info, allow_set, aliases) {
         // Scan arguments and callee expression (covers dynamic calls too).
         capsule_scan_expr(errors, fn_expr, fn_info, allow_set, aliases)
         var args = expr["args"]
+        var arg_count = oren_list_len(args)
         var i = 0
-        while i < oren_list_len(args) {
+        while i < arg_count {
             capsule_scan_expr(errors, args[i], fn_info, allow_set, aliases)
             i = i + 1
         }
@@ -295,8 +302,9 @@ fn capsule_scan_expr(errors, expr, fn_info, allow_set, aliases) {
     }
     if t == "Array" {
         var els = expr["elements"]
+        var elem_count = oren_list_len(els)
         var i2 = 0
-        while i2 < oren_list_len(els) {
+        while i2 < elem_count {
             capsule_scan_expr(errors, els[i2], fn_info, allow_set, aliases)
             i2 = i2 + 1
         }
@@ -309,8 +317,9 @@ fn capsule_scan_expr(errors, expr, fn_info, allow_set, aliases) {
     }
     if t == "Hash" {
         var pairs = expr["pairs"]
+        var pair_count = oren_list_len(pairs)
         var pi = 0
-        while pi < oren_list_len(pairs) {
+        while pi < pair_count {
             capsule_scan_expr(errors, pairs[pi]["key"], fn_info, allow_set, aliases)
             capsule_scan_expr(errors, pairs[pi]["value"], fn_info, allow_set, aliases)
             pi = pi + 1
@@ -335,15 +344,17 @@ fn enforce_capsule(runtime_prog, linked, allow_domains_csv_list) {
     if linked != nil { fn_info_add_in_place(fn_info, linked["statements"]) }
 
     var errors = []
+    var linked_stmt_count = oren_list_len(linked["statements"])
     var i = 0
-    while i < oren_list_len(linked["statements"]) {
+    while i < linked_stmt_count {
         capsule_scan_stmt(errors, linked["statements"][i], fn_info, allow_set, aliases)
         i = i + 1
     }
     if oren_list_len(errors) > 0 {
         print("Capsule mode rejected program (capability violations):")
+        var error_count = oren_list_len(errors)
         var ei = 0
-        while ei < oren_list_len(errors) {
+        while ei < error_count {
             print("  - " + errors[ei])
             ei = ei + 1
         }
