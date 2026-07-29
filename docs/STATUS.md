@@ -72,6 +72,10 @@ surfaces, but the following blockers remain:
   safe-int invalidation/propagation, list-use scans, unsafe-marking, trace
   lookahead windows, and switch/block traversals, with hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in that optimizer pass.
+- ARM64 runtime-object replay/build now caches immutable debug-function,
+  import-list, offset, fixup, runtime-statement, runtime-var/decl, wrapper, and
+  trace top-declaration counts before traversal, with hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in that backend shard.
 - Parser generator core-use, yield-delegate validation, and generator-yield
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that

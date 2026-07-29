@@ -82,6 +82,10 @@ design evidence lives under `project-doc/`.
   safe-int invalidation/propagation, list-use scans, unsafe-marking, trace
   lookahead windows, and switch/block traversals, with byte-hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that optimizer pass.
+- ARM64 runtime-object replay/build now caches immutable debug-function,
+  import-list, offset, fixup, runtime-statement, runtime-var/decl, wrapper, and
+  trace top-declaration counts before traversal, with byte-hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in that backend shard.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with byte-hotpath guard coverage rejecting

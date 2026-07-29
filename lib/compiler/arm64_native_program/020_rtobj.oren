@@ -214,7 +214,8 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
                 dbg_starts = []
                 dbg_ends = []
                 var di = 0
-                while di < oren_list_len(dbg) {
+                var dbg_len = oren_list_len(dbg)
+                while di < dbg_len {
                     var df = dbg[di]
                     if df != nil &&
                        df["name"] != nil &&
@@ -300,9 +301,11 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
     if imp_rt != nil {
         if ctx["imports"] == nil { ctx["imports"] = {} }
         if ctx["import_list"] == nil { ctx["import_list"] = [] }
-        oren_list_reserve(ctx["import_list"], oren_list_len(ctx["import_list"]) + oren_list_len(imp_rt))
+        var import_list_len = oren_list_len(ctx["import_list"])
+        var imp_rt_len = oren_list_len(imp_rt)
+        oren_list_reserve(ctx["import_list"], import_list_len + imp_rt_len)
         var ii = 0
-        while ii < oren_list_len(imp_rt) {
+        while ii < imp_rt_len {
             var nm = imp_rt[ii]
             if nm != nil && nm != "" && ctx["imports"][nm] == nil {
                 ctx["imports"][nm] = true
@@ -373,7 +376,8 @@ fn _arm64_rtobj_encode_offsets_list_int(xs) {
     if xs == nil { return [] }
     var out = []
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         var v = xs[i]
         // Encode as `v+1` so a real offset of 0 is representable; skip non-ints (nil).
         if oren_type_tag(v) == 1 { oren_list_push(out, v + 1) }
@@ -386,7 +390,8 @@ fn _arm64_rtobj_encode_offsets_u8_from_int_list(xs) {
     if xs == nil { return nil }
     var b = bytes_new()
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         push_u64_le(b, xs[i])
         i = i + 1
     }
@@ -399,7 +404,8 @@ fn _arm64_rtobj_encode_fixups_compact(fixups) {
     var adr_data_n = 0
     var adr_code_n = 0
     var ci = 0
-    while ci < oren_list_len(fixups) {
+    var fixups_len = oren_list_len(fixups)
+    while ci < fixups_len {
         var cf = fixups[ci]
         if cf != nil {
             var cpos = cf["pos"]
@@ -430,7 +436,7 @@ fn _arm64_rtobj_encode_fixups_compact(fixups) {
         "adr_code_pos_enc": adr_code_pos_enc, "adr_code_name": adr_code_name, "adr_code_reg_enc": adr_code_reg_enc
     }
     var i = 0
-    while i < oren_list_len(fixups) {
+    while i < fixups_len {
         var f0 = fixups[i]
         if f0 != nil {
             var pos = f0["pos"]
@@ -474,7 +480,8 @@ fn _arm64_rtobj_encode_fixups_compact_from_enc(fixups_enc) {
     var adr_data_n = 0
     var adr_code_n = 0
     var ci = 0
-    while ci < oren_list_len(fixups_enc) {
+    var fixups_enc_len = oren_list_len(fixups_enc)
+    while ci < fixups_enc_len {
         var cf = fixups_enc[ci]
         if cf != nil {
             var cpos = cf["pos"]
@@ -505,7 +512,7 @@ fn _arm64_rtobj_encode_fixups_compact_from_enc(fixups_enc) {
         "adr_code_pos_enc": adr_code_pos_enc, "adr_code_name": adr_code_name, "adr_code_reg_enc": adr_code_reg_enc
     }
     var i = 0
-    while i < oren_list_len(fixups_enc) {
+    while i < fixups_enc_len {
         var f0 = fixups_enc[i]
         if f0 != nil {
             var pos_enc = f0["pos"]
@@ -565,7 +572,8 @@ fn _arm64_rtobj_encode_debug_funcs(funcs) {
     var starts = []
     var ends = []
     var i = 0
-    while i < oren_list_len(funcs) {
+    var funcs_len = oren_list_len(funcs)
+    while i < funcs_len {
         var f0 = funcs[i]
         if f0 != nil {
             var nm = f0["name"]
@@ -676,7 +684,8 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
 
     // Collect lambdas from the runtime (needed to prevent wrapper name collisions later).
     var li = 0
-    while li < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while li < stmts_len {
         callable.collect_lambdas_in_statement(ctx, stmts[li])
         li = li + 1
     }
@@ -693,11 +702,13 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     var runtime_vars = split["runtime_vars"]
     if runtime_decls == nil { runtime_decls = [] }
     if runtime_vars == nil { runtime_vars = [] }
+    var runtime_decls_len = oren_list_len(runtime_decls)
+    var runtime_vars_len = oren_list_len(runtime_vars)
     if trace_sum { t_split_done = oren_time_now_ns() }
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var vi = 0
-    while vi < oren_list_len(runtime_vars) {
+    while vi < runtime_vars_len {
         var st = runtime_vars[vi]
         if st != nil {
             // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
@@ -728,7 +739,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     var sum_decl_ns = 0
     if trace_decls { top_decls = [] }
     var i = 0
-    while i < oren_list_len(runtime_decls) {
+    while i < runtime_decls_len {
         var t_decl0 = 0
         if trace_decls { t_decl0 = oren_time_now_ns() }
         native_compile_stmt(ctx, runtime_decls[i])
@@ -753,7 +764,8 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
             // Keep a bounded set of the slowest decls without relying on list_pop/insert.
             if top_decls == nil { top_decls = [] }
             var ent = {"ns": dt_decl, "type": ty, "name": nm}
-            if oren_list_len(top_decls) < top_keep {
+            var top_decls_len = oren_list_len(top_decls)
+            if top_decls_len < top_keep {
                 oren_list_push(top_decls, ent)
             } else {
                 // Replace the current minimum if this decl is slower.
@@ -766,7 +778,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
                     min_ns = dt_decl
                 }
                 var j = 1
-                while j < oren_list_len(top_decls) {
+                while j < top_decls_len {
                     var e0 = top_decls[j]
                     if e0 != nil && e0["ns"] != nil && e0["ns"] < min_ns {
                         min_ns = e0["ns"]
@@ -790,7 +802,8 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     if trace_decls && top_decls != nil {
         print("[arm64_rtobj] top decls (us), sum_compile_ms=" + oren_int_to_string(sum_decl_ns / 1000000) + ":")
         var ti = 0
-        while ti < oren_list_len(top_decls) {
+        var top_decls_len2 = oren_list_len(top_decls)
+        while ti < top_decls_len2 {
             var e1 = top_decls[ti]
             if e1 != nil {
                 var nm1 = e1["name"]
@@ -808,7 +821,8 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts)
     var need = ctx["fnwrap_needed"]
     var wi = 0
-    while wi < oren_list_len(ctx["func_decl_order"]) {
+    var func_decl_order_len = oren_list_len(ctx["func_decl_order"])
+    while wi < func_decl_order_len {
         var fname = ctx["func_decl_order"][wi]
         if need == nil || need[fname] == nil { wi = wi + 1; continue }
         // `func_arity`/`func_varargs_fixed` are encoded as +1 (0 means missing). Be defensive:
@@ -832,7 +846,8 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         wi = wi + 1
     }
     wi = 0
-    while wi < oren_list_len(ctx["lambda_defs"]) {
+    var lambda_defs_len = oren_list_len(ctx["lambda_defs"])
+    while wi < lambda_defs_len {
         var def = ctx["lambda_defs"][wi]
         if def != nil && def["name"] != nil {
             var lname = def["name"]
@@ -903,8 +918,8 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
               " decls_ms=" + oren_int_to_string(decls_ms) +
               " wrappers_ms=" + oren_int_to_string(wrap_ms) +
               " finalize_ms=" + oren_int_to_string(fin_ms) +
-              " decls_n=" + oren_int_to_string(oren_list_len(runtime_decls)) +
-              " vars_n=" + oren_int_to_string(oren_list_len(runtime_vars)) +
+              " decls_n=" + oren_int_to_string(runtime_decls_len) +
+              " vars_n=" + oren_int_to_string(runtime_vars_len) +
               " code_bytes=" + oren_int_to_string(oren_buf_len(code_u8)) +
               " data_bytes=" + oren_int_to_string(oren_buf_len(data_u8)) +
               " fixups_n=" + oren_int_to_string(fx_n))
