@@ -68,6 +68,10 @@ surfaces, but the following blockers remain:
   emission, loop jump patching, top-level metadata, and relocation scans, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
   backend shard.
+- Optimizer list-int analysis now caches immutable AST list counts before
+  safe-int invalidation/propagation, list-use scans, unsafe-marking, trace
+  lookahead windows, and switch/block traversals, with hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in that optimizer pass.
 - Parser generator core-use, yield-delegate validation, and generator-yield
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that

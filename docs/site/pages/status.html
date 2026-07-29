@@ -128,6 +128,12 @@
 <p>  hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that</p>
 <p>  backend shard.</p>
 <ul>
+<li>Optimizer list-int analysis now caches immutable AST list counts before</li>
+</ul>
+<p>  safe-int invalidation/propagation, list-use scans, unsafe-marking, trace</p>
+<p>  lookahead windows, and switch/block traversals, with hotpath guard coverage</p>
+<p>  rejecting direct <code>oren_list_len</code> loop bounds in that optimizer pass.</p>
+<ul>
 <li>Parser generator core-use, yield-delegate validation, and generator-yield</li>
 </ul>
 <p>  rewrite traversals now cache immutable AST list counts before iteration, with</p>

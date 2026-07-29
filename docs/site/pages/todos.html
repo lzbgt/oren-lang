@@ -135,6 +135,12 @@
 <p>  byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
 <p>  that backend shard.</p>
 <ul>
+<li>Optimizer list-int analysis now caches immutable AST list counts before</li>
+</ul>
+<p>  safe-int invalidation/propagation, list-use scans, unsafe-marking, trace</p>
+<p>  lookahead windows, and switch/block traversals, with byte-hotpath guard</p>
+<p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in that optimizer pass.</p>
+<ul>
 <li>Compiler function/yield analysis now caches immutable program, block,</li>
 </ul>
 <p>  parameter, expression, yield-point, generator-finalize, and function-list</p>

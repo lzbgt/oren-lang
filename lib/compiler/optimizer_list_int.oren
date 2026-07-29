@@ -302,7 +302,8 @@ fn _opt_safe_ints_invalidate_in_stmt(stmt, safe_ints) {
         var ss = stmt["stmts"]
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_len = oren_list_len(ss)
+            while i < ss_len {
                 _opt_safe_ints_invalidate_in_stmt(ss[i], safe_ints)
                 i = i + 1
             }
@@ -328,7 +329,8 @@ fn _opt_safe_ints_invalidate_in_stmt(stmt, safe_ints) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil { _opt_safe_ints_invalidate_in_stmt(c["body"], safe_ints) }
                 ci = ci + 1
@@ -417,7 +419,8 @@ fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) {
         var out = safe_ints
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_len = oren_list_len(ss)
+            while i < ss_len {
                 out = _opt_safe_ints_after_stmt(ss[i], out, tag)
                 i = i + 1
             }
@@ -488,14 +491,16 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
     if t == "Call" {
         var nm = _opt_call_name(expr)
         var args = expr["args"]
-        if nm != nil && args != nil && oren_list_len(args) > 0 {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        if nm != nil && args_len > 0 {
             var recv_name = opthelp.is_ident(args[0])
             if recv_name != nil && _opt_list_state_is_candidate(list_state, recv_name) {
                 if _opt_list_int_call_is_safe(nm, args, safe_ints) != true {
                     _opt_list_state_mark_unsafe_reason(list_state, recv_name, "call:" + nm)
                 }
                 var ai = 1
-                while ai < oren_list_len(args) {
+                while ai < args_len {
                     _opt_scan_list_int_uses_expr(args[ai], list_state, safe_ints)
                     ai = ai + 1
                 }
@@ -506,7 +511,7 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
         if expr["fn"] != nil { _opt_scan_list_int_uses_expr(expr["fn"], list_state, safe_ints) }
         if args != nil {
             var i = 0
-            while i < oren_list_len(args) {
+            while i < args_len {
                 _opt_scan_list_int_uses_expr(args[i], list_state, safe_ints)
                 i = i + 1
             }
@@ -537,7 +542,8 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
         var els = expr["elements"]
         if els != nil {
             var i2 = 0
-            while i2 < oren_list_len(els) {
+            var els_len = oren_list_len(els)
+            while i2 < els_len {
                 _opt_scan_list_int_uses_expr(els[i2], list_state, safe_ints)
                 i2 = i2 + 1
             }
@@ -548,7 +554,8 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
         var ps = expr["pairs"]
         if ps != nil {
             var i3 = 0
-            while i3 < oren_list_len(ps) {
+            var ps_len = oren_list_len(ps)
+            while i3 < ps_len {
                 _opt_scan_list_int_uses_expr(ps[i3]["key"], list_state, safe_ints)
                 _opt_scan_list_int_uses_expr(ps[i3]["value"], list_state, safe_ints)
                 i3 = i3 + 1
@@ -560,9 +567,11 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
     if t == "Switch" {
         _opt_scan_list_int_uses_expr(expr["cond"], list_state, safe_ints)
         var cases = expr["cases"]
+        var cases_len = 0
         if cases != nil {
+            cases_len = oren_list_len(cases)
             var ci = 0
-            while ci < oren_list_len(cases) {
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil {
                     _opt_scan_list_int_uses_stmt(c["body"], list_state, _opt_map_clone_safe(safe_ints))
@@ -573,7 +582,7 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
         if expr["default"] != nil { _opt_scan_list_int_uses_stmt(expr["default"], list_state, _opt_map_clone_safe(safe_ints)) }
         if cases != nil {
             var ci2 = 0
-            while ci2 < oren_list_len(cases) {
+            while ci2 < cases_len {
                 var c2 = cases[ci2]
                 if c2 != nil && c2["body"] != nil { _opt_safe_ints_invalidate_in_stmt(c2["body"], safe_ints) }
                 ci2 = ci2 + 1
@@ -603,7 +612,8 @@ fn _opt_mark_list_state_unsafe_in_expr(expr, list_state) {
         var args = expr["args"]
         if args != nil {
             var i = 0
-            while i < oren_list_len(args) {
+            var args_len = oren_list_len(args)
+            while i < args_len {
                 _opt_mark_list_state_unsafe_in_expr(args[i], list_state)
                 i = i + 1
             }
@@ -627,7 +637,8 @@ fn _opt_mark_list_state_unsafe_in_expr(expr, list_state) {
         var els = expr["elements"]
         if els != nil {
             var i2 = 0
-            while i2 < oren_list_len(els) {
+            var els_len = oren_list_len(els)
+            while i2 < els_len {
                 _opt_mark_list_state_unsafe_in_expr(els[i2], list_state)
                 i2 = i2 + 1
             }
@@ -638,7 +649,8 @@ fn _opt_mark_list_state_unsafe_in_expr(expr, list_state) {
         var ps = expr["pairs"]
         if ps != nil {
             var i3 = 0
-            while i3 < oren_list_len(ps) {
+            var ps_len = oren_list_len(ps)
+            while i3 < ps_len {
                 _opt_mark_list_state_unsafe_in_expr(ps[i3]["key"], list_state)
                 _opt_mark_list_state_unsafe_in_expr(ps[i3]["value"], list_state)
                 i3 = i3 + 1
@@ -652,7 +664,8 @@ fn _opt_mark_list_state_unsafe_in_expr(expr, list_state) {
         var cases2 = expr["cases"]
         if cases2 != nil {
             var ci2 = 0
-            while ci2 < oren_list_len(cases2) {
+            var cases2_len = oren_list_len(cases2)
+            while ci2 < cases2_len {
                 var c2 = cases2[ci2]
                 if c2 != nil && c2["body"] != nil { _opt_mark_list_state_unsafe_in_stmt(c2["body"], list_state) }
                 ci2 = ci2 + 1
@@ -704,7 +717,8 @@ fn _opt_mark_list_state_unsafe_in_stmt(stmt, list_state) {
         var ss = stmt["stmts"]
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_len = oren_list_len(ss)
+            while i < ss_len {
                 _opt_mark_list_state_unsafe_in_stmt(ss[i], list_state)
                 i = i + 1
             }
@@ -716,7 +730,8 @@ fn _opt_mark_list_state_unsafe_in_stmt(stmt, list_state) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _opt_mark_list_state_unsafe_in_stmt(c["body"], list_state) }
                 ci = ci + 1
@@ -792,7 +807,8 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
             var snap_ints = _opt_map_clone_safe(safe_ints)
             var trace_list_int = _opt_trace_list_int_enabled()
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_len = oren_list_len(ss)
+            while i < ss_len {
                 var st0 = ss[i]
                 if trace_list_int == true && st0 != nil && st0["type"] == "ExprStmt" {
                     var en = st0["expr"]
@@ -821,7 +837,7 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                         var wstart = i - 2
                         if wstart < 0 { wstart = 0 }
                         var wend = i + 2
-                        if wend >= oren_list_len(ss) { wend = oren_list_len(ss) - 1 }
+                        if wend >= ss_len { wend = ss_len - 1 }
                         var w = ""
                         var wi = wstart
                         while wi <= wend {
@@ -869,7 +885,7 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                 if opthelp.stmt_may_assign_name(ss[i]) {
                     snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "uses")
                 }
-                if trace_list_int == true && i + 1 < oren_list_len(ss) {
+                if trace_list_int == true && i + 1 < ss_len {
                     var nxt = ss[i + 1]
                     var log_next = false
                     if nxt != nil && nxt["type"] == "ExprStmt" {
@@ -877,7 +893,7 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                         var ncall = _opt_call_name(nexpr)
                         if ncall == "oren_list_push" || ncall == "STD_list_push" || ncall == "oren_list_int_push" || ncall == "STD_list_int_push" {
                             log_next = true
-                        } else if nexpr != nil && nexpr["type"] == "If" && i + 2 < oren_list_len(ss) {
+                        } else if nexpr != nil && nexpr["type"] == "If" && i + 2 < ss_len {
                             var nxt2 = ss[i + 2]
                             if nxt2 != nil && nxt2["type"] == "ExprStmt" {
                                 var n2call = _opt_call_name(nxt2["expr"])
@@ -908,7 +924,8 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil {
                     _opt_scan_list_int_uses_stmt(c["body"], list_state, _opt_map_clone_safe(safe_ints))
