@@ -53,9 +53,10 @@ surfaces, but the following blockers remain:
   root, parse-error, decoded-list, and merge traversal counts, with hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that shared x64/ARM64
   runtime-injection path.
-- C transpiler constructor, lambda, block, branch, call, array, and function body
-  emission now caches immutable AST list counts before traversal, with hotpath
-  guard coverage rejecting direct `oren_list_len` loop bounds in that backend.
+- C transpiler constructor, lambda, block, branch, call, array, function body,
+  and entry-unit emission now caches immutable AST list counts before traversal,
+  with hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
+  that backend.
 - Compiler linked-summary/module-graph dumps and ARM64 Mach-O function-offset
   lookup ranking now cache immutable list counts before traversal, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in those support
@@ -3174,7 +3175,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,
   compiler support, compiler artifact-support, debug-sugar, capsule-policy,
   optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, C-transpiler support,
-  renamer, CoreIR, type-annotation lowering, type-name resolution, native runtime-object cache, and `std:sys` loops now cache immutable list lengths before
+  renamer, CoreIR, type-annotation lowering, C-transpiler entry, type-name resolution, native runtime-object cache, and `std:sys` loops now cache immutable list lengths before
   iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,

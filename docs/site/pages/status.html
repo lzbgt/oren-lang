@@ -107,10 +107,11 @@
 <p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in that shared x64/ARM64</p>
 <p>  runtime-injection path.</p>
 <ul>
-<li>C transpiler constructor, lambda, block, branch, call, array, and function body</li>
+<li>C transpiler constructor, lambda, block, branch, call, array, function body,</li>
 </ul>
-<p>  emission now caches immutable AST list counts before traversal, with hotpath</p>
-<p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that backend.</p>
+<p>  and entry-unit emission now caches immutable AST list counts before traversal,</p>
+<p>  with hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
+<p>  that backend.</p>
 <ul>
 <li>Compiler linked-summary/module-graph dumps and ARM64 Mach-O function-offset</li>
 </ul>
@@ -3650,7 +3651,7 @@
 <p>  module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,</p>
 <p>  compiler support, compiler artifact-support, debug-sugar, capsule-policy,</p>
 <p>  optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, C-transpiler support,</p>
-<p>  renamer, CoreIR, type-annotation lowering, type-name resolution, native runtime-object cache, and <code>std:sys</code> loops now cache immutable list lengths before</p>
+<p>  renamer, CoreIR, type-annotation lowering, C-transpiler entry, type-name resolution, native runtime-object cache, and <code>std:sys</code> loops now cache immutable list lengths before</p>
 <p>  iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>

@@ -59,10 +59,10 @@ design evidence lives under `project-doc/`.
   root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that shared
   x64/ARM64 runtime-injection path.
-- C transpiler constructor, lambda, block, branch, call, array, and function
-  body emission now caches immutable AST list counts before traversal, with
-  byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
-  that backend.
+- C transpiler constructor, lambda, block, branch, call, array, function body,
+  and entry-unit emission now caches immutable AST list counts before traversal,
+  with byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds
+  in that backend.
 - Compiler linked-summary/module-graph dumps and ARM64 Mach-O function-offset
   lookup ranking now cache immutable list counts before traversal, with
   byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
@@ -3067,6 +3067,11 @@ design evidence lives under `project-doc/`.
   statement passes now cache immutable list counts before traversal, with
   byte-hotpath guard coverage for direct `oren_list_len` loop conditions in
   that semantic lowering pass.
+- C transpiler entry-unit collection, metadata preload, global/root registration,
+  lambda prototype/body, function/type emission, and module/root top-level
+  statement emission now cache immutable list counts before traversal, with
+  byte-hotpath guard coverage for direct `oren_list_len` loop conditions in that
+  backend entry shard.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

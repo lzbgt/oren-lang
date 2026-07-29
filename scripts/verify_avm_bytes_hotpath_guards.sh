@@ -1816,6 +1816,7 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/debug_sugar.oren \
   lib/compiler/capsule.oren \
   lib/compiler/transpiler.oren \
+  lib/compiler/transpiler/090_entry.oren \
   lib/compiler/dump.oren \
   lib/compiler/arm64_macho_resolve.oren \
   lib/compiler/compiler/000_prelude_body.oren \

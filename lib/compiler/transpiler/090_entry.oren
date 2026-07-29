@@ -17,9 +17,11 @@ fn collect_parts(program) {
     var functions = []
     var types = []
     var main_body = []
+    var statements = program["statements"]
+    var statement_count = oren_list_len(statements)
     var i = 0
-    while i < oren_list_len(program["statements"]) {
-        var s = program["statements"][i]
+    while i < statement_count {
+        var s = statements[i]
         if s["type"] == "Import" {
             // compile-time only
         } else {
@@ -57,7 +59,8 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     var i = 0
 
     // Process loaded modules
-    while i < oren_list_len(module_order) {
+    var module_count = oren_list_len(module_order)
+    while i < module_count {
         var mod2 = module_order[i]
         var parts = collect_parts(mod2["program"])
         oren_list_push(units, {"program": mod2["program"], "aliases": mod2["aliases"], "parts": parts, "prefix": mod2["prefix"]})
@@ -69,11 +72,13 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     oren_list_push(units, {"program": program, "aliases": root_aliases, "parts": root_parts, "prefix": "root"})
 
     var type_ns = {}
+    var unit_count = oren_list_len(units)
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         var types = units[i]["parts"]["types"]
+        var type_count = oren_list_len(types)
         var j = 0
-        while j < oren_list_len(types) {
+        while j < type_count {
             type_ns[types[j]["name"]["value"]] = true
             j = j + 1
         }
@@ -87,18 +92,20 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Preload all function names for direct-call lowering.
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         var funs = units[i]["parts"]["functions"]
 
         // Rolling: share function metadata extraction with other backends via CoreIR v0.
         // `funs` is already a list of Function nodes; treat it as a "statements" list for CoreIR.
         var meta = {"errors": []}
         coreir.collect_top_level_functions(meta, {"statements": funs}, "c backend v0")
-        if meta["errors"] != nil && oren_list_len(meta["errors"]) > 0 {
+        var error_count = 0
+        if meta["errors"] != nil { error_count = oren_list_len(meta["errors"]) }
+        if error_count > 0 {
             print("OREN_DIAG kind=transpiler code=1 msg=coreir metadata error")
             print("transpiler: coreir metadata error:")
             var ei = 0
-            while ei < oren_list_len(meta["errors"]) {
+            while ei < error_count {
                 print(meta["errors"][ei])
                 ei = ei + 1
             }
@@ -107,8 +114,9 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
         var order = meta["func_decl_order"]
         if order != nil {
+            var order_count = oren_list_len(order)
             var j = 0
-            while j < oren_list_len(order) {
+            while j < order_count {
                 var nm = order[j]
                 oren_list_push(t["functions"], nm)
                 if nm == "main" { has_user_main = true }
@@ -124,8 +132,9 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         }
 
         var types = units[i]["parts"]["types"]
+        var type_count2 = oren_list_len(types)
         var jt = 0
-        while jt < oren_list_len(types) {
+        while jt < type_count2 {
             oren_list_push(t["functions"], type_ctor_name(types[jt]))
             jt = jt + 1
         }
@@ -140,10 +149,11 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Globals (all units).
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         var globals = units[i]["parts"]["globals"]
+        var global_count = oren_list_len(globals)
         var j = 0
-        while j < oren_list_len(globals) {
+        while j < global_count {
             emit(t, "OrenValue " + c_ident(globals[j]["name"]["value"]) + ";")
             j = j + 1
         }
@@ -153,20 +163,22 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Collect all lambdas before emitting prototypes.
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         t["aliases"] = units[i]["aliases"]
         var pref = units[i]["prefix"]
         // function bodies
         var funs2 = units[i]["parts"]["functions"]
+        var fun_count2 = oren_list_len(funs2)
         var jf = 0
-        while jf < oren_list_len(funs2) {
+        while jf < fun_count2 {
             collect_lambdas_in_statement(t, pref, units[i]["aliases"], funs2[jf]["body"])
             jf = jf + 1
         }
         // top-level statements
         var body2 = units[i]["parts"]["main_body"]
+        var body_count2 = oren_list_len(body2)
         var jb = 0
-        while jb < oren_list_len(body2) {
+        while jb < body_count2 {
             collect_lambdas_in_statement(t, pref, units[i]["aliases"], body2[jb])
             jb = jb + 1
         }
@@ -175,17 +187,19 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Prototypes (functions + constructors).
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         var funs = units[i]["parts"]["functions"]
+        var fun_count = oren_list_len(funs)
         var j = 0
-        while j < oren_list_len(funs) {
+        while j < fun_count {
             emit(t, function_sig(funs[j]) + ";")
             emit(t, fnwrap_sig_by_name(funs[j]["name"]) + ";")
             j = j + 1
         }
         var types = units[i]["parts"]["types"]
+        var type_count3 = oren_list_len(types)
         j = 0
-        while j < oren_list_len(types) {
+        while j < type_count3 {
             emit(t, type_ctor_sig(types[j]) + ";")
             emit(t, fnwrap_sig_by_name(type_ctor_name(types[j])) + ";")
             j = j + 1
@@ -193,8 +207,9 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         i = i + 1
     }
     // Lambda prototypes.
+    var lambda_count = oren_list_len(t["lambda_defs"])
     i = 0
-    while i < oren_list_len(t["lambda_defs"]) {
+    while i < lambda_count {
         emit(t, lambda_sig_by_name(t["lambda_defs"][i]["name"]) + ";")
         i = i + 1
     }
@@ -202,22 +217,24 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Function bodies (functions + constructors).
     i = 0
-    while i < oren_list_len(t["lambda_defs"]) {
+    while i < lambda_count {
         transpile_lambda_def(t, t["lambda_defs"][i])
         i = i + 1
     }
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         t["aliases"] = units[i]["aliases"]
         var funs = units[i]["parts"]["functions"]
+        var fun_count4 = oren_list_len(funs)
         var j = 0
-        while j < oren_list_len(funs) {
+        while j < fun_count4 {
             transpile_function(t, funs[j])
             j = j + 1
         }
         var types = units[i]["parts"]["types"]
+        var type_count4 = oren_list_len(types)
         j = 0
-        while j < oren_list_len(types) {
+        while j < type_count4 {
             transpile_type_ctor(t, types[j])
             j = j + 1
         }
@@ -230,10 +247,11 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Register globals as GC roots
     i = 0
-    while i < oren_list_len(units) {
+    while i < unit_count {
         var globals = units[i]["parts"]["globals"]
+        var global_count2 = oren_list_len(globals)
         var j = 0
-        while j < oren_list_len(globals) {
+        while j < global_count2 {
             emit(t, "oren_register_root(&" + c_ident(globals[j]["name"]["value"]) + ");")
             j = j + 1
         }
@@ -242,12 +260,13 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Execute module top-level statements first (excluding root unit).
     i = 0
-    while i < oren_list_len(units) - 1 {
+    while i < unit_count - 1 {
         t["aliases"] = units[i]["aliases"]
         t["inty"] = []
         var body = units[i]["parts"]["main_body"]
+        var body_count = oren_list_len(body)
         var j = 0
-        while j < oren_list_len(body) {
+        while j < body_count {
             emit(t, transpile_statement(t, body[j]))
             j = j + 1
         }
@@ -255,11 +274,13 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     }
 
     // Root top-level statements last.
-    t["aliases"] = units[oren_list_len(units) - 1]["aliases"]
+    var root_unit = units[unit_count - 1]
+    t["aliases"] = root_unit["aliases"]
     t["inty"] = []
-    var root_body = units[oren_list_len(units) - 1]["parts"]["main_body"]
+    var root_body = root_unit["parts"]["main_body"]
+    var root_body_count = oren_list_len(root_body)
     i = 0
-    while i < oren_list_len(root_body) {
+    while i < root_body_count {
         emit(t, transpile_statement(t, root_body[i]))
         i = i + 1
     }
