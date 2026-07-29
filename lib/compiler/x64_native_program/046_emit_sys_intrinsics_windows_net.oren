@@ -189,13 +189,13 @@ fn _x64_windows_wsa_startup_state(ctx, locals, args) {
     if oren_type_tag(tmp_ws) == 0 { _intr_tmp_pop(ctx, base); return nil }
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ws)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_ws": tmp_ws}
+    return [base, tmp_ws]
 }
 
 fn _x64_windows_wsa_startup_emit_call(ctx, st) {
     // WSAStartup(MAKEWORD(2,2), wsadata_ptr)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 514)) // ecx = 0x0202
-    _intr_load_x64(ctx, 2, st["tmp_ws"]) // rdx = wsadata_ptr
+    _intr_load_x64(ctx, 2, st[1]) // rdx = wsadata_ptr
     _emit_call_iat_x64(ctx, "IAT_WSAStartup")
     return nil
 }
@@ -228,7 +228,7 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     _x64_windows_wsa_startup_emit_call(ctx, st)
     _x64_windows_wsa_startup_normalize_result(ctx, labels, fixups)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -241,16 +241,16 @@ fn _x64_windows_select_tmp_state(ctx, locals) {
     var tmp_e = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_tv = _intr_tmp_off(ctx, locals, base + 4)
     if oren_type_tag(tmp_nfds) == 0 || oren_type_tag(tmp_r) == 0 || oren_type_tag(tmp_w) == 0 || oren_type_tag(tmp_e) == 0 || oren_type_tag(tmp_tv) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_nfds": tmp_nfds, "tmp_r": tmp_r, "tmp_w": tmp_w, "tmp_e": tmp_e, "tmp_tv": tmp_tv}
+    return [base, tmp_nfds, tmp_r, tmp_w, tmp_e, tmp_tv]
 }
 
 fn _x64_windows_select_spill_args(ctx, locals, args, st) {
-    _intr_eval_spill_x64(ctx, locals, args[0], st["tmp_nfds"])
-    _intr_eval_spill_x64(ctx, locals, args[1], st["tmp_r"])
-    _intr_eval_spill_x64(ctx, locals, args[2], st["tmp_w"])
-    _intr_eval_spill_x64(ctx, locals, args[3], st["tmp_e"])
-    _intr_eval_spill_x64(ctx, locals, args[4], st["tmp_tv"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return false }
+    _intr_eval_spill_x64(ctx, locals, args[0], st[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], st[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], st[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], st[4])
+    _intr_eval_spill_x64(ctx, locals, args[4], st[5])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st[0]); return false }
     return true
 }
 
@@ -262,11 +262,11 @@ fn _x64_windows_select_state(ctx, locals, args) {
 }
 
 fn _x64_windows_select_load_args(ctx, st) {
-    _intr_load_x64(ctx, 1, st["tmp_nfds"]) // rcx
-    _intr_load_x64(ctx, 2, st["tmp_r"])    // rdx
-    _intr_load_x64(ctx, 8, st["tmp_w"])    // r8
-    _intr_load_x64(ctx, 9, st["tmp_e"])    // r9
-    _intr_load_x64(ctx, 10, st["tmp_tv"])  // r10 = tv
+    _intr_load_x64(ctx, 1, st[1]) // rcx
+    _intr_load_x64(ctx, 2, st[2]) // rdx
+    _intr_load_x64(ctx, 8, st[3]) // r8
+    _intr_load_x64(ctx, 9, st[4]) // r9
+    _intr_load_x64(ctx, 10, st[5]) // r10 = tv
     return nil
 }
 
@@ -305,7 +305,7 @@ fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
     _x64_windows_select_emit_call(ctx, st)
     _x64_windows_select_normalize_result(ctx, labels, fixups)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -326,7 +326,7 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     _x64_windows_socket_posthook(ctx, st, capsule)
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -342,13 +342,13 @@ fn _x64_windows_socket_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_proto)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_dom": tmp_dom, "tmp_type": tmp_type, "tmp_proto": tmp_proto}
+    return [base, tmp_dom, tmp_type, tmp_proto]
 }
 
 fn _x64_windows_socket_load_args(ctx, st) {
-    _intr_load_x64(ctx, 1, st["tmp_dom"])
-    _intr_load_x64(ctx, 2, st["tmp_type"])
-    _intr_load_x64(ctx, 8, st["tmp_proto"])
+    _intr_load_x64(ctx, 1, st[1])
+    _intr_load_x64(ctx, 2, st[2])
+    _intr_load_x64(ctx, 8, st[3])
     return nil
 }
 
@@ -377,9 +377,9 @@ fn _x64_windows_socket_result(ctx, labels, fixups) {
 
 fn _x64_windows_socket_posthook(ctx, st, capsule) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd
-    _intr_load_x64(ctx, 2, st["tmp_dom"])
-    _intr_load_x64(ctx, 8, st["tmp_type"])
-    _intr_load_x64(ctx, 9, st["tmp_proto"])
+    _intr_load_x64(ctx, 2, st[1])
+    _intr_load_x64(ctx, 8, st[2])
+    _intr_load_x64(ctx, 9, st[3])
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post") }
     return nil
 }
@@ -398,13 +398,13 @@ fn _x64_windows_sockaddr3_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_fd": tmp_fd, "tmp_addr": tmp_addr, "tmp_len": tmp_len}
+    return [base, tmp_fd, tmp_addr, tmp_len]
 }
 
 fn _x64_windows_sockaddr3_load_args(ctx, st) {
-    _intr_load_x64(ctx, 1, st["tmp_fd"])
-    _intr_load_x64(ctx, 2, st["tmp_addr"])
-    _intr_load_x64(ctx, 8, st["tmp_len"])
+    _intr_load_x64(ctx, 1, st[1])
+    _intr_load_x64(ctx, 2, st[2])
+    _intr_load_x64(ctx, 8, st[3])
     return nil
 }
 
@@ -441,9 +441,9 @@ fn _x64_windows_sockaddr3_result(ctx, labels, fixups, label_prefix, errno_kind) 
 
 fn _x64_windows_sockaddr3_posthook(ctx, st, capsule, hook_name) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, st["tmp_fd"])
-    _intr_load_x64(ctx, 8, st["tmp_addr"])
-    _intr_load_x64(ctx, 9, st["tmp_len"])
+    _intr_load_x64(ctx, 2, st[1])
+    _intr_load_x64(ctx, 8, st[2])
+    _intr_load_x64(ctx, 9, st[3])
     if capsule { _emit_call_rel32_named_x64(ctx, hook_name) }
     return nil
 }
@@ -462,9 +462,9 @@ fn _x64_windows_accept_result(ctx, labels, fixups) {
 fn _x64_windows_accept_posthook(ctx, st, capsule) {
     // post: native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) -> newfd
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = newfd
-    _intr_load_x64(ctx, 2, st["tmp_fd"])
-    _intr_load_x64(ctx, 8, st["tmp_addr"])
-    _intr_load_x64(ctx, 9, st["tmp_len"])
+    _intr_load_x64(ctx, 2, st[1])
+    _intr_load_x64(ctx, 8, st[2])
+    _intr_load_x64(ctx, 9, st[3])
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post") }
     return nil
 }
@@ -486,7 +486,7 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     _x64_windows_sockaddr3_result(ctx, labels, fixups, "sys_connect", "connect")
     _x64_windows_sockaddr3_posthook(ctx, st, capsule, "native_capsule_sys_connect_post")
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -507,7 +507,7 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     _x64_windows_sockaddr3_result(ctx, labels, fixups, "sys_bind", "common")
     _x64_windows_sockaddr3_posthook(ctx, st, capsule, "native_capsule_sys_bind_post")
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -521,12 +521,12 @@ fn _x64_windows_fd2_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], fd)
     _intr_eval_spill_x64(ctx, locals, args[1], arg)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "fd": fd, "arg": arg}
+    return [base, fd, arg]
 }
 
 fn _x64_windows_fd2_load(ctx, st) {
-    _intr_load_x64(ctx, 1, st["fd"])
-    _intr_load_x64(ctx, 2, st["arg"])
+    _intr_load_x64(ctx, 1, st[1])
+    _intr_load_x64(ctx, 2, st[2])
     return nil
 }
 
@@ -569,8 +569,8 @@ fn _x64_windows_fd2_normalize_result(ctx, labels, fixups, label_prefix) {
 fn _x64_windows_listen_emit_post(ctx, st, capsule) {
     if !capsule { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, st["fd"])
-    _intr_load_x64(ctx, 8, st["arg"])
+    _intr_load_x64(ctx, 2, st[1])
+    _intr_load_x64(ctx, 8, st[2])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
     return nil
 }
@@ -592,7 +592,7 @@ fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
     _x64_windows_listen_emit_post(ctx, st, capsule)
     _patch_local_fixups(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -613,7 +613,7 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
     _x64_windows_accept_posthook(ctx, st, capsule)
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -632,7 +632,7 @@ fn _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) {
     _x64_windows_sockaddr3_iat_call(ctx, st, "IAT_getsockname")
     _x64_windows_sockaddr3_result(ctx, labels, fixups, "sys_getsockname", "common")
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -651,7 +651,7 @@ fn _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) {
     _x64_windows_sockaddr3_iat_call(ctx, st, "IAT_getpeername")
     _x64_windows_sockaddr3_result(ctx, labels, fixups, "sys_getpeername", "common")
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -672,23 +672,16 @@ fn _x64_setsockopt_spill_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    return {
-        "base": base,
-        "tmp_fd": tmp_fd,
-        "tmp_lvl": tmp_lvl,
-        "tmp_opt": tmp_opt,
-        "tmp_val": tmp_val,
-        "tmp_len": tmp_len
-    }
+    return [base, tmp_fd, tmp_lvl, tmp_opt, tmp_val, tmp_len]
 }
 
 fn _x64_setsockopt_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_setsockopt_pre(fd, level, optname, optval, optlen)
-    _intr_load_x64(ctx, 1, state["tmp_fd"])
-    _intr_load_x64(ctx, 2, state["tmp_lvl"])
-    _intr_load_x64(ctx, 8, state["tmp_opt"])
-    _intr_load_x64(ctx, 9, state["tmp_val"])
-    _intr_load_x64(ctx, 10, state["tmp_len"])
+    _intr_load_x64(ctx, 1, state[1])
+    _intr_load_x64(ctx, 2, state[2])
+    _intr_load_x64(ctx, 8, state[3])
+    _intr_load_x64(ctx, 9, state[4])
+    _intr_load_x64(ctx, 10, state[5])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre") }
     return nil
@@ -737,8 +730,8 @@ fn _x64_win_sockopt_translate_optname(ctx, labels, fixups, tmp_opt, prefix) {
 }
 
 fn _x64_win_sockopt_translate_args(ctx, labels, fixups, state, prefix) {
-    _x64_win_sockopt_translate_level(ctx, labels, fixups, state["tmp_lvl"], prefix)
-    _x64_win_sockopt_translate_optname(ctx, labels, fixups, state["tmp_opt"], prefix)
+    _x64_win_sockopt_translate_level(ctx, labels, fixups, state[2], prefix)
+    _x64_win_sockopt_translate_optname(ctx, labels, fixups, state[3], prefix)
     return nil
 }
 
@@ -749,11 +742,11 @@ fn _x64_setsockopt_translate_args(ctx, labels, fixups, state) {
 
 fn _x64_setsockopt_emit_call(ctx, state) {
     // setsockopt(fd, level, opt, optval, optlen)
-    _intr_load_x64(ctx, 1, state["tmp_fd"]) // rcx = fd
+    _intr_load_x64(ctx, 1, state[1]) // rcx = fd
     // rdx already has level
     // r8 already has optname
-    _intr_load_x64(ctx, 9, state["tmp_val"]) // r9 = optval
-    _intr_load_x64(ctx, 10, state["tmp_len"])
+    _intr_load_x64(ctx, 9, state[4]) // r9 = optval
+    _intr_load_x64(ctx, 10, state[5])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _emit_call_iat_x64(ctx, "IAT_setsockopt")
     return nil
@@ -790,7 +783,7 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     _x64_setsockopt_emit_call(ctx, state)
     _x64_setsockopt_normalize_result(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -811,23 +804,16 @@ fn _x64_getsockopt_spill_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_lenp)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    return {
-        "base": base,
-        "tmp_fd": tmp_fd,
-        "tmp_lvl": tmp_lvl,
-        "tmp_opt": tmp_opt,
-        "tmp_val": tmp_val,
-        "tmp_lenp": tmp_lenp
-    }
+    return [base, tmp_fd, tmp_lvl, tmp_opt, tmp_val, tmp_lenp]
 }
 
 fn _x64_getsockopt_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_getsockopt_pre(fd, level, optname, optval, optlen_ptr)
-    _intr_load_x64(ctx, 1, state["tmp_fd"])
-    _intr_load_x64(ctx, 2, state["tmp_lvl"])
-    _intr_load_x64(ctx, 8, state["tmp_opt"])
-    _intr_load_x64(ctx, 9, state["tmp_val"])
-    _intr_load_x64(ctx, 10, state["tmp_lenp"])
+    _intr_load_x64(ctx, 1, state[1])
+    _intr_load_x64(ctx, 2, state[2])
+    _intr_load_x64(ctx, 8, state[3])
+    _intr_load_x64(ctx, 9, state[4])
+    _intr_load_x64(ctx, 10, state[5])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre") }
     return nil
@@ -840,9 +826,9 @@ fn _x64_getsockopt_translate_args(ctx, labels, fixups, state) {
 
 fn _x64_getsockopt_emit_call(ctx, state) {
     // getsockopt(fd, level, opt, optval, optlen_ptr)
-    _intr_load_x64(ctx, 1, state["tmp_fd"])
-    _intr_load_x64(ctx, 9, state["tmp_val"])
-    _intr_load_x64(ctx, 10, state["tmp_lenp"])
+    _intr_load_x64(ctx, 1, state[1])
+    _intr_load_x64(ctx, 9, state[4])
+    _intr_load_x64(ctx, 10, state[5])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _emit_call_iat_x64(ctx, "IAT_getsockopt")
     return nil
@@ -858,11 +844,11 @@ fn _x64_getsockopt_normalize_result(ctx, labels, fixups, state) {
 
     _emit_label(ctx, labels, l_ok)
     // Normalize SO_ERROR to POSIX errno numbers.
-    _intr_load_x64(ctx, 11, state["tmp_opt"]) // r11 = original optname
+    _intr_load_x64(ctx, 11, state[3]) // r11 = original optname
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4)) // OREN_SO_ERROR
     var l_skip_norm = _new_label(ctx, "getsockopt_skip_norm")
     _emit_jcc_to_label(ctx, fixups, "ne", l_skip_norm)
-    _intr_load_x64(ctx, 10, state["tmp_val"]) // r10 = optval
+    _intr_load_x64(ctx, 10, state[4]) // r10 = optval
     bytes_extend(ctx["code"], core.insn_mov_r32_mr32_disp(0, 10, 0)) // eax = *(u32*)optval
     _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx)
     bytes_extend(ctx["code"], core.insn_mov_mr32_r32_disp(10, 0, 0)) // *(u32*)optval = eax
@@ -891,7 +877,7 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     _x64_getsockopt_emit_call(ctx, state)
     _x64_getsockopt_normalize_result(ctx, labels, fixups, state)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -911,7 +897,7 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
     _x64_windows_fd2_normalize_result(ctx, labels, fixups, "sys_shutdown")
     _patch_local_fixups(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -919,7 +905,7 @@ fn _x64_windows_msg6_state(ctx, locals, args) {
     var slots = _x64_windows_msg6_alloc_slots(ctx, locals)
     if slots == nil { return nil }
     if _x64_windows_msg6_spill_args(ctx, locals, args, slots) != true {
-        _intr_tmp_pop(ctx, slots["base"])
+        _intr_tmp_pop(ctx, slots[0])
         return nil
     }
     return _x64_windows_msg6_pack_state(slots)
@@ -939,39 +925,31 @@ fn _x64_windows_msg6_alloc_slots(ctx, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return {"base": base, "fd": fd, "buf": buf, "len": len, "flags": flags, "addr": addr, "addrlen": addrlen}
+    return [base, fd, buf, len, flags, addr, addrlen]
 }
 
 fn _x64_windows_msg6_spill_args(ctx, locals, args, slots) {
-    _intr_eval_spill_x64(ctx, locals, args[0], slots["fd"])
-    _intr_eval_spill_x64(ctx, locals, args[1], slots["buf"])
-    _intr_eval_spill_x64(ctx, locals, args[2], slots["len"])
-    _intr_eval_spill_x64(ctx, locals, args[3], slots["flags"])
-    _intr_eval_spill_x64(ctx, locals, args[4], slots["addr"])
-    _intr_eval_spill_x64(ctx, locals, args[5], slots["addrlen"])
+    _intr_eval_spill_x64(ctx, locals, args[0], slots[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], slots[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], slots[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], slots[4])
+    _intr_eval_spill_x64(ctx, locals, args[4], slots[5])
+    _intr_eval_spill_x64(ctx, locals, args[5], slots[6])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     return true
 }
 
 fn _x64_windows_msg6_pack_state(slots) {
-    return {
-        "base": slots["base"],
-        "fd": slots["fd"],
-        "buf": slots["buf"],
-        "len": slots["len"],
-        "flags": slots["flags"],
-        "addr": slots["addr"],
-        "addrlen": slots["addrlen"]
-    }
+    return slots
 }
 
 fn _x64_load_windows_msg6_args(ctx, state) {
-    _intr_load_x64(ctx, 1, state["fd"])
-    _intr_load_x64(ctx, 2, state["buf"])
-    _intr_load_x64(ctx, 8, state["len"])
-    _intr_load_x64(ctx, 9, state["flags"])
-    _intr_load_x64(ctx, 10, state["addr"])
-    _intr_load_x64(ctx, 11, state["addrlen"])
+    _intr_load_x64(ctx, 1, state[1])
+    _intr_load_x64(ctx, 2, state[2])
+    _intr_load_x64(ctx, 8, state[3])
+    _intr_load_x64(ctx, 9, state[4])
+    _intr_load_x64(ctx, 10, state[5])
+    _intr_load_x64(ctx, 11, state[6])
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _emit_mov_mrsp_r64(ctx, 40, 11)
     return nil
@@ -1020,7 +998,7 @@ fn _emit_intrinsic_sys_windows_msg6_x64(ctx, nm, expr, locals, args) {
     _x64_emit_windows_msg6_call(ctx, nm, state)
     _x64_emit_windows_msg6_result(ctx, labels, fixups, nm)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -1041,7 +1019,7 @@ fn _x64_windows_close_spill_fd(ctx, locals, args) {
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
-    return {"base": base, "tmp_fd": tmp_fd}
+    return [base, tmp_fd]
 }
 
 fn _x64_windows_close_prehook(ctx, tmp_fd, capsule) {
@@ -1118,8 +1096,8 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
     var state = _x64_windows_close_spill_fd(ctx, locals, args)
     if state == nil { return nil }
-    var base = state["base"]
-    var tmp_fd = state["tmp_fd"]
+    var base = state[0]
+    var tmp_fd = state[1]
     var labels = {}
     var fixups = []
 

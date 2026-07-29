@@ -4325,7 +4325,9 @@
 <p>  records for CreateThread, WaitForSingleObject, TerminateThread, and CloseHandle</p>
 <p>  helper state instead of transient keyed maps. Windows x64 filesystem syscall</p>
 <p>  lowering now also uses positional helper records for stat/fstat, unlink/rmdir,</p>
-<p>  rename, and mkdir/chmod spill/capsule state.</p>
+<p>  rename, and mkdir/chmod spill/capsule state. Windows x64 network syscall</p>
+<p>  lowering now uses positional helper records for WSAStartup, select, socket,</p>
+<p>  sockaddr, fd2, sockopt, sendto/recvfrom, and close spill/capsule state.</p>
 <ul>
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>

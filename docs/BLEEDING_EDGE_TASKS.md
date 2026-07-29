@@ -470,7 +470,7 @@ This file is the concise task view. Detailed implementation status lives in
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
      open state setup, compact Linux syscall scratch-state wrappers through
      syscall-tail helpers, positional Windows thread syscall helper records, and
-     positional Windows filesystem syscall spill/capsule records.
+     positional Windows filesystem plus network syscall spill/capsule records.
    - Current x64 tracking cleanup uses compact positional records for
      tracked-node local labels/fixups, ABI register bundles, and spill slots.
 
