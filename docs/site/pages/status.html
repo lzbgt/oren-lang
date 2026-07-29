@@ -1273,10 +1273,13 @@
 <p>	  top-level string fast-path candidates/hits plus direct global-slot path</p>
 <p>	  counts. Setting <code>OREN_TRACE_X64_TOP_GLOBAL_SLOT_SLOW_MS</code> records bounded</p>
 <p>	  per-slot slow entries for opt-in <code>.data</code> relocation probes, and a focused x64</p>
-<p>	  top-level string-global fixture stays in the compile-only gate. The no-dedup</p>
-<p>	  cstr append path now writes string bytes directly into the data builder instead</p>
-<p>	  of allocating a temporary byte buffer. Zero-result lambda</p>
-<p>	  collection now uses a compile-time</p>
+<p>		  top-level string-global fixture stays in the compile-only gate. The no-dedup</p>
+<p>		  cstr append path now writes string bytes directly into the data builder instead</p>
+<p>		  of allocating a temporary byte buffer. Linux x64 FS syscall lowering now</p>
+<p>		  carries stat/path-family scratch offsets in compact positional state lists</p>
+<p>		  instead of transient keyed maps, trimming compiler-side allocation and lookup</p>
+<p>		  work while preserving generated syscall sequences. Zero-result lambda</p>
+<p>		  collection now uses a compile-time</p>
 <p>	  preflight and skips the full statement walk when there are no local</p>
 <p>		  function/lambda candidates. Empty map/list globals still avoid static</p>
 <p>		  <code>.data</code> materialization, but now lower through a table-driven</p>
