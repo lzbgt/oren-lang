@@ -4311,10 +4311,12 @@
 <p>  set lowering plus LIST/LIST_INT push intrinsics use positional spill/dispatch</p>
 <p>  records for their checked helper paths. X64 LIST/LIST_INT push-while and</p>
 <p>  LIST_INT get-sum while emitters now also use positional prep, ABI, offset,</p>
-<p>  shape, and slot records instead of short-lived keyed maps. X64 index-get</p>
-<p>  operand prep plus call-object ABI/direct-call, spread, indirect, spawn, and</p>
-<p>  varargs helpers, LCG sum while, lambda literal env, and native allocation kind</p>
-<p>  helpers now also use positional helper records.</p>
+<p>  shape, and slot records instead of short-lived keyed maps. X64 fast LIST</p>
+<p>  get-sum while prep, validation, dynamic-add label, loop-label, and print</p>
+<p>  <code>sys_write</code> temp-state helpers now use compact positional records as well.</p>
+<p>  X64 index-get operand prep plus call-object ABI/direct-call, spread,</p>
+<p>  indirect, spawn, and varargs helpers, LCG sum while, lambda literal env, and</p>
+<p>  native allocation kind helpers now also use positional helper records.</p>
 <ul>
 <li>Linux x64 syscall lowering now uses compact positional scratch-state lists for</li>
 </ul>

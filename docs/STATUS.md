@@ -264,7 +264,9 @@ surfaces, but the following blockers remain:
   state, LIST/LIST_INT push spill/label state, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers. LIST/LIST_INT push-while
   and LIST_INT get-sum while emitters now use positional prep, ABI, offset,
-  shape, and slot records instead of short-lived keyed maps; index-get operand
+  shape, and slot records instead of short-lived keyed maps; fast LIST get-sum
+  while prep, validation, dynamic-add labels, loop labels, and print `sys_write`
+  temp-state helpers now use compact positional records too. Index-get operand
   prep plus call-object ABI/direct-call, spread, indirect, spawn, and varargs
   helper records, LCG sum while, lambda literal env, and native allocation kind
   helpers also use positional records.

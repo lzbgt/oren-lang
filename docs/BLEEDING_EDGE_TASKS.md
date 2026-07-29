@@ -465,8 +465,9 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 parser/codegen helper cleanup separates local/global variable
      loads, function-value suffix resolution, string-compare pointer probes,
      LIST/LIST_INT push spill/label records, fast list-dot prep/label/slot
-     records, list-int reduce/dot unchecked helper records, and late
-     synthesized fnwrap compilation.
+     records, fast LIST get-sum prep/validation/label records, print
+     `sys_write` temp-state records, list-int reduce/dot unchecked helper
+     records, and late synthesized fnwrap compilation.
    - Current x64 system/data helper cleanup separates GC-root sorted insertion,
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows

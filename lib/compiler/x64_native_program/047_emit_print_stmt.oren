@@ -26,39 +26,37 @@ fn _x64_emit_print_strlen_to_r8(ctx) {
 fn _x64_print_write_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 3)
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["slot_fd"] = base
-    state["slot_ptr"] = iadd(base, 1)
-    state["slot_len"] = iadd(base, 2)
-    state["tmp_fd"] = _intr_tmp_off(ctx, locals, state["slot_fd"])
-    state["tmp_ptr"] = _intr_tmp_off(ctx, locals, state["slot_ptr"])
-    state["tmp_len"] = _intr_tmp_off(ctx, locals, state["slot_len"])
-    if oren_type_tag(state["tmp_fd"]) == 0 || oren_type_tag(state["tmp_ptr"]) == 0 || oren_type_tag(state["tmp_len"]) == 0 {
+    var slot_fd = base
+    var slot_ptr = iadd(base, 1)
+    var slot_len = iadd(base, 2)
+    var tmp_fd = _intr_tmp_off(ctx, locals, slot_fd)
+    var tmp_ptr = _intr_tmp_off(ctx, locals, slot_ptr)
+    var tmp_len = _intr_tmp_off(ctx, locals, slot_len)
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return state
+    return [base, slot_fd, slot_ptr, slot_len, tmp_fd, tmp_ptr, tmp_len]
 }
 
 fn _x64_print_sys_write_call_expr(state) {
     return {
         "type": "Call",
         "fn": {"type": "Identifier", "token": nil, "value": "sys_write"},
-        "args": [{"type": "IntrTmp", "idx": state["slot_fd"]},
-                 {"type": "IntrTmp", "idx": state["slot_ptr"]},
-                 {"type": "IntrTmp", "idx": state["slot_len"]}],
+        "args": [{"type": "IntrTmp", "idx": state[1]},
+                 {"type": "IntrTmp", "idx": state[2]},
+                 {"type": "IntrTmp", "idx": state[3]}],
     }
 }
 
 fn _x64_store_print_write_args(ctx, state, ptr_reg, len_reg) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[4], 0)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, ptr_reg))
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_ptr"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[5], 0)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, len_reg))
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_len"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[6], 0)
     return nil
 }
 
@@ -72,16 +70,16 @@ fn _x64_emit_print_newline_args(ctx, state) {
     var nl_off = _data_add_cstr0(ctx, "\n")
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[4], 0)
 
     var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(0, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_ptr"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[5], 0)
 
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_len"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[6], 0)
     return nil
 }
 
@@ -97,11 +95,11 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     if state == nil { return nil }
     var call_write = _x64_print_sys_write_call_expr(state)
     _x64_store_print_write_args(ctx, state, 12, 8)
-    if _x64_emit_print_sys_write(ctx, locals, call_write) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if _x64_emit_print_sys_write(ctx, locals, call_write) == false { _intr_tmp_pop(ctx, state[0]); return nil }
 
     _x64_emit_print_newline_args(ctx, state)
-    if _x64_emit_print_sys_write(ctx, locals, call_write) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if _x64_emit_print_sys_write(ctx, locals, call_write) == false { _intr_tmp_pop(ctx, state[0]); return nil }
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
