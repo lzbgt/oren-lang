@@ -461,7 +461,8 @@ This file is the concise task view. Detailed implementation status lives in
    - Current x64 system/data helper cleanup separates GC-root sorted insertion,
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
-     open state setup, and compact Linux syscall scratch-state wrappers.
+     open state setup, and compact Linux syscall scratch-state wrappers through
+     syscall-tail helpers.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

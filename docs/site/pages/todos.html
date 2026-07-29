@@ -4301,9 +4301,9 @@
 <li>Linux x64 syscall lowering now uses compact positional scratch-state lists for</li>
 </ul>
 <p>  stat/path families, read/write fd-buffer setup, getrandom, futex wait, and</p>
-<p>  fd-control/dup/ioctl helpers instead of transient keyed state maps, reducing</p>
-<p>  compiler-side allocation and lookup work while preserving emitted syscall</p>
-<p>  sequences.</p>
+<p>  fd-control/dup/ioctl plus syscall-tail helpers instead of transient keyed state</p>
+<p>  maps, reducing compiler-side allocation and lookup work while preserving emitted</p>
+<p>  syscall sequences.</p>
 <ul>
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>

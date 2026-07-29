@@ -25,7 +25,7 @@ fn _x64_linux_pipe_prepare(ctx, locals, args) {
 
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_ptr": tmp_ptr, "tmp_rc": tmp_rc}
+    return [base, tmp_ptr, tmp_rc]
 }
 
 fn _x64_linux_pipe_emit_prehook(ctx, st, capsule) {
@@ -36,28 +36,28 @@ fn _x64_linux_pipe_emit_prehook(ctx, st, capsule) {
         // rax = ptr
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
     }
-    _emit_mov_mrbp_r64(ctx, 0 - st["tmp_ptr"], 0) // save ptr
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0) // save ptr
 }
 
 fn _x64_linux_pipe_emit_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["tmp_ptr"]) // rdi = ptr
+    _intr_load_x64(ctx, 7, st[1]) // rdi = ptr
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, 0)) // esi = flags=0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_pipe2()))
     bytes_extend(ctx["code"], core.insn_syscall())
-    _emit_mov_mrbp_r64(ctx, 0 - st["tmp_rc"], 0) // save rc
+    _emit_mov_mrbp_r64(ctx, 0 - st[2], 0) // save rc
 }
 
 fn _x64_linux_pipe_widen_labels(ctx) {
-    return {"labels": {}, "fixups": [], "skip": _new_label(ctx, "pipe_skip_widen")}
+    return [{}, [], _new_label(ctx, "pipe_skip_widen")]
 }
 
 fn _x64_linux_pipe_emit_widen_body(ctx, st, lab) {
-    _intr_load_x64(ctx, 11, st["tmp_rc"]) // r11 = rc
+    _intr_load_x64(ctx, 11, st[2]) // r11 = rc
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, lab["fixups"], "ne", lab["skip"])
+    _emit_jcc_to_label(ctx, lab[1], "ne", lab[2])
 
     // Widen int[2] (32-bit fds) into two u64 slots in-place.
-    _intr_load_x64(ctx, 10, st["tmp_ptr"]) // r10 = ptr
+    _intr_load_x64(ctx, 10, st[1]) // r10 = ptr
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10)) // r11 = packed (wfd<<32 | rfd)
 
     // rfd = (u32)r11
@@ -73,10 +73,10 @@ fn _x64_linux_pipe_emit_widen_body(ctx, st, lab) {
 }
 
 fn _x64_linux_pipe_finish_widen(ctx, st, lab) {
-    _emit_label(ctx, lab["labels"], lab["skip"])
-    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
+    _emit_label(ctx, lab[0], lab[2])
+    _patch_local_fixups(ctx, lab[0], lab[1])
     // IMPORTANT: preserve the syscall return value in RAX for callers.
-    _intr_load_x64(ctx, 0, st["tmp_rc"]) // rax = rc
+    _intr_load_x64(ctx, 0, st[2]) // rax = rc
 }
 
 fn _x64_linux_pipe_emit_widen_success(ctx, st) {
@@ -88,8 +88,8 @@ fn _x64_linux_pipe_emit_widen_success(ctx, st) {
 fn _x64_linux_pipe_emit_posthook(ctx, st, capsule) {
     // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
     if capsule {
-        _intr_load_x64(ctx, 7, st["tmp_ptr"]) // rdi = ptr
-        _intr_load_x64(ctx, 6, st["tmp_rc"])  // rsi = rc
+        _intr_load_x64(ctx, 7, st[1]) // rdi = ptr
+        _intr_load_x64(ctx, 6, st[2])  // rsi = rc
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_post")
     }
 }
@@ -105,7 +105,7 @@ fn _emit_intrinsic_sys_linux_pipe_x64(ctx, nm, expr, locals, args, capsule) {
     _x64_linux_pipe_emit_syscall(ctx, st)
     _x64_linux_pipe_emit_widen_success(ctx, st)
     _x64_linux_pipe_emit_posthook(ctx, st, capsule)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -123,13 +123,13 @@ fn _x64_linux_open_spill_state(ctx, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_mode)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "path": tmp_path, "flags": tmp_flags, "mode": tmp_mode, "pair": tmp_pair}
+    return [base, tmp_path, tmp_flags, tmp_mode, tmp_pair]
 }
 
 fn _x64_linux_open_emit_prehook(ctx, state, capsule) {
-    var tmp_path = state["path"]
-    var tmp_flags = state["flags"]
-    var tmp_pair = state["pair"]
+    var tmp_path = state[1]
+    var tmp_flags = state[2]
+    var tmp_pair = state[4]
     if capsule {
         _intr_load_x64(ctx, 7, tmp_path)
         _intr_load_x64(ctx, 6, tmp_flags)
@@ -144,8 +144,8 @@ fn _x64_linux_open_emit_prehook(ctx, state, capsule) {
 }
 
 fn _x64_linux_open_emit_syscall(ctx, locals, state) {
-    _emit_translate_open_flags_linux_x64(ctx, locals, state["flags"])
-    _intr_load_x64(ctx, 10, state["mode"])
+    _emit_translate_open_flags_linux_x64(ctx, locals, state[2])
+    _intr_load_x64(ctx, 10, state[3])
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_openat()))
     bytes_extend(ctx["code"], core.insn_syscall())
@@ -155,7 +155,7 @@ fn _x64_linux_open_emit_syscall(ctx, locals, state) {
 fn _x64_linux_open_emit_posthook(ctx, state, capsule) {
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0))
-        _intr_load_x64(ctx, 7, state["pair"])
+        _intr_load_x64(ctx, 7, state[4])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
     }
     return nil
@@ -170,7 +170,7 @@ fn _emit_intrinsic_sys_linux_open_x64(ctx, expr, locals, args, capsule) {
     _x64_linux_open_emit_prehook(ctx, state, capsule)
     _x64_linux_open_emit_syscall(ctx, locals, state)
     _x64_linux_open_emit_posthook(ctx, state, capsule)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -185,7 +185,7 @@ fn _x64_linux_close_spill_state(ctx, locals) {
     if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "fd": tmp_fd}
+    return [base, tmp_fd]
 }
 
 fn _x64_linux_close_emit_fd_spill(ctx, locals, arg, state, capsule) {
@@ -197,12 +197,12 @@ fn _x64_linux_close_emit_fd_spill(ctx, locals, arg, state, capsule) {
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7))
     }
-    _emit_mov_mrbp_r64(ctx, 0 - state["fd"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[1], 0)
     return true
 }
 
 fn _x64_linux_close_emit_syscall(ctx, state) {
-    _intr_load_x64(ctx, 7, state["fd"])
+    _intr_load_x64(ctx, 7, state[1])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_close()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -211,7 +211,7 @@ fn _x64_linux_close_emit_syscall(ctx, state) {
 fn _x64_linux_close_emit_posthook(ctx, state, capsule) {
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0))
-        _intr_load_x64(ctx, 6, state["fd"])
+        _intr_load_x64(ctx, 6, state[1])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
     }
     return nil
@@ -222,10 +222,10 @@ fn _emit_intrinsic_sys_linux_close_x64(ctx, expr, locals, args, capsule) {
 
     var state = _x64_linux_close_spill_state(ctx, locals)
     if state == nil { return true }
-    if _x64_linux_close_emit_fd_spill(ctx, locals, args[0], state, capsule) == false { _intr_tmp_pop(ctx, state["base"]); return true }
+    if _x64_linux_close_emit_fd_spill(ctx, locals, args[0], state, capsule) == false { _intr_tmp_pop(ctx, state[0]); return true }
     _x64_linux_close_emit_syscall(ctx, state)
     _x64_linux_close_emit_posthook(ctx, state, capsule)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -240,12 +240,12 @@ fn _x64_linux_access_spill_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }
-    return {"base": base4, "path": tmp_path, "mode": tmp_mode, "pair": tmp_pair}
+    return [base4, tmp_path, tmp_mode, tmp_pair]
 }
 
 fn _x64_linux_access_emit_prehook(ctx, state, capsule) {
-    var tmp_path = state["path"]
-    var tmp_pair = state["pair"]
+    var tmp_path = state[1]
+    var tmp_pair = state[3]
     if capsule {
         _intr_load_x64(ctx, 7, tmp_path)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_pre")
@@ -260,7 +260,7 @@ fn _x64_linux_access_emit_prehook(ctx, state, capsule) {
 
 fn _x64_linux_access_emit_syscall(ctx, state) {
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-    _intr_load_x64(ctx, 2, state["mode"])
+    _intr_load_x64(ctx, 2, state[2])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_faccessat()))
     bytes_extend(ctx["code"], core.insn_syscall())
@@ -270,7 +270,7 @@ fn _x64_linux_access_emit_syscall(ctx, state) {
 fn _x64_linux_access_emit_posthook(ctx, state, capsule) {
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(6, 0))
-        _intr_load_x64(ctx, 7, state["pair"])
+        _intr_load_x64(ctx, 7, state[3])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_post")
     }
     return nil
@@ -286,7 +286,7 @@ fn _emit_intrinsic_sys_linux_access_x64(ctx, expr, locals, args, capsule) {
     _x64_linux_access_emit_prehook(ctx, state, capsule)
     _x64_linux_access_emit_syscall(ctx, state)
     _x64_linux_access_emit_posthook(ctx, state, capsule)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -335,15 +335,15 @@ fn _x64_linux_execve_state(ctx, locals) {
         _intr_tmp_pop(ctx, base11)
         return nil
     }
-    return {"base": base11, "tmp_path": tmp_path, "tmp_argv": tmp_argv, "tmp_envp": tmp_envp}
+    return [base11, tmp_path, tmp_argv, tmp_envp]
 }
 
 fn _x64_linux_execve_spill_args(ctx, locals, args, st) {
-    _intr_eval_spill_x64(ctx, locals, args[0], st["tmp_path"])
-    _intr_eval_spill_x64(ctx, locals, args[1], st["tmp_argv"])
-    _intr_eval_spill_x64(ctx, locals, args[2], st["tmp_envp"])
+    _intr_eval_spill_x64(ctx, locals, args[0], st[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], st[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], st[3])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, st["base"])
+        _intr_tmp_pop(ctx, st[0])
         return false
     }
     return true
@@ -352,19 +352,19 @@ fn _x64_linux_execve_spill_args(ctx, locals, args, st) {
 fn _x64_linux_execve_emit_pre(ctx, st, capsule) {
     // pre: native_capsule_sys_execve_pre(path, argv, envp) -> envp_to_use
     if capsule {
-        _intr_load_x64(ctx, 7, st["tmp_path"])
-        _intr_load_x64(ctx, 6, st["tmp_argv"])
-        _intr_load_x64(ctx, 2, st["tmp_envp"])
+        _intr_load_x64(ctx, 7, st[1])
+        _intr_load_x64(ctx, 6, st[2])
+        _intr_load_x64(ctx, 2, st[3])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_execve_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - st["tmp_envp"], 0) // overwrite envp slot
+        _emit_mov_mrbp_r64(ctx, 0 - st[3], 0) // overwrite envp slot
     }
     return nil
 }
 
 fn _x64_linux_execve_emit_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["tmp_path"])
-    _intr_load_x64(ctx, 6, st["tmp_argv"])
-    _intr_load_x64(ctx, 2, st["tmp_envp"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_execve()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -379,7 +379,7 @@ fn _emit_intrinsic_sys_linux_execve_x64(ctx, expr, locals, args, capsule) {
     if _x64_linux_execve_spill_args(ctx, locals, args, st) != true { return true }
     _x64_linux_execve_emit_pre(ctx, st, capsule)
     _x64_linux_execve_emit_syscall(ctx, st)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -394,16 +394,16 @@ fn _x64_linux_wait4_state(ctx, locals) {
         _intr_tmp_pop(ctx, base12)
         return nil
     }
-    return {"base": base12, "tmp_pid": tmp_pid, "tmp_status": tmp_status, "tmp_opts": tmp_opts, "tmp_rusage": tmp_rusage}
+    return [base12, tmp_pid, tmp_status, tmp_opts, tmp_rusage]
 }
 
 fn _x64_linux_wait4_spill_args(ctx, locals, args, st) {
-    _intr_eval_spill_x64(ctx, locals, args[0], st["tmp_pid"])
-    _intr_eval_spill_x64(ctx, locals, args[1], st["tmp_status"])
-    _intr_eval_spill_x64(ctx, locals, args[2], st["tmp_opts"])
-    _intr_eval_spill_x64(ctx, locals, args[3], st["tmp_rusage"])
+    _intr_eval_spill_x64(ctx, locals, args[0], st[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], st[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], st[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], st[4])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, st["base"])
+        _intr_tmp_pop(ctx, st[0])
         return false
     }
     return true
@@ -412,18 +412,18 @@ fn _x64_linux_wait4_spill_args(ctx, locals, args, st) {
 fn _x64_linux_wait4_emit_pre(ctx, st, capsule) {
     // pre: native_capsule_sys_wait4_pre(pid, options)
     if capsule {
-        _intr_load_x64(ctx, 7, st["tmp_pid"])
-        _intr_load_x64(ctx, 6, st["tmp_opts"])
+        _intr_load_x64(ctx, 7, st[1])
+        _intr_load_x64(ctx, 6, st[3])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wait4_pre")
     }
     return nil
 }
 
 fn _x64_linux_wait4_emit_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["tmp_pid"])
-    _intr_load_x64(ctx, 6, st["tmp_status"])
-    _intr_load_x64(ctx, 2, st["tmp_opts"])
-    _intr_load_x64(ctx, 10, st["tmp_rusage"]) // arg4
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 10, st[4]) // arg4
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_wait4()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -438,7 +438,7 @@ fn _emit_intrinsic_sys_linux_wait4_x64(ctx, expr, locals, args, capsule) {
     if _x64_linux_wait4_spill_args(ctx, locals, args, st) != true { return true }
     _x64_linux_wait4_emit_pre(ctx, st, capsule)
     _x64_linux_wait4_emit_syscall(ctx, st)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -464,7 +464,7 @@ fn _emit_intrinsic_sys_mmap_private_anon_x64(ctx, expr, locals, args, capsule) {
     _x64_mmap_private_anon_emit_pre(ctx, st, capsule)
     _x64_mmap_private_anon_emit_syscall(ctx, locals, st)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -476,12 +476,12 @@ fn _x64_mmap_private_anon_state(ctx, locals, args) {
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base13); return nil }
-    return {"base": base13, "len": tmp_len, "is_win": _x64_sys_memory_uses_windows_abi(ctx)}
+    return [base13, tmp_len, _x64_sys_memory_uses_windows_abi(ctx)]
 }
 
 fn _x64_mmap_private_anon_load_prehook_arg(ctx, st) {
-    var tmp_len = st["len"]
-    if st["is_win"] {
+    var tmp_len = st[1]
+    if st[2] {
         _intr_load_x64(ctx, 1, tmp_len) // rcx = len
     } else {
         _intr_load_x64(ctx, 7, tmp_len) // rdi = len
@@ -494,16 +494,16 @@ fn _x64_mmap_private_anon_emit_pre(ctx, st, capsule) {
     _x64_mmap_private_anon_load_prehook_arg(ctx, st)
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mmap_private_anon_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - st["len"], 0)
+        _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
     }
     return nil
 }
 
 fn _x64_mmap_private_anon_emit_syscall(ctx, locals, st) {
-    if st["is_win"] {
-        _emit_sys_mmap_private_anon_windows_x64(ctx, locals, st["len"])
+    if st[2] {
+        _emit_sys_mmap_private_anon_windows_x64(ctx, locals, st[1])
     } else {
-        _x64_mmap_private_anon_emit_linux_syscall(ctx, st["len"])
+        _x64_mmap_private_anon_emit_linux_syscall(ctx, st[1])
     }
     return nil
 }
@@ -530,7 +530,7 @@ fn _emit_intrinsic_sys_munmap_x64(ctx, expr, locals, args, capsule) {
     _x64_munmap_emit_pre(ctx, st, capsule)
     _x64_munmap_emit_syscall(ctx, locals, st)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -544,16 +544,16 @@ fn _x64_munmap_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_addr)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_len2)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base14); return nil }
-    return {"base": base14, "addr": tmp_addr, "len": tmp_len2, "is_win": _x64_sys_memory_uses_windows_abi(ctx)}
+    return [base14, tmp_addr, tmp_len2, _x64_sys_memory_uses_windows_abi(ctx)]
 }
 
 fn _x64_munmap_load_prehook_args(ctx, st) {
-    if st["is_win"] {
-        _intr_load_x64(ctx, 1, st["addr"]) // rcx = addr
-        _intr_load_x64(ctx, 2, st["len"]) // rdx = len
+    if st[3] {
+        _intr_load_x64(ctx, 1, st[1]) // rcx = addr
+        _intr_load_x64(ctx, 2, st[2]) // rdx = len
     } else {
-        _intr_load_x64(ctx, 7, st["addr"]) // rdi = addr
-        _intr_load_x64(ctx, 6, st["len"]) // rsi = len
+        _intr_load_x64(ctx, 7, st[1]) // rdi = addr
+        _intr_load_x64(ctx, 6, st[2]) // rsi = len
     }
     return nil
 }
@@ -568,8 +568,8 @@ fn _x64_munmap_emit_pre(ctx, st, capsule) {
 }
 
 fn _x64_munmap_emit_syscall(ctx, locals, st) {
-    if st["is_win"] {
-        _emit_sys_munmap_windows_x64(ctx, locals, st["addr"])
+    if st[3] {
+        _emit_sys_munmap_windows_x64(ctx, locals, st[1])
     } else {
         _x64_munmap_emit_linux_syscall(ctx, st)
     }
@@ -577,8 +577,8 @@ fn _x64_munmap_emit_syscall(ctx, locals, st) {
 }
 
 fn _x64_munmap_emit_linux_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["addr"])
-    _intr_load_x64(ctx, 6, st["len"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_munmap()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -599,7 +599,7 @@ fn _emit_intrinsic_sys_linux_raw_clone_x64(ctx, expr, locals, args, capsule) {
     _x64_linux_raw_clone_emit_pre(ctx, capsule)
     _x64_linux_raw_clone_emit_syscall(ctx, st)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -622,7 +622,7 @@ fn _x64_linux_raw_clone_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_tls)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return nil }
-    return {"base": base15, "flags": tmp_flags, "stack": tmp_stack, "ptid": tmp_ptid, "ctid": tmp_ctid, "tls": tmp_tls}
+    return [base15, tmp_flags, tmp_stack, tmp_ptid, tmp_ctid, tmp_tls]
 }
 
 fn _x64_linux_raw_clone_emit_pre(ctx, capsule) {
@@ -633,11 +633,11 @@ fn _x64_linux_raw_clone_emit_pre(ctx, capsule) {
 }
 
 fn _x64_linux_raw_clone_load_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["flags"]) // rdi = flags
-    _intr_load_x64(ctx, 6, st["stack"]) // rsi = stack
-    _intr_load_x64(ctx, 2, st["ptid"])  // rdx = ptid
-    _intr_load_x64(ctx, 10, st["ctid"]) // r10 = ctid
-    _intr_load_x64(ctx, 8, st["tls"])   // r8 = tls
+    _intr_load_x64(ctx, 7, st[1]) // rdi = flags
+    _intr_load_x64(ctx, 6, st[2]) // rsi = stack
+    _intr_load_x64(ctx, 2, st[3]) // rdx = ptid
+    _intr_load_x64(ctx, 10, st[4]) // r10 = ctid
+    _intr_load_x64(ctx, 8, st[5]) // r8 = tls
     return nil
 }
 
@@ -665,7 +665,7 @@ fn _x64_linux_thread_create_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_stack_top)
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_tc); return nil }
-    return {"base": base_tc, "tmp_start": tmp_start, "tmp_arg": tmp_arg, "tmp_stack_top": tmp_stack_top, "tmp_ctid": tmp_ctid}
+    return [base_tc, tmp_start, tmp_arg, tmp_stack_top, tmp_ctid]
 }
 
 fn _x64_linux_thread_clone_flags() {
@@ -685,11 +685,11 @@ fn _x64_emit_linux_thread_clone_prehook(ctx, capsule) {
 
 fn _x64_emit_linux_thread_clone_setup(ctx, state) {
     // Preserve the start routine and argument across the clone syscall in callee-saved regs.
-    _intr_load_x64(ctx, 12, state["tmp_start"]) // r12 = start_addr
-    _intr_load_x64(ctx, 13, state["tmp_arg"])   // r13 = arg_ptr
+    _intr_load_x64(ctx, 12, state[1]) // r12 = start_addr
+    _intr_load_x64(ctx, 13, state[2]) // r13 = arg_ptr
 
     // Align child SP down to 16 before call; callee sees standard SysV RSP%16==8.
-    _intr_load_x64(ctx, 6, state["tmp_stack_top"]) // rsi = stack_top
+    _intr_load_x64(ctx, 6, state[3]) // rsi = stack_top
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(6, 4294967280)) // align down to 16
     return nil
 }
@@ -697,8 +697,8 @@ fn _x64_emit_linux_thread_clone_setup(ctx, state) {
 fn _x64_emit_linux_thread_clone_syscall(ctx, state) {
     // clone(flags, child_stack, ptid, ctid, tls)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, _x64_linux_thread_clone_flags())) // edi = flags
-    _intr_load_x64(ctx, 2, state["tmp_ctid"])  // rdx = ptid (reuse ctid_ptr for parent_tid)
-    _intr_load_x64(ctx, 10, state["tmp_ctid"]) // r10 = ctid_ptr
+    _intr_load_x64(ctx, 2, state[4]) // rdx = ptid (reuse ctid_ptr for parent_tid)
+    _intr_load_x64(ctx, 10, state[4]) // r10 = ctid_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8 = tls = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clone()))
     bytes_extend(ctx["code"], core.insn_syscall())
@@ -744,7 +744,7 @@ fn _emit_intrinsic_sys_linux_thread_create_x64(ctx, expr, locals, args, capsule)
 
     var state = _x64_linux_thread_create_state(ctx, locals, args)
     if state == nil { return true }
-    var base_tc = state["base"]
+    var base_tc = state[0]
 
     var platform_tc = ctx["platform"]
     if platform_tc != nil && platform_tc["os"] == "windows" {
@@ -803,28 +803,28 @@ fn _x64_linux_kill_state(ctx, locals) {
     var tmp_pid = _intr_tmp_off(ctx, locals, base22 + 0)
     var tmp_sig = _intr_tmp_off(ctx, locals, base22 + 1)
     if oren_type_tag(tmp_pid) == 0 || oren_type_tag(tmp_sig) == 0 { _intr_tmp_pop(ctx, base22); return nil }
-    return {"base": base22, "pid": tmp_pid, "sig": tmp_sig}
+    return [base22, tmp_pid, tmp_sig]
 }
 
 fn _x64_linux_kill_spill_args(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[0], state["pid"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["sig"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return false }
+    _intr_eval_spill_x64(ctx, locals, args[0], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return false }
     return true
 }
 
 fn _x64_linux_kill_emit_capsule_pre(ctx, state, capsule) {
     if capsule {
-        _intr_load_x64(ctx, 7, state["pid"])
-        _intr_load_x64(ctx, 6, state["sig"])
+        _intr_load_x64(ctx, 7, state[1])
+        _intr_load_x64(ctx, 6, state[2])
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_kill_pre")
     }
     return nil
 }
 
 fn _x64_linux_kill_emit_syscall(ctx, state) {
-    _intr_load_x64(ctx, 7, state["pid"])
-    _intr_load_x64(ctx, 6, state["sig"])
+    _intr_load_x64(ctx, 7, state[1])
+    _intr_load_x64(ctx, 6, state[2])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_kill()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -837,7 +837,7 @@ fn _emit_intrinsic_sys_linux_kill_x64(ctx, expr, locals, args, capsule) {
     if _x64_linux_kill_spill_args(ctx, locals, args, state) != true { return true }
     _x64_linux_kill_emit_capsule_pre(ctx, state, capsule)
     _x64_linux_kill_emit_syscall(ctx, state)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -855,42 +855,40 @@ fn _x64_linux_gettimeofday_state(ctx, locals) {
     // Intrinsic slots grow toward lower addresses, so the deeper slot is the base.
     var base23 = _intr_tmp_push(ctx, 5) // tv, tz, abs, ts_hi, ts_lo
     if oren_type_tag(base23) == 0 { return nil }
-    var state = {}
-    state["base"] = base23
-    state["tv"] = _intr_tmp_off(ctx, locals, base23 + 0)
-    state["tz"] = _intr_tmp_off(ctx, locals, base23 + 1)
-    state["abs"] = _intr_tmp_off(ctx, locals, base23 + 2)
-    state["ts_hi"] = _intr_tmp_off(ctx, locals, base23 + 3) // higher address (base+8)
-    state["ts_lo"] = _intr_tmp_off(ctx, locals, base23 + 4) // lower address  (base+0)
-    if oren_type_tag(state["tv"]) == 0 || oren_type_tag(state["tz"]) == 0 || oren_type_tag(state["abs"]) == 0 ||
-       oren_type_tag(state["ts_hi"]) == 0 || oren_type_tag(state["ts_lo"]) == 0 {
+    var tmp_tv = _intr_tmp_off(ctx, locals, base23 + 0)
+    var tmp_tz = _intr_tmp_off(ctx, locals, base23 + 1)
+    var tmp_abs = _intr_tmp_off(ctx, locals, base23 + 2)
+    var tmp_ts_hi = _intr_tmp_off(ctx, locals, base23 + 3) // higher address (base+8)
+    var tmp_ts_lo = _intr_tmp_off(ctx, locals, base23 + 4) // lower address  (base+0)
+    if oren_type_tag(tmp_tv) == 0 || oren_type_tag(tmp_tz) == 0 || oren_type_tag(tmp_abs) == 0 ||
+       oren_type_tag(tmp_ts_hi) == 0 || oren_type_tag(tmp_ts_lo) == 0 {
         _intr_tmp_pop(ctx, base23)
         return nil
     }
-    return state
+    return [base23, tmp_tv, tmp_tz, tmp_abs, tmp_ts_hi, tmp_ts_lo]
 }
 
 fn _x64_spill_linux_gettimeofday_args(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[0], state["tv"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["tz"])
-    _intr_eval_spill_x64(ctx, locals, args[2], state["abs"])
+    _intr_eval_spill_x64(ctx, locals, args[0], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], state[3])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     return true
 }
 
 fn _x64_emit_linux_gettimeofday_prehook(ctx, state, capsule) {
     if !capsule { return nil }
-    _intr_load_x64(ctx, 7, state["tv"])
-    _intr_load_x64(ctx, 6, state["tz"])
-    _intr_load_x64(ctx, 2, state["abs"])
+    _intr_load_x64(ctx, 7, state[1])
+    _intr_load_x64(ctx, 6, state[2])
+    _intr_load_x64(ctx, 2, state[3])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
     return nil
 }
 
 fn _x64_emit_linux_gettimeofday_syscall(ctx, state) {
     // Linux syscall gettimeofday(tv, tz) ignores abs_ptr; keep signature stable.
-    _intr_load_x64(ctx, 7, state["tv"])
-    _intr_load_x64(ctx, 6, state["tz"])
+    _intr_load_x64(ctx, 7, state[1])
+    _intr_load_x64(ctx, 6, state[2])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_gettimeofday()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -901,22 +899,22 @@ fn _x64_emit_linux_gettimeofday_abs_clock(ctx, state) {
     var labels = {}
     var fixups = []
     var l_abs_done = _new_label(ctx, "sys_gettimeofday_abs_done")
-    _intr_load_x64(ctx, 11, state["abs"]) // r11 = abs_ptr
+    _intr_load_x64(ctx, 11, state[3]) // r11 = abs_ptr
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_abs_done)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 4096))
     _emit_jcc_to_label(ctx, fixups, "l", l_abs_done)
 
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(7, 1)) // rdi = CLOCK_MONOTONIC
-    _emit_addr_rbp_minus_off_x64(ctx, 6, state["ts_lo"]) // rsi = &timespec
+    _emit_addr_rbp_minus_off_x64(ctx, 6, state[5]) // rsi = &timespec
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_clock_gettime()))
     bytes_extend(ctx["code"], core.insn_syscall())
 
-    _emit_mov_r64_mrbp(ctx, 10, 0 - state["ts_lo"]) // r10 = sec
+    _emit_mov_r64_mrbp(ctx, 10, 0 - state[5]) // r10 = sec
     bytes_extend(ctx["code"], core.insn_imul_r64_imm32(10, 1000000000))
-    _emit_mov_r64_mrbp(ctx, 9, 0 - state["ts_hi"]) // r9 = nsec
+    _emit_mov_r64_mrbp(ctx, 9, 0 - state[4]) // r9 = nsec
     bytes_extend(ctx["code"], core.insn_add_r64_r64(10, 9))
-    _intr_load_x64(ctx, 11, state["abs"]) // Linux syscall clobbers r11.
+    _intr_load_x64(ctx, 11, state[3]) // Linux syscall clobbers r11.
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(11, 10))
 
     _emit_label(ctx, labels, l_abs_done)
@@ -931,13 +929,13 @@ fn _emit_intrinsic_sys_linux_gettimeofday_x64(ctx, expr, locals, args, capsule) 
     var state = _x64_linux_gettimeofday_state(ctx, locals)
     if state == nil { return true }
     if _x64_spill_linux_gettimeofday_args(ctx, locals, args, state) == false {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return true
     }
     _x64_emit_linux_gettimeofday_prehook(ctx, state, capsule)
     _x64_emit_linux_gettimeofday_syscall(ctx, state)
     _x64_emit_linux_gettimeofday_abs_clock(ctx, state)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -1044,7 +1042,7 @@ fn _x64_linux_nanosleep_state(ctx, locals, args) {
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return nil }
-    return {"base": base25, "tmp_ns": tmp_ns}
+    return [base25, tmp_ns]
 }
 
 fn _x64_linux_nanosleep_capsule_pre(ctx, tmp_ns, capsule) {
@@ -1084,8 +1082,8 @@ fn _emit_intrinsic_sys_linux_nanosleep_x64(ctx, expr, locals, args, capsule) {
 
     var state25 = _x64_linux_nanosleep_state(ctx, locals, args)
     if state25 == nil { return true }
-    var base25 = state25["base"]
-    var tmp_ns = state25["tmp_ns"]
+    var base25 = state25[0]
+    var tmp_ns = state25[1]
 
     _x64_linux_nanosleep_capsule_pre(ctx, tmp_ns, capsule)
     _x64_linux_nanosleep_emit_skip_or_syscall(ctx, tmp_ns)

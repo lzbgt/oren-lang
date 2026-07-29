@@ -3043,9 +3043,9 @@ design evidence lives under `project-doc/`.
   generate Clang oversized signed-literal warnings in math C smokes.
 - Linux x64 syscall lowering now uses compact positional scratch-state lists for
   stat/path families, read/write fd-buffer setup, getrandom, futex wait, and
-  fd-control/dup/ioctl helpers instead of transient keyed state maps, reducing
-  compiler-side allocation and lookup work while preserving emitted syscall
-  sequences.
+  fd-control/dup/ioctl plus syscall-tail helpers instead of transient keyed state
+  maps, reducing compiler-side allocation and lookup work while preserving emitted
+  syscall sequences.
 - Base64 decode now rejects interior padding and third-character padding without
   fourth-character padding plus nonzero trailing pad bits while keeping decoded
   output as exact-size `u8_buf`; strict Base64 decode sizes exactly and validates
