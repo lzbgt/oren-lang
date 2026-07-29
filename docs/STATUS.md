@@ -117,6 +117,11 @@ surfaces, but the following blockers remain:
   signature, parameter, and top-level statement traversals now cache immutable
   list counts before iteration, with hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that semantic checker.
+- Shared native callable lowering now caches immutable statement, named-function
+  value-use, local-function rewrite, lambda declared/used/capture, lambda
+  collection, parameter, and wrapper-body list counts before traversal, with
+  hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
+  x64/ARM64 callable helper.
 - Optimizer fold block scans, C transpiler signature assembly, and top-level
   renamer scans now cache immutable list counts before traversal, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in those compact

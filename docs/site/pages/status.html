@@ -203,6 +203,13 @@
 <p>  list counts before iteration, with hotpath guard coverage rejecting direct</p>
 <p>  <code>oren_list_len</code> loop bounds in that semantic checker.</p>
 <ul>
+<li>Shared native callable lowering now caches immutable statement, named-function</li>
+</ul>
+<p>  value-use, local-function rewrite, lambda declared/used/capture, lambda</p>
+<p>  collection, parameter, and wrapper-body list counts before traversal, with</p>
+<p>  hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that</p>
+<p>  x64/ARM64 callable helper.</p>
+<ul>
 <li>Optimizer fold block scans, C transpiler signature assembly, and top-level</li>
 </ul>
 <p>  renamer scans now cache immutable list counts before traversal, with hotpath</p>
