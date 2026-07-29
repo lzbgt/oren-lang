@@ -183,6 +183,12 @@
 <p>  refreshes a cached queue count after each step, with hotpath guard coverage</p>
 <p>  rejecting direct <code>oren_list_len</code> loop bounds in that pass.</p>
 <ul>
+<li>Impl lowering trait/statement, receiver-arg insertion, function parameter,</li>
+</ul>
+<p>  array/hash/call, block, and top-level traversals now cache immutable list</p>
+<p>  counts before iteration, with hotpath guard coverage rejecting direct</p>
+<p>  <code>oren_list_len</code> loop bounds in that semantic lowering pass.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>
@@ -3624,7 +3630,7 @@
 <p>  linalg, regex, <code>std:ui</code>, URL allow-list, HTTP/2 header traversal, and</p>
 <p>  module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,</p>
 <p>  compiler support, compiler artifact-support, debug-sugar, capsule-policy,</p>
-<p>  optimizer-DCE, global-DCE, type-name resolution, native runtime-object cache, and <code>std:sys</code> loops now cache immutable list lengths before</p>
+<p>  optimizer-DCE, global-DCE, impl-lowering, type-name resolution, native runtime-object cache, and <code>std:sys</code> loops now cache immutable list lengths before</p>
 <p>  iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>

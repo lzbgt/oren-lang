@@ -136,8 +136,9 @@ fn collect_trait_set(linked) {
     if linked == nil { return set }
     var ts = linked["traits"]
     if ts == nil { return set }
+    var trait_count = oren_list_len(ts)
     var i = 0
-    while i < oren_list_len(ts) {
+    while i < trait_count {
         var t = ts[i]
         if t != nil && t["name"] != nil {
             set[t["name"]] = true
@@ -179,8 +180,9 @@ fn collect_impl_registries(linked, errs) {
     }
 
     var ss = linked["statements"]
+    var stmt_count = oren_list_len(ss)
     var i = 0
-    while i < oren_list_len(ss) {
+    while i < stmt_count {
         var st = ss[i]
         if st != nil && st["type"] == "Function" {
             if st["name"] != nil && st["ret_ann_type"] != nil {
@@ -806,8 +808,9 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
             if mangled != nil {
                 // Insert receiver as arg0.
                 var new_args = [recv]
+                var arg_count = oren_list_len(args)
                 var ai = 0
-                while ai < oren_list_len(args) {
+                while ai < arg_count {
                     oren_list_push(new_args, args[ai])
                     ai = ai + 1
                 }
@@ -875,8 +878,9 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
         kind_env = kind_env_push(kind_env)
         var params = expr["params"]
         if params != nil {
+            var param_count = oren_list_len(params)
             var pi = 0
-            while pi < oren_list_len(params) {
+            while pi < param_count {
                 var id = params[pi]
                 if id != nil && id["type"] == "Identifier" && id["ann_type"] != nil {
                     type_env_set(env, id["value"], id["ann_type"])
@@ -908,8 +912,9 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
     }
     if t == "Array" {
         var xs = expr["elements"]
+        var element_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < element_count {
             xs[i] = lower_expr_in_place(xs[i], regs, trait_set, env, kind_env, errs)
             i = i + 1
         }
@@ -917,8 +922,9 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
     }
     if t == "Hash" {
         var ps = expr["pairs"]
+        var pair_count = oren_list_len(ps)
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        while i2 < pair_count {
             ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], regs, trait_set, env, kind_env, errs)
             ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], regs, trait_set, env, kind_env, errs)
             // If the key kind is inferable, annotate the pair so native backends can pick the
@@ -951,8 +957,9 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
     if t == "Call" {
         expr["fn"] = lower_expr_in_place(expr["fn"], regs, trait_set, env, kind_env, errs)
         var args = expr["args"]
+        var call_arg_count = oren_list_len(args)
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        while i3 < call_arg_count {
             args[i3] = lower_expr_in_place(args[i3], regs, trait_set, env, kind_env, errs)
             i3 = i3 + 1
         }
@@ -970,8 +977,9 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
         env = type_env_push(env)
         kind_env = kind_env_push(kind_env)
         var ss = stmt["stmts"]
+        var block_stmt_count = oren_list_len(ss)
         var i = 0
-        while i < oren_list_len(ss) {
+        while i < block_stmt_count {
             lower_stmt_in_place(ss[i], regs, trait_set, env, kind_env, errs)
             i = i + 1
         }
@@ -1119,8 +1127,9 @@ fn lower_linked_program_in_place(linked) {
 
     // Whole-program traversal (top-level statements + nested functions).
     var ss = linked["statements"]
+    var lower_stmt_count = oren_list_len(ss)
     var i = 0
-    while i < oren_list_len(ss) {
+    while i < lower_stmt_count {
         lower_stmt_in_place(ss[i], regs, trait_set, env, kind_env, errs)
         i = i + 1
     }

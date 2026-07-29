@@ -184,6 +184,12 @@
 <p>  refreshes a cached queue count after each step, with byte-hotpath guard</p>
 <p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in that pass.</p>
 <ul>
+<li>Impl lowering trait/statement, receiver-arg insertion, function parameter,</li>
+</ul>
+<p>  array/hash/call, block, and top-level traversals now cache immutable list</p>
+<p>  counts before iteration, with byte-hotpath guard coverage rejecting direct</p>
+<p>  <code>oren_list_len</code> loop bounds in that semantic lowering pass.</p>
+<ul>
 <li>Regex byte-class matching now caches compiled class range counts before</li>
 </ul>
 <p>  per-byte range probes.</p>
@@ -4301,6 +4307,12 @@
 <p>  immutable list counts before traversal, and its reachable-function worklist</p>
 <p>  refreshes a cached queue count after each step, with byte-hotpath guard</p>
 <p>  coverage for direct <code>oren_list_len</code> loop conditions in that pass.</p>
+<ul>
+<li>Impl lowering trait/statement, receiver-arg insertion, function parameter,</li>
+</ul>
+<p>  array/hash/call, block, and top-level traversals now cache immutable list</p>
+<p>  counts before iteration, with byte-hotpath guard coverage for direct</p>
+<p>  <code>oren_list_len</code> loop conditions in that semantic lowering pass.</p>
 <ul>
 <li><code>std:ui/scene3d_binary</code> <code>.os3d</code> package magic, header, table reads, and</li>
 </ul>
