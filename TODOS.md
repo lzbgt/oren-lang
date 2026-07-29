@@ -106,10 +106,11 @@ design evidence lives under `project-doc/`.
   root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that shared
   x64/ARM64 runtime-injection path.
-- C transpiler constructor, lambda/capture analysis, list-get analysis, block,
-  branch, call, array, function body, and entry-unit emission now caches
-  immutable AST list counts before traversal, with byte-hotpath guard coverage
-  rejecting direct `oren_list_len` loop bounds in those backend helper paths.
+- C transpiler constructor, lambda/capture analysis, list-get analysis,
+  fast-while matching/emission, block, branch, call, array, function body, and
+  entry-unit emission now caches immutable AST list counts before traversal, with
+  byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
+  those backend helper paths.
 - Compiler linked-summary/module-graph dumps and ARM64 Mach-O function-offset
   lookup ranking now cache immutable list counts before traversal, with
   byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in

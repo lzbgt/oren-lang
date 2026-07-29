@@ -1819,6 +1819,7 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/native_callable.oren \
   lib/compiler/transpiler_lambda.oren \
   lib/compiler/transpiler_analysis.oren \
+  lib/compiler/transpiler/050_fast_while.oren \
   lib/compiler/transpiler_c_utils.oren \
   lib/compiler/renamer.oren \
   lib/compiler/coreir.oren \

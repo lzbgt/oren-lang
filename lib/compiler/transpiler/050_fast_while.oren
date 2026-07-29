@@ -9,8 +9,10 @@ fn _transpiler_emit_while_basic(t, stmt) {
     oren_list_push(inner_parts, "    if (((" + tick + "++) & 255u) == 0u) { oren_gc_safepoint(); }")
     oren_list_push(inner_parts, CH_LF)
     var i = 0
-    while i < oren_list_len(stmt["body"]["stmts"]) {
-        oren_list_push(inner_parts, "    " + transpile_statement(t, stmt["body"]["stmts"][i]))
+    var body_stmts = stmt["body"]["stmts"]
+    var body_stmts_len = oren_list_len(body_stmts)
+    while i < body_stmts_len {
+        oren_list_push(inner_parts, "    " + transpile_statement(t, body_stmts[i]))
         oren_list_push(inner_parts, CH_LF)
         i = i + 1
     }
@@ -40,7 +42,8 @@ fn _transpiler_match_fast_list_int_while(t, stmt) {
         lists = r["lists"]
         i = i + 1
     }
-    if oren_list_len(lists) == 0 { return nil }
+    var lists_len = oren_list_len(lists)
+    if lists_len == 0 { return nil }
     return {"idx": idx_name, "n": n_name, "lists": lists, "body": body, "body_len": n - 1}
 }
 
@@ -66,7 +69,8 @@ fn _transpiler_match_fast_list_while(t, stmt) {
         lists = r["lists"]
         i = i + 1
     }
-    if oren_list_len(lists) == 0 { return nil }
+    var lists_len = oren_list_len(lists)
+    if lists_len == 0 { return nil }
     return {"idx": idx_name, "n": n_name, "lists": lists, "body": body, "body_len": n - 1}
 }
 
@@ -102,7 +106,8 @@ fn _transpiler_match_fast_list_get_sum_while(t, stmt) {
     }
     if sum_name == nil { return nil }
     if str_eq(sum_name, idx_name) || str_eq(sum_name, n_name) { return nil }
-    if oren_list_len(loads) == 0 { return nil }
+    var loads_len = oren_list_len(loads)
+    if loads_len == 0 { return nil }
     return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads}
 }
 
@@ -141,9 +146,11 @@ fn _transpiler_match_fast_list_int_push_while(t, stmt) {
         oren_list_push(pushes, {"list": list_name, "value": exp["args"][1]})
         i = i + 1
     }
-    if oren_list_len(lists) == 0 { return nil }
+    var lists_len = oren_list_len(lists)
+    if lists_len == 0 { return nil }
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    var pushes_len = oren_list_len(pushes)
+    while pi < pushes_len {
         if _transpiler_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
@@ -188,9 +195,11 @@ fn _transpiler_match_fast_list_push_while(t, stmt) {
         oren_list_push(pushes, {"list": list_name, "value": value_expr})
         i = i + 1
     }
-    if oren_list_len(lists) == 0 { return nil }
+    var lists_len = oren_list_len(lists)
+    if lists_len == 0 { return nil }
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    var pushes_len = oren_list_len(pushes)
+    while pi < pushes_len {
         if _transpiler_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
@@ -208,7 +217,9 @@ fn _transpiler_match_fast_lcg_sum_while(t, stmt) {
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" { return nil }
     var stmts = body["stmts"]
-    if stmts == nil || oren_list_len(stmts) != 3 { return nil }
+    var stmts_len = 0
+    if stmts != nil { stmts_len = oren_list_len(stmts) }
+    if stmts == nil || stmts_len != 3 { return nil }
 
     var lcg_stmt = stmts[0]
     var sum_stmt = stmts[1]
@@ -287,7 +298,8 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
     var list_items = {}
     var list_ptrs = {}
     var li = 0
-    while li < oren_list_len(lists) {
+    var lists_len = oren_list_len(lists)
+    while li < lists_len {
         var ln = lists[li]
         var list_tmp = tmp_gensym(t, "list_fast_list")
         var ptr_tmp = tmp_gensym(t, "list_fast_ptr")
@@ -318,7 +330,8 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
     t["fast_idx_c"] = i_int
     oren_list_push(parts, "    while (" + i_int + " < " + n_int + ") {")
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    var pushes_len = oren_list_len(pushes)
+    while pi < pushes_len {
         var push = pushes[pi]
         var list_name = push["list"]
         var value_expr = push["value"]
@@ -342,7 +355,7 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
     oren_list_push(parts, "        " + i_int + "++;")
     oren_list_push(parts, "    }")
     var ci = 0
-    while ci < oren_list_len(lists) {
+    while ci < lists_len {
         var list_name2 = lists[ci]
         var ptr_tmp3 = list_ptrs[list_name2]
         oren_list_push(parts, "    " + ptr_tmp3 + "->count = (int)" + i_int + ";")
@@ -394,7 +407,8 @@ fn _transpiler_emit_fast_list_push_while(t, stmt, info) {
     var list_items = {}
     var list_ptrs = {}
     var li = 0
-    while li < oren_list_len(lists) {
+    var lists_len = oren_list_len(lists)
+    while li < lists_len {
         var ln = lists[li]
         var list_tmp = tmp_gensym(t, "list_fast_list")
         var ptr_tmp = tmp_gensym(t, "list_fast_ptr")
@@ -425,7 +439,8 @@ fn _transpiler_emit_fast_list_push_while(t, stmt, info) {
     t["fast_idx_c"] = i_int
     oren_list_push(parts, "    while (" + i_int + " < " + n_int + ") {")
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    var pushes_len = oren_list_len(pushes)
+    while pi < pushes_len {
         var push = pushes[pi]
         var list_name = push["list"]
         var value_expr = push["value"]
@@ -443,7 +458,7 @@ fn _transpiler_emit_fast_list_push_while(t, stmt, info) {
     oren_list_push(parts, "        " + i_int + "++;")
     oren_list_push(parts, "    }")
     var ci = 0
-    while ci < oren_list_len(lists) {
+    while ci < lists_len {
         var list_name2 = lists[ci]
         var ptr_tmp3 = list_ptrs[list_name2]
         oren_list_push(parts, "    " + ptr_tmp3 + "->count = (int)" + i_int + ";")
@@ -618,7 +633,8 @@ fn _transpiler_emit_fast_list_int_while(t, stmt, info) {
 
     var list_items = {}
     var li = 0
-    while li < oren_list_len(lists) {
+    var lists_len = oren_list_len(lists)
+    while li < lists_len {
         var ln = lists[li]
         var list_tmp = tmp_gensym(t, "list_fast_list")
         var ptr_tmp = tmp_gensym(t, "list_fast_ptr")
@@ -733,7 +749,8 @@ fn _transpiler_emit_fast_list_while(t, stmt, info) {
 
     var list_items = {}
     var li = 0
-    while li < oren_list_len(lists) {
+    var lists_len = oren_list_len(lists)
+    while li < lists_len {
         var ln = lists[li]
         var list_tmp = tmp_gensym(t, "list_fast_list")
         var ptr_tmp = tmp_gensym(t, "list_fast_ptr")
@@ -844,7 +861,8 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     var list_items = {}
     var list_ptrs = {}
     var li = 0
-    while li < oren_list_len(lists) {
+    var lists_len = oren_list_len(lists)
+    while li < lists_len {
         var list_name = lists[li]
         var list_tmp = tmp_gensym(t, "list_fast_list")
         var ptr_tmp = tmp_gensym(t, "list_fast_ptr")
@@ -873,7 +891,8 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, "    if (" + fast_all_int + ") {")
     oren_list_push(parts, "        while (" + i_int + " < " + n_int + ") {")
     var pi_fast = 0
-    while pi_fast < oren_list_len(loads) {
+    var loads_len = oren_list_len(loads)
+    while pi_fast < loads_len {
         var list_name_fast = loads[pi_fast]
         var items_tmp_fast = list_items[list_name_fast]
         oren_list_push(parts, "            " + sum_u + " += (uint64_t)" + items_tmp_fast + "[" + i_int + "].as.int_val;")
@@ -884,7 +903,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, "    } else {")
     oren_list_push(parts, "        while (" + i_int + " < " + n_int + ") {")
     var pi = 0
-    while pi < oren_list_len(loads) {
+    while pi < loads_len {
         var list_name2 = loads[pi]
         var items_tmp2 = list_items[list_name2]
         var v_tmp2 = tmp_gensym(t, "list_fast_val")
