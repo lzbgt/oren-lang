@@ -164,6 +164,17 @@
 <p>  hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that</p>
 <p>  parser shard.</p>
 <ul>
+<li>Generator import/yield regression probes now force <code>--no-cache</code> for traced</li>
+</ul>
+<p>  bytecode builds so the semantic guard stays independent from artifact-cache</p>
+<p>  restore/write behavior.</p>
+<ul>
+<li>Native ops plus x64 ELF/PE artifact traversal scans now cache immutable</li>
+</ul>
+<p>  argument, expression, op, export, fixup, import, and thunk-position counts</p>
+<p>  before iteration, with hotpath guard coverage rejecting direct <code>oren_list_len</code></p>
+<p>  loop bounds in those native/x64 shards.</p>
+<ul>
 <li>Compiler function/yield analysis now caches immutable program, block,</li>
 </ul>
 <p>  parameter, expression, yield-point, generator-finalize, and function-list</p>

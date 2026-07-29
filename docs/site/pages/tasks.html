@@ -130,6 +130,17 @@
 <p>     iteration, with source guards rejecting direct <code>oren_list_len</code> loop bounds</p>
 <p>     in that parser shard.</p>
 <ul>
+<li>Current generator import/yield regression probe forces <code>--no-cache</code> for</li>
+</ul>
+<p>     traced bytecode builds so the semantic guard remains independent from</p>
+<p>     artifact-cache restore/write behavior.</p>
+<ul>
+<li>Current native ops plus x64 ELF/PE artifact traversal scans cache immutable</li>
+</ul>
+<p>     argument, expression, op, export, fixup, import, and thunk-position counts</p>
+<p>     before iteration, with source guards rejecting direct <code>oren_list_len</code> loop</p>
+<p>     bounds in those native/x64 shards.</p>
+<ul>
 <li>Current compiler capsule and metadata ASCII uppercasing writes exact-size</li>
 </ul>
 <p>     byte buffers with byte arithmetic instead of scanning lowercase/uppercase</p>

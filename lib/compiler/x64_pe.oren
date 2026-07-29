@@ -561,8 +561,9 @@ fn _pe_sort_export_names(names) {
     var out = []
     if names == nil { return out }
     var seen = {}
+    var names_len = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < names_len {
         var s = names[i]
         if s != nil && s != "" && seen[s] == nil {
             seen[s] = true
@@ -1205,8 +1206,9 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
                     oren_exit(1)
                 }
                 var target_off2 = target_off_enc2 - 1
+                var poss_len = oren_list_len(poss)
                 var pi = 0
-                while pi < oren_list_len(poss) {
+                while pi < poss_len {
                     var disp_pos = poss[pi]
                     // disp32 relative to next RIP (end of instruction).
                     var insn_start = disp_pos - 3

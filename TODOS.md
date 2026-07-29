@@ -56,6 +56,13 @@ design evidence lives under `project-doc/`.
   rewrite traversals now cache immutable AST list counts before iteration, with
   byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
   that parser shard.
+- Generator import/yield regression probes now force `--no-cache` for traced
+  bytecode builds so the semantic guard remains independent from artifact-cache
+  restore/write behavior.
+- Native ops plus x64 ELF/PE artifact traversal scans now cache immutable
+  argument, expression, op, export, fixup, import, and thunk-position counts
+  before iteration, with byte-hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in those native/x64 shards.
 - Compiler loop-list analysis, arena, reset, and list-int lowering optimizer
   passes now cache immutable AST list counts before continue/exit, side-effect,
   new-list, identifier, unsafe-use, arena allocation/push-pop/pop-insertion,

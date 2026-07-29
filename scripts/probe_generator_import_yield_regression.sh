@@ -17,8 +17,11 @@ run_success_case() {
   local out="$tmp_dir/${name}.obc"
   local rc=0
 
+  # Keep this semantic regression probe independent from the artifact cache. The
+  # trace envs are diagnostic only; cached restore/write paths are covered by
+  # dedicated build-cache gates.
   OREN_TRACE_PHASES=1 OREN_TRACE_PASSES=1 timeout 12s \
-    "$compiler" build "$src" -o "$out" --backend bytecode >"$log" 2>&1 || rc=$?
+    "$compiler" build "$src" -o "$out" --backend bytecode --no-cache >"$log" 2>&1 || rc=$?
 
   if [[ "$rc" -ne 0 ]]; then
     echo "expected success for ${name}, got rc=${rc}" >&2

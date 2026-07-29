@@ -526,8 +526,9 @@ fn _elf_sort_export_names(names) {
     var out = []
     if names == nil { return out }
     var seen = {}
+    var names_len = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < names_len {
         var s = names[i]
         if s != nil && s != "" && seen[s] == nil {
             seen[s] = true
@@ -694,8 +695,10 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         if rt_fx != nil {
             var rt_offs = rt_fx["data_fnobj_code_ptr_data_off_enc"]
             var rt_names = rt_fx["data_fnobj_code_ptr_name"]
+            var rt_offs_len = 0
+            if rt_offs != nil { rt_offs_len = oren_list_len(rt_offs) }
             var ri = 0
-            while rt_offs != nil && ri < oren_list_len(rt_offs) {
+            while ri < rt_offs_len {
                 var rnm = nil
                 if rt_names != nil { rnm = rt_names[ri] }
                 var rfn = _elf_x64_lookup_fn(ctx, functions, rnm)
@@ -712,8 +715,9 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         }
         var fx = ctx["fixups"]
         if fx == nil { fx = [] }
+        var fx_len = oren_list_len(fx)
         var fi = 0
-        while fi < oren_list_len(fx) {
+        while fi < fx_len {
             var f0 = fx[fi]
             if f0 != nil {
                 if f0["type"] == "data_fnobj_code_ptr" {
@@ -749,8 +753,9 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     }
 
     var rela_type_glob_dat = 6 // R_X86_64_GLOB_DAT (from elf.h)
+    var imports_len = oren_list_len(imports)
     var i_rel = 0
-    while i_rel < oren_list_len(imports) {
+    while i_rel < imports_len {
         var imp3 = imports[i_rel]
         var got_off = imp3["got_off"]
         if got_off == nil {

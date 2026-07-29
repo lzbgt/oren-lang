@@ -135,8 +135,9 @@ fn _x64_print_emit_build_list_ops(ctx, ops, tok, args, start_idx) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": tmp, "expr": new_list_call})
 
+    var args_len = oren_list_len(args)
     var i = start_idx
-    while i < oren_list_len(args) {
+    while i < args_len {
         var ai = args[i]
         if ai == nil { err(ctx, "x64 native: print missing arg"); return nil }
         _expr_int_check(ctx, ai, nil)
@@ -891,8 +892,9 @@ fn _expr_int_check(ctx, expr, locals) {
     if t == "Array" {
         var els = expr["elements"]
         if els == nil { return nil }
+        var els_len = oren_list_len(els)
         var i = 0
-        while i < oren_list_len(els) {
+        while i < els_len {
             _expr_int_check(ctx, els[i], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             i = i + 1
@@ -902,8 +904,9 @@ fn _expr_int_check(ctx, expr, locals) {
     if t == "Hash" {
         var pairs = expr["pairs"]
         if pairs == nil { return nil }
+        var pairs_len = oren_list_len(pairs)
         var i2 = 0
-        while i2 < oren_list_len(pairs) {
+        while i2 < pairs_len {
             var pair = pairs[i2]
             if pair == nil { err(ctx, "x64 native v0: hash literal has nil pair"); return nil }
             _expr_int_check(ctx, pair["key"], locals)
@@ -932,8 +935,10 @@ fn _max_call_argc_in_expr(ctx, expr) {
         // Count nested calls inside the callee expression and arguments.
         var mf = _max_call_argc_in_expr(ctx, fn2)
         if mf > m { m = mf }
+        var args2_len = 0
+        if args2 != nil { args2_len = oren_list_len(args2) }
         var i = 0
-        while args2 != nil && i < oren_list_len(args2) {
+        while i < args2_len {
             var mi = _max_call_argc_in_expr(ctx, args2[i])
             if mi > m { m = mi }
             i = i + 1
@@ -997,8 +1002,10 @@ fn _max_call_argc_in_expr(ctx, expr) {
         // Count calls in call target and in each arg expression too.
         var mf = _max_call_argc_in_expr(ctx, fn_expr)
         if mf > m { m = mf }
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        while i < args_len {
             var mi = _max_call_argc_in_expr(ctx, args[i])
             if mi > m { m = mi }
             i = i + 1
@@ -1033,8 +1040,10 @@ fn _max_call_argc_in_expr(ctx, expr) {
     if t == "Array" {
         var m = 0
         var els = expr["elements"]
+        var els_len = 0
+        if els != nil { els_len = oren_list_len(els) }
         var i = 0
-        while els != nil && i < oren_list_len(els) {
+        while i < els_len {
             var mi = _max_call_argc_in_expr(ctx, els[i])
             if mi > m { m = mi }
             i = i + 1
@@ -1044,8 +1053,10 @@ fn _max_call_argc_in_expr(ctx, expr) {
     if t == "Hash" {
         var m2 = 0
         var pairs = expr["pairs"]
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
         var i2 = 0
-        while pairs != nil && i2 < oren_list_len(pairs) {
+        while i2 < pairs_len {
             var pair = pairs[i2]
             var mk = _max_call_argc_in_expr(ctx, pair["key"])
             if mk > m2 { m2 = mk }
@@ -1070,8 +1081,9 @@ fn _max_call_argc_in_expr(ctx, expr) {
 fn _max_call_argc_in_ops(ctx, ops) {
     if ops == nil { return 0 }
     var m = 0
+    var ops_len = oren_list_len(ops)
     var i = 0
-    while i < oren_list_len(ops) {
+    while i < ops_len {
         var op = ops[i]
         if op == nil { i = i + 1; continue }
         var k = op["op"]
@@ -1409,8 +1421,10 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
         // - oren_list_push_unchecked(list, elem): keeps two spill slots live while evaluating elem
         var m = 1
         var els = expr["elements"]
+        var els_len = 0
+        if els != nil { els_len = oren_list_len(els) }
         var j = 0
-        while els != nil && j < oren_list_len(els) {
+        while j < els_len {
             var mj = 2 + _max_intr_tmp_in_expr(ctx, els[j], locals)
             if mj > m { m = mj }
             j = j + 1
@@ -1424,8 +1438,10 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
         // - oren_map_set_{int,str}(map, key, value): keeps three spill slots live while evaluating key/value
         var m2 = 1
         var pairs = expr["pairs"]
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
         var k = 0
-        while pairs != nil && k < oren_list_len(pairs) {
+        while k < pairs_len {
             var pair = pairs[k]
             var mk = 3 + _max_intr_tmp_in_expr(ctx, pair["key"], locals)
             if mk > m2 { m2 = mk }
@@ -1452,8 +1468,9 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
 fn _max_intr_tmp_in_ops(ctx, ops, locals) {
     if ops == nil { return 0 }
     var m = 0
+    var ops_len = oren_list_len(ops)
     var i = 0
-    while i < oren_list_len(ops) {
+    while i < ops_len {
         var op = ops[i]
         if op == nil { i = i + 1; continue }
         var k = op["op"]

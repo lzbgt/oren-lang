@@ -92,6 +92,13 @@ surfaces, but the following blockers remain:
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
   parser shard.
+- Generator import/yield regression probes now force `--no-cache` for traced
+  bytecode builds so the semantic guard stays independent from artifact-cache
+  restore/write behavior.
+- Native ops plus x64 ELF/PE artifact traversal scans now cache immutable
+  argument, expression, op, export, fixup, import, and thunk-position counts
+  before iteration, with hotpath guard coverage rejecting direct `oren_list_len`
+  loop bounds in those native/x64 shards.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with hotpath guard coverage rejecting direct
