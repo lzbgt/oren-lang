@@ -80,15 +80,15 @@ fn _x64_linux_getrandom_state(ctx, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return {"base": base, "buf": tmp_buf, "len": tmp_len, "flags": tmp_flags}
+    return [base, tmp_buf, tmp_len, tmp_flags]
 }
 
 fn _x64_linux_getrandom_spill_args(ctx, locals, args, st) {
-    _intr_eval_spill_x64(ctx, locals, args[0], st["buf"])
-    _intr_eval_spill_x64(ctx, locals, args[1], st["len"])
-    _intr_eval_spill_x64(ctx, locals, args[2], st["flags"])
+    _intr_eval_spill_x64(ctx, locals, args[0], st[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], st[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], st[3])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, st["base"])
+        _intr_tmp_pop(ctx, st[0])
         return false
     }
     return true
@@ -96,9 +96,9 @@ fn _x64_linux_getrandom_spill_args(ctx, locals, args, st) {
 
 fn _x64_linux_getrandom_emit_syscall(ctx, st) {
     // rdi=buf, rsi=len, rdx=flags
-    _intr_load_x64(ctx, 7, st["buf"])
-    _intr_load_x64(ctx, 6, st["len"])
-    _intr_load_x64(ctx, 2, st["flags"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_getrandom()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -113,7 +113,7 @@ fn _emit_intrinsic_sys_linux_getrandom_x64(ctx, expr, locals, args) {
     if st == nil { return nil }
     if _x64_linux_getrandom_spill_args(ctx, locals, args, st) != true { return nil }
     _x64_linux_getrandom_emit_syscall(ctx, st)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -203,22 +203,22 @@ fn _x64_ulock_wait_linux_spill_state(ctx, locals) {
         _intr_tmp_pop(ctx, base_ulw)
         return nil
     }
-    return {"base": base_ulw, "addr": tmp_addr, "val": tmp_val, "timeout": tmp_to}
+    return [base_ulw, tmp_addr, tmp_val, tmp_to]
 }
 
 fn _x64_ulock_wait_linux_eval_args(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[1], state["addr"])
-    _intr_eval_spill_x64(ctx, locals, args[2], state["val"])
-    _intr_eval_spill_x64(ctx, locals, args[3], state["timeout"])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[2], state[2])
+    _intr_eval_spill_x64(ctx, locals, args[3], state[3])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     return true
 }
 
 fn _x64_ulock_wait_linux_emit_futex_args(ctx, locals, state) {
-    _intr_load_x64(ctx, 7, state["addr"]) // rdi = uaddr
+    _intr_load_x64(ctx, 7, state[1]) // rdi = uaddr
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(6, 128)) // esi = FUTEX_WAIT_PRIVATE
-    _x64_emit_linux_futex_timeout_arg_x64(ctx, locals, state["timeout"])
-    _intr_load_x64(ctx, 2, state["val"])  // rdx = val
+    _x64_emit_linux_futex_timeout_arg_x64(ctx, locals, state[3])
+    _intr_load_x64(ctx, 2, state[2])  // rdx = val
     _x64_emit_linux_futex_common_tail(ctx)
     bytes_extend(ctx["code"], core.insn_add_rsp_imm8(16))
     return nil
@@ -238,12 +238,12 @@ fn _emit_intrinsic_sys_ulock_wait_linux_x64(ctx, expr, locals, args) {
     // args: (operation, addr, value, timeout_us). Operation is validated by runtime callers.
     var state = _x64_ulock_wait_linux_spill_state(ctx, locals)
     if state == nil { return nil }
-    if _x64_ulock_wait_linux_eval_args(ctx, locals, args, state) != true { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if _x64_ulock_wait_linux_eval_args(ctx, locals, args, state) != true { _intr_tmp_pop(ctx, state[0]); return nil }
 
     _x64_ulock_wait_linux_emit_futex_args(ctx, locals, state)
     _x64_ulock_wait_linux_emit_result(ctx)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 

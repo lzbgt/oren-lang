@@ -3041,9 +3041,11 @@ design evidence lives under `project-doc/`.
 - C backend integer expressions now spell the signed 64-bit minimum as
   `INT64_MIN`, so Oren literals that intentionally wrap to `i64.min` no longer
   generate Clang oversized signed-literal warnings in math C smokes.
-- Linux x64 FS syscall lowering now uses compact positional scratch-state lists
-  for stat/path families instead of transient keyed maps, reducing compiler-side
-  allocation and lookup work while preserving the emitted syscall sequences.
+- Linux x64 syscall lowering now uses compact positional scratch-state lists for
+  stat/path families, read/write fd-buffer setup, getrandom, futex wait, and
+  fd-control/dup/ioctl helpers instead of transient keyed state maps, reducing
+  compiler-side allocation and lookup work while preserving emitted syscall
+  sequences.
 - Base64 decode now rejects interior padding and third-character padding without
   fourth-character padding plus nonzero trailing pad bits while keeping decoded
   output as exact-size `u8_buf`; strict Base64 decode sizes exactly and validates

@@ -156,13 +156,13 @@ fn _x64_sys_fd_buf_windows_slots(ctx, locals) {
     var tmp_ptr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
     if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+    return [base, tmp_fd, tmp_ptr, tmp_len]
 }
 
 fn _x64_prepare_sys_read_windows_fd(ctx, locals, arg_fd, state, capsule) {
     // fd (with capsule gating)
     _emit_eval_int_to_rax(ctx, arg_fd, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
     // Capsule prehook is an internal Oren call and must use the platform ABI.
     // Win64: arg0 in RCX; SysV: arg0 in RDI.
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = fd
@@ -172,15 +172,15 @@ fn _x64_prepare_sys_read_windows_fd(ctx, locals, arg_fd, state, capsule) {
         // rax = fd
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 1))
     }
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[1], 0)
     return true
 }
 
 fn _x64_prepare_sys_read_windows_buflen(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_ptr"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
-    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_len"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[2], state[3])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
     return true
 }
 
@@ -290,24 +290,18 @@ fn _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, l_ret0) {
 }
 
 fn _x64_sys_read_windows_labels(ctx) {
-    return {
-        "labels": {},
-        "local_fixups": [],
-        "ret0": _new_label(ctx, "sys_read_ret0"),
-        "have_handle": _new_label(ctx, "sys_read_have_handle"),
-        "done": _new_label(ctx, "sys_read_done")
-    }
+    return [{}, [], _new_label(ctx, "sys_read_ret0"), _new_label(ctx, "sys_read_have_handle"), _new_label(ctx, "sys_read_done")]
 }
 
 fn _x64_emit_sys_read_windows_body(ctx, locals, state, lab) {
-    var tmp_fd = state["tmp_fd"]
-    var tmp_ptr = state["tmp_ptr"]
-    var tmp_len = state["tmp_len"]
-    var labels = lab["labels"]
-    var local_fixups = lab["local_fixups"]
-    _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, lab["ret0"])
-    _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, lab["have_handle"])
-    _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, lab["done"])
+    var tmp_fd = state[1]
+    var tmp_ptr = state[2]
+    var tmp_len = state[3]
+    var labels = lab[0]
+    var local_fixups = lab[1]
+    _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, lab[2])
+    _x64_emit_sys_read_windows_handle(ctx, labels, local_fixups, tmp_fd, lab[3])
+    _x64_emit_sys_read_windows_readfile(ctx, labels, local_fixups, tmp_ptr, tmp_len, lab[4])
     return nil
 }
 
@@ -323,7 +317,7 @@ fn _emit_intrinsic_sys_read_windows_x64(ctx, locals, args, capsule) {
     if state == nil { return nil }
     var lab = _x64_sys_read_windows_labels(ctx)
     _x64_emit_sys_read_windows_body(ctx, locals, state, lab)
-    _x64_emit_sys_read_windows_finish(ctx, lab["labels"], lab["local_fixups"], lab["ret0"], lab["done"], state["base"])
+    _x64_emit_sys_read_windows_finish(ctx, lab[0], lab[1], lab[2], lab[4], state[0])
     return nil
 }
 
@@ -337,7 +331,7 @@ fn _x64_sys_rw_linux_slots(ctx, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return {"base": base, "tmp_fd": tmp_fd, "tmp_ptr": tmp_ptr, "tmp_len": tmp_len}
+    return [base, tmp_fd, tmp_ptr, tmp_len]
 }
 
 fn _x64_sys_rw_linux_spill_fd(ctx, locals, fd_expr, state, capsule, prehook_name) {
@@ -349,14 +343,14 @@ fn _x64_sys_rw_linux_spill_fd(ctx, locals, fd_expr, state, capsule, prehook_name
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 7)) // rax = fd
     }
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[1], 0)
     return true
 }
 
 fn _x64_sys_rw_linux_spill_ptr_len(ctx, locals, ptr_expr, len_expr, state) {
-    _intr_eval_spill_x64(ctx, locals, ptr_expr, state["tmp_ptr"])
+    _intr_eval_spill_x64(ctx, locals, ptr_expr, state[2])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-    _intr_eval_spill_x64(ctx, locals, len_expr, state["tmp_len"])
+    _intr_eval_spill_x64(ctx, locals, len_expr, state[3])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     return true
 }
@@ -364,15 +358,15 @@ fn _x64_sys_rw_linux_spill_ptr_len(ctx, locals, ptr_expr, len_expr, state) {
 fn _x64_prepare_sys_rw_linux_args(ctx, locals, args, capsule, prehook_name) {
     var state = _x64_sys_rw_linux_slots(ctx, locals)
     if state == nil { return nil }
-    if _x64_sys_rw_linux_spill_fd(ctx, locals, args[0], state, capsule, prehook_name) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
-    if _x64_sys_rw_linux_spill_ptr_len(ctx, locals, args[1], args[2], state) == false { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if _x64_sys_rw_linux_spill_fd(ctx, locals, args[0], state, capsule, prehook_name) == false { _intr_tmp_pop(ctx, state[0]); return nil }
+    if _x64_sys_rw_linux_spill_ptr_len(ctx, locals, args[1], args[2], state) == false { _intr_tmp_pop(ctx, state[0]); return nil }
     return state
 }
 
 fn _x64_emit_linux_fd_buf_syscall_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["tmp_fd"])
-    _intr_load_x64(ctx, 6, st["tmp_ptr"])
-    _intr_load_x64(ctx, 2, st["tmp_len"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
     return nil
 }
 
@@ -384,7 +378,7 @@ fn _emit_intrinsic_sys_read_linux_x64(ctx, locals, args, capsule) {
     _x64_emit_linux_fd_buf_syscall_args(ctx, st)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_read()))
     bytes_extend(ctx["code"], core.insn_syscall())
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -408,22 +402,22 @@ fn _x64_sys_write_windows_slots(ctx, locals) {
 fn _x64_prepare_sys_write_windows_fd(ctx, locals, arg_fd, state, capsule) {
     // fd (with capsule gating)
     _emit_eval_int_to_rax(ctx, arg_fd, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx=fd
     if capsule {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 1)) // rax = rcx
     }
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_fd"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[1], 0)
     return true
 }
 
 fn _x64_prepare_sys_write_windows_buflen(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_ptr"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
-    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_len"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[2], state[3])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
     return true
 }
 
@@ -476,25 +470,19 @@ fn _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp
 }
 
 fn _x64_sys_write_windows_labels(ctx) {
-    return {
-        "labels": {},
-        "local_fixups": [],
-        "ret0": _new_label(ctx, "sys_write_ret0"),
-        "have_handle": _new_label(ctx, "sys_write_have_handle"),
-        "done": _new_label(ctx, "sys_write_done")
-    }
+    return [{}, [], _new_label(ctx, "sys_write_ret0"), _new_label(ctx, "sys_write_have_handle"), _new_label(ctx, "sys_write_done")]
 }
 
 fn _x64_emit_sys_write_windows_body(ctx, locals, state, lab) {
-    var tmp_fd = state["tmp_fd"]
-    var tmp_ptr = state["tmp_ptr"]
-    var tmp_len = state["tmp_len"]
-    var labels = lab["labels"]
-    var local_fixups = lab["local_fixups"]
-    _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, lab["ret0"])
-    _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, lab["have_handle"])
-    _emit_label(ctx, labels, lab["have_handle"])
-    _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, lab["done"])
+    var tmp_fd = state[1]
+    var tmp_ptr = state[2]
+    var tmp_len = state[3]
+    var labels = lab[0]
+    var local_fixups = lab[1]
+    _x64_emit_sys_windows_zero_len_guard(ctx, tmp_len, local_fixups, lab[2])
+    _x64_emit_sys_write_windows_handle(ctx, labels, local_fixups, tmp_fd, lab[3])
+    _emit_label(ctx, labels, lab[3])
+    _x64_emit_sys_write_windows_writefile(ctx, labels, local_fixups, tmp_ptr, tmp_len, lab[4])
     return nil
 }
 
@@ -504,32 +492,27 @@ fn _x64_emit_sys_write_windows_finish(ctx, labels, local_fixups, l_ret0, l_done,
 }
 
 fn _x64_sys_write_linux_labels(ctx) {
-    return {
-        "labels": {},
-        "local_fixups": [],
-        "ret0": _new_label(ctx, "sys_write_ret0"),
-        "done": _new_label(ctx, "sys_write_done")
-    }
+    return [{}, [], _new_label(ctx, "sys_write_ret0"), _new_label(ctx, "sys_write_done")]
 }
 
 fn _x64_emit_sys_write_linux_body(ctx, st, lab) {
-    _intr_load_x64(ctx, 0, st["tmp_len"])
+    _intr_load_x64(ctx, 0, st[3])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, lab["local_fixups"], "le", lab["ret0"])
+    _emit_jcc_to_label(ctx, lab[1], "le", lab[2])
     _x64_emit_linux_fd_buf_syscall_args(ctx, st)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_write()))
     bytes_extend(ctx["code"], core.insn_syscall())
-    _emit_jmp_to_label(ctx, lab["local_fixups"], lab["done"])
+    _emit_jmp_to_label(ctx, lab[1], lab[3])
     return nil
 }
 
 fn _x64_emit_sys_write_linux_finish(ctx, st, lab) {
-    _emit_label(ctx, lab["labels"], lab["ret0"])
+    _emit_label(ctx, lab[0], lab[2])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, lab["labels"], lab["done"])
-    _patch_local_fixups(ctx, lab["labels"], lab["local_fixups"])
-    _intr_tmp_pop(ctx, st["base"])
+    _emit_label(ctx, lab[0], lab[3])
+    _patch_local_fixups(ctx, lab[0], lab[1])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -539,7 +522,7 @@ fn _emit_intrinsic_sys_write_windows_x64(ctx, locals, args, capsule) {
     if state == nil { return nil }
     var lab = _x64_sys_write_windows_labels(ctx)
     _x64_emit_sys_write_windows_body(ctx, locals, state, lab)
-    _x64_emit_sys_write_windows_finish(ctx, lab["labels"], lab["local_fixups"], lab["ret0"], lab["done"], state["base"])
+    _x64_emit_sys_write_windows_finish(ctx, lab[0], lab[1], lab[2], lab[4], state[0])
     return nil
 }
 
