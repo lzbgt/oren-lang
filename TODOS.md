@@ -121,6 +121,11 @@ design evidence lives under `project-doc/`.
   iterative parameter-trait inference scans now cache immutable list counts
   before traversal, with byte-hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that IR support path.
+- Type-annotation lowering module-graph, function parameter normalization,
+  expression/statement rewrite, switch, field-kind collection, and top-level
+  statement passes now cache immutable list counts before traversal, with
+  byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
+  that semantic lowering pass.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
@@ -3057,6 +3062,11 @@ design evidence lives under `project-doc/`.
   iterative parameter-trait inference scans now cache immutable list counts
   before traversal, with byte-hotpath guard coverage for direct `oren_list_len`
   loop conditions in that IR support path.
+- Type-annotation lowering module-graph, function parameter normalization,
+  expression/statement rewrite, switch, field-kind collection, and top-level
+  statement passes now cache immutable list counts before traversal, with
+  byte-hotpath guard coverage for direct `oren_list_len` loop conditions in
+  that semantic lowering pass.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

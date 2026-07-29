@@ -63,21 +63,27 @@ fn ta_graph_path_for_prefix(prefix) {
     var g = TYPE_ANN_MODULE_GRAPH
     if g == nil || prefix == nil { return nil }
     var imports = g["imports"]
+    var import_count = 0
+    if imports != nil { import_count = oren_list_len(imports) }
     var i = 0
-    while imports != nil && i < oren_list_len(imports) {
+    while i < import_count {
         var e = imports[i]
         if e != nil && e["prefix"] == prefix { return e["full"] }
         i = i + 1
     }
     var mods = g["modules"]
+    var mod_count = 0
+    if mods != nil { mod_count = oren_list_len(mods) }
     i = 0
-    while mods != nil && i < oren_list_len(mods) {
+    while i < mod_count {
         var m = mods[i]
         if m != nil && m["prefix"] == prefix { return m["path"] }
         var imps = nil
         if m != nil { imps = m["imports"] }
+        var imp_count = 0
+        if imps != nil { imp_count = oren_list_len(imps) }
         var j = 0
-        while imps != nil && j < oren_list_len(imps) {
+        while j < imp_count {
             var ie = imps[j]
             if ie != nil && ie["prefix"] == prefix { return ie["full"] }
             j = j + 1
@@ -361,10 +367,12 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
 
         // Normalize annotated params at entry by inserting `x = cast(x)` at the top of the body.
         var params = expr["params"]
-        if params != nil && oren_list_len(params) > 0 {
+        var param_count = 0
+        if params != nil { param_count = oren_list_len(params) }
+        if param_count > 0 {
             var pre = []
             var i0 = 0
-            while i0 < oren_list_len(params) {
+            while i0 < param_count {
                 var pid = params[i0]
                 if pid != nil && pid["ann_type"] != nil {
                     var nm = pid["value"]
@@ -377,18 +385,20 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
                 }
                 i0 = i0 + 1
             }
-            if oren_list_len(pre) > 0 {
+            var pre_count = oren_list_len(pre)
+            if pre_count > 0 {
                 var body = expr["body"]
                 if body != nil && body["type"] == "Block" {
                     var old = body["stmts"]
                     var out = []
                     var j0 = 0
-                    while j0 < oren_list_len(pre) {
+                    while j0 < pre_count {
                         oren_list_push(out, pre[j0])
                         j0 = j0 + 1
                     }
+                    var old_count = oren_list_len(old)
                     var k0 = 0
-                    while k0 < oren_list_len(old) {
+                    while k0 < old_count {
                         oren_list_push(out, old[k0])
                         k0 = k0 + 1
                     }
@@ -419,8 +429,9 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
     }
     if t == "Array" {
         var xs = expr["elements"]
+        var xs_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < xs_count {
             xs[i] = lower_expr_in_place(xs[i], type_kinds, ret_kind)
             i = i + 1
         }
@@ -428,8 +439,9 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
     }
     if t == "Hash" {
         var ps = expr["pairs"]
+        var ps_count = oren_list_len(ps)
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        while i2 < ps_count {
             ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], type_kinds, ret_kind)
             ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], type_kinds, ret_kind)
             i2 = i2 + 1
@@ -453,8 +465,9 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
         // Rewrite children first.
         expr["fn"] = lower_expr_in_place(expr["fn"], type_kinds, ret_kind)
         var args = expr["args"]
+        var args_count = oren_list_len(args)
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        while i3 < args_count {
             args[i3] = lower_expr_in_place(args[i3], type_kinds, ret_kind)
             i3 = i3 + 1
         }
@@ -510,9 +523,10 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
             var kinds = type_kinds[name]
             if kinds != nil {
                 // Apply casts positionally if arity matches.
-                if oren_list_len(kinds) == oren_list_len(args) {
+                var kind_count = oren_list_len(kinds)
+                if kind_count == args_count {
                     var j = 0
-                    while j < oren_list_len(args) {
+                    while j < args_count {
                         if kinds[j] != nil {
                             args[j] = cast_expr_for_kind(kinds[j], args[j])
                         }
@@ -534,8 +548,9 @@ fn lower_stmt_in_place(stmt, type_kinds, ret_kind) {
 
     if t == "Block" {
         var stmts = stmt["stmts"]
+        var stmt_count = oren_list_len(stmts)
         var i = 0
-        while i < oren_list_len(stmts) {
+        while i < stmt_count {
             lower_stmt_in_place(stmts[i], type_kinds, ret_kind)
             i = i + 1
         }
@@ -543,8 +558,9 @@ fn lower_stmt_in_place(stmt, type_kinds, ret_kind) {
     }
     if t == "StmtList" {
         var xs = stmt["stmts"]
+        var xs_count = oren_list_len(xs)
         var i2 = 0
-        while i2 < oren_list_len(xs) {
+        while i2 < xs_count {
             lower_stmt_in_place(xs[i2], type_kinds, ret_kind)
             i2 = i2 + 1
         }
@@ -598,11 +614,13 @@ fn lower_stmt_in_place(stmt, type_kinds, ret_kind) {
     if t == "Switch" {
         stmt["value"] = lower_expr_in_place(stmt["value"], type_kinds, ret_kind)
         var cases = stmt["cases"]
+        var case_count = oren_list_len(cases)
         var ci = 0
-        while ci < oren_list_len(cases) {
+        while ci < case_count {
             var vals = cases[ci]["values"]
+            var val_count = oren_list_len(vals)
             var vi = 0
-            while vi < oren_list_len(vals) {
+            while vi < val_count {
                 vals[vi] = lower_expr_in_place(vals[vi], type_kinds, ret_kind)
                 vi = vi + 1
             }
@@ -624,8 +642,9 @@ fn collect_type_kinds_in_stmt(stmt, type_kinds) {
         var tname = stmt["name"]["value"]
         var fields = stmt["fields"]
         var kinds = []
+        var field_count = oren_list_len(fields)
         var j = 0
-        while j < oren_list_len(fields) {
+        while j < field_count {
             var fid = fields[j]
             if fid != nil && fid["ann_type"] != nil {
                 oren_list_push(kinds, fid["ann_type"])
@@ -640,8 +659,9 @@ fn collect_type_kinds_in_stmt(stmt, type_kinds) {
 
     if t == "Block" {
         var xs = stmt["stmts"]
+        var xs_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < xs_count {
             collect_type_kinds_in_stmt(xs[i], type_kinds)
             i = i + 1
         }
@@ -649,8 +669,9 @@ fn collect_type_kinds_in_stmt(stmt, type_kinds) {
     }
     if t == "StmtList" {
         var xs2 = stmt["stmts"]
+        var xs2_count = oren_list_len(xs2)
         var i2 = 0
-        while i2 < oren_list_len(xs2) {
+        while i2 < xs2_count {
             collect_type_kinds_in_stmt(xs2[i2], type_kinds)
             i2 = i2 + 1
         }
@@ -676,8 +697,9 @@ fn collect_type_kinds_in_stmt(stmt, type_kinds) {
     }
     if t == "Switch" {
         var cases = stmt["cases"]
+        var case_count = oren_list_len(cases)
         var ci = 0
-        while ci < oren_list_len(cases) {
+        while ci < case_count {
             collect_type_kinds_in_stmt(cases[ci]["body"], type_kinds)
             ci = ci + 1
         }
@@ -697,15 +719,16 @@ fn lower_linked_program_in_place(linked) {
     // Build mapping: TypeName -> [field_kind_or_nil...]
     var type_kinds = {}
     var stmts = linked["statements"]
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         collect_type_kinds_in_stmt(stmts[i], type_kinds)
         i = i + 1
     }
 
     // Rewrite expressions in all statements.
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         lower_stmt_in_place(stmts[i], type_kinds, nil)
         i = i + 1
     }
