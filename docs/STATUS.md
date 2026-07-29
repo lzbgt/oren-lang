@@ -51,6 +51,10 @@ surfaces, but the following blockers remain:
   pop-insertion, sink/rewrite, hoist/reset, reserve, candidate, touch, and
   rewrite scans; the hotpath guard rejects direct `oren_list_len` loop bounds
   in those passes.
+- Parser generator core-use, yield-delegate validation, and generator-yield
+  rewrite traversals now cache immutable AST list counts before iteration, with
+  hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
+  parser shard.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with hotpath guard coverage rejecting direct
@@ -3198,8 +3202,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   class-selector scans, DOM parsing, and streaming readers use direct
   source-string byte reads instead of repeated input byte-list materialization.
   XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,
-  linalg, regex, `std:ui`, URL allow-list, HTTP/2 header traversal, and
-  module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,
+  linalg, regex, `std:ui`, URL allow-list, HTTP/2 header traversal, parser-generator
+  core/yield traversal, and module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,
   compiler support, compiler artifact-support, debug-sugar, capsule-policy,
   optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, C-transpiler support,
   renamer, CoreIR, type-annotation lowering, C-transpiler entry, type-name resolution, native runtime-object cache, and `std:sys` loops now cache immutable list lengths before

@@ -96,6 +96,12 @@
 <p>  string length before byte-offset line/column scans, and generic-call</p>
 <p>  declaration scans cache statement counts plus specialization-name lengths.</p>
 <ul>
+<li>Parser generator core-use, yield-delegate validation, and generator-yield</li>
+</ul>
+<p>  rewrite traversals now cache immutable AST list counts before iteration, with</p>
+<p>  byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
+<p>  that parser shard.</p>
+<ul>
 <li>Compiler loop-list analysis, arena, reset, and list-int lowering optimizer</li>
 </ul>
 <p>  passes now cache immutable AST list counts before continue/exit, side-effect,</p>
@@ -932,9 +938,10 @@
 <li>Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.</li>
 <li>XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,</li>
 </ul>
-<p>  linalg, regex, URL allow-list, and HTTP/2 decoded-header loops now cache</p>
-<p>  immutable list lengths before iteration, avoiding repeated dynamic length</p>
-<p>  calls while preserving canonical sort and encode order.</p>
+<p>  linalg, regex, URL allow-list, HTTP/2 decoded-header, and parser-generator</p>
+<p>  core/yield traversal loops now cache immutable list lengths before iteration,</p>
+<p>  avoiding repeated dynamic length calls while preserving canonical sort and</p>
+<p>  encode order.</p>
 <ul>
 <li>Parallel module parsing now emits setup and per-module worker phase markers under</li>
 </ul>

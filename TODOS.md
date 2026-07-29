@@ -51,6 +51,10 @@ design evidence lives under `project-doc/`.
 - Parser diagnostic and ARM64 native source-location helpers now cache source
   string length before byte-offset line/column scans, and generic-call
   declaration scans cache statement counts plus specialization-name lengths.
+- Parser generator core-use, yield-delegate validation, and generator-yield
+  rewrite traversals now cache immutable AST list counts before iteration, with
+  byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
+  that parser shard.
 - Compiler loop-list analysis, arena, reset, and list-int lowering optimizer
   passes now cache immutable AST list counts before continue/exit, side-effect,
   new-list, identifier, unsafe-use, arena allocation/push-pop/pop-insertion,
@@ -566,9 +570,10 @@ design evidence lives under `project-doc/`.
 - Oren LSP imported workspace/field-navigation server regressions now live in a dedicated test shard, reducing `server_test.go` to 1202 lines while keeping import-resolution, import-cycle, and imported-member protocol coverage grouped below the source-line guard.
 - Metal text cache misses now share a bounded view-owned UIKit attribute cache keyed by packed RGBA, and allocate lazy texture cache/order storage before UIKit attribute lookup, so repeated text colors do not rebuild font/color/attribute dictionaries while cache hits still return before touching UIKit attributes.
 - XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,
-  linalg, regex, URL allow-list, and HTTP/2 decoded-header loops now cache
-  immutable list lengths before iteration, avoiding repeated dynamic length
-  calls while preserving canonical sort and encode order.
+  linalg, regex, URL allow-list, HTTP/2 decoded-header, and parser-generator
+  core/yield traversal loops now cache immutable list lengths before iteration,
+  avoiding repeated dynamic length calls while preserving canonical sort and
+  encode order.
 - Parallel module parsing now emits setup and per-module worker phase markers under
   `OREN_TRACE_BUILD_PHASES_PATH` for both thread and fork worker modes. Fresh x64
   self-host evidence shows the active macOS stage2 path is thread mode (`fork=0`),

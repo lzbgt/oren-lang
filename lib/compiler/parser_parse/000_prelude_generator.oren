@@ -86,7 +86,9 @@ fn _expr_uses_generator_core(expr) {
         if _expr_uses_generator_core(expr["fn"]) == true { return true }
         var args = expr["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             if _expr_uses_generator_core(args[i]) == true { return true }
             i = i + 1
         }
@@ -104,7 +106,9 @@ fn _expr_uses_generator_core(expr) {
     if t == "Array" {
         var elems = expr["elements"]
         var ei = 0
-        while elems != nil && ei < oren_list_len(elems) {
+        var elems_len = 0
+        if elems != nil { elems_len = oren_list_len(elems) }
+        while ei < elems_len {
             if _expr_uses_generator_core(elems[ei]) == true { return true }
             ei = ei + 1
         }
@@ -113,7 +117,9 @@ fn _expr_uses_generator_core(expr) {
     if t == "Hash" {
         var pairs = expr["pairs"]
         var pi = 0
-        while pairs != nil && pi < oren_list_len(pairs) {
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
+        while pi < pairs_len {
             var pair = pairs[pi]
             if pair["key"] != nil && _expr_uses_generator_core(pair["key"]) == true { return true }
             if pair["value"] != nil && _expr_uses_generator_core(pair["value"]) == true { return true }
@@ -135,7 +141,9 @@ fn _stmt_uses_generator_core(stmt) {
     if t == "Block" || t == "StmtList" {
         var xs = stmt["stmts"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             if _stmt_uses_generator_core(xs[i]) == true { return true }
             i = i + 1
         }
@@ -169,11 +177,15 @@ fn _stmt_uses_generator_core(stmt) {
         if _expr_uses_generator_core(stmt["value"]) == true { return true }
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             var vals = c["values"]
             var vi = 0
-            while vals != nil && vi < oren_list_len(vals) {
+            var vals_len = 0
+            if vals != nil { vals_len = oren_list_len(vals) }
+            while vi < vals_len {
                 if _expr_uses_generator_core(vals[vi]) == true { return true }
                 vi = vi + 1
             }
@@ -444,7 +456,9 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
                 return expr
             }
             var fi = 0
-            while finalize_args != nil && fi < oren_list_len(finalize_args) {
+            var finalize_args_len = 0
+            if finalize_args != nil { finalize_args_len = oren_list_len(finalize_args) }
+            while fi < finalize_args_len {
                 finalize_args[fi] = _generator_rewrite_yield_expr(finalize_args[fi], co_name)
                 fi = fi + 1
             }
@@ -465,7 +479,9 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
         expr["fn"] = _generator_rewrite_yield_expr(expr["fn"], co_name)
         var args = expr["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             args[i] = _generator_rewrite_yield_expr(args[i], co_name)
             i = i + 1
         }
@@ -485,7 +501,9 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
     if t == "Array" {
         var elems = expr["elements"]
         var ei = 0
-        while elems != nil && ei < oren_list_len(elems) {
+        var elems_len = 0
+        if elems != nil { elems_len = oren_list_len(elems) }
+        while ei < elems_len {
             elems[ei] = _generator_rewrite_yield_expr(elems[ei], co_name)
             ei = ei + 1
         }
@@ -494,7 +512,9 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
     if t == "Hash" {
         var pairs = expr["pairs"]
         var pi = 0
-        while pairs != nil && pi < oren_list_len(pairs) {
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
+        while pi < pairs_len {
             var pair = pairs[pi]
             if pair["key"] != nil { pair["key"] = _generator_rewrite_yield_expr(pair["key"], co_name) }
             if pair["value"] != nil { pair["value"] = _generator_rewrite_yield_expr(pair["value"], co_name) }
@@ -576,7 +596,9 @@ fn _stmt_validate_yield_delegate_expr(p, expr) {
         _stmt_validate_yield_delegate_expr(p, expr["fn"])
         var args = expr["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             _stmt_validate_yield_delegate_expr(p, args[i])
             i = i + 1
         }
@@ -596,7 +618,9 @@ fn _stmt_validate_yield_delegate_expr(p, expr) {
     if t == "Array" {
         var elems = expr["elements"]
         var ei = 0
-        while elems != nil && ei < oren_list_len(elems) {
+        var elems_len = 0
+        if elems != nil { elems_len = oren_list_len(elems) }
+        while ei < elems_len {
             _stmt_validate_yield_delegate_expr(p, elems[ei])
             ei = ei + 1
         }
@@ -605,7 +629,9 @@ fn _stmt_validate_yield_delegate_expr(p, expr) {
     if t == "Hash" {
         var pairs = expr["pairs"]
         var pi = 0
-        while pairs != nil && pi < oren_list_len(pairs) {
+        var pairs_len = 0
+        if pairs != nil { pairs_len = oren_list_len(pairs) }
+        while pi < pairs_len {
             var pair = pairs[pi]
             if pair["key"] != nil { _stmt_validate_yield_delegate_expr(p, pair["key"]) }
             if pair["value"] != nil { _stmt_validate_yield_delegate_expr(p, pair["value"]) }
@@ -652,7 +678,9 @@ fn _stmt_validate_yield_delegate_stmt(p, stmt) {
     if t == "Block" || t == "StmtList" {
         var xs = stmt["stmts"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             _stmt_validate_yield_delegate_stmt(p, xs[i])
             i = i + 1
         }
@@ -679,11 +707,15 @@ fn _stmt_validate_yield_delegate_stmt(p, stmt) {
         _stmt_validate_yield_delegate_expr(p, stmt["value"])
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             var vals = c["values"]
             var vi = 0
-            while vals != nil && vi < oren_list_len(vals) {
+            var vals_len = 0
+            if vals != nil { vals_len = oren_list_len(vals) }
+            while vi < vals_len {
                 _stmt_validate_yield_delegate_expr(p, vals[vi])
                 vi = vi + 1
             }
@@ -719,7 +751,9 @@ fn _generator_rewrite_yield_stmt(stmt, co_name) {
     if t == "Block" || t == "StmtList" {
         var xs = stmt["stmts"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             xs[i] = _generator_rewrite_yield_stmt(xs[i], co_name)
             i = i + 1
         }
@@ -774,11 +808,15 @@ fn _generator_rewrite_yield_stmt(stmt, co_name) {
         stmt["value"] = _generator_rewrite_yield_expr(stmt["value"], co_name)
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             var vals = c["values"]
             var vi = 0
-            while vals != nil && vi < oren_list_len(vals) {
+            var vals_len = 0
+            if vals != nil { vals_len = oren_list_len(vals) }
+            while vi < vals_len {
                 vals[vi] = _generator_rewrite_yield_expr(vals[vi], co_name)
                 vi = vi + 1
             }
