@@ -59,6 +59,10 @@ surfaces, but the following blockers remain:
   and tail-recursive rewrite traversals now cache immutable AST list counts
   before iteration, with hotpath guard coverage rejecting direct `oren_list_len`
   loop bounds in that optimizer pass.
+- Optimizer const-prop modulo prefilter and rewrite traversals now cache
+  immutable AST list counts before expression, switch-case, block, and statement
+  scans, with hotpath guard coverage rejecting direct `oren_list_len` loop bounds
+  in that optimizer pass.
 - Parser generator core-use, yield-delegate validation, and generator-yield
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that

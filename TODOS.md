@@ -69,6 +69,10 @@ design evidence lives under `project-doc/`.
   and tail-recursive rewrite traversals now cache immutable AST list counts
   before iteration, with byte-hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that optimizer pass.
+- Optimizer const-prop modulo prefilter and rewrite traversals now cache
+  immutable AST list counts before expression, switch-case, block, and statement
+  scans, with byte-hotpath guard coverage rejecting direct `oren_list_len` loop
+  bounds in that optimizer pass.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with byte-hotpath guard coverage rejecting
