@@ -69,15 +69,17 @@ fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
     var lin = scan_syscalls_in_src(src, "linux_sys_")
 
     var bad = []
+    var policy_dar_len = oren_list_len(dar)
     var i = 0
-    while i < oren_list_len(dar) {
+    while i < policy_dar_len {
         if syscall_allow(allowed_darwin, dar[i]) != true {
             oren_list_push(bad, "darwin_sys_" + dar[i])
         }
         i = i + 1
     }
+    var policy_lin_len = oren_list_len(lin)
     i = 0
-    while i < oren_list_len(lin) {
+    while i < policy_lin_len {
         if syscall_allow(allowed_linux, lin[i]) != true {
             oren_list_push(bad, "linux_sys_" + lin[i])
         }
@@ -87,8 +89,9 @@ fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
     if oren_list_len(bad) != 0 {
         print("FAIL: syscall-first policy violation in " + file)
         print("Disallowed direct syscall identifiers (should be centralized in arm64_native_expr_syscalls.oren):")
+        var policy_bad_len = oren_list_len(bad)
         var bi = 0
-        while bi < oren_list_len(bad) {
+        while bi < policy_bad_len {
             print("  - " + bad[bi])
             bi = bi + 1
         }
@@ -275,8 +278,9 @@ fn expand_includes_file_result(full_path, include_stack) {
 
     // Include-cycle check.
     if include_stack != nil {
+        var include_cycle_stack_len = oren_list_len(include_stack)
         var si = 0
-        while si < oren_list_len(include_stack) {
+        while si < include_cycle_stack_len {
             if include_stack[si] == full_path {
                 return {"ok": false, "err": "include cycle detected: " + full_path}
             }
@@ -296,8 +300,9 @@ fn expand_includes_file_result(full_path, include_stack) {
 
     var next_stack = []
     if include_stack != nil {
+        var include_copy_stack_len = oren_list_len(include_stack)
         var ci = 0
-        while ci < oren_list_len(include_stack) {
+        while ci < include_copy_stack_len {
             oren_list_push(next_stack, include_stack[ci])
             ci = ci + 1
         }
@@ -487,8 +492,9 @@ fn path_norm(path) {
     // PERF: build the normalized path in one allocation.
     var parts = []
     if is_abs { oren_list_push(parts, "/") }
+    var path_norm_segs_len = oren_list_len(segs)
     i = 0
-    while i < oren_list_len(segs) {
+    while i < path_norm_segs_len {
         if i > 0 { oren_list_push(parts, "/") }
         oren_list_push(parts, segs[i])
         i = i + 1
@@ -628,8 +634,9 @@ fn resolve_import_path(base_dir, import_path) {
 fn _completion_join_words(ws) {
     if ws == nil { return "" }
     var out = ""
+    var completion_join_words_len = oren_list_len(ws)
     var i = 0
-    while i < oren_list_len(ws) {
+    while i < completion_join_words_len {
         if i != 0 { out = out + " " }
         out = out + ws[i]
         i = i + 1
@@ -641,8 +648,9 @@ fn _completion_dedupe(ws) {
     if ws == nil { return [] }
     var out = []
     var seen = {}
+    var completion_dedupe_words_len = oren_list_len(ws)
     var i = 0
-    while i < oren_list_len(ws) {
+    while i < completion_dedupe_words_len {
         var w = ws[i]
         if w != nil && w != "" && seen[w] != true {
             seen[w] = true
@@ -672,8 +680,9 @@ fn _completion_collect_opt_tokens(cmd) {
     var out = []
     var opts = cmd["options"]
     if opts == nil { return out }
+    var completion_opts_len = oren_list_len(opts)
     var i = 0
-    while i < oren_list_len(opts) {
+    while i < completion_opts_len {
         var o = opts[i]
         if o != nil {
             var ln = o[1]
@@ -691,8 +700,9 @@ fn _completion_collect_cmd_names(p) {
     var out = []
     var cmds = p["commands"]
     if cmds == nil { return out }
+    var completion_cmds_len = oren_list_len(cmds)
     var i = 0
-    while i < oren_list_len(cmds) {
+    while i < completion_cmds_len {
         var c = cmds[i]
         if c != nil && c["name"] != nil && c["name"] != "" {
             oren_list_push(out, c["name"])
@@ -714,8 +724,9 @@ fn completion_emit(shell) {
     var cmd_pat = _completion_join_words(cmds)
     // For bash case patterns we need "|" separators:
     var cmd_pat_bar = ""
+    var completion_emit_cmds_len = oren_list_len(cmds)
     var i0 = 0
-    while i0 < oren_list_len(cmds) {
+    while i0 < completion_emit_cmds_len {
         if i0 != 0 { cmd_pat_bar = cmd_pat_bar + "|" }
         cmd_pat_bar = cmd_pat_bar + cmds[i0]
         i0 = i0 + 1
@@ -731,14 +742,15 @@ fn completion_emit(shell) {
         print("_oren_root_opts=\"" + root_opts_s + "\"")
 
         var ci = 0
-        while ci < oren_list_len(cmds) {
+        while ci < completion_emit_cmds_len {
             var cname = cmds[ci]
             var cmd_obj = argparse._find_cmd(p, cname)
             // Fallback to linear scan if internal helper is not available.
             if cmd_obj == nil {
                 var cmds2 = p["commands"]
+                var completion_bash_cmds2_len = oren_list_len(cmds2)
                 var j = 0
-                while j < oren_list_len(cmds2) {
+                while j < completion_bash_cmds2_len {
                     if cmds2[j]["name"] == cname { cmd_obj = cmds2[j]; break }
                     j = j + 1
                 }
@@ -829,7 +841,7 @@ fn completion_emit(shell) {
         print("    opts=\"$_oren_root_opts\"")
         print("    case \"$cmd\" in")
         ci = 0
-        while ci < oren_list_len(cmds) {
+        while ci < completion_emit_cmds_len {
             var cname2 = cmds[ci]
             print("      " + cname2 + ") opts=\"$opts $_oren_opts_" + _completion_sanitize_var(cname2) + "\" ;;")
             ci = ci + 1
@@ -865,13 +877,14 @@ fn completion_emit(shell) {
         print("_oren_root_opts=(" + root_opts_s + ")")
 
         var ci2 = 0
-        while ci2 < oren_list_len(cmds) {
+        while ci2 < completion_emit_cmds_len {
             var cname3 = cmds[ci2]
             var cmd_obj2 = argparse._find_cmd(p, cname3)
             if cmd_obj2 == nil {
                 var cmds3 = p["commands"]
+                var completion_zsh_cmds3_len = oren_list_len(cmds3)
                 var j2 = 0
-                while j2 < oren_list_len(cmds3) {
+                while j2 < completion_zsh_cmds3_len {
                     if cmds3[j2]["name"] == cname3 { cmd_obj2 = cmds3[j2]; break }
                     j2 = j2 + 1
                 }
@@ -945,7 +958,7 @@ fn completion_emit(shell) {
         print("    opts=(${root_opts[@]})")
         print("    case \"$cmd\" in")
         ci2 = 0
-        while ci2 < oren_list_len(cmds) {
+        while ci2 < completion_emit_cmds_len {
             var cname4 = cmds[ci2]
             print("      " + cname4 + ") opts+=(${_oren_opts_" + _completion_sanitize_var(cname4) + "[@]}) ;;")
             ci2 = ci2 + 1

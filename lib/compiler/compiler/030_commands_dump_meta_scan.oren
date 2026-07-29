@@ -41,8 +41,9 @@ fn c_backend_sync_generated_functions(root_prog, module_order, linked) {
 
     // Build prefix -> program table.
     var by_pref = {}
+    var dump_meta_modules_len = oren_list_len(module_order)
     var i = 0
-    while i < oren_list_len(module_order) {
+    while i < dump_meta_modules_len {
         var mod = module_order[i]
         if mod != nil && mod["prefix"] != nil && mod["program"] != nil {
             by_pref[mod["prefix"]] = mod["program"]
@@ -54,14 +55,16 @@ fn c_backend_sync_generated_functions(root_prog, module_order, linked) {
     // Remove generic templates from each unit and collect present function names.
     var present = {}
     i = 0
-    while i < oren_list_len(module_order) {
+    while i < dump_meta_modules_len {
         var mod = module_order[i]
         var prog = mod["program"]
         if prog != nil {
             var out_stmts = []
             var ss = prog["statements"]
+            var dump_meta_ss_len = 0
+            if ss != nil { dump_meta_ss_len = oren_list_len(ss) }
             var j = 0
-            while ss != nil && j < oren_list_len(ss) {
+            while j < dump_meta_ss_len {
                 var st = ss[j]
                 var skip = false
                 if st != nil && st["type"] == "ExprStmt" {
@@ -85,8 +88,10 @@ fn c_backend_sync_generated_functions(root_prog, module_order, linked) {
     // Root program too.
     var out_root = []
     var ssr = root_prog["statements"]
+    var dump_meta_root_stmts_len = 0
+    if ssr != nil { dump_meta_root_stmts_len = oren_list_len(ssr) }
     var jr = 0
-    while ssr != nil && jr < oren_list_len(ssr) {
+    while jr < dump_meta_root_stmts_len {
         var st = ssr[jr]
         var skip = false
         if st != nil && st["type"] == "ExprStmt" {
@@ -106,8 +111,10 @@ fn c_backend_sync_generated_functions(root_prog, module_order, linked) {
 
     // Append newly generated functions from linked program into the appropriate unit.
     var linked_ss = linked["statements"]
+    var dump_meta_linked_stmts_len = 0
+    if linked_ss != nil { dump_meta_linked_stmts_len = oren_list_len(linked_ss) }
     var k = 0
-    while linked_ss != nil && k < oren_list_len(linked_ss) {
+    while k < dump_meta_linked_stmts_len {
         var st = linked_ss[k]
         if st != nil && st["type"] == "ExprStmt" {
             var e = st["expr"]

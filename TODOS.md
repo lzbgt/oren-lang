@@ -79,6 +79,11 @@ design evidence lives under `project-doc/`.
   parse diagnostics, bytecode link/error/constant assembly, and native link command
   assembly now cache immutable list counts before traversal, with byte-hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in those build stages.
+- Compiler frontend/support help rendering, JSON key-field formatting,
+  yield-lowering diagnostics/tracing, syscall policy scans, include-stack copies,
+  path/completion emission, and dump metadata merge scans now cache immutable list
+  counts before traversal, with byte-hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in those support stages.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
@@ -2973,6 +2978,11 @@ design evidence lives under `project-doc/`.
   link command assembly now cache immutable list counts before traversal, with
   byte-hotpath guard coverage for direct `oren_list_len` loop conditions in those
   build stages.
+- Compiler frontend/support help rendering, JSON key-field formatting,
+  yield-lowering diagnostics/tracing, syscall policy scans, include-stack copies,
+  path/completion emission, and dump metadata merge scans now cache immutable list
+  counts before traversal, with byte-hotpath guard coverage for direct
+  `oren_list_len` loop conditions in those support stages.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.
