@@ -382,9 +382,10 @@ fn _x64_fast_list_int_dot_emit_unroll2(ctx, prep, locals, labels, label_names, l
     if unroll2 != true { return true }
 
     var muls = prep["muls"]
+    var muls_len = oren_list_len(muls)
 
     var mi2 = 0
-    while mi2 < oren_list_len(muls) {
+    while mi2 < muls_len {
         var mul2 = muls[mi2]
         var slots = _x64_fast_list_int_dot_find_mul_slots(ctx, prep, locals, mul2)
         if slots == nil { return false }
@@ -459,8 +460,9 @@ fn _x64_fast_list_int_dot_emit_single_tail(ctx, prep) {
 
 fn _x64_fast_list_int_dot_emit_single(ctx, prep, locals) {
     var muls = prep["muls"]
+    var muls_len = oren_list_len(muls)
     var mi = 0
-    while mi < oren_list_len(muls) {
+    while mi < muls_len {
         var mul = muls[mi]
         if _x64_fast_list_int_dot_emit_single_step(ctx, prep, locals, mul) != true { return false }
         mi = mi + 1
@@ -804,8 +806,9 @@ fn _x64_fast_list_dot_emit_single_tail(ctx, prep) {
 
 fn _x64_fast_list_dot_emit_single(ctx, prep, locals) {
     var muls = prep["muls"]
+    var muls_len = oren_list_len(muls)
     var mi = 0
-    while mi < oren_list_len(muls) {
+    while mi < muls_len {
         var mul = muls[mi]
         if _x64_fast_list_dot_emit_single_step(ctx, prep, locals, mul) != true { return false }
         mi = mi + 1

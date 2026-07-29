@@ -69,12 +69,12 @@ This file is the concise task view. Detailed implementation status lives in
      artifact-cache restore/write behavior.
    - Current native ops plus ARM64 Mach-O/ELF, ARM64 expression/program/global/root
      orchestration, ARM64 statement/list-loop emitter, and x64 ELF/PE traversal
-     scans plus x64 capture, local-fixup, GC-root, matcher, list-fast, and
-     literal-slot helper scans cache immutable argument, expression, module,
+     scans plus x64 capture, local-fixup, GC-root, matcher, list-fast,
+     literal-slot helper, and while fast-path scans cache immutable argument, expression, module,
      error, global, profile-row, lambda, capture, symbol, cstr-offset, op, key,
      library, debug-function, import/export, fixup, thunk-position, attribute,
      break/continue patch-list, slow-jump, list-use, load, mul, push, fast-list,
-     matcher-term, literal-op, and fresh-list counts before iteration, with
+     matcher-term, literal-op, fresh-list, and while dot/get-sum counts before iteration, with
      source guards rejecting direct `oren_list_len` loop bounds in those native
      shards.
    - Current compiler capsule and metadata ASCII uppercasing writes exact-size

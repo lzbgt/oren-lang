@@ -967,8 +967,9 @@ fn _x64_fast_list_int_get_sum_emit_unroll2_load(ctx, slot_buf) {
 }
 
 fn _x64_fast_list_int_get_sum_emit_unroll2_loads(ctx, locals, lists, loads, list_count, base) {
+    var loads_len = oren_list_len(loads)
     var pi2 = 0
-    while pi2 < oren_list_len(loads) {
+    while pi2 < loads_len {
         var list_index2 = _x64_fast_list_int_get_sum_find_list_index(lists, list_count, loads[pi2])
         var slot_buf2u = _x64_fast_list_int_get_sum_slot_for_index(ctx, locals, base, list_index2)
         if oren_type_tag(slot_buf2u) == 0 { _intr_tmp_pop(ctx, base); return false }
@@ -1023,8 +1024,9 @@ fn _x64_fast_list_int_get_sum_emit_single_load(ctx, slot_buf, unique_lists) {
 }
 
 fn _x64_fast_list_int_get_sum_emit_single_loads(ctx, locals, lists, loads, list_count, base, unique_lists) {
+    var loads_len = oren_list_len(loads)
     var pi = 0
-    while pi < oren_list_len(loads) {
+    while pi < loads_len {
         var list_index = _x64_fast_list_int_get_sum_find_list_index(lists, list_count, loads[pi])
         var slot_buf2 = _x64_fast_list_int_get_sum_slot_for_index(ctx, locals, base, list_index)
         if oren_type_tag(slot_buf2) == 0 { _intr_tmp_pop(ctx, base); return false }

@@ -255,8 +255,9 @@ fn _x64_fast_list_get_sum_emit_single(ctx, locals, labels, local_fixups, lists, 
     // sum -> rdx. Avoid r14/r15: x64 native uses them as allocator registers across calls.
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_sum)
 
+    var loads_len = oren_list_len(loads)
     var pi = 0
-    while pi < oren_list_len(loads) {
+    while pi < loads_len {
         if _x64_fast_list_get_sum_load_value(ctx, locals, lists, list_count, base, loads[pi], unique_lists) != true { return nil }
         _x64_fast_list_get_sum_emit_accumulate(ctx, labels, local_fixups, sum_inty, a0, a1)
         pi = pi + 1
