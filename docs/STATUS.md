@@ -113,6 +113,10 @@ surfaces, but the following blockers remain:
   function/trait/global/struct manifest traversals now cache immutable list
   counts before iteration, with hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that metadata path.
+- Typecheck and nil-compare guard expression, statement, switch-case, function
+  signature, parameter, and top-level statement traversals now cache immutable
+  list counts before iteration, with hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in that semantic checker.
 - Optimizer fold block scans, C transpiler signature assembly, and top-level
   renamer scans now cache immutable list counts before traversal, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in those compact

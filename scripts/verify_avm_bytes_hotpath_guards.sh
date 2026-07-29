@@ -1807,6 +1807,7 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/global_dce.oren \
   lib/compiler/impl_lowering.oren \
   lib/compiler/metadata.oren \
+  lib/compiler/typecheck.oren \
   lib/compiler/transpiler_c_utils.oren \
   lib/compiler/renamer.oren \
   lib/compiler/coreir.oren \

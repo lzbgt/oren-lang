@@ -253,7 +253,8 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, expr) {
     if t == "Array" {
         var xs = expr["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, xs[i])
             i = i + 1
         }
@@ -262,7 +263,8 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, expr) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var pair_count = oren_list_len(ps)
+        while i2 < pair_count {
             _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, ps[i2]["key"])
             _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, ps[i2]["value"])
             i2 = i2 + 1
@@ -289,7 +291,8 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, expr) {
         }
         _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, fn_expr)
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        var arg_count = oren_list_len(args)
+        while i3 < arg_count {
             _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, args[i3])
             i3 = i3 + 1
         }
@@ -312,7 +315,8 @@ fn _nil_guard_collect_scalar_likely_stmt(scalar_likely, maybe_nil, stmt) {
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _nil_guard_collect_scalar_likely_stmt(scalar_likely, maybe_nil, xs[i])
             i = i + 1
         }
@@ -345,10 +349,12 @@ fn _nil_guard_collect_scalar_likely_stmt(scalar_likely, maybe_nil, stmt) {
         _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, stmt["value"])
         var cases = stmt["cases"]
         var ci = 0
-        while ci < oren_list_len(cases) {
+        var case_count = oren_list_len(cases)
+        while ci < case_count {
             var vals = cases[ci]["values"]
             var vi = 0
-            while vi < oren_list_len(vals) {
+            var value_count = oren_list_len(vals)
+            while vi < value_count {
                 _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, vals[vi])
                 vi = vi + 1
             }
@@ -392,7 +398,8 @@ fn _nil_guard_collect_maybe_nil_stmt(maybe_nil, stmt) {
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _nil_guard_collect_maybe_nil_stmt(maybe_nil, xs[i])
             i = i + 1
         }
@@ -422,7 +429,8 @@ fn _nil_guard_collect_maybe_nil_stmt(maybe_nil, stmt) {
     if t == "Switch" {
         var cases = stmt["cases"]
         var ci = 0
-        while ci < oren_list_len(cases) {
+        var case_count = oren_list_len(cases)
+        while ci < case_count {
             _nil_guard_collect_maybe_nil_stmt(maybe_nil, cases[ci]["body"])
             ci = ci + 1
         }
@@ -489,7 +497,8 @@ fn _collect_fn_sigs_in_stmt(stmt, sigs) {
             var ps = stmt["params"]
             var pk = []
             var i = 0
-            while i < oren_list_len(ps) {
+            var param_count = oren_list_len(ps)
+            while i < param_count {
                 var pid = ps[i]
                 if pid != nil && pid["ann_type"] != nil { oren_list_push(pk, _ann_to_cat(pid["ann_type"])) }
                 else { oren_list_push(pk, "unknown") }
@@ -505,7 +514,8 @@ fn _collect_fn_sigs_in_stmt(stmt, sigs) {
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
         var j = 0
-        while j < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while j < xs_count {
             _collect_fn_sigs_in_stmt(xs[j], sigs)
             j = j + 1
         }
@@ -520,7 +530,8 @@ fn _collect_fn_sigs_in_stmt(stmt, sigs) {
     if t == "Switch" {
         var cs = stmt["cases"]
         var ci = 0
-        while ci < oren_list_len(cs) {
+        var case_count = oren_list_len(cs)
+        while ci < case_count {
             _collect_fn_sigs_in_stmt(cs[ci]["body"], sigs)
             ci = ci + 1
         }
@@ -568,7 +579,8 @@ fn _typecheck_expr(errors, expr, env, sigs) {
     if t == "Array" {
         var xs = expr["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _typecheck_expr(errors, xs[i], env, sigs)
             i = i + 1
         }
@@ -577,7 +589,8 @@ fn _typecheck_expr(errors, expr, env, sigs) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var pair_count = oren_list_len(ps)
+        while i2 < pair_count {
             _typecheck_expr(errors, ps[i2]["key"], env, sigs)
             _typecheck_expr(errors, ps[i2]["value"], env, sigs)
             i2 = i2 + 1
@@ -602,7 +615,8 @@ fn _typecheck_expr(errors, expr, env, sigs) {
         _typecheck_expr(errors, expr["fn"], env, sigs)
         var args = expr["args"]
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        var arg_count = oren_list_len(args)
+        while i3 < arg_count {
             _typecheck_expr(errors, args[i3], env, sigs)
             i3 = i3 + 1
         }
@@ -617,21 +631,25 @@ fn _typecheck_expr(errors, expr, env, sigs) {
             var sig = sigs[fn_expr["value"]]
             if sig != nil {
                 var exp_params = sig["params"]
-                if exp_params != nil && oren_list_len(exp_params) == oren_list_len(args) {
-                    var ai = 0
-                    while ai < oren_list_len(args) {
-                        var want = exp_params[ai]
-                        var got = _cat(args[ai], env)
-                        if want == "int" && got != "unknown" && got != "int" {
-                            _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects int")
+                if exp_params != nil {
+                    var expected_count = oren_list_len(exp_params)
+                    var call_arg_count = oren_list_len(args)
+                    if expected_count == call_arg_count {
+                        var ai = 0
+                        while ai < call_arg_count {
+                            var want = exp_params[ai]
+                            var got = _cat(args[ai], env)
+                            if want == "int" && got != "unknown" && got != "int" {
+                                _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects int")
+                            }
+                            if want == "float" && got != "unknown" && got != "float" {
+                                _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects float")
+                            }
+                            if want == "bool" && got != "unknown" && got != "bool" {
+                                _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects bool")
+                            }
+                            ai = ai + 1
                         }
-                        if want == "float" && got != "unknown" && got != "float" {
-                            _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects float")
-                        }
-                        if want == "bool" && got != "unknown" && got != "bool" {
-                            _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects bool")
-                        }
-                        ai = ai + 1
                     }
                 }
             }
@@ -643,7 +661,8 @@ fn _typecheck_expr(errors, expr, env, sigs) {
         var fn_env = {}
         var params = expr["params"]
         var pi = 0
-        while pi < oren_list_len(params) {
+        var param_count = oren_list_len(params)
+        while pi < param_count {
             var pid = params[pi]
             if pid != nil && pid["ann_type"] != nil {
                 fn_env[pid["value"]] = _ann_to_cat(pid["ann_type"])
@@ -666,7 +685,8 @@ fn _typecheck_stmt(errors, stmt, env, sigs, ret_cat) {
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _typecheck_stmt(errors, xs[i], env, sigs, ret_cat)
             i = i + 1
         }
@@ -740,10 +760,12 @@ fn _typecheck_stmt(errors, stmt, env, sigs, ret_cat) {
         _typecheck_expr(errors, stmt["value"], env, sigs)
         var cases = stmt["cases"]
         var ci = 0
-        while ci < oren_list_len(cases) {
+        var case_count = oren_list_len(cases)
+        while ci < case_count {
             var vals = cases[ci]["values"]
             var vi = 0
-            while vi < oren_list_len(vals) {
+            var value_count = oren_list_len(vals)
+            while vi < value_count {
                 _typecheck_expr(errors, vals[vi], env, sigs)
                 vi = vi + 1
             }
@@ -771,14 +793,15 @@ fn typecheck_linked_program_in_place(linked) {
     var sigs = {}
     var stmts = linked["statements"]
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         _collect_fn_sigs_in_stmt(stmts[i], sigs)
         i = i + 1
     }
 
     // Typecheck all statements.
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         _typecheck_stmt(errors, stmts[i], {}, sigs, nil)
         i = i + 1
     }
@@ -823,7 +846,8 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
     if t == "Array" {
         var xs = expr["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _nil_guard_expr(errors, xs[i], env, scalar_likely, sigs)
             i = i + 1
         }
@@ -832,7 +856,8 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var pair_count = oren_list_len(ps)
+        while i2 < pair_count {
             _nil_guard_expr(errors, ps[i2]["key"], env, scalar_likely, sigs)
             _nil_guard_expr(errors, ps[i2]["value"], env, scalar_likely, sigs)
             i2 = i2 + 1
@@ -853,7 +878,8 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
         _nil_guard_expr(errors, expr["fn"], env, scalar_likely, sigs)
         var args = expr["args"]
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        var arg_count = oren_list_len(args)
+        while i3 < arg_count {
             _nil_guard_expr(errors, args[i3], env, scalar_likely, sigs)
             i3 = i3 + 1
         }
@@ -865,7 +891,8 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
         var fn_env = {}
         var params = expr["params"]
         var pi = 0
-        while pi < oren_list_len(params) {
+        var param_count = oren_list_len(params)
+        while pi < param_count {
             var pid = params[pi]
             if pid != nil && pid["ann_type"] != nil {
                 fn_env[pid["value"]] = _ann_to_cat(pid["ann_type"])
@@ -890,7 +917,8 @@ fn _nil_guard_stmt(errors, stmt, env, scalar_likely, sigs) {
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_count = oren_list_len(xs)
+        while i < xs_count {
             _nil_guard_stmt(errors, xs[i], env, scalar_likely, sigs)
             i = i + 1
         }
@@ -941,10 +969,12 @@ fn _nil_guard_stmt(errors, stmt, env, scalar_likely, sigs) {
         _nil_guard_expr(errors, stmt["value"], env, scalar_likely, sigs)
         var cases = stmt["cases"]
         var ci = 0
-        while ci < oren_list_len(cases) {
+        var case_count = oren_list_len(cases)
+        while ci < case_count {
             var vals = cases[ci]["values"]
             var vi = 0
-            while vi < oren_list_len(vals) {
+            var value_count = oren_list_len(vals)
+            while vi < value_count {
                 _nil_guard_expr(errors, vals[vi], env, scalar_likely, sigs)
                 vi = vi + 1
             }
@@ -983,14 +1013,15 @@ fn nil_scalar_compare_guard_linked_program_in_place(linked) {
     var top_scalar_likely = {}
     var stmts = linked["statements"]
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         _collect_fn_sigs_in_stmt(stmts[i], sigs)
         _nil_guard_collect_maybe_nil_stmt(top_maybe_nil, stmts[i])
         _nil_guard_collect_scalar_likely_stmt(top_scalar_likely, top_maybe_nil, stmts[i])
         i = i + 1
     }
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         _nil_guard_stmt(errors, stmts[i], env, top_scalar_likely, sigs)
         i = i + 1
     }
