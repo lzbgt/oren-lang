@@ -4309,7 +4309,9 @@
 <p>  helper intrinsics use fixed positional records for spill slots, labels, and</p>
 <p>  fixups, and x64 index-set plus list/list_int length, get, unchecked-get, and</p>
 <p>  set lowering plus LIST/LIST_INT push intrinsics use positional spill/dispatch</p>
-<p>  records for their checked helper paths.</p>
+<p>  records for their checked helper paths. X64 LIST/LIST_INT push-while and</p>
+<p>  LIST_INT get-sum while emitters now also use positional prep, ABI, offset,</p>
+<p>  shape, and slot records instead of short-lived keyed maps.</p>
 <ul>
 <li>Linux x64 syscall lowering now uses compact positional scratch-state lists for</li>
 </ul>

@@ -109,7 +109,9 @@ This file is the concise task view. Detailed implementation status lives in
      prep/label state, LIST/LIST_INT push spill/label state, and LIST_INT
      unchecked negative/upper-bound guards into focused helpers; checked x64
      index-set, list/list_int length/get/set/push, and fast dot helper state
-     now uses compact positional spill/dispatch records.
+     now uses compact positional spill/dispatch records, and LIST/LIST_INT
+     push-while plus LIST_INT get-sum while emitters use positional prep/slot
+     records.
    - Current `std:ui` command validation, OGF0 frame sizing/encoding, and
      software rasterization cache immutable command-list lengths before
      traversal.
