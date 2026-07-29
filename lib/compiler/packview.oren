@@ -45,7 +45,8 @@ fn has_attr(node, name) {
     var attrs = node["attrs"]
     if attrs == nil { return false }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_len = oren_list_len(attrs)
+    while i < attrs_len {
         if attrs[i] != nil && attrs[i]["name"] == name { return true }
         i = i + 1
     }
@@ -64,7 +65,8 @@ fn field_kind(fid) {
 
     var kind = nil
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_len = oren_list_len(attrs)
+    while i < attrs_len {
         var a = attrs[i]
         if a == nil { i = i + 1; continue }
         var n = a["name"]
@@ -274,7 +276,8 @@ fn schema_from_linked(linked) {
     var schemas = {}
     var stmts = linked["statements"]
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         var st = stmts[i]
         if st != nil && st["type"] == "Type" {
             if has_attr(st, "oren.packed") {
@@ -284,7 +287,8 @@ fn schema_from_linked(linked) {
                 var total = 0
 
                 var fi = 0
-                while fi < oren_list_len(fields) {
+                var fields_len = oren_list_len(fields)
+                while fi < fields_len {
                     var fid = fields[fi]
                     var fname = fid["value"]
                     var k = field_kind(fid)
@@ -324,7 +328,8 @@ fn lower_expr(expr, schemas) {
         expr["fn"] = lower_expr(expr["fn"], schemas)
         var args = expr["args"]
         var i = 0
-        while i < oren_list_len(args) {
+        var args_len = oren_list_len(args)
+        while i < args_len {
             args[i] = lower_expr(args[i], schemas)
             i = i + 1
         }
@@ -359,7 +364,9 @@ fn lower_expr(expr, schemas) {
         var left = expr["left"]
         if is_pack_view_call(left) {
             var args2 = left["args"]
-            if args2 == nil || oren_list_len(args2) != 3 {
+            var args2_len = 0
+            if args2 != nil { args2_len = oren_list_len(args2) }
+            if args2 == nil || args2_len != 3 {
                 packview_error("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
                 return expr
             }
@@ -416,7 +423,8 @@ fn lower_expr(expr, schemas) {
     if t == "Array" {
         var els = expr["elements"]
         var i2 = 0
-        while i2 < oren_list_len(els) {
+        var els_len = oren_list_len(els)
+        while i2 < els_len {
             els[i2] = lower_expr(els[i2], schemas)
             i2 = i2 + 1
         }
@@ -426,7 +434,8 @@ fn lower_expr(expr, schemas) {
     if t == "Hash" {
         var pairs = expr["pairs"]
         var i3 = 0
-        while i3 < oren_list_len(pairs) {
+        var pairs_len = oren_list_len(pairs)
+        while i3 < pairs_len {
             pairs[i3]["key"] = lower_expr(pairs[i3]["key"], schemas)
             pairs[i3]["value"] = lower_expr(pairs[i3]["value"], schemas)
             i3 = i3 + 1
@@ -465,7 +474,9 @@ fn lower_stmt(stmt, schemas) {
             if is_pack_view_call(mleft) {
                 // PV3: pack_view("Type", bytes, off).field = value
                 var args2 = mleft["args"]
-                if args2 == nil || oren_list_len(args2) != 3 {
+                var args2_len = 0
+                if args2 != nil { args2_len = oren_list_len(args2) }
+                if args2 == nil || args2_len != 3 {
                     packview_error("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
                     return nil
                 }
@@ -519,7 +530,8 @@ fn lower_stmt(stmt, schemas) {
 
                 var calls = build_write_calls(f["kind"], id_bytes, base_idx, id_val)
                 var ci = 0
-                while ci < oren_list_len(calls) {
+                var calls_len = oren_list_len(calls)
+                while ci < calls_len {
                     oren_list_push(block["stmts"], calls[ci])
                     ci = ci + 1
                 }
@@ -556,7 +568,8 @@ fn lower_stmt(stmt, schemas) {
     if t == "Block" {
         var stmts = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(stmts) {
+        var stmts_len = oren_list_len(stmts)
+        while i < stmts_len {
             lower_stmt(stmts[i], schemas)
             i = i + 1
         }
@@ -602,7 +615,8 @@ fn validate_expr_no_pack_view(expr) {
         validate_expr_no_pack_view(expr["fn"])
         var args = expr["args"]
         var i = 0
-        while i < oren_list_len(args) {
+        var args_len = oren_list_len(args)
+        while i < args_len {
             validate_expr_no_pack_view(args[i])
             i = i + 1
         }
@@ -629,7 +643,8 @@ fn validate_expr_no_pack_view(expr) {
     if t == "Array" {
         var els = expr["elements"]
         var j = 0
-        while j < oren_list_len(els) {
+        var els_len = oren_list_len(els)
+        while j < els_len {
             validate_expr_no_pack_view(els[j])
             j = j + 1
         }
@@ -638,7 +653,8 @@ fn validate_expr_no_pack_view(expr) {
     if t == "Hash" {
         var pairs = expr["pairs"]
         var k = 0
-        while k < oren_list_len(pairs) {
+        var pairs_len = oren_list_len(pairs)
+        while k < pairs_len {
             validate_expr_no_pack_view(pairs[k]["key"])
             validate_expr_no_pack_view(pairs[k]["value"])
             k = k + 1
@@ -681,7 +697,8 @@ fn validate_stmt_no_pack_view(stmt) {
     if t == "Block" {
         var ss = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             validate_stmt_no_pack_view(ss[i])
             i = i + 1
         }
@@ -720,25 +737,31 @@ fn lower_linked_program_in_place(linked) {
     PACKVIEW_ERRS = []
     var schemas = schema_from_linked(linked)
     if schemas == nil {
-        if PACKVIEW_ERRS != nil && oren_list_len(PACKVIEW_ERRS) > 0 { linked["packview_errors"] = PACKVIEW_ERRS }
+        var packview_errs_len0 = 0
+        if PACKVIEW_ERRS != nil { packview_errs_len0 = oren_list_len(PACKVIEW_ERRS) }
+        if PACKVIEW_ERRS != nil && packview_errs_len0 > 0 { linked["packview_errors"] = PACKVIEW_ERRS }
         return nil
     }
 
     var stmts = linked["statements"]
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         lower_stmt(stmts[i], schemas)
         i = i + 1
     }
     // Validate: no raw pack_view calls remain after lowering.
     var stmts2 = linked["statements"]
     var vi = 0
-    while vi < oren_list_len(stmts2) {
+    var stmts2_len = oren_list_len(stmts2)
+    while vi < stmts2_len {
         validate_stmt_no_pack_view(stmts2[vi])
         vi = vi + 1
     }
 
-    if PACKVIEW_ERRS != nil && oren_list_len(PACKVIEW_ERRS) > 0 {
+    var packview_errs_len = 0
+    if PACKVIEW_ERRS != nil { packview_errs_len = oren_list_len(PACKVIEW_ERRS) }
+    if PACKVIEW_ERRS != nil && packview_errs_len > 0 {
         linked["packview_errors"] = PACKVIEW_ERRS
     }
     return nil

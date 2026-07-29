@@ -86,6 +86,10 @@ design evidence lives under `project-doc/`.
   import-list, offset, fixup, runtime-statement, runtime-var/decl, wrapper, and
   trace top-declaration counts before traversal, with byte-hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in that backend shard.
+- Packed bytes view lowering now caches immutable attr, schema field/statement,
+  call-arg, array/hash, emitted write-call, validation, and linked-program
+  statement/error counts before traversal, with byte-hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in that lowering pass.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with byte-hotpath guard coverage rejecting
