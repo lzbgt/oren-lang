@@ -60,8 +60,9 @@ fn _macho_local_fixups_compact_diff(a, b) {
         "adr_code_pos", "adr_code_name", "adr_code_reg",
         "got_pos", "got_index"
     ]
+    var keys_len = oren_list_len(keys)
     var ki = 0
-    while ki < oren_list_len(keys) {
+    while ki < keys_len {
         var k = keys[ki]
         var av = a[k]
         var bv = b[k]
@@ -90,8 +91,9 @@ fn _macho_local_fixups_compact(fixups) {
     var adr_data_n = 0
     var adr_code_n = 0
     var got_n = 0
+    var fixups_len = oren_list_len(fixups)
     var ci = 0
-    while ci < oren_list_len(fixups) {
+    while ci < fixups_len {
         var cf = fixups[ci]
         if cf != nil {
             var cpos = cf["pos"]
@@ -121,7 +123,7 @@ fn _macho_local_fixups_compact(fixups) {
     var got_pos = oren_list_new_cap(got_n); if oren_is_err(got_pos) { got_pos = [] }
     var got_index = oren_list_new_cap(got_n); if oren_is_err(got_index) { got_index = [] }
     var i = 0
-    while i < oren_list_len(fixups) {
+    while i < fixups_len {
         var fx = fixups[i]
         if fx != nil {
             var pos = fx["pos"]
@@ -461,8 +463,9 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     }
 
     var extra_libs_size = 0
+    var libs_len = oren_list_len(libs)
     var k_lib = 0
-    while k_lib < oren_list_len(libs) {
+    while k_lib < libs_len {
         var lib_path = libs[k_lib]
         var lib_cmdsize = align_up(24 + oren_string_len(lib_path) + 1, 8)
         extra_libs_size = extra_libs_size + lib_cmdsize
@@ -627,7 +630,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
 
     // Extra libs
     k_lib = 0
-    while k_lib < oren_list_len(libs) {
+    while k_lib < libs_len {
         var lib_path2 = libs[k_lib]
         var cmd_start_lib2 = bytes_len(p)
         var lib_cmdsize2 = align_up(24 + oren_string_len(lib_path2) + 1, 8)
@@ -801,8 +804,9 @@ fn emit_debug_info(ctx, text_base, header_size) {
         }
     } else if rt_funcs != nil {
         var rt_funcs_kept = 0
+        var rt_funcs_len = oren_list_len(rt_funcs)
         var ri1 = 0
-        while ri1 < oren_list_len(rt_funcs) {
+        while ri1 < rt_funcs_len {
             if phase_log != nil {
                 if ri1 == 0 || ri1 == 64 || ri1 == 128 || ri1 == 256 || ri1 == 512 || ri1 == 1024 {
                     _macho_phase_log_append(phase_log, "macho.debug.emit.rt.progress", "i=" + oren_int_to_string(ri1) + " bytes=" + oren_int_to_string(bytes_len(p)))
@@ -883,8 +887,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var imports = []
     var import_collide_count = 0
     var import_collide_sample = []
+    var imports_raw_len = oren_list_len(imports_raw)
     var ii_imp = 0
-    while ii_imp < oren_list_len(imports_raw) {
+    while ii_imp < imports_raw_len {
         var nm = imports_raw[ii_imp]
         var is_local = false
         if nm != nil {
@@ -909,8 +914,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var trace_imports = oren_env("OREN_TRACE_NATIVE_IMPORTS") != nil
     if (trace_emit || trace_imports) && import_collide_count > 0 {
         var sample_s = ""
+        var import_collide_sample_len = oren_list_len(import_collide_sample)
         var si = 0
-        while si < oren_list_len(import_collide_sample) {
+        while si < import_collide_sample_len {
             if si > 0 { sample_s = sample_s + "," }
             sample_s = sample_s + import_collide_sample[si]
             si = si + 1
@@ -944,8 +950,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
 
     // dyld binding must use the *external* symbol names, not the internal module-prefixed labels.
     var bind_names = []
+    var imports_len = oren_list_len(imports)
     var bi = 0
-    while bi < oren_list_len(imports) {
+    while bi < imports_len {
         var nm = imports[bi]
         var bn = nm
         if ctx["ffi_link_names"] != nil && ctx["ffi_link_names"][nm] != nil { bn = ctx["ffi_link_names"][nm] }
@@ -958,7 +965,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if trace_emit { print("[emit] macho arm64: bind opcodes size=" + oren_int_to_string(bind_size)) }
 
     var i_imp = 0
-    while i_imp < oren_list_len(imports) {
+    while i_imp < imports_len {
         var name = imports[i_imp]
         var bind_name = bind_names[i_imp]
         var stub_pos = bytes_len(code)
@@ -994,9 +1001,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
     if trace_emit { print("[emit] macho arm64: stubs+symtab for imports done") }
 
-    if is_shared || (exports != nil && oren_list_len(exports) != 0) {
+    var exports_len = 0
+    if exports != nil { exports_len = oren_list_len(exports) }
+    if is_shared || exports_len != 0 {
         var i_exp = 0
-        while i_exp < oren_list_len(exports) {
+        while i_exp < exports_len {
             var f_name = exports[i_exp]
             var f_addr = functions[f_name]
             
@@ -1581,7 +1590,6 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     
     var symtab_size = bytes_len(symtab)
     var strtab_size = bytes_len(strtab)
-    var imports_len = oren_list_len(imports)
     var indsymtab_size = imports_len * 4
     
     // Entry point is start of code (startup shim)

@@ -65,10 +65,11 @@ This file is the concise task view. Detailed implementation status lives in
    - Current generator import/yield regression probe forces `--no-cache` for
      traced bytecode builds so the semantic guard remains independent from
      artifact-cache restore/write behavior.
-   - Current native ops plus x64 ELF/PE artifact traversal scans cache immutable
-     argument, expression, op, export, fixup, import, and thunk-position counts
-     before iteration, with source guards rejecting direct `oren_list_len` loop
-     bounds in those native/x64 shards.
+   - Current native ops plus ARM64 Mach-O/ELF and x64 ELF/PE artifact traversal
+     scans cache immutable argument, expression, op, key, library,
+     debug-function, import/export, fixup, and thunk-position counts before
+     iteration, with source guards rejecting direct `oren_list_len` loop bounds
+     in those native artifact shards.
    - Current compiler capsule and metadata ASCII uppercasing writes exact-size
      byte buffers with byte arithmetic instead of scanning lowercase/uppercase
      alphabet strings and concatenating per-character output.

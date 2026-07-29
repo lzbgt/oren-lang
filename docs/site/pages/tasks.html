@@ -135,11 +135,12 @@
 <p>     traced bytecode builds so the semantic guard remains independent from</p>
 <p>     artifact-cache restore/write behavior.</p>
 <ul>
-<li>Current native ops plus x64 ELF/PE artifact traversal scans cache immutable</li>
+<li>Current native ops plus ARM64 Mach-O/ELF and x64 ELF/PE artifact traversal</li>
 </ul>
-<p>     argument, expression, op, export, fixup, import, and thunk-position counts</p>
-<p>     before iteration, with source guards rejecting direct <code>oren_list_len</code> loop</p>
-<p>     bounds in those native/x64 shards.</p>
+<p>     scans cache immutable argument, expression, op, key, library,</p>
+<p>     debug-function, import/export, fixup, and thunk-position counts before</p>
+<p>     iteration, with source guards rejecting direct <code>oren_list_len</code> loop bounds</p>
+<p>     in those native artifact shards.</p>
 <ul>
 <li>Current compiler capsule and metadata ASCII uppercasing writes exact-size</li>
 </ul>

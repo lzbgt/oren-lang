@@ -139,8 +139,9 @@ fn emit_debug_info(ctx, text_base, header_size) {
             ri1 = ri1 + 1
         }
     } else if rt_funcs != nil {
+        var rt_funcs_len = oren_list_len(rt_funcs)
         var ri1 = 0
-        while ri1 < oren_list_len(rt_funcs) {
+        while ri1 < rt_funcs_len {
             var rf1 = rt_funcs[ri1]
             if rf1 != nil {
                 var rt_name = rf1["name"]
@@ -245,8 +246,9 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     }
 
     var rela_type_glob_dat = 1025 // R_AARCH64_GLOB_DAT (from elf.h)
+    var imports_len = oren_list_len(imports)
     var i_rel = 0
-    while i_rel < oren_list_len(imports) {
+    while i_rel < imports_len {
         var imp3 = imports[i_rel]
         var got_off = imp3["got_off"]
         if got_off == nil {
@@ -295,8 +297,9 @@ fn _elf_emit_export_wrappers_arm64(code, fixups, functions, exports, heap_limit_
     var frame = 224
     var q_base = 96
 
+    var exports_len = oren_list_len(exports)
     var i = 0
-    while i < oren_list_len(exports) {
+    while i < exports_len {
         var nm = exports[i]
         if nm == nil || nm == "" { i = i + 1; continue }
         if functions[nm] == nil {
@@ -679,8 +682,9 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var imports = []
     var import_collide_count = 0
     var import_collide_sample = []
+    var imports_raw_len = oren_list_len(imports_raw)
     var ii_imp = 0
-    while ii_imp < oren_list_len(imports_raw) {
+    while ii_imp < imports_raw_len {
         var nm = imports_raw[ii_imp]
         var is_local = false
         if nm != nil {
@@ -701,8 +705,9 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     ctx["import_list"] = imports
     if oren_env("OREN_TRACE_NATIVE_IMPORTS") != nil && import_collide_count > 0 {
         var sample_s = ""
+        var import_collide_sample_len = oren_list_len(import_collide_sample)
         var si = 0
-        while si < oren_list_len(import_collide_sample) {
+        while si < import_collide_sample_len {
             if si > 0 { sample_s = sample_s + "," }
             sample_s = sample_s + import_collide_sample[si]
             si = si + 1
@@ -710,16 +715,17 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         print("[emit] elf arm64: filtered " + oren_int_to_string(import_collide_count) + " import(s) that collide with local function symbols (sample=" + sample_s + ")")
     }
 
-    if dyn && oren_list_len(imports) > 0 {
+    var imports_len = oren_list_len(imports)
+    if dyn && imports_len > 0 {
         var resolver_name = _arm64_emit_ffi_resolver_linux(ctx, debug_mode)
         var ii = 0
-        while ii < oren_list_len(imports) {
+        while ii < imports_len {
             _arm64_emit_ffi_stub_linux_dyn(ctx, imports[ii], resolver_name, debug_mode)
             ii = ii + 1
         }
     } else {
         var i_imp = 0
-        while i_imp < oren_list_len(imports) {
+        while i_imp < imports_len {
             var name = imports[i_imp]
             var stub_pos = bytes_len(code)
             functions[name] = stub_pos
@@ -969,7 +975,8 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             rtobj_i = rtobj_i + 1
         }
     } else if rtobj_fixups != nil {
-        while rtobj_i < oren_list_len(rtobj_fixups) {
+        var rtobj_fixups_len = oren_list_len(rtobj_fixups)
+        while rtobj_i < rtobj_fixups_len {
             var fix_rt = rtobj_fixups[rtobj_i]
             var pos_rt = rtobj_fix_base + _elf_decode_rtobj_int_enc(fix_rt["pos"])
 
@@ -1024,8 +1031,9 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         }
     }
 
+    var fixups_len = oren_list_len(fixups)
     var i = 0
-    while i < oren_list_len(fixups) {
+    while i < fixups_len {
         var fix = fixups[i]
         var pos = fix["pos"]
         
