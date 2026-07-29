@@ -15,7 +15,9 @@ fn _tco_expr_has_direct_self_call(e, fn_name) {
         if _tco_expr_has_direct_self_call(fn_expr, fn_name) { return true }
         var args = e["args"]
         var ai = 0
-        while args != nil && ai < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while ai < args_len {
             if _tco_expr_has_direct_self_call(args[ai], fn_name) { return true }
             ai = ai + 1
         }
@@ -35,7 +37,9 @@ fn _tco_expr_has_direct_self_call(e, fn_name) {
     if t == "Array" {
         var xs = e["elements"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             if _tco_expr_has_direct_self_call(xs[i], fn_name) { return true }
             i = i + 1
         }
@@ -44,7 +48,9 @@ fn _tco_expr_has_direct_self_call(e, fn_name) {
     if t == "Hash" {
         var ps = e["pairs"]
         var i2 = 0
-        while ps != nil && i2 < oren_list_len(ps) {
+        var ps_len = 0
+        if ps != nil { ps_len = oren_list_len(ps) }
+        while i2 < ps_len {
             var p = ps[i2]
             if p != nil {
                 if _tco_expr_has_direct_self_call(p["key"], fn_name) { return true }
@@ -65,12 +71,16 @@ fn _tco_expr_has_direct_self_call(e, fn_name) {
         if _tco_expr_has_direct_self_call(e["target"], fn_name) { return true }
         var cases = e["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil {
                 var vals = c["values"]
                 var vi = 0
-                while vals != nil && vi < oren_list_len(vals) {
+                var vals_len = 0
+                if vals != nil { vals_len = oren_list_len(vals) }
+                while vi < vals_len {
                     if _tco_expr_has_direct_self_call(vals[vi], fn_name) { return true }
                     vi = vi + 1
                 }
@@ -90,7 +100,9 @@ fn _tco_stmt_has_direct_self_call(stmt, fn_name) {
     if t == "Block" || t == "StmtList" {
         var ss = stmt["stmts"]
         var i = 0
-        while ss != nil && i < oren_list_len(ss) {
+        var ss_len = 0
+        if ss != nil { ss_len = oren_list_len(ss) }
+        while i < ss_len {
             if _tco_stmt_has_direct_self_call(ss[i], fn_name) { return true }
             i = i + 1
         }
@@ -123,12 +135,16 @@ fn _tco_stmt_has_direct_self_call(stmt, fn_name) {
         if _tco_expr_has_direct_self_call(stmt["target"], fn_name) { return true }
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil {
                 var vals = c["values"]
                 var vi = 0
-                while vals != nil && vi < oren_list_len(vals) {
+                var vals_len = 0
+                if vals != nil { vals_len = oren_list_len(vals) }
+                while vi < vals_len {
                     if _tco_expr_has_direct_self_call(vals[vi], fn_name) { return true }
                     vi = vi + 1
                 }
@@ -172,7 +188,8 @@ fn _tco_expr_has_call(e) {
     if t == "Array" {
         var xs = e["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i < xs_len {
             if _tco_expr_has_call(xs[i]) { return true }
             i = i + 1
         }
@@ -181,7 +198,8 @@ fn _tco_expr_has_call(e) {
     if t == "Hash" {
         var ps = e["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i2 < ps_len {
             if _tco_expr_has_call(ps[i2]["key"]) { return true }
             if _tco_expr_has_call(ps[i2]["value"]) { return true }
             i2 = i2 + 1
@@ -203,7 +221,8 @@ fn _tco_block_has_call(block) {
     var ss = block["stmts"]
     if ss == nil { return false }
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         if st == nil { i = i + 1; continue }
         var ty = st["type"]
@@ -256,7 +275,8 @@ fn _tco_modconst_function_in_place(fun_expr) {
     var params0 = []
     var ps = fun_expr["params"]
     var pi = 0
-    while pi < oren_list_len(ps) {
+    var ps_len = oren_list_len(ps)
+    while pi < ps_len {
         var p = ps[pi]
         if p == nil || p["type"] != "Identifier" || p["value"] == nil { return false }
         oren_list_push(params0, p["value"])
@@ -340,7 +360,8 @@ fn _tco_modconst_function_in_place(fun_expr) {
     var counter_ref = [0]
     var ti = 0
     var temps = []
-    while ti < oren_list_len(args) {
+    var args_len = oren_list_len(args)
+    while ti < args_len {
         var tmpn = "__oren_tco_mod_" + fn_name + "_" + oren_int_to_string(counter_ref[0])
         counter_ref[0] = counter_ref[0] + 1
         oren_list_push(temps, tmpn)
@@ -348,7 +369,8 @@ fn _tco_modconst_function_in_place(fun_expr) {
         ti = ti + 1
     }
     ti = 0
-    while ti < oren_list_len(params0) {
+    var params0_len = oren_list_len(params0)
+    while ti < params0_len {
         oren_list_push(loop_body["stmts"], ast.new_assign(nil, _tco_ident(params0[ti]), _tco_ident(temps[ti])))
         ti = ti + 1
     }
@@ -383,7 +405,8 @@ fn _tco_rewrite_block(block, fn_name, params, loop_depth, counter_ref) {
     var out = []
     var changed = false
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         var st = stmts[i]
         if st == nil { oren_list_push(out, st); i = i + 1; continue }
 
@@ -397,7 +420,8 @@ fn _tco_rewrite_block(block, fn_name, params, loop_depth, counter_ref) {
                         // Evaluate args into temps first (preserve order, avoid param clobber).
                         var ti = 0
                         var temps = []
-                        while ti < oren_list_len(args) {
+                        var args_len = oren_list_len(args)
+                        while ti < args_len {
                             var tmpn = "__oren_tco_" + fn_name + "_" + oren_int_to_string(counter_ref[0])
                             counter_ref[0] = counter_ref[0] + 1
                             oren_list_push(temps, tmpn)
@@ -406,7 +430,8 @@ fn _tco_rewrite_block(block, fn_name, params, loop_depth, counter_ref) {
                         }
                         // Rebind params.
                         ti = 0
-                        while ti < oren_list_len(params) {
+                        var params_len = oren_list_len(params)
+                        while ti < params_len {
                             var pn = params[ti]
                             oren_list_push(out, ast.new_assign(nil, _tco_ident(pn), _tco_ident(temps[ti])))
                             ti = ti + 1
@@ -481,7 +506,8 @@ fn _tco_function_in_place(fun_expr) {
     var params0 = []
     var ps = fun_expr["params"]
     var pi = 0
-    while pi < oren_list_len(ps) {
+    var ps_len = oren_list_len(ps)
+    while pi < ps_len {
         var p = ps[pi]
         if p == nil || p["type"] != "Identifier" || p["value"] == nil { return nil }
         oren_list_push(params0, p["value"])

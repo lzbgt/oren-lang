@@ -116,6 +116,12 @@
 <p>  scans, with byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop</p>
 <p>  bounds in that helper pass.</p>
 <ul>
+<li>Optimizer TCO self-call discovery, call-effect scans, parameter validation,</li>
+</ul>
+<p>  and tail-recursive rewrite traversals now cache immutable AST list counts</p>
+<p>  before iteration, with byte-hotpath guard coverage rejecting direct</p>
+<p>  <code>oren_list_len</code> loop bounds in that optimizer pass.</p>
+<ul>
 <li>Compiler function/yield analysis now caches immutable program, block,</li>
 </ul>
 <p>  parameter, expression, yield-point, generator-finalize, and function-list</p>

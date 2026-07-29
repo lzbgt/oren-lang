@@ -55,6 +55,10 @@ surfaces, but the following blockers remain:
   if-detection traversals now cache immutable AST list counts before recursive
   scans, with hotpath guard coverage rejecting direct `oren_list_len` loop
   bounds in that helper pass.
+- Optimizer TCO self-call discovery, call-effect scans, parameter validation,
+  and tail-recursive rewrite traversals now cache immutable AST list counts
+  before iteration, with hotpath guard coverage rejecting direct `oren_list_len`
+  loop bounds in that optimizer pass.
 - Parser generator core-use, yield-delegate validation, and generator-yield
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
@@ -3209,7 +3213,7 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   linalg, regex, `std:ui`, URL allow-list, HTTP/2 header traversal, parser-generator
   core/yield traversal, and module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,
   compiler support, compiler artifact-support, debug-sugar, capsule-policy,
-  optimizer-helper, optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, C-transpiler support,
+  optimizer-helper, optimizer-TCO, optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, C-transpiler support,
   renamer, CoreIR, type-annotation lowering, C-transpiler entry, type-name resolution, native runtime-object cache, and `std:sys` loops now cache immutable list lengths before
   iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.

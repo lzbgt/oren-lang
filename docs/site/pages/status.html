@@ -109,6 +109,12 @@
 <p>  scans, with hotpath guard coverage rejecting direct <code>oren_list_len</code> loop</p>
 <p>  bounds in that helper pass.</p>
 <ul>
+<li>Optimizer TCO self-call discovery, call-effect scans, parameter validation,</li>
+</ul>
+<p>  and tail-recursive rewrite traversals now cache immutable AST list counts</p>
+<p>  before iteration, with hotpath guard coverage rejecting direct <code>oren_list_len</code></p>
+<p>  loop bounds in that optimizer pass.</p>
+<ul>
 <li>Parser generator core-use, yield-delegate validation, and generator-yield</li>
 </ul>
 <p>  rewrite traversals now cache immutable AST list counts before iteration, with</p>
@@ -3701,7 +3707,7 @@
 <p>  linalg, regex, <code>std:ui</code>, URL allow-list, HTTP/2 header traversal, parser-generator</p>
 <p>  core/yield traversal, and module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,</p>
 <p>  compiler support, compiler artifact-support, debug-sugar, capsule-policy,</p>
-<p>  optimizer-helper, optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, C-transpiler support,</p>
+<p>  optimizer-helper, optimizer-TCO, optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, C-transpiler support,</p>
 <p>  renamer, CoreIR, type-annotation lowering, C-transpiler entry, type-name resolution, native runtime-object cache, and <code>std:sys</code> loops now cache immutable list lengths before</p>
 <p>  iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
