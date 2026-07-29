@@ -235,6 +235,10 @@ This file is the concise task view. Detailed implementation status lives in
    - Current optimizer loop bounds/split analysis caches immutable statement,
      switch-case, and call-argument counts before traversal, with source guards
      rejecting direct `oren_list_len` loop bounds in those loop optimizer shards.
+   - Current OBC export/relocation encoding, string sorting, module link/constant
+     merge, and bytecode tail-loop term matching cache immutable list counts
+     before traversal, with source guards rejecting direct `oren_list_len` loop
+     bounds in those bytecode/OBC paths.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public

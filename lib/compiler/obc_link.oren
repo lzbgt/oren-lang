@@ -114,7 +114,8 @@ fn obx_encode(module_name, exports, relocs, surface) {
 
     _push_u16_le(out, oren_list_len(keys))
     var ki = 0
-    while ki < oren_list_len(keys) {
+    var keys_n = oren_list_len(keys)
+    while ki < keys_n {
         var name = keys[ki]
         _encode_string_u16(out, name)
         var addr = exports[name]
@@ -126,7 +127,8 @@ fn obx_encode(module_name, exports, relocs, surface) {
 
     _push_u16_le(out, oren_list_len(relocs))
     var ri = 0
-    while ri < oren_list_len(relocs) {
+    var relocs_n = oren_list_len(relocs)
+    while ri < relocs_n {
         var r = relocs[ri]
         var rname = r["name"]
         var rpos = r["pos"]
@@ -152,7 +154,8 @@ fn obx_encode(module_name, exports, relocs, surface) {
         ret_keys = _sort_strings(ret_keys)
         _push_u16_le(out, oren_list_len(ret_keys))
         var fki = 0
-        while fki < oren_list_len(ret_keys) {
+        var ret_keys_n = oren_list_len(ret_keys)
+        while fki < ret_keys_n {
             var fname = ret_keys[fki]
             _encode_string_u16(out, fname)
             _encode_string_u16(out, fr[fname])
@@ -163,7 +166,8 @@ fn obx_encode(module_name, exports, relocs, surface) {
         if impls == nil { impls = [] }
         _push_u16_le(out, oren_list_len(impls))
         var ii = 0
-        while ii < oren_list_len(impls) {
+        var impls_n = oren_list_len(impls)
+        while ii < impls_n {
             var im = impls[ii]
             _encode_string_u16(out, im["trait"])
             _encode_string_u16(out, im["type"])
@@ -284,7 +288,8 @@ fn _sort_strings(xs) {
     // Insertion sort (small lists expected).
     if xs == nil { return [] }
     var i = 1
-    while i < oren_list_len(xs) {
+    var xs_n = oren_list_len(xs)
+    while i < xs_n {
         var key = xs[i]
         var j = i - 1
         while j >= 0 && xs[j] > key {
@@ -589,13 +594,15 @@ fn obc_link(obcs) {
     var code_base = 0
 
     var mi = 0
-    while mi < oren_list_len(obcs) {
+    var obcs_n = oren_list_len(obcs)
+    while mi < obcs_n {
         var m = obcs[mi]
         if m == nil { mi = mi + 1; continue }
         var consts = m["constants"]
         var code = m["code"]
         if consts == nil { consts = [] }
         if code == nil { code = [] }
+        var consts_n = oren_list_len(consts)
 
         // Linking semantics (rolling, high leverage):
         //
@@ -607,7 +614,7 @@ fn obc_link(obcs) {
         // Therefore: strip exactly one trailing HALT from every non-final module's code
         // during concatenation. The last module (the main program) keeps its HALT.
         var code_len_eff = byte_view.len(code)
-        if mi < (oren_list_len(obcs) - 1) {
+        if mi < (obcs_n - 1) {
             var code_view_for_tail = byte_view.view(code)
             if code_len_eff > 0 && byte_view.u8_at_unchecked(code_view_for_tail, code_len_eff - 1) == codegen_bytecode.AVM_HALT {
                 code_len_eff = code_len_eff - 1
@@ -616,7 +623,7 @@ fn obc_link(obcs) {
 
         // Merge constants first.
         var ci = 0
-        while ci < oren_list_len(consts) {
+        while ci < consts_n {
             oren_list_push(out_consts, consts[ci])
             ci = ci + 1
         }
@@ -643,7 +650,8 @@ fn obc_link(obcs) {
             var rs = obx["relocs"]
             if rs != nil {
                 var ri = 0
-                while ri < oren_list_len(rs) {
+                var rs_n = oren_list_len(rs)
+                while ri < rs_n {
                     var r = rs[ri]
                     var nm = r["name"]
                     var pos = r["pos"]
@@ -657,7 +665,7 @@ fn obc_link(obcs) {
             }
         }
 
-        const_base = const_base + oren_list_len(consts)
+        const_base = const_base + consts_n
         var gc = m["global_count"]
         if gc == nil { gc = 0 }
         global_base = global_base + gc
@@ -667,7 +675,8 @@ fn obc_link(obcs) {
 
     // Patch relocs.
     var ri2 = 0
-    while ri2 < oren_list_len(all_relocs) {
+    var all_relocs_n = oren_list_len(all_relocs)
+    while ri2 < all_relocs_n {
         var r2 = all_relocs[ri2]
         var name2 = r2["name"]
         var pos2 = r2["pos"]

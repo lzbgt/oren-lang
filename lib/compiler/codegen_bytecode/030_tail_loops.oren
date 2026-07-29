@@ -315,7 +315,8 @@ fn _bc_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name, mod_cons
     var mod_x = nil
     var mod_i = nil
     var ti = 0
-    while ti < oren_list_len(terms) {
+    var terms_n = oren_list_len(terms)
+    while ti < terms_n {
         var t = terms[ti]
         if _bc_is_ident(t, sum_name) {
             saw_sum = true

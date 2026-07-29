@@ -212,6 +212,10 @@ design evidence lives under `project-doc/`.
   switch-case, and call-argument counts before traversal, with byte-hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in those loop optimizer
   shards.
+- OBC export/relocation encoding, string sorting, module link/constant merge, and
+  bytecode tail-loop term matching now cache immutable list counts before
+  traversal, with byte-hotpath guard coverage rejecting direct `oren_list_len`
+  loop bounds in those bytecode/OBC paths.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
