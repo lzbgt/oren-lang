@@ -4298,6 +4298,11 @@
 <p>  <code>INT64_MIN</code>, so Oren literals that intentionally wrap to <code>i64.min</code> no longer</p>
 <p>  generate Clang oversized signed-literal warnings in math C smokes.</p>
 <ul>
+<li>X64 fast list/list_int dot while lowering now uses positional helper records</li>
+</ul>
+<p>  for offsets, validation slots, and left/right slot pairs instead of</p>
+<p>  short-lived keyed maps.</p>
+<ul>
 <li>Linux x64 syscall lowering now uses compact positional scratch-state lists for</li>
 </ul>
 <p>  stat/path families, read/write fd-buffer setup, getrandom, futex wait, and</p>

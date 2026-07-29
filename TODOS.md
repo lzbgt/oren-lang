@@ -3041,6 +3041,9 @@ design evidence lives under `project-doc/`.
 - C backend integer expressions now spell the signed 64-bit minimum as
   `INT64_MIN`, so Oren literals that intentionally wrap to `i64.min` no longer
   generate Clang oversized signed-literal warnings in math C smokes.
+- X64 fast list/list_int dot while lowering now uses positional helper records
+  for offsets, validation slots, and left/right slot pairs instead of
+  short-lived keyed maps.
 - Linux x64 syscall lowering now uses compact positional scratch-state lists for
   stat/path families, read/write fd-buffer setup, getrandom, futex wait, and
   fd-control/dup/ioctl plus syscall-tail helpers instead of transient keyed state

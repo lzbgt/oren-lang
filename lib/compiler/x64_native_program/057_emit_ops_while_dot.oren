@@ -12,7 +12,7 @@ fn _x64_fast_dot_prepare_offsets(locals, inputs) {
     var off_n = locals[inputs["n"]]
     var off_sum = locals[inputs["sum"]]
     if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_sum) == 0 { return nil }
-    return {"off_idx": off_idx, "off_n": off_n, "off_sum": off_sum}
+    return [off_idx, off_n, off_sum]
 }
 
 fn _x64_fast_dot_prepare_counts(inputs) {
@@ -44,9 +44,9 @@ fn _x64_fast_dot_prepare_common(ctx, info, locals) {
         "sum": inputs["sum"],
         "lists": inputs["lists"],
         "muls": inputs["muls"],
-        "off_idx": offsets["off_idx"],
-        "off_n": offsets["off_n"],
-        "off_sum": offsets["off_sum"],
+        "off_idx": offsets[0],
+        "off_n": offsets[1],
+        "off_sum": offsets[2],
         "list_count": counts["list_count"],
         "mul_count": counts["mul_count"],
         "unique_lists": counts["unique_lists"],
@@ -95,12 +95,12 @@ fn _x64_fast_list_int_dot_validate_state(ctx, locals, lists, li, base, off_n) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return {"off_list": off_list, "slot_list": slot_list, "slot_buf": slot_buf, "off_n": off_n, "base": base}
+    return [off_list, slot_list, slot_buf, off_n, base]
 }
 
 fn _x64_fast_list_int_dot_capture_list(ctx, st, local_fixups, l_slow) {
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["off_list"])
-    _emit_mov_mrbp_r64(ctx, 0 - st["slot_list"], 0)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st[0])
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
     return nil
@@ -108,7 +108,7 @@ fn _x64_fast_list_int_dot_capture_list(ctx, st, local_fixups, l_slow) {
 
 fn _x64_fast_list_int_dot_validate_tracked(ctx, st, local_fixups, l_slow) {
     _emit_find_tracked_node_x64(ctx, 0, 11)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return false }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st[4]); return false }
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
 
@@ -122,7 +122,7 @@ fn _x64_fast_list_int_dot_validate_tracked(ctx, st, local_fixups, l_slow) {
 }
 
 fn _x64_fast_list_int_dot_validate_magic_and_count(ctx, st, local_fixups, l_slow) {
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["slot_list"])
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st[1])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
@@ -131,21 +131,21 @@ fn _x64_fast_list_int_dot_validate_magic_and_count(ctx, st, local_fixups, l_slow
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
 
     // count >= n
-    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st[1])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_mov_r64_mrbp(ctx, 9, 0 - st["off_n"])
+    _emit_mov_r64_mrbp(ctx, 9, 0 - st[3])
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 9))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
     return nil
 }
 
 fn _x64_fast_list_int_dot_capture_buf(ctx, st) {
-    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st[1])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_mov_mrbp_r64(ctx, 0 - st["slot_buf"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[2], 0)
     return nil
 }
 
@@ -197,13 +197,13 @@ fn _x64_fast_list_int_dot_whole_slots(ctx, locals, lists, list_count, base, help
     var slot_left = _x64_fast_list_int_dot_tmp_slot(ctx, locals, base, li_left, 0)
     var slot_right = _x64_fast_list_int_dot_tmp_slot(ctx, locals, base, li_right, 0)
     if oren_type_tag(slot_left) == 0 || oren_type_tag(slot_right) == 0 { return nil }
-    return {"left_index": li_left, "right_index": li_right, "left": slot_left, "right": slot_right}
+    return [li_left, li_right, slot_left, slot_right]
 }
 
 fn _x64_fast_list_int_dot_emit_whole_count_gates(ctx, local_fixups, slots, off_n, l_skip) {
-    _x64_fast_list_int_dot_emit_count_equals_n_guard(ctx, local_fixups, slots["left"], off_n, l_skip)
-    if slots["right_index"] != slots["left_index"] {
-        _x64_fast_list_int_dot_emit_count_equals_n_guard(ctx, local_fixups, slots["right"], off_n, l_skip)
+    _x64_fast_list_int_dot_emit_count_equals_n_guard(ctx, local_fixups, slots[2], off_n, l_skip)
+    if slots[1] != slots[0] {
+        _x64_fast_list_int_dot_emit_count_equals_n_guard(ctx, local_fixups, slots[3], off_n, l_skip)
     }
     return nil
 }
@@ -332,12 +332,12 @@ fn _x64_fast_list_int_dot_find_mul_slots(ctx, prep, locals, mul2) {
     var slot_buf_left2 = _x64_fast_list_int_dot_tmp_slot(ctx, locals, base, li_left2, 1)
     var slot_buf_right2 = _x64_fast_list_int_dot_tmp_slot(ctx, locals, base, li_right2, 1)
     if oren_type_tag(slot_buf_left2) == 0 || oren_type_tag(slot_buf_right2) == 0 { return nil }
-    return {"left": slot_buf_left2, "right": slot_buf_right2}
+    return [slot_buf_left2, slot_buf_right2]
 }
 
 fn _x64_fast_list_int_dot_emit_unroll2_mul_step(ctx, slots) {
-    var slot_buf_left2 = slots["left"]
-    var slot_buf_right2 = slots["right"]
+    var slot_buf_left2 = slots[0]
+    var slot_buf_right2 = slots[1]
 
     // left values -> rax/rcx, cursor advanced in the temp slot.
     _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_left2)
@@ -399,8 +399,8 @@ fn _x64_fast_list_int_dot_emit_unroll2(ctx, prep, locals, labels, label_names, l
 }
 
 fn _x64_fast_list_int_dot_emit_unique_single_step(ctx, slots) {
-    var slot_buf_left = slots["left"]
-    var slot_buf_right = slots["right"]
+    var slot_buf_left = slots[0]
+    var slot_buf_right = slots[1]
 
     // left value -> rax (advance cursor)
     _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_left)
@@ -429,8 +429,8 @@ fn _x64_fast_list_int_dot_emit_indexed_value(ctx, slot_buf, dst_reg) {
 }
 
 fn _x64_fast_list_int_dot_emit_indexed_single_step(ctx, slots) {
-    _x64_fast_list_int_dot_emit_indexed_value(ctx, slots["left"], 0)
-    _x64_fast_list_int_dot_emit_indexed_value(ctx, slots["right"], 8)
+    _x64_fast_list_int_dot_emit_indexed_value(ctx, slots[0], 0)
+    _x64_fast_list_int_dot_emit_indexed_value(ctx, slots[1], 8)
     bytes_extend(ctx["code"], core.insn_imul_r64_r64(0, 8))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 0))
     return nil
@@ -608,12 +608,12 @@ fn _x64_fast_list_dot_slot_state(ctx, prep, locals, li) {
     var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
     var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
     if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 { return nil }
-    return {"off_list": off_list, "slot_list": slot_list, "slot_buf": slot_buf}
+    return [off_list, slot_list, slot_buf]
 }
 
 fn _x64_fast_list_dot_emit_list_capture(ctx, local_fixups, st, l_slow) {
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["off_list"])
-    _emit_mov_mrbp_r64(ctx, 0 - st["slot_list"], 0)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st[0])
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
     return nil
@@ -633,7 +633,7 @@ fn _x64_fast_list_dot_emit_header_checks(ctx, local_fixups, st, l_slow) {
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
 
     // magic check
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["slot_list"])
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st[1])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 24))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
@@ -644,7 +644,7 @@ fn _x64_fast_list_dot_emit_header_checks(ctx, local_fixups, st, l_slow) {
 }
 
 fn _x64_fast_list_dot_emit_count_check(ctx, local_fixups, st, off_n, l_slow) {
-    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st[1])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
@@ -654,11 +654,11 @@ fn _x64_fast_list_dot_emit_count_check(ctx, local_fixups, st, off_n, l_slow) {
 }
 
 fn _x64_fast_list_dot_emit_buf_capture(ctx, st) {
-    _emit_mov_r64_mrbp(ctx, 10, 0 - st["slot_list"])
+    _emit_mov_r64_mrbp(ctx, 10, 0 - st[1])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_mov_mrbp_r64(ctx, 0 - st["slot_buf"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[2], 0)
     return nil
 }
 
@@ -741,12 +741,12 @@ fn _x64_fast_list_dot_find_mul_slots(ctx, prep, locals, mul) {
     var slot_buf_left = _x64_fast_dot_tmp_slot(ctx, locals, base, li_left, 1)
     var slot_buf_right = _x64_fast_dot_tmp_slot(ctx, locals, base, li_right, 1)
     if oren_type_tag(slot_buf_left) == 0 || oren_type_tag(slot_buf_right) == 0 { return nil }
-    return {"left": slot_buf_left, "right": slot_buf_right}
+    return [slot_buf_left, slot_buf_right]
 }
 
 fn _x64_fast_list_dot_emit_unique_single_step(ctx, slots) {
-    var slot_buf_left = slots["left"]
-    var slot_buf_right = slots["right"]
+    var slot_buf_left = slots[0]
+    var slot_buf_right = slots[1]
 
     // left value -> rax (advance cursor)
     _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_left)
@@ -775,8 +775,8 @@ fn _x64_fast_list_dot_emit_indexed_value(ctx, slot_buf, dst_reg) {
 }
 
 fn _x64_fast_list_dot_emit_indexed_single_step(ctx, slots) {
-    _x64_fast_list_dot_emit_indexed_value(ctx, slots["left"], 0)
-    _x64_fast_list_dot_emit_indexed_value(ctx, slots["right"], 8)
+    _x64_fast_list_dot_emit_indexed_value(ctx, slots[0], 0)
+    _x64_fast_list_dot_emit_indexed_value(ctx, slots[1], 8)
     bytes_extend(ctx["code"], core.insn_imul_r64_r64(0, 8))
     bytes_extend(ctx["code"], core.insn_add_r64_r64(2, 0))
     return nil
