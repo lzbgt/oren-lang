@@ -8,33 +8,33 @@ fn _x64_call_obj_list_intrinsic_state(ctx, locals) {
     if oren_type_tag(spill) == 0 { return nil }
     var fn_off = _intr_tmp_off(ctx, locals, spill)
     if oren_type_tag(fn_off) == 0 { _intr_tmp_pop(ctx, spill); return nil }
-    return {"spill": spill, "fn_off": fn_off}
+    return [spill, fn_off]
 }
 
 fn _x64_call_obj_list_intrinsic_spill_fn(ctx, locals, fn_obj_expr, st) {
     _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, st["spill"])
+        _intr_tmp_pop(ctx, st[0])
         return nil
     }
-    _emit_mov_mrbp_r64(ctx, 0 - st["fn_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
     return true
 }
 
 fn _x64_call_obj_list_intrinsic_eval_args(ctx, locals, args_list_expr, st) {
     _emit_eval_int_to_rax(ctx, args_list_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, st["spill"])
+        _intr_tmp_pop(ctx, st[0])
         return nil
     }
     return true
 }
 
 fn _x64_call_obj_list_intrinsic_emit(ctx, st) {
-    if _x64_emit_call_obj_list_from_spills(ctx, st["spill"], st["fn_off"], nil, true, "oren_call_obj_list_fnobj_ok", "oren_call_obj_list") != true {
+    if _x64_emit_call_obj_list_from_spills(ctx, st[0], st[1], nil, true, "oren_call_obj_list_fnobj_ok", "oren_call_obj_list") != true {
         return nil
     }
-    _intr_tmp_pop(ctx, st["spill"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -62,7 +62,7 @@ fn _x64_call_obj_list_abi_regs(ctx, cleanup_base, context_name) {
         err(ctx, "x64 native v0: missing ABI arg regs for " + context_name)
         return nil
     }
-    return {"env": env_reg_enc - 1, "args": args_reg_enc - 1}
+    return [env_reg_enc - 1, args_reg_enc - 1]
 }
 
 fn _x64_emit_call_obj_list_args_reg(ctx, args_reg, args_off, args_in_rax) {
@@ -106,9 +106,9 @@ fn _x64_emit_call_obj_list_env_and_code_call(ctx, env_reg) {
 fn _x64_emit_call_obj_list_from_spills(ctx, cleanup_base, fn_off, args_off, args_in_rax, label_name, context_name) {
     var regs = _x64_call_obj_list_abi_regs(ctx, cleanup_base, context_name)
     if regs == nil { return false }
-    _x64_emit_call_obj_list_args_reg(ctx, regs["args"], args_off, args_in_rax)
+    _x64_emit_call_obj_list_args_reg(ctx, regs[1], args_off, args_in_rax)
     _x64_emit_call_obj_list_fn_guard(ctx, fn_off, label_name)
-    _x64_emit_call_obj_list_env_and_code_call(ctx, regs["env"])
+    _x64_emit_call_obj_list_env_and_code_call(ctx, regs[0])
     return true
 }
 
@@ -1033,8 +1033,8 @@ fn _x64_emit_direct_named_varargs_call_v0(ctx, locals, nm, args, is_varargs_name
 fn _x64_emit_fixed_direct_named_call_v0(ctx, locals, nm, args, argc, fixed_direct_arity, is_import) {
     var state = _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity)
     if state == nil { return nil }
-    var base2 = state["base"]
-    var call_argc = state["call_argc"]
+    var base2 = state[0]
+    var call_argc = state[1]
     if _x64_load_direct_call_args_v0(ctx, locals, base2, call_argc) != true {
         _intr_tmp_pop(ctx, base2)
         return nil
@@ -1050,7 +1050,7 @@ fn _x64_direct_call_spill_shape(argc, fixed_direct_arity) {
     if fixed_direct_arity != nil && fixed_direct_arity > spill_n2 { spill_n2 = fixed_direct_arity }
     var call_argc = argc
     if fixed_direct_arity != nil { call_argc = fixed_direct_arity }
-    return {"spill_n": spill_n2, "call_argc": call_argc}
+    return [spill_n2, call_argc]
 }
 
 fn _x64_spill_direct_call_explicit_args(ctx, locals, args, argc, base2) {
@@ -1083,7 +1083,7 @@ fn _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity) {
     // Evaluate explicit args left-to-right, spill to stack temps, then load into ABI arg registers.
     // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
     var shape = _x64_direct_call_spill_shape(argc, fixed_direct_arity)
-    var spill_n2 = shape["spill_n"]
+    var spill_n2 = shape[0]
     var base2 = _intr_tmp_push(ctx, spill_n2)
     if oren_type_tag(base2) == 0 { return nil }
 
@@ -1094,7 +1094,7 @@ fn _x64_spill_direct_call_args_v0(ctx, locals, args, argc, fixed_direct_arity) {
         return nil
     }
 
-    return {"base": base2, "call_argc": shape["call_argc"]}
+    return [base2, shape[1]]
 }
 
 fn _x64_load_direct_call_reg_arg_v0(ctx, i3, tmp_off2) {

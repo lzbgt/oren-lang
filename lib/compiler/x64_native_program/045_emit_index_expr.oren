@@ -66,31 +66,25 @@ fn _x64_index_temp_state(ctx, locals) {
     var tmp0 = _intr_tmp_off(ctx, locals, base0 + 0)      // container
     var tmp_idx = _intr_tmp_off(ctx, locals, base0 + 1)   // index/key
     if oren_type_tag(tmp0) == 0 || oren_type_tag(tmp_idx) == 0 { _intr_tmp_pop(ctx, base0); return nil }
-    return {"base": base0, "tmp0": tmp0, "tmp_idx": tmp_idx}
+    return [base0, tmp0, tmp_idx]
 }
 
 fn _x64_index_spill_operands(ctx, locals, operands, st) {
     // Eval container -> rax; spill
     _emit_eval_int_to_rax(ctx, operands["left"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["tmp0"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
 
     // Eval index -> rax; spill
     _emit_eval_int_to_rax(ctx, operands["idx"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["tmp_idx"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[2], 0)
     return true
 }
 
 fn _x64_index_pack_prepare(expr, operands, st) {
     var known_kk = _x64_index_known_key_kind(expr, operands["idx"])
-    return {
-        "recv_kind": expr["recv_kind"],
-        "known_kk": known_kk,
-        "tmp0": st["tmp0"],
-        "tmp_idx": st["tmp_idx"],
-        "base": st["base"]
-    }
+    return [expr["recv_kind"], known_kk, st[1], st[2], st[0]]
 }
 
 fn _x64_index_prepare(ctx, expr, locals) {
@@ -104,7 +98,7 @@ fn _x64_index_prepare(ctx, expr, locals) {
     var st = _x64_index_temp_state(ctx, locals)
     if st == nil { return nil }
     if _x64_index_spill_operands(ctx, locals, operands, st) != true {
-        _intr_tmp_pop(ctx, st["base"])
+        _intr_tmp_pop(ctx, st[0])
         return nil
     }
 
@@ -423,11 +417,11 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     // In rolling Tier‑1, `Index` is polymorphic over list + map.
     var prep = _x64_index_prepare(ctx, expr, locals)
     if prep == nil { return nil }
-    var recv_kind = prep["recv_kind"]
-    var known_kk = prep["known_kk"]
-    var tmp0 = prep["tmp0"]
-    var tmp_idx = prep["tmp_idx"]
-    var base0 = prep["base"]
+    var recv_kind = prep[0]
+    var known_kk = prep[1]
+    var tmp0 = prep[2]
+    var tmp_idx = prep[3]
+    var base0 = prep[4]
 
     if _x64_index_emit_runtime_fast(ctx, locals, recv_kind, known_kk, tmp0, tmp_idx, base0) != false { return nil }
 
