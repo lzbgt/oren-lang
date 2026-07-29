@@ -88,7 +88,7 @@ fn _x64_list_len_spill_validated_arg(ctx, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
 
-    return {"base": base, "off_list": off_list}
+    return [base, off_list]
 }
 
 fn _x64_list_len_spill_arg_named(ctx, expr, locals, intrinsic_name) {
@@ -102,68 +102,71 @@ fn _x64_list_len_spill_arg(ctx, expr, locals) {
 }
 
 fn _x64_list_len_init_labels(ctx, state) {
-    state["labels"] = {}
-    state["fixups"] = []
-    state["l_non_nil"] = _new_label(ctx, "list_len_non_nil")
-    state["l_done"] = _new_label(ctx, "list_len_done")
-    state["l_node_ok"] = _new_label(ctx, "list_len_node_ok")
-    state["l_node_missing"] = _new_label(ctx, "list_len_node_missing")
-    state["l_fallback_magic_ok"] = _new_label(ctx, "list_len_fallback_magic_ok")
-    state["l_kind_ok"] = _new_label(ctx, "list_len_kind_ok")
-    state["l_magic_ok"] = _new_label(ctx, "list_len_magic_ok")
-    return nil
+    return [
+        state[0],
+        state[1],
+        {},
+        [],
+        _new_label(ctx, "list_len_non_nil"),
+        _new_label(ctx, "list_len_done"),
+        _new_label(ctx, "list_len_node_ok"),
+        _new_label(ctx, "list_len_node_missing"),
+        _new_label(ctx, "list_len_fallback_magic_ok"),
+        _new_label(ctx, "list_len_kind_ok"),
+        _new_label(ctx, "list_len_magic_ok")
+    ]
 }
 
 fn _x64_list_len_emit_nil_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var labels = state[2]
+    var local_fixups = state[3]
+    var off_list = state[1]
 
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", state["l_non_nil"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", state[4])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
-    _emit_label(ctx, labels, state["l_non_nil"])
+    _emit_jmp_to_label(ctx, local_fixups, state[5])
+    _emit_label(ctx, labels, state[4])
     return nil
 }
 
 fn _x64_list_len_emit_untracked_fallback(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    _emit_label(ctx, labels, state["l_node_missing"])
+    var labels = state[2]
+    var local_fixups = state[3]
+    _emit_label(ctx, labels, state[7])
     // Untracked but valid list header: fallback to magic + count.
     _x64_emit_list_magic_cmp(ctx)
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_fallback_magic_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[8])
     _emit_abort_panic_str(ctx, "list_len on non-list")
-    _emit_label(ctx, labels, state["l_fallback_magic_ok"])
+    _emit_label(ctx, labels, state[8])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
+    _emit_jmp_to_label(ctx, local_fixups, state[5])
     return nil
 }
 
 fn _x64_list_len_emit_tracked_count(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[2]
+    var local_fixups = state[3]
 
-    _emit_label(ctx, labels, state["l_node_ok"])
+    _emit_label(ctx, labels, state[6])
 
     // kind = *(node + 16); accept LIST and LIST_INT.
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 2)) // LIST
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_kind_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[9])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_kind_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[9])
     _emit_abort_panic_str(ctx, "list_len on non-list")
-    _emit_label(ctx, labels, state["l_kind_ok"])
+    _emit_label(ctx, labels, state[9])
 
     _x64_emit_list_magic_cmp(ctx)
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_magic_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[10])
     _emit_abort_panic_str(ctx, "list_len on non-list")
-    _emit_label(ctx, labels, state["l_magic_ok"])
+    _emit_label(ctx, labels, state[10])
 
     // count = *(list + 0)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
@@ -172,8 +175,8 @@ fn _x64_list_len_emit_tracked_count(ctx, state) {
 }
 
 fn _x64_list_len_emit_checked_count(ctx, state) {
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var local_fixups = state[3]
+    var off_list = state[1]
 
     // Tier‑1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
@@ -185,8 +188,8 @@ fn _x64_list_len_emit_checked_count(ctx, state) {
 
     // tracked?
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", state["l_node_ok"])
-    _emit_jmp_to_label(ctx, local_fixups, state["l_node_missing"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", state[6])
+    _emit_jmp_to_label(ctx, local_fixups, state[7])
 
     _x64_list_len_emit_untracked_fallback(ctx, state)
     _x64_list_len_emit_tracked_count(ctx, state)
@@ -196,15 +199,15 @@ fn _x64_list_len_emit_checked_count(ctx, state) {
 fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
     var state = _x64_list_len_spill_arg(ctx, expr, locals)
     if state == nil { return nil }
-    var base = state["base"]
+    var base = state[0]
 
-    _x64_list_len_init_labels(ctx, state)
+    state = _x64_list_len_init_labels(ctx, state)
     _x64_list_len_emit_nil_guard(ctx, state)
     _x64_list_len_emit_checked_count(ctx, state)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _emit_label(ctx, state[2], state[5])
+    _patch_local_fixups(ctx, state[2], state[3])
     _intr_tmp_pop(ctx, base)
     return nil
 }
@@ -214,38 +217,41 @@ fn _x64_list_int_len_spill_arg(ctx, expr, locals) {
 }
 
 fn _x64_list_int_len_init_labels(ctx, state) {
-    state["labels"] = {}
-    state["fixups"] = []
-    state["l_non_nil"] = _new_label(ctx, "list_int_len_non_nil")
-    state["l_done"] = _new_label(ctx, "list_int_len_done")
-    state["l_node_ok"] = _new_label(ctx, "list_int_len_node_ok")
-    state["l_node_missing"] = _new_label(ctx, "list_int_len_node_missing")
-    state["l_fallback_magic_ok"] = _new_label(ctx, "list_int_len_fallback_magic_ok")
-    state["l_kind_ok"] = _new_label(ctx, "list_int_len_kind_ok")
-    state["l_magic_ok"] = _new_label(ctx, "list_int_len_magic_ok")
-    return nil
+    return [
+        state[0],
+        state[1],
+        {},
+        [],
+        _new_label(ctx, "list_int_len_non_nil"),
+        _new_label(ctx, "list_int_len_done"),
+        _new_label(ctx, "list_int_len_node_ok"),
+        _new_label(ctx, "list_int_len_node_missing"),
+        _new_label(ctx, "list_int_len_fallback_magic_ok"),
+        _new_label(ctx, "list_int_len_kind_ok"),
+        _new_label(ctx, "list_int_len_magic_ok")
+    ]
 }
 
 fn _x64_list_int_len_emit_nil_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var labels = state[2]
+    var local_fixups = state[3]
+    var off_list = state[1]
 
     // list -> rdx
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
     // nil => 0
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", state["l_non_nil"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", state[4])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
+    _emit_jmp_to_label(ctx, local_fixups, state[5])
 
-    _emit_label(ctx, labels, state["l_non_nil"])
+    _emit_label(ctx, labels, state[4])
     return nil
 }
 
 fn _x64_list_int_len_emit_tracked_probe(ctx, state) {
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var local_fixups = state[3]
+    var off_list = state[1]
     // Tier‑1 safety: never read object headers from untracked pointers.
     _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -253,46 +259,46 @@ fn _x64_list_int_len_emit_tracked_probe(ctx, state) {
 
     // tracked?
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", state["l_node_ok"])
-    _emit_jmp_to_label(ctx, local_fixups, state["l_node_missing"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", state[6])
+    _emit_jmp_to_label(ctx, local_fixups, state[7])
     return nil
 }
 
 fn _x64_list_int_len_emit_untracked_fallback(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[2]
+    var local_fixups = state[3]
 
-    _emit_label(ctx, labels, state["l_node_missing"])
+    _emit_label(ctx, labels, state[7])
     // Untracked but valid list header: fallback to magic + count.
     _x64_emit_list_magic_cmp(ctx)
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_fallback_magic_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[8])
     _emit_abort_panic_str(ctx, "list_int_len on non-list")
-    _emit_label(ctx, labels, state["l_fallback_magic_ok"])
+    _emit_label(ctx, labels, state[8])
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
-    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
+    _emit_jmp_to_label(ctx, local_fixups, state[5])
     return nil
 }
 
 fn _x64_list_int_len_emit_tracked_count(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[2]
+    var local_fixups = state[3]
 
-    _emit_label(ctx, labels, state["l_node_ok"])
+    _emit_label(ctx, labels, state[6])
 
     // kind = *(node + 16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(10, 10))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 8)) // LIST_INT
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_kind_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[9])
     _emit_abort_panic_str(ctx, "list_int_len on non-list")
-    _emit_label(ctx, labels, state["l_kind_ok"])
+    _emit_label(ctx, labels, state[9])
 
     _x64_emit_list_magic_cmp(ctx)
-    _emit_jcc_to_label(ctx, local_fixups, "e", state["l_magic_ok"])
+    _emit_jcc_to_label(ctx, local_fixups, "e", state[10])
     _emit_abort_panic_str(ctx, "list_int_len on non-list")
-    _emit_label(ctx, labels, state["l_magic_ok"])
+    _emit_label(ctx, labels, state[10])
 
     // count = *(list + 0)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
@@ -311,15 +317,15 @@ fn _x64_list_int_len_emit_checked_count(ctx, state) {
 fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
     var state = _x64_list_int_len_spill_arg(ctx, expr, locals)
     if state == nil { return nil }
-    var base = state["base"]
+    var base = state[0]
 
-    _x64_list_int_len_init_labels(ctx, state)
+    state = _x64_list_int_len_init_labels(ctx, state)
     _x64_list_int_len_emit_nil_guard(ctx, state)
     _x64_list_int_len_emit_checked_count(ctx, state)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _emit_label(ctx, state[2], state[5])
+    _patch_local_fixups(ctx, state[2], state[3])
     _intr_tmp_pop(ctx, base)
     return nil
 }
@@ -332,31 +338,26 @@ fn _x64_list_int_len_unchecked_spill_arg(ctx, locals, args) {
     var state = _x64_list_len_spill_validated_arg(ctx, locals, args)
     if state == nil { return nil }
     // list -> rdx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state[1])
     return state
 }
 
 fn _x64_list_int_len_unchecked_labels(ctx) {
     var labels = {}
     var local_fixups = []
-    return {
-        "labels": labels,
-        "fixups": local_fixups,
-        "l_non_nil": _new_label(ctx, "list_int_len_unchecked_non_nil"),
-        "l_done": _new_label(ctx, "list_int_len_unchecked_done")
-    }
+    return [labels, local_fixups, _new_label(ctx, "list_int_len_unchecked_non_nil"), _new_label(ctx, "list_int_len_unchecked_done")]
 }
 
 fn _x64_list_int_len_unchecked_emit_nil_zero(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[2]
+    var local_fixups = state[3]
     // nil => 0
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", state["l_non_nil"])
+    _emit_jcc_to_label(ctx, local_fixups, "ne", state[4])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
-    _emit_jmp_to_label(ctx, local_fixups, state["l_done"])
+    _emit_jmp_to_label(ctx, local_fixups, state[5])
 
-    _emit_label(ctx, labels, state["l_non_nil"])
+    _emit_label(ctx, labels, state[4])
     return nil
 }
 
@@ -373,18 +374,15 @@ fn _emit_list_int_len_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
 
     var state = _x64_list_int_len_unchecked_spill_arg(ctx, locals, args)
     if state == nil { return nil }
-    var base = state["base"]
+    var base = state[0]
     var label_state = _x64_list_int_len_unchecked_labels(ctx)
-    state["labels"] = label_state["labels"]
-    state["fixups"] = label_state["fixups"]
-    state["l_non_nil"] = label_state["l_non_nil"]
-    state["l_done"] = label_state["l_done"]
+    state = [state[0], state[1], label_state[0], label_state[1], label_state[2], label_state[3]]
 
     _x64_list_int_len_unchecked_emit_nil_zero(ctx, state)
     _x64_list_int_len_unchecked_emit_count(ctx)
 
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _emit_label(ctx, state[2], state[5])
+    _patch_local_fixups(ctx, state[2], state[3])
     _intr_tmp_pop(ctx, base)
     return nil
 }
@@ -406,38 +404,38 @@ fn _x64_list_int_get_spill_args(ctx, locals, args) {
     _emit_eval_int_to_rax(ctx, args[1], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
-    return {"base": base, "off_list": off_list, "off_idx": off_idx}
+    return [base, off_list, off_idx]
 }
 
 fn _x64_list_int_get_prepare_labels(ctx) {
-    return {
-        "labels": {},
-        "local_fixups": [],
-        "l_non_nil": _new_label(ctx, "list_int_get_non_nil"),
-        "l_node_ok": _new_label(ctx, "list_int_get_node_ok"),
-        "l_kind_ok": _new_label(ctx, "list_int_get_kind_ok"),
-        "l_magic_ok": _new_label(ctx, "list_int_get_magic_ok"),
-        "l_idx_nonneg": _new_label(ctx, "list_int_get_idx_nonneg"),
-        "l_idx_ok": _new_label(ctx, "list_int_get_idx_ok"),
-        "l_done": _new_label(ctx, "list_int_get_done")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "list_int_get_non_nil"),
+        _new_label(ctx, "list_int_get_node_ok"),
+        _new_label(ctx, "list_int_get_kind_ok"),
+        _new_label(ctx, "list_int_get_magic_ok"),
+        _new_label(ctx, "list_int_get_idx_nonneg"),
+        _new_label(ctx, "list_int_get_idx_ok"),
+        _new_label(ctx, "list_int_get_done")
+    ]
 }
 
 fn _x64_emit_list_int_get_reload_list(ctx, state) {
-    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state[1])
     return nil
 }
 
 fn _x64_emit_list_int_get_reload_operands(ctx, state) {
-    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"]) // rdx = list
-    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_idx"])  // r8  = idx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state[1]) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state[2]) // r8  = idx
     return nil
 }
 
 fn _x64_emit_list_int_get_nil_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var l_non_nil = state["l_non_nil"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var l_non_nil = state[5]
 
     // nil => panic
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(2, 0))
@@ -456,9 +454,9 @@ fn _x64_emit_list_int_get_tracked_lookup(ctx, state) {
 }
 
 fn _x64_emit_list_int_get_node_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var l_node_ok = state["l_node_ok"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var l_node_ok = state[6]
 
     // tracked?
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
@@ -469,9 +467,9 @@ fn _x64_emit_list_int_get_node_guard(ctx, state) {
 }
 
 fn _x64_emit_list_int_get_kind_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var l_kind_ok = state["l_kind_ok"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var l_kind_ok = state[7]
 
     // kind = *(node + 16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
@@ -485,9 +483,9 @@ fn _x64_emit_list_int_get_kind_guard(ctx, state) {
 }
 
 fn _x64_emit_list_int_get_magic_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var l_magic_ok = state["l_magic_ok"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var l_magic_ok = state[8]
 
     _x64_emit_list_magic_cmp(ctx)
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
@@ -508,10 +506,10 @@ fn _x64_emit_list_int_get_validate_list(ctx, state) {
 }
 
 fn _x64_emit_list_int_get_bounds(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var l_idx_nonneg = state["l_idx_nonneg"]
-    var l_idx_ok = state["l_idx_ok"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var l_idx_nonneg = state[9]
+    var l_idx_ok = state[10]
     // count -> r9
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], core.insn_mov_rax_mrax())
@@ -570,30 +568,34 @@ fn _x64_validate_list_int_get_intrinsic_args(ctx, expr, locals) {
 
 fn _x64_list_int_get_attach_labels(ctx, state) {
     var labels_state = _x64_list_int_get_prepare_labels(ctx)
-    state["labels"] = labels_state["labels"]
-    state["local_fixups"] = labels_state["local_fixups"]
-    state["l_non_nil"] = labels_state["l_non_nil"]
-    state["l_node_ok"] = labels_state["l_node_ok"]
-    state["l_kind_ok"] = labels_state["l_kind_ok"]
-    state["l_magic_ok"] = labels_state["l_magic_ok"]
-    state["l_idx_nonneg"] = labels_state["l_idx_nonneg"]
-    state["l_idx_ok"] = labels_state["l_idx_ok"]
-    state["l_done"] = labels_state["l_done"]
-    return state
+    return [
+        state[0],
+        state[1],
+        state[2],
+        labels_state[0],
+        labels_state[1],
+        labels_state[2],
+        labels_state[3],
+        labels_state[4],
+        labels_state[5],
+        labels_state[6],
+        labels_state[7],
+        labels_state[8]
+    ]
 }
 
 fn _x64_emit_list_int_get_checked_body(ctx, state) {
     _x64_emit_list_int_get_validate_list(ctx, state)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return nil }
     _x64_emit_list_int_get_bounds(ctx, state)
     _x64_emit_list_int_get_load_value(ctx)
     return nil
 }
 
 fn _x64_finish_list_int_get_intrinsic(ctx, state) {
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
-    _intr_tmp_pop(ctx, state["base"])
+    _emit_label(ctx, state[3], state[11])
+    _patch_local_fixups(ctx, state[3], state[4])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -605,7 +607,7 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     if args == nil { return nil }
     var state = _x64_list_int_get_spill_args(ctx, locals, args)
     if state == nil { return nil }
-    _x64_list_int_get_attach_labels(ctx, state)
+    state = _x64_list_int_get_attach_labels(ctx, state)
     _x64_emit_list_int_get_checked_body(ctx, state)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _x64_finish_list_int_get_intrinsic(ctx, state)
@@ -613,21 +615,21 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
 }
 
 fn _x64_list_int_get_unchecked_prepare_labels(ctx) {
-    return {
-        "labels": {},
-        "local_fixups": [],
-        "l_non_nil": _new_label(ctx, "list_int_get_unchecked_non_nil"),
-        "l_idx_nonneg": _new_label(ctx, "list_int_get_unchecked_idx_nonneg"),
-        "l_idx_ok": _new_label(ctx, "list_int_get_unchecked_idx_ok"),
-        "l_done": _new_label(ctx, "list_int_get_unchecked_done")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "list_int_get_unchecked_non_nil"),
+        _new_label(ctx, "list_int_get_unchecked_idx_nonneg"),
+        _new_label(ctx, "list_int_get_unchecked_idx_ok"),
+        _new_label(ctx, "list_int_get_unchecked_done")
+    ]
 }
 
 fn _x64_emit_list_int_get_unchecked_non_nil(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var off_list = state["off_list"]
-    var l_non_nil = state["l_non_nil"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var off_list = state[1]
+    var l_non_nil = state[5]
     // list -> rdx
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
 
@@ -640,14 +642,14 @@ fn _x64_emit_list_int_get_unchecked_non_nil(ctx, state) {
 }
 
 fn _x64_emit_list_int_get_unchecked_bounds(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
-    var off_idx = state["off_idx"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var off_idx = state[2]
     // restore idx
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx) // r8 = idx
     _x64_emit_list_int_get_unchecked_count(ctx)
-    _x64_emit_list_int_get_unchecked_negative_guard(ctx, labels, local_fixups, state["l_idx_nonneg"])
-    _x64_emit_list_int_get_unchecked_upper_guard(ctx, labels, local_fixups, state["l_idx_ok"])
+    _x64_emit_list_int_get_unchecked_negative_guard(ctx, labels, local_fixups, state[9])
+    _x64_emit_list_int_get_unchecked_upper_guard(ctx, labels, local_fixups, state[10])
     return nil
 }
 
@@ -714,13 +716,20 @@ fn _x64_validate_list_int_get_unchecked_intrinsic_args(ctx, expr, locals) {
 
 fn _x64_list_int_get_unchecked_attach_labels(ctx, state) {
     var labels_state = _x64_list_int_get_unchecked_prepare_labels(ctx)
-    state["labels"] = labels_state["labels"]
-    state["local_fixups"] = labels_state["local_fixups"]
-    state["l_non_nil"] = labels_state["l_non_nil"]
-    state["l_idx_nonneg"] = labels_state["l_idx_nonneg"]
-    state["l_idx_ok"] = labels_state["l_idx_ok"]
-    state["l_done"] = labels_state["l_done"]
-    return state
+    return [
+        state[0],
+        state[1],
+        state[2],
+        labels_state[0],
+        labels_state[1],
+        labels_state[2],
+        nil,
+        nil,
+        nil,
+        labels_state[3],
+        labels_state[4],
+        labels_state[5]
+    ]
 }
 
 fn _x64_emit_list_int_get_unchecked_body(ctx, state) {
@@ -738,7 +747,7 @@ fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
     if args == nil { return nil }
     var state = _x64_list_int_get_spill_args(ctx, locals, args)
     if state == nil { return nil }
-    _x64_list_int_get_unchecked_attach_labels(ctx, state)
+    state = _x64_list_int_get_unchecked_attach_labels(ctx, state)
     _x64_emit_list_int_get_unchecked_body(ctx, state)
     _x64_finish_list_int_get_intrinsic(ctx, state)
     return nil
@@ -763,12 +772,17 @@ fn _x64_validate_list_int_set_intrinsic_args(ctx, expr, locals) {
 }
 
 fn _x64_list_int_set_attach_labels(ctx, state) {
-    state["labels"] = {}
-    state["local_fixups"] = []
-    state["l_idx_nonneg"] = _new_label(ctx, "list_int_set_idx_nonneg")
-    state["l_fast"] = _new_label(ctx, "list_int_set_fast")
-    state["l_done"] = _new_label(ctx, "list_int_set_done")
-    return state
+    return [
+        state[0],
+        state[1],
+        state[2],
+        state[3],
+        {},
+        [],
+        _new_label(ctx, "list_int_set_idx_nonneg"),
+        _new_label(ctx, "list_int_set_fast"),
+        _new_label(ctx, "list_int_set_done")
+    ]
 }
 
 fn _x64_emit_list_int_set_checked_body(ctx, locals, state) {
@@ -780,9 +794,9 @@ fn _x64_emit_list_int_set_checked_body(ctx, locals, state) {
 }
 
 fn _x64_finish_list_int_set_intrinsic(ctx, state) {
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
-    _intr_tmp_pop(ctx, state["base"])
+    _emit_label(ctx, state[4], state[8])
+    _patch_local_fixups(ctx, state[4], state[5])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -794,9 +808,9 @@ fn _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals) {
     if args == nil { return nil }
     var state = _x64_list_int_set_spill_args(ctx, locals, args)
     if state == nil { return nil }
-    _x64_list_int_set_attach_labels(ctx, state)
+    state = _x64_list_int_set_attach_labels(ctx, state)
     if _x64_emit_list_int_set_checked_body(ctx, locals, state) != true {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return nil
     }
     _x64_finish_list_int_set_intrinsic(ctx, state)
@@ -813,7 +827,7 @@ fn _x64_list_int_set_alloc_spill_state(ctx, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return {"base": base, "off_list": off_list, "off_idx": off_idx, "off_val": off_val}
+    return [base, off_list, off_idx, off_val]
 }
 
 fn _x64_list_int_set_eval_spill_arg(ctx, locals, expr, base, off) {
@@ -829,19 +843,19 @@ fn _x64_list_int_set_eval_spill_arg(ctx, locals, expr, base, off) {
 fn _x64_list_int_set_spill_args(ctx, locals, args) {
     var state = _x64_list_int_set_alloc_spill_state(ctx, locals)
     if state == nil { return nil }
-    var base = state["base"]
+    var base = state[0]
 
     // LTR eval: list, idx, value
-    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[0], base, state["off_list"]) == nil { return nil }
-    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[1], base, state["off_idx"]) == nil { return nil }
-    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[2], base, state["off_val"]) == nil { return nil }
+    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[0], base, state[1]) == nil { return nil }
+    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[1], base, state[2]) == nil { return nil }
+    if _x64_list_int_set_eval_spill_arg(ctx, locals, args[2], base, state[3]) == nil { return nil }
     return state
 }
 
 fn _x64_emit_list_int_set_reload_args(ctx, locals, state) {
-    var off_list = state["off_list"]
-    var off_idx = state["off_idx"]
-    var off_val = state["off_val"]
+    var off_list = state[1]
+    var off_idx = state[2]
+    var off_val = state[3]
     _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx)
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_val)
@@ -849,8 +863,8 @@ fn _x64_emit_list_int_set_reload_args(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_set_nil_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
+    var labels = state[4]
+    var local_fixups = state[5]
     var l_non_nil = _new_label(ctx, "list_int_set_non_nil")
 
     // nil => panic
@@ -870,8 +884,8 @@ fn _x64_emit_list_int_set_tracked_lookup(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_set_node_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
+    var labels = state[4]
+    var local_fixups = state[5]
     var l_node_ok = _new_label(ctx, "list_int_set_node_ok")
 
     // tracked?
@@ -883,8 +897,8 @@ fn _x64_emit_list_int_set_node_guard(ctx, state) {
 }
 
 fn _x64_emit_list_int_set_kind_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
+    var labels = state[4]
+    var local_fixups = state[5]
     var l_kind_ok = _new_label(ctx, "list_int_set_kind_ok")
 
     // kind = *(node + 16)
@@ -899,8 +913,8 @@ fn _x64_emit_list_int_set_kind_guard(ctx, state) {
 }
 
 fn _x64_emit_list_int_set_magic_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["local_fixups"]
+    var labels = state[4]
+    var local_fixups = state[5]
     var l_magic_ok = _new_label(ctx, "list_int_set_magic_ok")
 
     _x64_emit_list_magic_cmp(ctx)
@@ -923,7 +937,7 @@ fn _x64_emit_list_int_set_validate(ctx, locals, state) {
 
 fn _x64_emit_list_int_set_value_and_count(ctx, locals, state) {
     // Validate value is int (no tracked pointer / no nil/bool).
-    var off_val = state["off_val"]
+    var off_val = state[3]
     _emit_call_rel32_1arg_x64(ctx, locals, "_list_int_check_value", off_val)
     _x64_emit_list_int_set_reload_args(ctx, locals, state)
 
@@ -933,19 +947,19 @@ fn _x64_emit_list_int_set_value_and_count(ctx, locals, state) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 0))
 
     // idx < 0 => panic
-    var local_fixups = state["local_fixups"]
+    var local_fixups = state[5]
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(8, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", state["l_idx_nonneg"])
+    _emit_jcc_to_label(ctx, local_fixups, "ge", state[6])
     _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
-    _emit_label(ctx, state["labels"], state["l_idx_nonneg"])
+    _emit_label(ctx, state[4], state[6])
     return nil
 }
 
 fn _x64_emit_list_int_set_slow_or_fast(ctx, locals, state) {
-    var local_fixups = state["local_fixups"]
+    var local_fixups = state[5]
     // idx < count => fast path
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 10))
-    _emit_jcc_to_label(ctx, local_fixups, "l", state["l_fast"])
+    _emit_jcc_to_label(ctx, local_fixups, "l", state[7])
 
     _x64_emit_list_int_set_slow_path(ctx, locals, state)
     _x64_emit_list_int_set_fast_path(ctx, state)
@@ -953,13 +967,13 @@ fn _x64_emit_list_int_set_slow_or_fast(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_set_slow_path(ctx, locals, state) {
-    _emit_call_rel32_3args_x64(ctx, locals, "oren_list_int_set", state["off_list"], state["off_idx"], state["off_val"])
-    _emit_jmp_to_label(ctx, state["local_fixups"], state["l_done"])
+    _emit_call_rel32_3args_x64(ctx, locals, "oren_list_int_set", state[1], state[2], state[3])
+    _emit_jmp_to_label(ctx, state[5], state[8])
     return nil
 }
 
 fn _x64_emit_list_int_set_fast_path(ctx, state) {
-    _emit_label(ctx, state["labels"], state["l_fast"])
+    _emit_label(ctx, state[4], state[7])
     // buf -> r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 2))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 16))
