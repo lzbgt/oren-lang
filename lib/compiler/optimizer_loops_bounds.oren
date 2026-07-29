@@ -82,7 +82,8 @@ fn _opt_stmt_assigns_ident(stmt, name) {
         var ss = stmt["stmts"]
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_n = oren_list_len(ss)
+            while i < ss_n {
                 if _opt_stmt_assigns_ident(ss[i], name) { return true }
                 i = i + 1
             }
@@ -106,7 +107,8 @@ fn _opt_stmt_assigns_ident(stmt, name) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_n = oren_list_len(cases)
+            while ci < cases_n {
                 var c = cases[ci]
                 if c != nil && _opt_stmt_assigns_ident(c["body"], name) { return true }
                 ci = ci + 1
@@ -291,7 +293,8 @@ fn _opt_expr_has_list_len_mutation(expr, list_name) {
         var args2 = expr["args"]
         if args2 != nil {
             var i2 = 0
-            while i2 < oren_list_len(args2) {
+            var args2_n = oren_list_len(args2)
+            while i2 < args2_n {
                 if _opt_expr_has_list_len_mutation(args2[i2], list_name) { return true }
                 i2 = i2 + 1
             }
@@ -321,7 +324,8 @@ fn _opt_expr_has_list_len_mutation(expr, list_name) {
         var cases = expr["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_n = oren_list_len(cases)
+            while ci < cases_n {
                 var c = cases[ci]
                 if c != nil && _opt_stmt_has_list_len_mutation(c["body"], list_name) { return true }
                 ci = ci + 1
@@ -341,7 +345,8 @@ fn _opt_stmt_has_list_len_mutation(stmt, list_name) {
         var ss = stmt["stmts"]
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_n = oren_list_len(ss)
+            while i < ss_n {
                 if _opt_stmt_has_list_len_mutation(ss[i], list_name) { return true }
                 i = i + 1
             }
@@ -375,7 +380,8 @@ fn _opt_stmt_has_list_len_mutation(stmt, list_name) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_n = oren_list_len(cases)
+            while ci < cases_n {
                 var c = cases[ci]
                 if c != nil && _opt_stmt_has_list_len_mutation(c["body"], list_name) { return true }
                 ci = ci + 1

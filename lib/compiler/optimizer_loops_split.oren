@@ -203,7 +203,8 @@ fn split_invariant_list_push_in_block(block) {
     var out = []
     var changed = false
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_n = oren_list_len(ss)
+    while i < ss_n {
         var st = ss[i]
         var replaced = nil
         if _opt_stmt_maybe_split_invariant_candidate(st) && _opt_split_invariant_budget_allows() {
@@ -230,7 +231,8 @@ fn split_invariant_list_push_in_block(block) {
                 var cases = st["cases"]
                 if cases != nil {
                     var ci = 0
-                    while ci < oren_list_len(cases) {
+                    var cases_n = oren_list_len(cases)
+                    while ci < cases_n {
                         var c = cases[ci]
                         if c != nil && c["body"] != nil && split_invariant_list_push_in_block(c["body"]) { changed = true }
                         ci = ci + 1
