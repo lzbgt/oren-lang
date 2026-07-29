@@ -514,8 +514,9 @@ fn _rtobj_runtime_hash_cache_store(runtime_path, hash, files) {
     _ensure_dir(dir)
     var p = _rtobj_hash_cache_path(runtime_path)
     var out = "hash=" + hash + "\n"
+    var file_count = oren_list_len(files)
     var i = 0
-    while i < oren_list_len(files) {
+    while i < file_count {
         var fp = files[i]
         if fp != nil && fp != "" {
             var st = _rtobj_stat_size_and_mtime_ns(fp)
@@ -610,8 +611,9 @@ fn _rtobj_runtime_fingerprint_v2_parts(parts) {
     var h1 = _mask63(1469598103934665603)
     var h2 = _mask63(1099511628211)
     if parts != nil {
+        var part_count = oren_list_len(parts)
         var i = 0
-        while i < oren_list_len(parts) {
+        while i < part_count {
             var s = parts[i]
             h1 = _fnv1a63_update_string(s, h1)
             h2 = _fnv1a63_update_string(s, h2)
@@ -697,8 +699,9 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
             // Keep output bounded: print only a small prefix of ctx["errors"].
             if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
                 print("[rtobj] runtime expand failed (showing first errors):")
+                var error_count = oren_list_len(ctx["errors"])
                 var ei = 0
-                while ei < oren_list_len(ctx["errors"]) && ei < 5 {
+                while ei < error_count && ei < 5 {
                     print("  " + ctx["errors"][ei])
                     ei = ei + 1
                 }
