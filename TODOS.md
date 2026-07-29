@@ -200,6 +200,10 @@ design evidence lives under `project-doc/`.
   statement passes now cache immutable list counts before traversal, with
   byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
   that semantic lowering pass.
+- Bytecode prelude lambda declared/use and free-variable scans now cache
+  immutable argument, element, pair, statement, nested-capture, and parameter
+  counts before traversal, with byte-hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in that bytecode support shard.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software

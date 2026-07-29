@@ -317,6 +317,12 @@
 <p>  byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
 <p>  that semantic lowering pass.</p>
 <ul>
+<li>Bytecode prelude lambda declared/use and free-variable scans now cache</li>
+</ul>
+<p>  immutable argument, element, pair, statement, nested-capture, and parameter</p>
+<p>  counts before traversal, with byte-hotpath guard coverage rejecting direct</p>
+<p>  <code>oren_list_len</code> loop bounds in that bytecode support shard.</p>
+<ul>
 <li>Regex byte-class matching now caches compiled class range counts before</li>
 </ul>
 <p>  per-byte range probes.</p>

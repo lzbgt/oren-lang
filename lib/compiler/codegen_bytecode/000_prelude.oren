@@ -222,8 +222,9 @@ fn lambda_collect_declared_in_expression(exp, declared) {
     }
     if et == "Call" {
         lambda_collect_declared_in_expression(exp["fn"], declared)
+        var args_n = oren_list_len(exp["args"])
         var i = 0
-        while i < oren_list_len(exp["args"]) {
+        while i < args_n {
             lambda_collect_declared_in_expression(exp["args"][i], declared)
             i = i + 1
         }
@@ -249,16 +250,18 @@ fn lambda_collect_declared_in_expression(exp, declared) {
         return nil
     }
     if et == "Array" {
+        var elements_n = oren_list_len(exp["elements"])
         var j = 0
-        while j < oren_list_len(exp["elements"]) {
+        while j < elements_n {
             lambda_collect_declared_in_expression(exp["elements"][j], declared)
             j = j + 1
         }
         return nil
     }
     if et == "Hash" {
+        var pairs_n = oren_list_len(exp["pairs"])
         var k = 0
-        while k < oren_list_len(exp["pairs"]) {
+        while k < pairs_n {
             var pair = exp["pairs"][k]
             lambda_collect_declared_in_expression(pair["key"], declared)
             lambda_collect_declared_in_expression(pair["value"], declared)
@@ -288,8 +291,9 @@ fn lambda_collect_declared_in_statement(stmt, declared) {
     if st == "Return" { lambda_collect_declared_in_expression(stmt["value"], declared); return nil }
     if st == "ExprStmt" { lambda_collect_declared_in_expression(stmt["expr"], declared); return nil }
     if st == "Block" {
+        var stmts_n = oren_list_len(stmt["stmts"])
         var i = 0
-        while i < oren_list_len(stmt["stmts"]) {
+        while i < stmts_n {
             lambda_collect_declared_in_statement(stmt["stmts"][i], declared)
             i = i + 1
         }
@@ -331,8 +335,9 @@ fn lambda_collect_used_in_expression(exp, ctx, declared, seen, out) {
     if et == "Function" {
         var nested = exp["captures"]
         if nested == nil { nested = lambda_free_vars(ctx, exp) }
+        var nested_n = oren_list_len(nested)
         var i = 0
-        while i < oren_list_len(nested) {
+        while i < nested_n {
             maybe_add_capture(nested[i], ctx, declared, seen, out)
             i = i + 1
         }
@@ -340,8 +345,9 @@ fn lambda_collect_used_in_expression(exp, ctx, declared, seen, out) {
     }
     if et == "Call" {
         lambda_collect_used_in_expression(exp["fn"], ctx, declared, seen, out)
+        var args_n = oren_list_len(exp["args"])
         var i = 0
-        while i < oren_list_len(exp["args"]) {
+        while i < args_n {
             lambda_collect_used_in_expression(exp["args"][i], ctx, declared, seen, out)
             i = i + 1
         }
@@ -367,16 +373,18 @@ fn lambda_collect_used_in_expression(exp, ctx, declared, seen, out) {
         return nil
     }
     if et == "Array" {
+        var elements_n = oren_list_len(exp["elements"])
         var j = 0
-        while j < oren_list_len(exp["elements"]) {
+        while j < elements_n {
             lambda_collect_used_in_expression(exp["elements"][j], ctx, declared, seen, out)
             j = j + 1
         }
         return nil
     }
     if et == "Hash" {
+        var pairs_n = oren_list_len(exp["pairs"])
         var k = 0
-        while k < oren_list_len(exp["pairs"]) {
+        while k < pairs_n {
             var pair = exp["pairs"][k]
             lambda_collect_used_in_expression(pair["key"], ctx, declared, seen, out)
             lambda_collect_used_in_expression(pair["value"], ctx, declared, seen, out)
@@ -409,8 +417,9 @@ fn lambda_collect_used_in_statement(stmt, ctx, declared, seen, out) {
     if st == "Return" { lambda_collect_used_in_expression(stmt["value"], ctx, declared, seen, out); return nil }
     if st == "ExprStmt" { lambda_collect_used_in_expression(stmt["expr"], ctx, declared, seen, out); return nil }
     if st == "Block" {
+        var stmts_n = oren_list_len(stmt["stmts"])
         var i = 0
-        while i < oren_list_len(stmt["stmts"]) {
+        while i < stmts_n {
             lambda_collect_used_in_statement(stmt["stmts"][i], ctx, declared, seen, out)
             i = i + 1
         }
@@ -435,8 +444,9 @@ fn lambda_collect_used_in_statement(stmt, ctx, declared, seen, out) {
 fn lambda_free_vars(ctx, fun) {
     var declared = {}
     // params
+    var params_n = oren_list_len(fun["params"])
     var i = 0
-    while i < oren_list_len(fun["params"]) {
+    while i < params_n {
         declared[fun["params"][i]["value"]] = true
         i = i + 1
     }

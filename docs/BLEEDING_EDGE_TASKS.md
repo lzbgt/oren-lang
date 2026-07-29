@@ -223,6 +223,10 @@ This file is the concise task view. Detailed implementation status lives in
      and top-level statement passes cache immutable list counts before traversal,
      with source guards rejecting direct `oren_list_len` loop bounds in that
      semantic lowering pass.
+   - Current bytecode prelude lambda declared/use and free-variable scans cache
+     immutable argument, element, pair, statement, nested-capture, and parameter
+     counts before traversal, with source guards rejecting direct `oren_list_len`
+     loop bounds in that bytecode support shard.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public
