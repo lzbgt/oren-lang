@@ -14,7 +14,8 @@ fn _opt_expr_contains_arena_alloc(expr) {
         var args = expr["args"]
         if args != nil {
             var i = 0
-            while i < oren_list_len(args) {
+            var args_len = oren_list_len(args)
+            while i < args_len {
                 if _opt_expr_contains_arena_alloc(args[i]) { return true }
                 i = i + 1
             }
@@ -30,7 +31,8 @@ fn _opt_expr_contains_arena_alloc(expr) {
         var els = expr["elements"]
         if els != nil {
             var i2 = 0
-            while i2 < oren_list_len(els) {
+            var els_len = oren_list_len(els)
+            while i2 < els_len {
                 if _opt_expr_contains_arena_alloc(els[i2]) { return true }
                 i2 = i2 + 1
             }
@@ -41,7 +43,8 @@ fn _opt_expr_contains_arena_alloc(expr) {
         var ps = expr["pairs"]
         if ps != nil {
             var i3 = 0
-            while i3 < oren_list_len(ps) {
+            var ps_len = oren_list_len(ps)
+            while i3 < ps_len {
                 var p = ps[i3]
                 if p != nil {
                     if _opt_expr_contains_arena_alloc(p["key"]) { return true }
@@ -67,7 +70,8 @@ fn _opt_expr_contains_arena_alloc(expr) {
         var cases = expr["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && _opt_stmt_contains_arena_alloc(c["body"]) { return true }
                 ci = ci + 1
@@ -91,7 +95,8 @@ fn _opt_stmt_contains_arena_alloc(stmt) {
         var ss = stmt["stmts"]
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_len = oren_list_len(ss)
+            while i < ss_len {
                 if _opt_stmt_contains_arena_alloc(ss[i]) { return true }
                 i = i + 1
             }
@@ -111,7 +116,8 @@ fn _opt_stmt_contains_arena_alloc(stmt) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && _opt_stmt_contains_arena_alloc(c["body"]) { return true }
                 ci = ci + 1
@@ -141,7 +147,8 @@ fn _opt_stmt_contains_arena_push_pop(stmt) {
         var ss = stmt["stmts"]
         if ss != nil {
             var i = 0
-            while i < oren_list_len(ss) {
+            var ss_len = oren_list_len(ss)
+            while i < ss_len {
                 if _opt_stmt_contains_arena_push_pop(ss[i]) { return true }
                 i = i + 1
             }
@@ -158,7 +165,8 @@ fn _opt_stmt_contains_arena_push_pop(stmt) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && _opt_stmt_contains_arena_push_pop(c["body"]) { return true }
                 ci = ci + 1
@@ -202,7 +210,8 @@ fn _opt_stmt_has_attr(stmt, name) {
     var attrs = stmt["attrs"]
     if attrs == nil { return false }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_len = oren_list_len(attrs)
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil && listm._opt_str_eq(a["name"], name) { return true }
         i = i + 1
@@ -253,7 +262,8 @@ fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue, pop_name) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil {
                     c["body"] = _opt_insert_arena_pop_in_stmt(c["body"], allow_break, allow_continue, pop_name)
@@ -276,7 +286,8 @@ fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue, pop_name) {
             var cases2 = e["cases"]
             if cases2 != nil {
                 var ci2 = 0
-                while ci2 < oren_list_len(cases2) {
+                var cases2_len = oren_list_len(cases2)
+                while ci2 < cases2_len {
                     var c2 = cases2[ci2]
                     if c2 != nil && c2["body"] != nil {
                         c2["body"] = _opt_insert_arena_pop_in_stmt(c2["body"], allow_break, allow_continue, pop_name)
@@ -300,7 +311,8 @@ fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue, pop_name) 
     var out = []
     var changed = false
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         var ns = _opt_insert_arena_pop_in_stmt(st, allow_break, allow_continue, pop_name)
         if ns != st { changed = true }
@@ -384,7 +396,8 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     }
     if candidates != nil {
         var ci = 0
-        while ci < oren_list_len(candidates) {
+        var candidates_len = oren_list_len(candidates)
+        while ci < candidates_len {
             var e = candidates[ci]
             if e != nil {
                 var nm = e["name"]
@@ -454,7 +467,8 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
         var out = []
         oren_list_push(out, _opt_make_arena_stmt("oren_arena_iter_push"))
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             oren_list_push(out, ss[i])
             i = i + 1
         }
@@ -477,7 +491,8 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
         var out2 = []
         var replaced = false
         var bi2 = 0
-        while bi2 < oren_list_len(bs2) {
+        var bs2_len = oren_list_len(bs2)
+        while bi2 < bs2_len {
             var cur2 = bs2[bi2]
             if replaced != true && cur2 == stmt {
                 oren_list_push(out2, wrap)
@@ -506,7 +521,8 @@ fn wrap_arena_loops_in_block_inner(block, parent_forced, parent_noarena) {
     if ss == nil { return false }
     var i = 0
     var changed = false
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         if st != nil {
             if st["type"] == "While" || st["type"] == "For" {
@@ -525,7 +541,8 @@ fn wrap_arena_loops_in_block_inner(block, parent_forced, parent_noarena) {
                 var cases = st["cases"]
                 if cases != nil {
                     var ci = 0
-                    while ci < oren_list_len(cases) {
+                    var cases_len = oren_list_len(cases)
+                    while ci < cases_len {
                         var c = cases[ci]
                         if c != nil && wrap_arena_loops_in_block_inner(c["body"], parent_forced, parent_noarena) { changed = true }
                         ci = ci + 1
@@ -542,7 +559,8 @@ fn wrap_arena_loops_in_block_inner(block, parent_forced, parent_noarena) {
                     var cases2 = e["cases"]
                     if cases2 != nil {
                         var ci2 = 0
-                        while ci2 < oren_list_len(cases2) {
+                        var cases2_len = oren_list_len(cases2)
+                        while ci2 < cases2_len {
                             var c2 = cases2[ci2]
                             if c2 != nil && wrap_arena_loops_in_block_inner(c2["body"], parent_forced, parent_noarena) { changed = true }
                             ci2 = ci2 + 1
@@ -584,7 +602,8 @@ fn _opt_lower_simple_for_stmt(stmt) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && lower_simple_for_in_block(c["body"]) { changed2 = true }
                 ci = ci + 1
@@ -608,7 +627,8 @@ fn _opt_lower_simple_for_stmt(stmt) {
             var cases2 = e["cases"]
             if cases2 != nil {
                 var ci2 = 0
-                while ci2 < oren_list_len(cases2) {
+                var cases2_len = oren_list_len(cases2)
+                while ci2 < cases2_len {
                     var c = cases2[ci2]
                     if c != nil && lower_simple_for_in_block(c["body"]) { c2 = true }
                     ci2 = ci2 + 1
@@ -630,7 +650,8 @@ fn lower_simple_for_in_block(block) {
     var out = []
     var changed = false
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         if st == nil {
             oren_list_push(out, st)

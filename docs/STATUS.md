@@ -45,11 +45,12 @@ surfaces, but the following blockers remain:
   traversal, with the hotpath guard covering all UI sources.
 - `std:net/url` endpoint allow-list scans and `std:net/http2_client`
   decoded-header scans now cache immutable list lengths before traversal.
-- Compiler loop-list analysis, reset, and list-int lowering optimizer traversals
-  now cache immutable AST list counts before continue/exit, side-effect,
-  new-list, identifier, unsafe-use, sink/rewrite, hoist/reset, reserve,
-  candidate, touch, and rewrite scans; the hotpath guard rejects direct
-  `oren_list_len` loop bounds in those passes.
+- Compiler loop-list analysis, arena, reset, and list-int lowering optimizer
+  traversals now cache immutable AST list counts before continue/exit,
+  side-effect, new-list, identifier, unsafe-use, arena allocation/push-pop/
+  pop-insertion, sink/rewrite, hoist/reset, reserve, candidate, touch, and
+  rewrite scans; the hotpath guard rejects direct `oren_list_len` loop bounds
+  in those passes.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with hotpath guard coverage rejecting direct

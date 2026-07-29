@@ -95,12 +95,13 @@
 </ul>
 <p>  decoded-header scans now cache immutable list lengths before traversal.</p>
 <ul>
-<li>Compiler loop-list analysis, reset, and list-int lowering optimizer traversals</li>
+<li>Compiler loop-list analysis, arena, reset, and list-int lowering optimizer</li>
 </ul>
-<p>  now cache immutable AST list counts before continue/exit, side-effect,</p>
-<p>  new-list, identifier, unsafe-use, sink/rewrite, hoist/reset, reserve,</p>
-<p>  candidate, touch, and rewrite scans; the hotpath guard rejects direct</p>
-<p>  <code>oren_list_len</code> loop bounds in those passes.</p>
+<p>  traversals now cache immutable AST list counts before continue/exit,</p>
+<p>  side-effect, new-list, identifier, unsafe-use, arena allocation/push-pop/</p>
+<p>  pop-insertion, sink/rewrite, hoist/reset, reserve, candidate, touch, and</p>
+<p>  rewrite scans; the hotpath guard rejects direct <code>oren_list_len</code> loop bounds</p>
+<p>  in those passes.</p>
 <ul>
 <li>Compiler function/yield analysis now caches immutable program, block,</li>
 </ul>
