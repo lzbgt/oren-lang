@@ -99,11 +99,13 @@ surfaces, but the following blockers remain:
 - Native ops plus ARM64 Mach-O/ELF, ARM64 expression/program/global/root
   orchestration, ARM64 statement/list-loop emitter, and x64 ELF/PE traversal
   scans plus x64 capture, local-fixup, GC-root, matcher, list-fast,
-  literal-slot helper, and while fast-path scans now cache immutable argument, expression, module,
+  literal-slot helper, while fast-path, and FFI scans now cache immutable
+  argument, expression, module,
   error, global, profile-row, lambda, capture, symbol, cstr-offset, op, key,
   library, debug-function, import/export, fixup, thunk-position, attribute,
   break/continue patch-list, slow-jump, list-use, load, mul, push, fast-list,
-  matcher-term, literal-op, fresh-list, and while dot/get-sum counts before iteration, with hotpath
+  matcher-term, literal-op, fresh-list, while dot/get-sum, FFI attr/import, and
+  DLL counts before iteration, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in those native
   shards.
 - Compiler function/yield analysis now caches immutable program, block,

@@ -59,8 +59,9 @@ fn _x64_collect_ffi_dll_attrs(ctx, st, nm) {
     var seen = dlls["seen"]
     var out = dlls["out"]
 
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if _x64_ffi_attr_is_dll(a) {
             var val = _x64_ffi_dll_attr_value(ctx, nm, a)
@@ -175,8 +176,9 @@ fn _x64_collect_ffi_ret_attrs(ctx, st, nm) {
 
     _x64_ffi_ret_maps_init(ctx)
 
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a == nil || a["type"] != "Attr" { i = i + 1; continue }
         if !_x64_str_eq_bytes(a["name"], "ffi.ret") { i = i + 1; continue }
@@ -255,8 +257,9 @@ fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
     var maps = _x64_ffi_decl_maps(ctx)
     if maps == nil { return nil }
 
+    var stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         if _x64_collect_one_ffi_decl(ctx, maps, stmts[i], role) != true { return nil }
         i = i + 1
     }
@@ -383,8 +386,9 @@ fn _x64_emit_ffi_resolver_win64_try_dll(ctx, labels, local_fixups, l_done, dll) 
 }
 
 fn _x64_emit_ffi_resolver_win64_dll_loop(ctx, labels, local_fixups, l_done, dlls) {
+    var dlls_len = oren_list_len(dlls)
     var i = 0
-    while i < oren_list_len(dlls) {
+    while i < dlls_len {
         _x64_emit_ffi_resolver_win64_try_dll(ctx, labels, local_fixups, l_done, dlls[i])
         i = i + 1
     }
@@ -840,8 +844,9 @@ fn _x64_emit_ffi_one_import_stub(ctx, mode, nm, resolver_name) {
 }
 
 fn _x64_emit_ffi_import_stub_loop(ctx, imports, mode, resolver_name) {
+    var imports_len = oren_list_len(imports)
     var i = 0
-    while i < oren_list_len(imports) {
+    while i < imports_len {
         _x64_emit_ffi_one_import_stub(ctx, mode, imports[i], resolver_name)
         if _x64_ffi_has_errors(ctx) { return nil }
         i = i + 1

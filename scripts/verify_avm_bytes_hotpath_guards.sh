@@ -1881,6 +1881,7 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/x64_native_program/057_emit_ops_while_emit.oren \
   lib/compiler/x64_native_program/057_emit_ops_while_list_get_sum.oren \
   lib/compiler/x64_native_program/060_emit_ops.oren \
+  lib/compiler/x64_native_program/072_ffi.oren \
   lib/compiler/x64_native_program/080_functions_compile.oren \
   lib/compiler/debug_sugar.oren \
   lib/compiler/capsule.oren \
