@@ -122,6 +122,10 @@ surfaces, but the following blockers remain:
   collection, parameter, and wrapper-body list counts before traversal, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
   x64/ARM64 callable helper.
+- Optimizer list-reserve candidate collection, branch/body push scans,
+  unchecked-push rewrites, array/hash/switch traversal, and block statement walks
+  now cache immutable AST list counts before iteration, with hotpath guard
+  coverage rejecting direct `oren_list_len` loop bounds in that reserve pass.
 - Optimizer fold block scans, C transpiler signature assembly, and top-level
   renamer scans now cache immutable list counts before traversal, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in those compact

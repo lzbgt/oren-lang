@@ -69,7 +69,8 @@ fn _opt_collect_list_pushes_expr(expr, out) {
         var args2 = expr["args"]
         if args2 != nil {
             var i = 0
-            while i < oren_list_len(args2) {
+            var args2_len = oren_list_len(args2)
+            while i < args2_len {
                 _opt_collect_list_pushes_expr(args2[i], out)
                 i = i + 1
             }
@@ -94,7 +95,8 @@ fn _opt_collect_list_pushes_expr(expr, out) {
         var cases = expr["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _opt_collect_list_pushes_stmt(c["body"], out) }
                 ci = ci + 1
@@ -106,7 +108,8 @@ fn _opt_collect_list_pushes_expr(expr, out) {
     if t == "Array" {
         var els = expr["elements"]
         var i2 = 0
-        while i2 < oren_list_len(els) {
+        var els_len = oren_list_len(els)
+        while i2 < els_len {
             _opt_collect_list_pushes_expr(els[i2], out)
             i2 = i2 + 1
         }
@@ -115,7 +118,8 @@ fn _opt_collect_list_pushes_expr(expr, out) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i3 = 0
-        while i3 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i3 < ps_len {
             _opt_collect_list_pushes_expr(ps[i3]["key"], out)
             _opt_collect_list_pushes_expr(ps[i3]["value"], out)
             i3 = i3 + 1
@@ -151,7 +155,8 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
         var args2 = expr["args"]
         if args2 != nil {
             var i = 0
-            while i < oren_list_len(args2) {
+            var args2_len = oren_list_len(args2)
+            while i < args2_len {
                 _opt_collect_list_int_pushes_expr(args2[i], out)
                 i = i + 1
             }
@@ -176,7 +181,8 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
         var cases = expr["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _opt_collect_list_int_pushes_stmt(c["body"], out) }
                 ci = ci + 1
@@ -188,7 +194,8 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
     if t == "Array" {
         var els = expr["elements"]
         var i2 = 0
-        while i2 < oren_list_len(els) {
+        var els_len = oren_list_len(els)
+        while i2 < els_len {
             _opt_collect_list_int_pushes_expr(els[i2], out)
             i2 = i2 + 1
         }
@@ -197,7 +204,8 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i3 = 0
-        while i3 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i3 < ps_len {
             _opt_collect_list_int_pushes_expr(ps[i3]["key"], out)
             _opt_collect_list_int_pushes_expr(ps[i3]["value"], out)
             i3 = i3 + 1
@@ -220,7 +228,8 @@ fn _opt_collect_list_pushes_stmt(stmt, out) {
     if t == "Block" {
         var ss = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             _opt_collect_list_pushes_stmt(ss[i], out)
             i = i + 1
         }
@@ -249,7 +258,8 @@ fn _opt_collect_list_pushes_stmt(stmt, out) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _opt_collect_list_pushes_stmt(c["body"], out) }
                 ci = ci + 1
@@ -278,7 +288,8 @@ fn _opt_collect_list_int_pushes_stmt(stmt, out) {
     if t == "Block" {
         var ss = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             _opt_collect_list_int_pushes_stmt(ss[i], out)
             i = i + 1
         }
@@ -307,7 +318,8 @@ fn _opt_collect_list_int_pushes_stmt(stmt, out) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _opt_collect_list_int_pushes_stmt(c["body"], out) }
                 ci = ci + 1
@@ -356,7 +368,8 @@ fn _opt_rewrite_list_pushes_expr(expr, list_names) {
         }
         if args != nil {
             var i = 0
-            while i < oren_list_len(args) {
+            var args_len = oren_list_len(args)
+            while i < args_len {
                 if _opt_rewrite_list_pushes_expr(args[i], list_names) { changed = true }
                 i = i + 1
             }
@@ -383,7 +396,8 @@ fn _opt_rewrite_list_pushes_expr(expr, list_names) {
         var cases = expr["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil && _opt_rewrite_list_pushes_stmt(c["body"], list_names) { changed = true }
                 ci = ci + 1
@@ -395,7 +409,8 @@ fn _opt_rewrite_list_pushes_expr(expr, list_names) {
     if t == "Array" {
         var xs = expr["elements"]
         var i2 = 0
-        while i2 < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i2 < xs_len {
             if _opt_rewrite_list_pushes_expr(xs[i2], list_names) { changed = true }
             i2 = i2 + 1
         }
@@ -404,7 +419,8 @@ fn _opt_rewrite_list_pushes_expr(expr, list_names) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i3 = 0
-        while i3 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i3 < ps_len {
             if _opt_rewrite_list_pushes_expr(ps[i3]["key"], list_names) { changed = true }
             if _opt_rewrite_list_pushes_expr(ps[i3]["value"], list_names) { changed = true }
             i3 = i3 + 1
@@ -429,7 +445,8 @@ fn _opt_rewrite_list_pushes_stmt(stmt, list_names) {
     if t == "Block" {
         var ss = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             if _opt_rewrite_list_pushes_stmt(ss[i], list_names) { changed = true }
             i = i + 1
         }
@@ -467,7 +484,8 @@ fn _opt_rewrite_list_pushes_stmt(stmt, list_names) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil && _opt_rewrite_list_pushes_stmt(c["body"], list_names) { changed = true }
                 ci = ci + 1
@@ -510,7 +528,8 @@ fn _opt_rewrite_list_int_pushes_expr(expr, list_names, safe_ints) {
         }
         if args != nil {
             var i = 0
-            while i < oren_list_len(args) {
+            var args_len = oren_list_len(args)
+            while i < args_len {
                 if _opt_rewrite_list_int_pushes_expr(args[i], list_names, safe_ints) { changed = true }
                 i = i + 1
             }
@@ -537,7 +556,8 @@ fn _opt_rewrite_list_int_pushes_expr(expr, list_names, safe_ints) {
         var cases = expr["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil && _opt_rewrite_list_int_pushes_stmt(c["body"], list_names, safe_ints) { changed = true }
                 ci = ci + 1
@@ -549,7 +569,8 @@ fn _opt_rewrite_list_int_pushes_expr(expr, list_names, safe_ints) {
     if t == "Array" {
         var xs = expr["elements"]
         var i2 = 0
-        while i2 < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i2 < xs_len {
             if _opt_rewrite_list_int_pushes_expr(xs[i2], list_names, safe_ints) { changed = true }
             i2 = i2 + 1
         }
@@ -558,7 +579,8 @@ fn _opt_rewrite_list_int_pushes_expr(expr, list_names, safe_ints) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i3 = 0
-        while i3 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i3 < ps_len {
             if _opt_rewrite_list_int_pushes_expr(ps[i3]["key"], list_names, safe_ints) { changed = true }
             if _opt_rewrite_list_int_pushes_expr(ps[i3]["value"], list_names, safe_ints) { changed = true }
             i3 = i3 + 1
@@ -583,7 +605,8 @@ fn _opt_rewrite_list_int_pushes_stmt(stmt, list_names, safe_ints) {
     if t == "Block" {
         var ss = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             if _opt_rewrite_list_int_pushes_stmt(ss[i], list_names, safe_ints) { changed = true }
             i = i + 1
         }
@@ -621,7 +644,8 @@ fn _opt_rewrite_list_int_pushes_stmt(stmt, list_names, safe_ints) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil && _opt_rewrite_list_int_pushes_stmt(c["body"], list_names, safe_ints) { changed = true }
                 ci = ci + 1
@@ -668,7 +692,8 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
     var out = []
     var i = 0
     var prof_t0 = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         var is_top_assign = st != nil && (st["type"] == "Var" || st["type"] == "Assign")
         if is_top_assign {
@@ -702,7 +727,8 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                     lit_int_safe = true
                     if els != nil {
                         var ei = 0
-                        while ei < oren_list_len(els) {
+                        var els_len = oren_list_len(els)
+                        while ei < els_len {
                             if _opt_is_safe_int_expr(els[ei], last_int_safe) != true {
                                 lit_int_safe = false
                                 break

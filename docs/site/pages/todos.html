@@ -103,6 +103,12 @@
 <p>  and rewrite traversals, with the byte-hotpath guard rejecting direct</p>
 <p>  <code>oren_list_len</code> loop bounds in those passes.</p>
 <ul>
+<li>Optimizer list-reserve candidate collection, branch/body push scans,</li>
+</ul>
+<p>  unchecked-push rewrites, array/hash/switch traversal, and block statement walks</p>
+<p>  now cache immutable AST list counts before iteration, with byte-hotpath guard</p>
+<p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in that reserve pass.</p>
+<ul>
 <li>Native runtime bundle injection now caches immutable runtime/user statement,</li>
 </ul>
 <p>  root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath</p>

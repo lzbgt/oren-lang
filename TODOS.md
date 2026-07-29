@@ -56,6 +56,10 @@ design evidence lives under `project-doc/`.
   identifier, unsafe-use, sink/rewrite, hoist/reset, reserve, candidate, touch,
   and rewrite traversals, with the byte-hotpath guard rejecting direct
   `oren_list_len` loop bounds in those passes.
+- Optimizer list-reserve candidate collection, branch/body push scans,
+  unchecked-push rewrites, array/hash/switch traversal, and block statement walks
+  now cache immutable AST list counts before iteration, with byte-hotpath guard
+  coverage rejecting direct `oren_list_len` loop bounds in that reserve pass.
 - Native runtime bundle injection now caches immutable runtime/user statement,
   root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that shared

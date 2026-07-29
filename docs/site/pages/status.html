@@ -210,6 +210,12 @@
 <p>  hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that</p>
 <p>  x64/ARM64 callable helper.</p>
 <ul>
+<li>Optimizer list-reserve candidate collection, branch/body push scans,</li>
+</ul>
+<p>  unchecked-push rewrites, array/hash/switch traversal, and block statement walks</p>
+<p>  now cache immutable AST list counts before iteration, with hotpath guard</p>
+<p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in that reserve pass.</p>
+<ul>
 <li>Optimizer fold block scans, C transpiler signature assembly, and top-level</li>
 </ul>
 <p>  renamer scans now cache immutable list counts before traversal, with hotpath</p>
