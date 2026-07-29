@@ -158,6 +158,12 @@
 <p>  traversal counts before iteration, with hotpath guard coverage rejecting direct</p>
 <p>  <code>oren_list_len</code> loop bounds in that analysis pass.</p>
 <ul>
+<li>Serde JSON/YAML/CBOR lowering and module-visibility validation now cache</li>
+</ul>
+<p>  immutable attr/field/format/statement/module/expression traversal counts</p>
+<p>  before iteration, with hotpath guard coverage rejecting direct</p>
+<p>  <code>oren_list_len</code> loop bounds in those semantic lowering paths.</p>
+<ul>
 <li>Native runtime bundle injection now caches immutable runtime/user statement,</li>
 </ul>
 <p>  root, parse-error, decoded-list, and merge traversal counts, with hotpath guard</p>
@@ -1117,7 +1123,7 @@
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
 <tr><td>C</td><td>Portable bootstrap path through host C toolchain.</td><td>Useful baseline, not a stabilized external ABI promise.</td></tr>
 <tr><td>Native arm64 macOS</td><td>Most mature native path; broadest profile and fixture history.</td><td>Rolling Tier-1 intent.</td></tr>
-<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates.</td><td>Not fully mature.</td></tr>
+<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates. Arch host moved to <code>bruce@192.168.0.102</code>; clean <code>HEAD</code> and current x64 stage2 self-host builds succeed there, but <code>oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache</code> currently exits <code>139</code> before output.</td><td>Not fully mature; fix the x64 stage2 command crash before treating stage2 runtime smokes as green.</td></tr>
 <tr><td>Bytecode / AVM</td><td>Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces.</td><td>Experimental for production embedding.</td></tr>
 </table>
 <h2 id="avm-sdk-readiness">AVM SDK Readiness</h2>

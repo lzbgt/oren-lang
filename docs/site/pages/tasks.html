@@ -221,6 +221,12 @@
 <p>     with source guards rejecting direct <code>oren_list_len</code> loop bounds in that</p>
 <p>     shared x64/ARM64 runtime-injection path.</p>
 <ul>
+<li>Current serde JSON/YAML/CBOR lowering and module-visibility validation</li>
+</ul>
+<p>     cache immutable attr/field/format/statement/module/expression traversal</p>
+<p>     counts before iteration, with source guards rejecting direct</p>
+<p>     <code>oren_list_len</code> loop bounds in those semantic lowering paths.</p>
+<ul>
 <li>Current C transpiler constructor, lambda/capture analysis, list-get</li>
 </ul>
 <p>     analysis, fast-while matching/emission, block, branch, call, array,</p>
@@ -2166,7 +2172,7 @@
 <p>												     malformed zero-size/count-mismatched retained image/text draws reject before retained</p>
 <p>									     resource lookup when the command is otherwise a no-op, Metal/CoreGraphics retained image uploads validate width/height byte counts with overflow-safe dimension helpers before retained map, image, or texture allocation work, Metal/CoreGraphics retained image/text/model uploads guard resource allocation before map insertion, Metal text atlas creation and retained-image uploads guard wrapper/descriptor allocation before GPU texture work, Metal pipeline startup shares guarded shader-function and descriptor preflight before geometry/text pipeline creation, CoreGraphics retained image creation releases provider-owned bytes if RGB color-space allocation fails before <code>CGImageCreate</code>, Metal standalone text texture fallback releases glyph pixels if descriptor allocation fails before upload, Metal image/text appends report lazy run-array allocation failure, text-cache misses guard cache-key/cache-order/cache-entry/run allocation before dictionary/UIKit/glyph/vertex work, image-run constructors guard run allocation before vertex writes or exact heap allocation, renderer startup leaves retained-resource, touch, and Metal text cache storage nil until shared helpers allocate them on first use, runtime multicast graphics-frame observer storage is lazy until first registration, live-network session/maps are lazy until first live fetch or network-session registration, prepared run arrays cap their initial frame-derived reservation, and Metal prepared-run coalescing preserves original run lists if the optional coalesced output array cannot be allocated while capping optional coalesced output-array initial reservation, CoreGraphics truncated OGF0 payloads break traversal after restoring saved CGContext state, iOS GFX input event helpers reject oversized segmented/UTF-8 payloads before 16-bit length casts, immediate text opcodes reject empty/trailing-byte/invalid-UTF-8 payloads before attribute/texture preparation, retained text uploads reject empty payloads before map/string/resource work, and Metal/CoreGraphics zero-area</p>
 <p>					     rectangles/circles/ellipses plus exact degenerate triangles skip before vertex/path work,</p>
-<p>											     parser diagnostic and ARM64 source-location scans cache source string length before byte-offset line/column walks, generic-call declaration scans cache statement counts plus specialization-name lengths, regex byte-class matching caches compiled range counts before per-byte probes, and XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK, linalg, regex, URL allow-list, HTTP/2 decoded-header, <code>std:sys</code>, parser-generator core/yield traversal, module-linking prelude/parse/pipeline/tail, build-cache scan/key, build-pipeline, compiler support, compiler artifact-support, debug-sugar, capsule-policy, compiler analysis, bytecode-tail emission, ARM64 runtime-object replay/build, packed bytes view lowering, optimizer-loop-list, optimizer-loop-arena, optimizer-helper, optimizer-TCO, optimizer-constprop, optimizer-list-int, optimizer-list-reserve, generic-monomorphization, optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, typecheck, native-callable, C-transpiler support, C-transpiler fast-while, C-transpiler entry, renamer, CoreIR, type-annotation lowering, type-name resolution, and native runtime-object cache loops cache</p>
+<p>											     parser diagnostic and ARM64 source-location scans cache source string length before byte-offset line/column walks, generic-call declaration scans cache statement counts plus specialization-name lengths, regex byte-class matching caches compiled range counts before per-byte probes, and XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK, linalg, regex, URL allow-list, HTTP/2 decoded-header, <code>std:sys</code>, parser-generator core/yield traversal, module-linking prelude/parse/pipeline/tail, build-cache scan/key, build-pipeline, compiler support, compiler artifact-support, debug-sugar, capsule-policy, compiler analysis, bytecode-tail emission, ARM64 runtime-object replay/build, packed bytes view lowering, serde/module-visibility lowering, optimizer-loop-list, optimizer-loop-arena, optimizer-helper, optimizer-TCO, optimizer-constprop, optimizer-list-int, optimizer-list-reserve, generic-monomorphization, optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, metadata, typecheck, native-callable, C-transpiler support, C-transpiler fast-while, C-transpiler entry, renamer, CoreIR, type-annotation lowering, type-name resolution, and native runtime-object cache loops cache</p>
 <p>				     immutable list lengths before iteration, PPM header/body output, PPM RGBA encoding hoists validated byte-view</p>
 <p>			     carrier/pointers once per call, and software-raster RGBA sampling</p>
 <p>		     plus clear/pixel writes use raw exact-size buffer stores, and native <code>std:net/http</code></p>
@@ -2441,7 +2447,12 @@
 </ol>
 <ul>
 <li>Keep x64 Linux/Windows and arm64 Linux bring-up behind focused compile/runtime gates.</li>
+<li>Current dedicated Arch x64 host is <code>bruce@192.168.0.102</code>; clean <code>HEAD</code></li>
 </ul>
+<p>     and current x64 stage2 self-host builds complete there, but</p>
+<p>     `./oren_stage2 test examples/hello.oren --backend bytecode --platform</p>
+<p>     x64-linux --no-cache<code> exits </code>139` before output, so x64 stage2 command</p>
+<p>     execution remains a concrete blocker.</p>
 <ol>
 <li><strong>Docs and source guardrails</strong></li>
 </ol>

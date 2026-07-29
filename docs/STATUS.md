@@ -88,6 +88,10 @@ surfaces, but the following blockers remain:
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that analysis pass.
+- Serde JSON/YAML/CBOR lowering and module-visibility validation now cache
+  immutable attr/field/format/statement/module/expression traversal counts
+  before iteration, with hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in those semantic lowering paths.
 - Native runtime bundle injection now caches immutable runtime/user statement,
   root, parse-error, decoded-list, and merge traversal counts, with hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that shared x64/ARM64
@@ -686,7 +690,7 @@ surfaces, but the following blockers remain:
 | --- | --- | --- |
 | C | Portable bootstrap path through host C toolchain. | Useful baseline, not a stabilized external ABI promise. |
 | Native arm64 macOS | Most mature native path; broadest profile and fixture history. | Rolling Tier-1 intent. |
-| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. | Not fully mature. |
+| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; clean `HEAD` and current x64 stage2 self-host builds succeed there, but `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` currently exits `139` before output. | Not fully mature; fix the x64 stage2 command crash before treating stage2 runtime smokes as green. |
 | Bytecode / AVM | Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces. | Experimental for production embedding. |
 
 ## AVM SDK Readiness

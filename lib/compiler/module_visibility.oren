@@ -67,7 +67,8 @@ fn _mv_stmt_is_pub(stmt) {
 fn _mv_find_module_prefix(name, module_prefixes) {
     if name == nil || module_prefixes == nil { return nil }
     var i = 0
-    while i < oren_list_len(module_prefixes) {
+    var module_prefixes_len = oren_list_len(module_prefixes)
+    while i < module_prefixes_len {
         var pref = module_prefixes[i]
         if _mv_str_starts_with(name, pref) { return pref }
         i = i + 1
@@ -83,7 +84,8 @@ fn _mv_collect_state(linked) {
     if module_graph != nil && module_graph["imports"] != nil {
         var root_imports = module_graph["imports"]
         var ri = 0
-        while ri < oren_list_len(root_imports) {
+        var root_imports_len = oren_list_len(root_imports)
+        while ri < root_imports_len {
             var imp0 = root_imports[ri]
             if imp0 != nil && imp0["alias_ns"] != nil && imp0["alias"] != nil {
                 alias_display[imp0["alias_ns"]] = imp0["alias"]
@@ -94,15 +96,18 @@ fn _mv_collect_state(linked) {
     if module_graph != nil && module_graph["modules"] != nil {
         var mods = module_graph["modules"]
         var mi = 0
-        while mi < oren_list_len(mods) {
+        var mods_len = oren_list_len(mods)
+        while mi < mods_len {
             var mod = mods[mi]
             if mod != nil && mod["prefix"] != nil {
                 oren_list_push(module_prefixes, mod["prefix"])
                 prefix_paths[mod["prefix"]] = mod["path"]
                 if mod["imports"] != nil {
+                    var mod_imports = mod["imports"]
                     var ii = 0
-                    while ii < oren_list_len(mod["imports"]) {
-                        var imp = mod["imports"][ii]
+                    var mod_imports_len = oren_list_len(mod_imports)
+                    while ii < mod_imports_len {
+                        var imp = mod_imports[ii]
                         if imp != nil && imp["alias_ns"] != nil && imp["alias"] != nil {
                             alias_display[imp["alias_ns"]] = imp["alias"]
                         }
@@ -120,7 +125,8 @@ fn _mv_collect_state(linked) {
     var stmts = linked["statements"]
     if stmts == nil { stmts = [] }
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         var stmt = stmts[i]
         var name = _mv_stmt_symbol_name(stmt)
         if name != nil && name != "" {
@@ -236,7 +242,8 @@ fn _mv_walk_expr(expr, aliases, state, errors) {
         var params = expr["params"]
         if params == nil { params = [] }
         var pi = 0
-        while pi < oren_list_len(params) {
+        var params_len = oren_list_len(params)
+        while pi < params_len {
             var p = params[pi]
             if p != nil && p["ann_type"] != nil {
                 _mv_check_ann_type(p["ann_type"], p["token"], aliases, state, errors)
@@ -257,7 +264,8 @@ fn _mv_walk_expr(expr, aliases, state, errors) {
         var args = expr["args"]
         if args == nil { args = [] }
         var ai = 0
-        while ai < oren_list_len(args) {
+        var args_len = oren_list_len(args)
+        while ai < args_len {
             _mv_walk_expr(args[ai], aliases, state, errors)
             ai = ai + 1
         }
@@ -283,7 +291,8 @@ fn _mv_walk_expr(expr, aliases, state, errors) {
         var xs = expr["elements"]
         if xs == nil { xs = [] }
         var xi = 0
-        while xi < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while xi < xs_len {
             _mv_walk_expr(xs[xi], aliases, state, errors)
             xi = xi + 1
         }
@@ -293,7 +302,8 @@ fn _mv_walk_expr(expr, aliases, state, errors) {
         var pairs = expr["pairs"]
         if pairs == nil { pairs = [] }
         var hi = 0
-        while hi < oren_list_len(pairs) {
+        var pairs_len = oren_list_len(pairs)
+        while hi < pairs_len {
             _mv_walk_expr(pairs[hi]["key"], aliases, state, errors)
             _mv_walk_expr(pairs[hi]["value"], aliases, state, errors)
             hi = hi + 1
@@ -325,7 +335,8 @@ fn _mv_walk_stmt(stmt, aliases, state, errors) {
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i < xs_len {
             _mv_walk_stmt(xs[i], aliases, state, errors)
             i = i + 1
         }
@@ -381,7 +392,8 @@ fn _mv_walk_stmt(stmt, aliases, state, errors) {
         var fields = stmt["fields"]
         if fields == nil { fields = [] }
         var fi = 0
-        while fi < oren_list_len(fields) {
+        var fields_len = oren_list_len(fields)
+        while fi < fields_len {
             var field = fields[fi]
             if field != nil && field["ann_type"] != nil {
                 _mv_check_ann_type(field["ann_type"], field["token"], aliases, state, errors)
@@ -403,11 +415,13 @@ fn _mv_walk_stmt(stmt, aliases, state, errors) {
         var cases = stmt["cases"]
         if cases == nil { cases = [] }
         var ci = 0
-        while ci < oren_list_len(cases) {
+        var cases_len = oren_list_len(cases)
+        while ci < cases_len {
             var vals = cases[ci]["values"]
             if vals != nil {
                 var vi = 0
-                while vi < oren_list_len(vals) {
+                var vals_len = oren_list_len(vals)
+                while vi < vals_len {
                     _mv_walk_expr(vals[vi], aliases, state, errors)
                     vi = vi + 1
                 }
@@ -433,7 +447,8 @@ fn lower_linked_program_in_place(linked) {
     var stmts = linked["statements"]
     if stmts == nil { stmts = [] }
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         _mv_walk_stmt(stmts[i], aliases, state, errors)
         i = i + 1
     }

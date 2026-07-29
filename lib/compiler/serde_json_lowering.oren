@@ -42,7 +42,8 @@ fn has_attr(node, name) {
     var attrs = node["attrs"]
     if attrs == nil { return false }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_len = oren_list_len(attrs)
+    while i < attrs_len {
         if attrs[i] != nil && serde_str_eq(attrs[i]["name"], name) { return true }
         i = i + 1
     }
@@ -54,7 +55,8 @@ fn get_attr(node, name) {
     var attrs = node["attrs"]
     if attrs == nil { return nil }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_len = oren_list_len(attrs)
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil && serde_str_eq(a["name"], name) { return a }
         i = i + 1
@@ -84,7 +86,8 @@ fn attr_kw_value(attr, key) {
     var args = attr["args"]
     if args == nil { return nil }
     var i = 0
-    while i < oren_list_len(args) {
+    var args_len = oren_list_len(args)
+    while i < args_len {
         var a = args[i]
         if a != nil && serde_str_eq(a["key"], key) {
             return a["value"]
@@ -345,7 +348,8 @@ fn _serde_split_formats(s) {
 fn _serde_list_contains(xs, v) {
     if xs == nil { return false }
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         if serde_str_eq(xs[i], v) { return true }
         i = i + 1
     }
@@ -400,7 +404,8 @@ fn ensure_bool_to_int_helper(stmts, prefix) {
     var fn_name = prefix + "__oren_serde_bool_to_int"
 
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         var s = stmts[i]
         if s != nil && s["type"] == "Function" && serde_str_eq(s["name"], fn_name) {
             return nil
@@ -466,7 +471,8 @@ fn lower_one_type_cbor(type_stmt, stmts, prefix, field_info) {
     }
 
     var i = 0
-    while i < oren_list_len(field_info) {
+    var field_info_len = oren_list_len(field_info)
+    while i < field_info_len {
         var fi = field_info[i]
         if fi != nil && fi["skip"] != true {
             var wire = fi["wire"]
@@ -535,7 +541,7 @@ fn lower_one_type_cbor(type_stmt, stmts, prefix, field_info) {
 
     var ctor_args = []
     i = 0
-    while i < oren_list_len(field_info) {
+    while i < field_info_len {
         var fi2 = field_info[i]
         if fi2 != nil {
             var fname2 = fi2["fname"]
@@ -637,15 +643,18 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
     if fmts0 == nil { return nil }
     var fmts = []
     var fi0 = 0
-    while fi0 < oren_list_len(fmts0) {
+    var fmts0_len = oren_list_len(fmts0)
+    while fi0 < fmts0_len {
         _serde_list_push_unique(fmts, fmts0[fi0])
         fi0 = fi0 + 1
     }
-    if fmts == nil || oren_list_len(fmts) == 0 { return nil }
+    var fmts_len = 0
+    if fmts != nil { fmts_len = oren_list_len(fmts) }
+    if fmts == nil || fmts_len == 0 { return nil }
 
     // Validate formats early (and deterministically) so we don't partially-generate.
     fi0 = 0
-    while fi0 < oren_list_len(fmts) {
+    while fi0 < fmts_len {
         var fmt0 = fmts[fi0]
         if serde_str_eq(fmt0, "json") != true && serde_str_eq(fmt0, "yaml") != true && serde_str_eq(fmt0, "cbor") != true {
             serde_json_error(errs, "serde: unknown derive format '" + fmt0 + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
@@ -657,7 +666,8 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
     // Validate fields: every non-skipped field must have a supported type annotation.
     var field_info = []
     var i = 0
-    while i < oren_list_len(fields) {
+    var fields_len = oren_list_len(fields)
+    while i < fields_len {
         var f2 = fields[i]
         if f2 != nil {
             var fname = f2["value"]
@@ -692,7 +702,7 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
 
     // Emit requested serde formats in one pass.
     var fmt_i = 0
-    while fmt_i < oren_list_len(fmts) {
+    while fmt_i < fmts_len {
         var fmt = fmts[fmt_i]
         if serde_str_eq(fmt, "cbor") {
             lower_one_type_cbor(type_stmt, stmts, pfx, field_info)
@@ -724,7 +734,8 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
         }
 
         i = 0
-        while i < oren_list_len(field_info) {
+        var field_info_len = oren_list_len(field_info)
+        while i < field_info_len {
             var fi = field_info[i]
             if fi != nil && fi["skip"] != true {
                 var wire = fi["wire"]
@@ -800,7 +811,7 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
         // Extract fields in declaration order.
         var ctor_args = []
         i = 0
-        while i < oren_list_len(field_info) {
+        while i < field_info_len {
             var fi2 = field_info[i]
             if fi2 != nil {
                 var fname2 = fi2["fname"]
@@ -918,7 +929,8 @@ fn lower_program_in_place(prog, prefix) {
 
     // Iterate over type declarations and generate serde helpers where requested.
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while i < stmts_len {
         var s = stmts[i]
         if s != nil && s["type"] == "Type" {
             lower_one_type(s, stmts, prefix, errs)
