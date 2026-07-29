@@ -487,8 +487,9 @@ fn _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, cname, base) {
 fn _x64_emit_lambda_literal_env_captures(ctx, locals, caps, env_state) {
     var env_tmp = _x64_emit_lambda_literal_env_list(ctx, locals, env_state)
     if env_tmp == nil { return nil }
+    var caps_len = oren_list_len(caps)
     var i = 0
-    while i < oren_list_len(caps) {
+    while i < caps_len {
         if _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, caps[i], env_state["base"]) != true { return nil }
         i = iadd(i, 1)
     }

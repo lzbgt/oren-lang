@@ -138,8 +138,9 @@ fn _x64_gc_collect_visible_regs(ctx) {
 }
 
 fn _x64_emit_push_regs(ctx, regs) {
+    var regs_len = oren_list_len(regs)
     var i = 0
-    while i < oren_list_len(regs) {
+    while i < regs_len {
         bytes_extend(ctx["code"], core.insn_push_r64(regs[i]))
         i = i + 1
     }
@@ -173,8 +174,9 @@ fn _x64_gc_root_insert_sorted(offs, seen, off) {
     if seen[off] == true { return nil }
     seen[off] = true
     var insert_at = oren_list_len(offs)
+    var offs_len = insert_at
     var i = 0
-    while i < oren_list_len(offs) {
+    while i < offs_len {
         if off < offs[i] {
             insert_at = i
             break
@@ -182,7 +184,7 @@ fn _x64_gc_root_insert_sorted(offs, seen, off) {
         i = i + 1
     }
     oren_list_push(offs, 0)
-    var j = oren_list_len(offs) - 1
+    var j = offs_len
     while j > insert_at {
         offs[j] = offs[j - 1]
         j = j - 1
@@ -211,9 +213,10 @@ fn _emit_gc_root_push_locals_x64(ctx, locals) {
         return 0
     }
     var a0 = a0_enc - 1
+    var offs_len = oren_list_len(offs)
     var i = 0
     var count = 0
-    while i < oren_list_len(offs) {
+    while i < offs_len {
         _emit_mov_r64_mrbp(ctx, a0, 0 - offs[i])
         _emit_call_rel32_named_x64(ctx, "native_gc_root_push")
         count = count + 1

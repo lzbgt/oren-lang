@@ -429,8 +429,9 @@ fn _emit_jcc_to_label(ctx, local_fixups, cc, name) {
 }
 
 fn _patch_local_fixups(ctx, labels, local_fixups) {
+    var local_fixups_len = oren_list_len(local_fixups)
     var i = 0
-    while i < oren_list_len(local_fixups) {
+    while i < local_fixups_len {
         var f = local_fixups[i]
         var label = f["label"]
         var target = labels[label]

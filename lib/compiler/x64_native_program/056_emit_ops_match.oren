@@ -6,8 +6,9 @@ fn _x64_is_ident(exp) {
 
 fn _x64_list_contains(xs, value) {
     if xs == nil { return false }
+    var xs_len = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len {
         if _x64_str_eq_bytes(xs[i], value) { return true }
         i = i + 1
     }
@@ -15,8 +16,9 @@ fn _x64_list_contains(xs, value) {
 }
 
 fn _x64_expr_list_uses_ident(xs, name) {
+    var xs_len = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len {
         if _x64_expr_uses_ident(xs[i], name) { return true }
         i = i + 1
     }
@@ -24,8 +26,9 @@ fn _x64_expr_list_uses_ident(xs, name) {
 }
 
 fn _x64_expr_hash_uses_ident(ps, name) {
+    var ps_len = oren_list_len(ps)
     var i = 0
-    while i < oren_list_len(ps) {
+    while i < ps_len {
         if _x64_expr_uses_ident(ps[i]["key"], name) { return true }
         if _x64_expr_uses_ident(ps[i]["value"], name) { return true }
         i = i + 1
@@ -61,8 +64,9 @@ fn _x64_expr_uses_ident(exp, name) {
 
 fn _x64_expr_uses_any_ident(exp, names) {
     if exp == nil || names == nil { return false }
+    var names_len = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < names_len {
         if _x64_expr_uses_ident(exp, names[i]) { return true }
         i = i + 1
     }
@@ -457,8 +461,9 @@ fn _x64_match_sum_mod_record_term(state, info) {
 fn _x64_match_sum_mod_terms(terms, sum_name, x_name, idx_name) {
     if oren_list_len(terms) != 3 { return nil }
     var state = {"saw_sum": false, "mod_x": nil, "mod_i": nil}
+    var terms_len = oren_list_len(terms)
     var ti = 0
-    while ti < oren_list_len(terms) {
+    while ti < terms_len {
         var info = _x64_match_sum_mod_term_info(terms[ti], sum_name, x_name, idx_name)
         state = _x64_match_sum_mod_record_term(state, info)
         if state == nil { return nil }
@@ -700,8 +705,9 @@ fn _x64_match_fast_push_record_step(lists, pushes, info) {
 }
 
 fn _x64_match_fast_push_values_independent(pushes, lists) {
+    var pushes_len = oren_list_len(pushes)
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    while pi < pushes_len {
         if _x64_expr_uses_any_ident(pushes[pi]["value"], lists) { return false }
         pi = pi + 1
     }

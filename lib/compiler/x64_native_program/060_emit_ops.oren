@@ -242,8 +242,9 @@ fn _x64_emit_top_empty_container_batch_loop(ctx, table_off, kind, platform) {
 
 fn _x64_list_name_in_fast(list_name, lists) {
     if list_name == nil || lists == nil { return false }
+    var lists_len = oren_list_len(lists)
     var i = 0
-    while i < oren_list_len(lists) {
+    while i < lists_len {
         if _x64_str_eq_bytes_local(lists[i], list_name) == true { return true }
         i = i + 1
     }

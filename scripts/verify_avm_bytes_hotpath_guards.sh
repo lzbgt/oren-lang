@@ -1873,6 +1873,12 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/arm64_elf.oren \
   lib/compiler/x64_elf.oren \
   lib/compiler/x64_pe.oren \
+  lib/compiler/x64_native_program/040_emit_expr_eval.oren \
+  lib/compiler/x64_native_program/050_emit_cmp_labels.oren \
+  lib/compiler/x64_native_program/055_emit_ops_locals.oren \
+  lib/compiler/x64_native_program/056_emit_ops_match.oren \
+  lib/compiler/x64_native_program/060_emit_ops.oren \
+  lib/compiler/x64_native_program/080_functions_compile.oren \
   lib/compiler/debug_sugar.oren \
   lib/compiler/capsule.oren \
   lib/compiler/transpiler.oren \

@@ -26,8 +26,10 @@ fn _x64_tmp_names_init(ctx) {
 }
 
 fn _x64_expr_args_need_literal_slots(args) {
+    var args_len = 0
+    if args != nil { args_len = oren_list_len(args) }
     var i = 0
-    while args != nil && i < oren_list_len(args) {
+    while i < args_len {
         if _x64_expr_needs_literal_slots(args[i]) == true { return true }
         i = i + 1
     }
@@ -118,8 +120,9 @@ fn _x64_op_needs_literal_slots(op) {
 
 fn _x64_ops_need_literal_slots(ops) {
     if ops == nil { return false }
+    var ops_len = oren_list_len(ops)
     var i = 0
-    while i < oren_list_len(ops) {
+    while i < ops_len {
         if _x64_op_needs_literal_slots(ops[i]) == true { return true }
         i = i + 1
     }
