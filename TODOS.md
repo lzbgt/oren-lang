@@ -97,6 +97,10 @@ design evidence lives under `project-doc/`.
 - Optimizer DCE env copies, use/read collection, trivial-var probes, and rewrite
   walks now cache immutable list counts before traversal, with byte-hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that pass.
+- Type-name resolution expression/statement walks now cache immutable AST list
+  counts before arg/element/pair/field/case/statement traversal, with
+  byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
+  that semantic pass.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
@@ -3009,6 +3013,10 @@ design evidence lives under `project-doc/`.
 - Optimizer DCE env copies, use/read collection, trivial-var probes, and rewrite
   walks now cache immutable list counts before traversal, with byte-hotpath
   guard coverage for direct `oren_list_len` loop conditions in that pass.
+- Type-name resolution expression/statement walks now cache immutable AST list
+  counts before arg/element/pair/field/case/statement traversal, with
+  byte-hotpath guard coverage for direct `oren_list_len` loop conditions in that
+  semantic pass.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

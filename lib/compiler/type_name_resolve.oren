@@ -108,8 +108,9 @@ fn _walk_expr(expr, aliases, type_ns, errors) {
     var t = expr["type"]
     if t == "Function" {
         var ps = expr["params"]
+        var param_count = oren_list_len(ps)
         var i = 0
-        while i < oren_list_len(ps) {
+        while i < param_count {
             if ps[i] != nil && ps[i]["ann_type"] != nil {
                 ps[i]["ann_type"] = _resolve_ann_type(ps[i]["ann_type"], aliases, type_ns, errors, ps[i]["token"])
             }
@@ -130,8 +131,9 @@ fn _walk_expr(expr, aliases, type_ns, errors) {
     if t == "Call" {
         _walk_expr(expr["fn"], aliases, type_ns, errors)
         var args = expr["args"]
+        var arg_count = oren_list_len(args)
         var i2 = 0
-        while i2 < oren_list_len(args) {
+        while i2 < arg_count {
             _walk_expr(args[i2], aliases, type_ns, errors)
             i2 = i2 + 1
         }
@@ -155,8 +157,9 @@ fn _walk_expr(expr, aliases, type_ns, errors) {
     }
     if t == "Array" {
         var xs = expr["elements"]
+        var element_count = oren_list_len(xs)
         var i3 = 0
-        while i3 < oren_list_len(xs) {
+        while i3 < element_count {
             _walk_expr(xs[i3], aliases, type_ns, errors)
             i3 = i3 + 1
         }
@@ -164,8 +167,9 @@ fn _walk_expr(expr, aliases, type_ns, errors) {
     }
     if t == "Hash" {
         var ps2 = expr["pairs"]
+        var pair_count = oren_list_len(ps2)
         var i4 = 0
-        while i4 < oren_list_len(ps2) {
+        while i4 < pair_count {
             _walk_expr(ps2[i4]["key"], aliases, type_ns, errors)
             _walk_expr(ps2[i4]["value"], aliases, type_ns, errors)
             i4 = i4 + 1
@@ -195,8 +199,9 @@ fn _walk_stmt(stmt, aliases, type_ns, errors) {
         var xs = stmt["stmts"]
         if xs == nil { xs = stmt["statements"] }
         if xs == nil { return nil }
+        var stmt_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < stmt_count {
             _walk_stmt(xs[i], aliases, type_ns, errors)
             i = i + 1
         }
@@ -251,8 +256,9 @@ fn _walk_stmt(stmt, aliases, type_ns, errors) {
     if t == "Type" {
         // Field annotations are Identifier nodes in `fields`.
         var fs = stmt["fields"]
+        var field_count = oren_list_len(fs)
         var i2 = 0
-        while i2 < oren_list_len(fs) {
+        while i2 < field_count {
             var f = fs[i2]
             if f != nil && f["ann_type"] != nil {
                 f["ann_type"] = _resolve_ann_type(f["ann_type"], aliases, type_ns, errors, f["token"])
@@ -268,11 +274,13 @@ fn _walk_stmt(stmt, aliases, type_ns, errors) {
     if t == "Switch" {
         _walk_expr(stmt["value"], aliases, type_ns, errors)
         var cases = stmt["cases"]
+        var case_count = oren_list_len(cases)
         var ci = 0
-        while ci < oren_list_len(cases) {
+        while ci < case_count {
             var vals = cases[ci]["values"]
+            var value_count = oren_list_len(vals)
             var vi = 0
-            while vi < oren_list_len(vals) {
+            while vi < value_count {
                 _walk_expr(vals[vi], aliases, type_ns, errors)
                 vi = vi + 1
             }
@@ -292,8 +300,9 @@ fn lower_linked_program_in_place(linked) {
     var type_ns = linked["type_ns"]
     var errors = []
     var ss = linked["statements"]
+    var linked_stmt_count = oren_list_len(ss)
     var i = 0
-    while i < oren_list_len(ss) {
+    while i < linked_stmt_count {
         _walk_stmt(ss[i], aliases, type_ns, errors)
         i = i + 1
     }
