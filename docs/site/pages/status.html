@@ -1123,7 +1123,7 @@
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
 <tr><td>C</td><td>Portable bootstrap path through host C toolchain.</td><td>Useful baseline, not a stabilized external ABI promise.</td></tr>
 <tr><td>Native arm64 macOS</td><td>Most mature native path; broadest profile and fixture history.</td><td>Rolling Tier-1 intent.</td></tr>
-<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates. Arch host moved to <code>bruce@192.168.0.102</code>; clean <code>HEAD</code> and current x64 stage2 self-host builds succeed there, but <code>oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache</code> currently exits <code>139</code> before output.</td><td>Not fully mature; fix the x64 stage2 command crash before treating stage2 runtime smokes as green.</td></tr>
+<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates. Arch host moved to <code>bruce@192.168.0.102</code>; x64 stage2 self-host builds and <code>oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache</code> now pass there after routing call-depth hooks through serialized x64 <code>call_rel32</code> rtobj fixups and bumping the x64 rtobj backend signature to <code>x64_v0_36</code>.</td><td>Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up.</td></tr>
 <tr><td>Bytecode / AVM</td><td>Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces.</td><td>Experimental for production embedding.</td></tr>
 </table>
 <h2 id="avm-sdk-readiness">AVM SDK Readiness</h2>
@@ -5818,7 +5818,7 @@ make docs-site</code></pre>
 <p>  profile shows <code>x64_native_program.oren</code> at about 49.2s total / 35.5s parse,</p>
 <p>  with <code>_x64_emit_named_call_core_intrinsic_v0</code> exposed at about 40ms as the</p>
 <p>  next parser body. Linux/x64 execution validation now prefers the dedicated</p>
-<p>  Arch host <code>bruce@192.168.3.208</code>; print and result-smoke binaries pass there,</p>
+<p>  Arch host <code>bruce@192.168.0.102</code>; print and result-smoke binaries pass there,</p>
 <p>  while the broader quick-integration crash is tracked as <code>NATIVE-X64-ARCH-QI</code>.</p>
 <ul>
 <li>X64 named-call core intrinsic dispatch now delegates <code>oren_index_set</code>, core</li>
@@ -5827,9 +5827,9 @@ make docs-site</code></pre>
 <p>  keeping the central named-call wrapper as a short dispatcher while preserving</p>
 <p>  routing order and runtime safety gates.</p>
 <ul>
-<li><code>NATIVE-X64-ARCH-QI</code> is resolved on the dedicated Arch x64 host</li>
+<li><code>NATIVE-X64-ARCH-QI</code> is resolved on the dedicated Arch x64 host now</li>
 </ul>
-<p>  <code>bruce@192.168.3.208</code>. The fix keeps x64 unchecked list-int reduction</p>
+<p>  reachable at <code>bruce@192.168.0.102</code>. The fix keeps x64 unchecked list-int reduction</p>
 <p>  intrinsics off allocator-sensitive <code>r14</code>/<code>r15</code>, routes x64 intrinsic</p>
 <p>  tracked-node lookup through arena-aware <code>native_gc_find_node_nolock</code>, and</p>
 <p>  disables the unsafe x64 LIST_INT sum/dot loop fast matchers until their</p>
@@ -5844,7 +5844,7 @@ make docs-site</code></pre>
 <p>  <code>OREN_TRACE_X64_LIST_FAST=1</code> shows <code>fast_list_int_get_sum_while</code> and</p>
 <p>  <code>fast_list_int_dot_while</code> selected for commuted, temp-normalized, and native</p>
 <p>  quick-integration paths; all focused x64-linux binaries and quick integration</p>
-<p>  exit <code>0</code> on <code>bruce@192.168.3.208</code>.</p>
+<p>  exit <code>0</code> on the Arch host.</p>
 <ul>
 <li>The AVM bytes hotpath guard now delegates the largest x64 system/data</li>
 </ul>

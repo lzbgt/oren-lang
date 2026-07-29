@@ -128,7 +128,9 @@ var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_26"
 // - Add dynamic-emitter gas surface target-arch/unit-family metadata.
 // 2026-04: v0_35
 // - Add backend-local/non-conversion-ready metadata to every native gas surface.
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_35"
+// 2026-07: v0_36
+// - Route x64 call-depth hook calls through serialized call_rel32 rtobj fixups.
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_36"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

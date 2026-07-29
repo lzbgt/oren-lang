@@ -690,7 +690,7 @@ surfaces, but the following blockers remain:
 | --- | --- | --- |
 | C | Portable bootstrap path through host C toolchain. | Useful baseline, not a stabilized external ABI promise. |
 | Native arm64 macOS | Most mature native path; broadest profile and fixture history. | Rolling Tier-1 intent. |
-| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; clean `HEAD` and current x64 stage2 self-host builds succeed there, but `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` currently exits `139` before output. | Not fully mature; fix the x64 stage2 command crash before treating stage2 runtime smokes as green. |
+| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
 | Bytecode / AVM | Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces. | Experimental for production embedding. |
 
 ## AVM SDK Readiness
@@ -4902,14 +4902,14 @@ make docs-site
   profile shows `x64_native_program.oren` at about 49.2s total / 35.5s parse,
   with `_x64_emit_named_call_core_intrinsic_v0` exposed at about 40ms as the
   next parser body. Linux/x64 execution validation now prefers the dedicated
-  Arch host `bruce@192.168.3.208`; print and result-smoke binaries pass there,
+  Arch host `bruce@192.168.0.102`; print and result-smoke binaries pass there,
   while the broader quick-integration crash is tracked as `NATIVE-X64-ARCH-QI`.
 - X64 named-call core intrinsic dispatch now delegates `oren_index_set`, core
   list operations, and LIST_INT operations through separate helper families,
   keeping the central named-call wrapper as a short dispatcher while preserving
   routing order and runtime safety gates.
-- `NATIVE-X64-ARCH-QI` is resolved on the dedicated Arch x64 host
-  `bruce@192.168.3.208`. The fix keeps x64 unchecked list-int reduction
+- `NATIVE-X64-ARCH-QI` is resolved on the dedicated Arch x64 host now
+  reachable at `bruce@192.168.0.102`. The fix keeps x64 unchecked list-int reduction
   intrinsics off allocator-sensitive `r14`/`r15`, routes x64 intrinsic
   tracked-node lookup through arena-aware `native_gc_find_node_nolock`, and
   disables the unsafe x64 LIST_INT sum/dot loop fast matchers until their
@@ -4922,7 +4922,7 @@ make docs-site
   `OREN_TRACE_X64_LIST_FAST=1` shows `fast_list_int_get_sum_while` and
   `fast_list_int_dot_while` selected for commuted, temp-normalized, and native
   quick-integration paths; all focused x64-linux binaries and quick integration
-  exit `0` on `bruce@192.168.3.208`.
+  exit `0` on the Arch host.
 - The AVM bytes hotpath guard now delegates the largest x64 system/data
   source-shape checks and shared compiler artifact byte-output checks to
   dedicated guard scripts, preserving the public

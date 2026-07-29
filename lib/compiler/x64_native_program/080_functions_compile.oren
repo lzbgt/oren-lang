@@ -548,10 +548,7 @@ fn _x64_emit_function_call_depth_exit(ctx, locals) {
     var off_ret = locals["$tmp0"]
     if oren_type_tag(off_ret) == 0 { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0)
-    var pos_exit = bytes_len(ctx["code"])
-    bytes_push(ctx["code"], 232)
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["call_depth_exit_fixups"], pos_exit)
+    _emit_call_rel32_named_x64(ctx, "oren_call_depth_exit")
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret)
     return true
 }
@@ -750,11 +747,7 @@ fn _x64_emit_function_frame_header(ctx, name, frame, phase_state) {
 
 fn _x64_emit_function_call_depth_enter(ctx, call_depth_enabled) {
     if call_depth_enabled == true {
-        // Call runtime hook (no args).
-        var pos_enter = bytes_len(ctx["code"])
-        bytes_push(ctx["code"], 232) // call rel32
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["call_depth_enter_fixups"], pos_enter)
+        _emit_call_rel32_named_x64(ctx, "oren_call_depth_enter")
     }
     return nil
 }

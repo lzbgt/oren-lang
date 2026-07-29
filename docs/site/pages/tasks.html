@@ -2447,12 +2447,11 @@
 </ol>
 <ul>
 <li>Keep x64 Linux/Windows and arm64 Linux bring-up behind focused compile/runtime gates.</li>
-<li>Current dedicated Arch x64 host is <code>bruce@192.168.0.102</code>; clean <code>HEAD</code></li>
+<li>Current dedicated Arch x64 host is <code>bruce@192.168.0.102</code>; current x64</li>
 </ul>
-<p>     and current x64 stage2 self-host builds complete there, but</p>
-<p>     `./oren_stage2 test examples/hello.oren --backend bytecode --platform</p>
-<p>     x64-linux --no-cache<code> exits </code>139` before output, so x64 stage2 command</p>
-<p>     execution remains a concrete blocker.</p>
+<p>     stage2 self-host builds and `./oren_stage2 test examples/hello.oren</p>
+<p>     --backend bytecode --platform x64-linux --no-cache<code> exit </code>0` there after</p>
+<p>     the x64 call-depth rtobj fixup/cache-version repair.</p>
 <ol>
 <li><strong>Docs and source guardrails</strong></li>
 </ol>

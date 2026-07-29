@@ -2089,11 +2089,10 @@ This file is the concise task view. Detailed implementation status lives in
 
 3. **Platform breadth**
    - Keep x64 Linux/Windows and arm64 Linux bring-up behind focused compile/runtime gates.
-   - Current dedicated Arch x64 host is `bruce@192.168.0.102`; clean `HEAD`
-     and current x64 stage2 self-host builds complete there, but
-     `./oren_stage2 test examples/hello.oren --backend bytecode --platform
-     x64-linux --no-cache` exits `139` before output, so x64 stage2 command
-     execution remains a concrete blocker.
+   - Current dedicated Arch x64 host is `bruce@192.168.0.102`; current x64
+     stage2 self-host builds and `./oren_stage2 test examples/hello.oren
+     --backend bytecode --platform x64-linux --no-cache` exit `0` there after
+     the x64 call-depth rtobj fixup/cache-version repair.
 
 4. **Docs and source guardrails**
    - No source file should exceed 2000 lines; `make verify-source-line-guard`
