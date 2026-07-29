@@ -271,8 +271,9 @@ fn _data_append_runtime_cstr0_offsets(ctx) {
     }
     var rt_offs_enc = ctx["rtobj_cstr0_list_enc"]
     if rt_offs_enc == nil { return nil }
+    var rt_offs_len = oren_list_len(rt_offs_enc)
     var ri = 0
-    while ri < oren_list_len(rt_offs_enc) {
+    while ri < rt_offs_len {
         var off_enc = rt_offs_enc[ri]
         if oren_type_tag(off_enc) == 1 && off_enc > 0 {
             push_u64_le(ctx["data"], off_enc - 1)
@@ -617,8 +618,9 @@ fn _data_symtab_collect_one_entry(ctx, nm) {
 
 fn _data_symtab_collect_entries(ctx, sym_names) {
     var entries = []
+    var sym_names_len = oren_list_len(sym_names)
     var i = 0
-    while i < oren_list_len(sym_names) {
+    while i < sym_names_len {
         var e = _data_symtab_collect_one_entry(ctx, sym_names[i])
         if e != nil { oren_list_push(entries, e) }
         i = i + 1
@@ -628,8 +630,9 @@ fn _data_symtab_collect_entries(ctx, sym_names) {
 
 fn _data_symtab_sort_entries(entries) {
     // Insertion sort (descending by off). Small N expected; keep deterministic.
+    var entries_len = oren_list_len(entries)
     var si = 1
-    while si < oren_list_len(entries) {
+    while si < entries_len {
         var key = entries[si]
         var k_off = key["off_enc"]
         var k = si - 1
@@ -759,8 +762,9 @@ fn _data_linetab_collect_entries(entries_in) {
     // Descending order lets runtime resolution pick the closest preceding entry via:
     //   if off_target >= entry.off { return entry.loc }
     var entries = []
+    var entries_in_len = oren_list_len(entries_in)
     var i = 0
-    while i < oren_list_len(entries_in) {
+    while i < entries_in_len {
         var e0 = entries_in[i]
         if e0 != nil && e0["off"] != nil && e0["loc_off"] != nil {
             oren_list_push(entries, e0)
@@ -772,8 +776,9 @@ fn _data_linetab_collect_entries(entries_in) {
 
 fn _data_linetab_sort_desc(entries) {
     // Insertion sort (descending by off). Small N expected; keep deterministic.
+    var entries_len = oren_list_len(entries)
     var si = 1
-    while si < oren_list_len(entries) {
+    while si < entries_len {
         var key = entries[si]
         var k_off = key["off"]
         var k = si - 1
@@ -836,8 +841,9 @@ fn _data_collect_dbginfo_entries(ctx) {
 }
 
 fn _data_sort_dbginfo_entries_by_off(entries) {
+    var entries_len = oren_list_len(entries)
     var si = 1
-    while si < oren_list_len(entries) {
+    while si < entries_len {
         var key = entries[si]
         var k_off = key["off"]
         var k = si - 1
