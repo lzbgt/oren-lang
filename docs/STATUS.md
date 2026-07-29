@@ -80,6 +80,10 @@ surfaces, but the following blockers remain:
   call-arg, array/hash, emitted write-call, validation, and linked-program
   statement/error counts before traversal, with hotpath guard coverage rejecting
   direct `oren_list_len` loop bounds in that lowering pass.
+- ABI layout lowering now caches immutable attr, array-dimension, field,
+  expression, call-argument, switch-case, and linked-statement counts before
+  traversal, with hotpath guard coverage rejecting direct `oren_list_len` loop
+  bounds in that lowering pass.
 - Parser generator core-use, yield-delegate validation, and generator-yield
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that

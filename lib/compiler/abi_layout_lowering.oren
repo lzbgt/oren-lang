@@ -82,7 +82,8 @@ fn has_attr_list(stmt, name) {
     var attrs = stmt["attrs"]
     if attrs == nil { return false }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_n = oren_list_len(attrs)
+    while i < attrs_n {
         if is_attr_name(attrs[i], name) { return true }
         i = i + 1
     }
@@ -290,7 +291,8 @@ fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, arch, visit
     var sz = sa["size"]
     var al = sa["align"]
     var i = 0
-    while i < oren_list_len(dims) {
+    var dims_n = oren_list_len(dims)
+    while i < dims_n {
         var n = dims[i]
         if n == nil || n < 0 {
             return nil
@@ -319,7 +321,8 @@ fn compute_abi_layout_for_type(stmt, abi_types, abi_layouts, target, arch, visit
     var max_align = 1
 
     var i = 0
-    while i < oren_list_len(fields) {
+    var fields_n = oren_list_len(fields)
+    while i < fields_n {
         var fid = fields[i]
         var fname = fid["value"]
         var kind = fid["ann_type"]
@@ -374,7 +377,8 @@ fn lower_expr_in_place(expr, abi_layouts) {
     if t == "Array" {
         var xs = expr["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_n = oren_list_len(xs)
+        while i < xs_n {
             xs[i] = lower_expr_in_place(xs[i], abi_layouts)
             i = i + 1
         }
@@ -383,7 +387,8 @@ fn lower_expr_in_place(expr, abi_layouts) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var ps_n = oren_list_len(ps)
+        while i2 < ps_n {
             ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], abi_layouts)
             ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], abi_layouts)
             i2 = i2 + 1
@@ -407,7 +412,8 @@ fn lower_expr_in_place(expr, abi_layouts) {
         expr["fn"] = lower_expr_in_place(expr["fn"], abi_layouts)
         var args = expr["args"]
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        var args_n = oren_list_len(args)
+        while i3 < args_n {
             args[i3] = lower_expr_in_place(args[i3], abi_layouts)
             i3 = i3 + 1
         }
@@ -419,7 +425,7 @@ fn lower_expr_in_place(expr, abi_layouts) {
         if fn_expr != nil && fn_expr["type"] == "Identifier" {
             var name = fn_expr["value"]
             if name == "oren_build_target" || name == "oren_build_arch" {
-                if oren_list_len(args) != 0 {
+                if args_n != 0 {
                     abi_layout_error(name + " expects ()")
                     return expr
                 }
@@ -433,7 +439,7 @@ fn lower_expr_in_place(expr, abi_layouts) {
                 return string_lit(a)
             }
             if name == "oren_abi_sizeof" || name == "oren_abi_alignof" {
-                if oren_list_len(args) != 1 || args[0] == nil || args[0]["type"] != "String" {
+                if args_n != 1 || args[0] == nil || args[0]["type"] != "String" {
                     abi_layout_error(name + " expects (\"Type\")")
                     return expr
                 }
@@ -449,7 +455,7 @@ fn lower_expr_in_place(expr, abi_layouts) {
                 return int_lit(lay["align"])
             }
             if name == "oren_abi_offsetof" {
-                if oren_list_len(args) != 2 || args[0] == nil || args[0]["type"] != "String" || args[1] == nil || args[1]["type"] != "String" {
+                if args_n != 2 || args[0] == nil || args[0]["type"] != "String" || args[1] == nil || args[1]["type"] != "String" {
                     abi_layout_error("oren_abi_offsetof expects (\"Type\", \"field\")")
                     return expr
                 }
@@ -482,7 +488,8 @@ fn lower_stmt_in_place(stmt, abi_layouts) {
     if t == "Block" {
         var stmts = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(stmts) {
+        var stmts_n = oren_list_len(stmts)
+        while i < stmts_n {
             lower_stmt_in_place(stmts[i], abi_layouts)
             i = i + 1
         }
@@ -491,7 +498,8 @@ fn lower_stmt_in_place(stmt, abi_layouts) {
     if t == "StmtList" {
         var xs = stmt["stmts"]
         var i2 = 0
-        while i2 < oren_list_len(xs) {
+        var xs_n = oren_list_len(xs)
+        while i2 < xs_n {
             lower_stmt_in_place(xs[i2], abi_layouts)
             i2 = i2 + 1
         }
@@ -538,10 +546,12 @@ fn lower_stmt_in_place(stmt, abi_layouts) {
         stmt["value"] = lower_expr_in_place(stmt["value"], abi_layouts)
         var cases = stmt["cases"]
         var ci = 0
-        while ci < oren_list_len(cases) {
+        var cases_n = oren_list_len(cases)
+        while ci < cases_n {
             var vals = cases[ci]["values"]
             var vi = 0
-            while vi < oren_list_len(vals) {
+            var vals_n = oren_list_len(vals)
+            while vi < vals_n {
                 vals[vi] = lower_expr_in_place(vals[vi], abi_layouts)
                 vi = vi + 1
             }
@@ -561,6 +571,7 @@ fn lower_linked_program_in_place(linked) {
     var v_trace = oren_env("OREN_TRACE_ABI_LAYOUT")
     if v_trace != nil && v_trace != "" { trace = true }
     var stmts = linked["statements"]
+    var stmts_n = oren_list_len(stmts)
     var abi_layouts = {}
     var abi_types = {}
     var target = nil
@@ -578,7 +589,7 @@ fn lower_linked_program_in_place(linked) {
     if arch == nil { arch = "arm64" }
 
     if trace {
-        print("[abi_layout] enter target=" + target + " arch=" + arch + " stmts=" + oren_int_to_string(oren_list_len(stmts)))
+        print("[abi_layout] enter target=" + target + " arch=" + arch + " stmts=" + oren_int_to_string(stmts_n))
     }
 
     // Reserve config keys inside abi_layouts for compile-time builtins.
@@ -588,7 +599,7 @@ fn lower_linked_program_in_place(linked) {
 
     // Collect ABI-marked type layouts.
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_n {
         var st = stmts[i]
         if st != nil && st["type"] == "Type" && has_attr_list(st, "oren.abi") {
             var tname = st["name"]["value"]
@@ -602,7 +613,7 @@ fn lower_linked_program_in_place(linked) {
     // Compute layouts with nested type support (lazy recursion).
     var visiting = {}
     var it = 0
-    while it < oren_list_len(stmts) {
+    while it < stmts_n {
         var st2 = stmts[it]
         if st2 != nil && st2["type"] == "Type" && has_attr_list(st2, "oren.abi") {
             var tname2 = st2["name"]["value"]
@@ -618,7 +629,7 @@ fn lower_linked_program_in_place(linked) {
 
     // Rewrite expressions in all statements (compile-time-only builtins).
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_n {
         lower_stmt_in_place(stmts[i], abi_layouts)
         i = i + 1
     }

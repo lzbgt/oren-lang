@@ -91,6 +91,10 @@ design evidence lives under `project-doc/`.
   call-arg, array/hash, emitted write-call, validation, and linked-program
   statement/error counts before traversal, with byte-hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in that lowering pass.
+- ABI layout lowering now caches immutable attr, array-dimension, field,
+  expression, call-argument, switch-case, and linked-statement counts before
+  traversal, with byte-hotpath guard coverage rejecting direct `oren_list_len`
+  loop bounds in that lowering pass.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with byte-hotpath guard coverage rejecting
