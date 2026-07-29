@@ -467,7 +467,8 @@ This file is the concise task view. Detailed implementation status lives in
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
      open state setup, compact Linux syscall scratch-state wrappers through
-     syscall-tail helpers, and positional Windows thread syscall helper records.
+     syscall-tail helpers, positional Windows thread syscall helper records, and
+     positional Windows filesystem syscall spill/capsule records.
 
 3. **Tagged value convergence**
    - Preserve cross-backend `oren_type_tag`, equality, truthiness, and panic parity.

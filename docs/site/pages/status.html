@@ -429,7 +429,9 @@
 <li>X64 system-intrinsic cleanup now separates Linux <code>sys_write</code> label/body/finish</li>
 </ul>
 <p>  lowering, Linux pipe success widening, Linux thread clone setup/syscall, and</p>
-<p>  Windows QPC frequency labels/body/finish into focused helpers.</p>
+<p>  Windows QPC frequency labels/body/finish into focused helpers. Windows x64</p>
+<p>  filesystem syscall helpers now use positional stat/fstat, unlink/rmdir,</p>
+<p>  rename, and mkdir/chmod spill/capsule records instead of transient keyed maps.</p>
 <ul>
 <li>X64 program-entry context cleanup now separates Windows entry argv data</li>
 </ul>

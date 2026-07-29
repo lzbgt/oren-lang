@@ -268,7 +268,9 @@ surfaces, but the following blockers remain:
   focused helpers while preserving return-order emission.
 - X64 system-intrinsic cleanup now separates Linux `sys_write` label/body/finish
   lowering, Linux pipe success widening, Linux thread clone setup/syscall, and
-  Windows QPC frequency labels/body/finish into focused helpers.
+  Windows QPC frequency labels/body/finish into focused helpers. Windows x64
+  filesystem syscall helpers now use positional stat/fstat, unlink/rmdir,
+  rename, and mkdir/chmod spill/capsule records instead of transient keyed maps.
 - X64 program-entry context cleanup now separates Windows entry argv data
   reservation from label/fixup initialization and shares trace env-flag
   assignment while preserving per-flag trace behavior.

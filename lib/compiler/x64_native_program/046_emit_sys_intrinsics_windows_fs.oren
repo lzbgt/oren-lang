@@ -384,12 +384,12 @@ fn _x64_windows_stat_spill_args(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "path": tmp_path, "st": tmp_st, "pair": tmp_pair, "handle": tmp_handle}
+    return [base, tmp_path, tmp_st, tmp_pair, tmp_handle]
 }
 
 fn _x64_windows_stat_emit_capsule_pre(ctx, nm, state, capsule) {
-    var tmp_path = state["path"]
-    var tmp_pair = state["pair"]
+    var tmp_path = state[1]
+    var tmp_pair = state[3]
     if capsule {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path
         if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
@@ -487,8 +487,8 @@ fn _x64_windows_stat_emit_dir_or_file(ctx, lab, tmp_st, tmp_handle) {
 fn _x64_windows_stat_finish(ctx, nm, state, lab, capsule) {
     _emit_label(ctx, lab["labels"], lab["done"])
     _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
-    _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, state["pair"])
-    _intr_tmp_pop(ctx, state["base"])
+    _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, state[3])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -504,7 +504,7 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _x64_windows_stat_emit_capsule_pre(ctx, nm, state, capsule)
     var lab = _x64_windows_stat_labels(ctx)
     _x64_windows_stat_emit_attr_probe(ctx, lab)
-    _x64_windows_stat_emit_dir_or_file(ctx, lab, state["st"], state["handle"])
+    _x64_windows_stat_emit_dir_or_file(ctx, lab, state[2], state[4])
     _x64_windows_stat_finish(ctx, nm, state, lab, capsule)
     return nil
 }
@@ -526,7 +526,7 @@ fn _x64_windows_fstat_spill_args(ctx, locals, args, capsule) {
     // Evaluate st_ptr for side effects/compatibility (ignored for now).
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_fd": tmp_fd, "tmp_st": tmp_st}
+    return [base, tmp_fd, tmp_st]
 }
 
 fn _x64_windows_fstat_emit_std_handle_case(ctx, labels, fixups, tmp_fd, fd_value, std_handle_u32, l_have_handle, next_label) {
@@ -661,9 +661,9 @@ fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done) {
 }
 
 fn _x64_windows_fstat_emit_body(ctx, locals, state, flab, labels, fixups) {
-    var base = state["base"]
-    var tmp_fd = state["tmp_fd"]
-    var tmp_st = state["tmp_st"]
+    var base = state[0]
+    var tmp_fd = state[1]
+    var tmp_st = state[2]
     var l_have_handle = flab["have_handle"]
     var l_ok = flab["ok"]
     var l_fail = flab["fail"]
@@ -685,7 +685,7 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
     var state = _x64_windows_fstat_spill_args(ctx, locals, args, capsule)
     if state == nil { return nil }
-    var base = state["base"]
+    var base = state[0]
     var labels = {}
     var fixups = []
     var flab = _x64_windows_fstat_labels(ctx)
@@ -699,30 +699,28 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
 fn _x64_unlink_rmdir_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // path, pair
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["path"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["pair"] = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(state["path"]) == 0 || oren_type_tag(state["pair"]) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_pair = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["path"])
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return state
+    return [base, tmp_path, tmp_pair]
 }
 
 fn _x64_emit_unlink_rmdir_windows_prehook(ctx, nm, state, capsule) {
     if !capsule {
-        _intr_load_x64(ctx, 1, state["path"]) // rcx = path (direct)
+        _intr_load_x64(ctx, 1, state[1]) // rcx = path (direct)
         return nil
     }
     // pre: unlink_pre(path) / rmdir_pre(path) -> pair
-    _intr_load_x64(ctx, 1, state["path"]) // rcx = path
+    _intr_load_x64(ctx, 1, state[1]) // rcx = path
     if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
     else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
-    _emit_mov_mrbp_r64(ctx, 0 - state["pair"], 0) // spill pair
+    _emit_mov_mrbp_r64(ctx, 0 - state[2], 0) // spill pair
 
     // rcx = resolved path pointer from pair[0]
-    _intr_load_x64(ctx, 11, state["pair"])
+    _intr_load_x64(ctx, 11, state[2])
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11))
     return nil
 }
@@ -760,7 +758,7 @@ fn _x64_emit_unlink_rmdir_windows_posthook(ctx, nm, state, capsule) {
     if !capsule { return nil }
     // post: unlink_post(pair, rc) / rmdir_post(pair, rc) -> rc
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, state["pair"])                  // rcx = pair
+    _intr_load_x64(ctx, 1, state[2])                       // rcx = pair
     if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
     else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
     return nil
@@ -783,46 +781,44 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     _patch_local_fixups(ctx, labels, fixups)
     _x64_emit_unlink_rmdir_windows_posthook(ctx, nm, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
 fn _x64_rename_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // from, to, bundle
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["from"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["to"] = _intr_tmp_off(ctx, locals, base + 1)
-    state["bundle"] = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(state["from"]) == 0 || oren_type_tag(state["to"]) == 0 || oren_type_tag(state["bundle"]) == 0 {
+    var tmp_from = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_to = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_bundle = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(tmp_from) == 0 || oren_type_tag(tmp_to) == 0 || oren_type_tag(tmp_bundle) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["from"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["to"])
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_from)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return state
+    return [base, tmp_from, tmp_to, tmp_bundle]
 }
 
 fn _x64_emit_rename_windows_prehook(ctx, state, capsule) {
     if !capsule {
-        _intr_load_x64(ctx, 1, state["from"]) // rcx = from
-        _intr_load_x64(ctx, 2, state["to"])   // rdx = to
+        _intr_load_x64(ctx, 1, state[1]) // rcx = from
+        _intr_load_x64(ctx, 2, state[2]) // rdx = to
         return nil
     }
     // pre: native_capsule_sys_rename_pre(from, to) -> bundle
-    _intr_load_x64(ctx, 1, state["from"]) // rcx = from
-    _intr_load_x64(ctx, 2, state["to"])   // rdx = to
+    _intr_load_x64(ctx, 1, state[1]) // rcx = from
+    _intr_load_x64(ctx, 2, state[2]) // rdx = to
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
-    _emit_mov_mrbp_r64(ctx, 0 - state["bundle"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[3], 0)
 
     // existing = *(u64*)bundle (rcx), new = *(u64*)(bundle+16) (rdx)
-    _intr_load_x64(ctx, 11, state["bundle"])
+    _intr_load_x64(ctx, 11, state[3])
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, 16))
@@ -864,7 +860,7 @@ fn _x64_emit_rename_windows_posthook(ctx, state, capsule) {
     if !capsule { return nil }
     // post: native_capsule_sys_rename_post(bundle, rc) -> rc
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, state["bundle"])                // rcx = bundle
+    _intr_load_x64(ctx, 1, state[3])                       // rcx = bundle
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
     return nil
 }
@@ -886,43 +882,41 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     _patch_local_fixups(ctx, labels, fixups)
     _x64_emit_rename_windows_posthook(ctx, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
 fn _x64_mkdir_chmod_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 3) // path, mode, pair
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["path"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["mode"] = _intr_tmp_off(ctx, locals, base + 1)
-    state["pair"] = _intr_tmp_off(ctx, locals, base + 2)
-    if oren_type_tag(state["path"]) == 0 || oren_type_tag(state["mode"]) == 0 || oren_type_tag(state["pair"]) == 0 {
+    var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_mode = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_pair = _intr_tmp_off(ctx, locals, base + 2)
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["path"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["mode"])
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return state
+    return [base, tmp_path, tmp_mode, tmp_pair]
 }
 
 fn _x64_emit_mkdir_chmod_windows_prehook(ctx, nm, state, capsule) {
     if !capsule {
-        _intr_load_x64(ctx, 1, state["path"]) // rcx = path (direct)
+        _intr_load_x64(ctx, 1, state[1]) // rcx = path (direct)
         return nil
     }
-    _intr_load_x64(ctx, 1, state["path"]) // rcx = path
+    _intr_load_x64(ctx, 1, state[1]) // rcx = path
     if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
     else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
-    _emit_mov_mrbp_r64(ctx, 0 - state["pair"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - state[3], 0)
 
-    _intr_load_x64(ctx, 11, state["pair"])
+    _intr_load_x64(ctx, 11, state[3])
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(1, 11)) // rcx = resolved path pointer from pair[0]
     return nil
 }
@@ -962,7 +956,7 @@ fn _x64_emit_mkdir_chmod_windows_result(ctx, labels, fixups) {
 fn _x64_emit_mkdir_chmod_windows_posthook(ctx, nm, state, capsule) {
     if !capsule { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, state["pair"])                  // rcx = pair
+    _intr_load_x64(ctx, 1, state[3])                       // rcx = pair
     if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
     else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }
     return nil
@@ -985,6 +979,6 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
     _patch_local_fixups(ctx, labels, fixups)
     _x64_emit_mkdir_chmod_windows_posthook(ctx, nm, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
