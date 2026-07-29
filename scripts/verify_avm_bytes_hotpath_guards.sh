@@ -1794,8 +1794,8 @@ if find lib/std/ui -name '*.oren' -print0 | xargs -0 grep -nE 'while .*< oren_li
   exit 1
 fi
 if grep -nE 'while .*< oren_list_len\(' \
-  lib/std/net/url.oren lib/std/net/http2_client.oren >&2; then
-  echo "ERROR: std:net URL/HTTP2 traversal loops must cache immutable list lengths before iteration" >&2
+  lib/std/net/url.oren lib/std/net/http2_client.oren lib/std/sys.oren >&2; then
+  echo "ERROR: std:net URL/HTTP2 and std:sys traversal loops must cache immutable list lengths before iteration" >&2
   exit 1
 fi
 if grep -nE 'while .*< oren_list_len\(' \

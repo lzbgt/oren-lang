@@ -77,8 +77,9 @@ fn domain_bit(id) {
 fn domain_mask(ids) {
     if oren_type_tag(ids) != 6 { return oren_err(4, "std:sys.domain_mask: ids must be list") }
     var mask = 0
+    var id_count = oren_list_len(ids)
     var i = 0
-    while i < oren_list_len(ids) {
+    while i < id_count {
         var bit = domain_bit(ids[i])
         if oren_is_err(bit) { return bit }
         mask = mask | bit
@@ -90,8 +91,9 @@ fn domain_mask(ids) {
 fn domain_mask_names(names) {
     if oren_type_tag(names) != 6 { return oren_err(4, "std:sys.domain_mask_names: names must be list") }
     var ids = []
+    var name_count = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < name_count {
         var id = domain_id(names[i])
         if oren_is_err(id) { return id }
         oren_list_push(ids, id)
