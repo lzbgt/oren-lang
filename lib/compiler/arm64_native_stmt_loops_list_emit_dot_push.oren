@@ -402,8 +402,9 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
 
     gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
+    var muls_len = oren_list_len(muls)
     var mi = 0
-    while mi < oren_list_len(muls) {
+    while mi < muls_len {
         var mul = muls[mi]
         var left_list = mul["left"]
         var right_list = mul["right"]
@@ -477,8 +478,9 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
 
     // Slow path: patch all failure branches here and emit generic loop.
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
@@ -885,8 +887,9 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
             emit_str_reg_sp_any(ctx, 20, i_off)
         }
     } else {
+        var pushes_len = oren_list_len(pushes)
         var pi = 0
-        while pi < oren_list_len(pushes) {
+        while pi < pushes_len {
             var push = pushes[pi]
             var list_name2 = push["list"]
             var value_expr = push["value"]
@@ -955,8 +958,9 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
 
     // Slow path: patch all failure branches here and emit generic loop.
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
@@ -1136,8 +1140,9 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
 
+    var pushes_len = oren_list_len(pushes)
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    while pi < pushes_len {
         var push = pushes[pi]
         var list_name2 = push["list"]
         var value_expr = push["value"]
@@ -1207,8 +1212,9 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
 
     // Slow path: patch all failure branches here and emit generic loop.
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))

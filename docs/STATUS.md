@@ -95,12 +95,12 @@ surfaces, but the following blockers remain:
 - Generator import/yield regression probes now force `--no-cache` for traced
   bytecode builds so the semantic guard stays independent from artifact-cache
   restore/write behavior.
-- Native ops plus ARM64 Mach-O/ELF, ARM64 statement/list-loop, and x64 ELF/PE
-  traversal scans now cache immutable argument, expression, op, key, library,
-  debug-function, import/export, fixup, thunk-position, attribute,
-  break/continue patch-list, list-use, push, and fresh-list counts before
-  iteration, with hotpath guard coverage rejecting direct `oren_list_len` loop
-  bounds in those native shards.
+- Native ops plus ARM64 Mach-O/ELF, ARM64 statement/list-loop emitter, and x64
+  ELF/PE traversal scans now cache immutable argument, expression, op, key,
+  library, debug-function, import/export, fixup, thunk-position, attribute,
+  break/continue patch-list, slow-jump, list-use, load, mul, push, and fresh-list
+  counts before iteration, with hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in those native shards.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with hotpath guard coverage rejecting direct

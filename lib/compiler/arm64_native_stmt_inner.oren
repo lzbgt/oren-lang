@@ -177,16 +177,20 @@ fn native_compile_stmt_inner(ctx, stmt) {
         set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0))
 
         // Patch breaks/continues recorded inside the loop body.
+        var break_jumps = loop["break_jumps"]
+        var break_jumps_len = oren_list_len(break_jumps)
         var bi = 0
-        while bi < oren_list_len(loop["break_jumps"]) {
-            var bpos = loop["break_jumps"][bi]
+        while bi < break_jumps_len {
+            var bpos = break_jumps[bi]
             var boff = (end_target - bpos) / 4
             set_u32_le(ctx["code"], bpos, insn_b(boff))
             bi = bi + 1
         }
+        var continue_jumps = loop["continue_jumps"]
+        var continue_jumps_len = oren_list_len(continue_jumps)
         var ci = 0
-        while ci < oren_list_len(loop["continue_jumps"]) {
-            var cpos = loop["continue_jumps"][ci]
+        while ci < continue_jumps_len {
+            var cpos = continue_jumps[ci]
             var coff = (post_start - cpos) / 4
             set_u32_le(ctx["code"], cpos, insn_b(coff))
             ci = ci + 1

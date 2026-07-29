@@ -855,11 +855,12 @@ fn _arm64_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name, mod_c
     var terms = []
     _arm64_collect_add_terms(val["left"], terms)
     if oren_list_len(terms) != 3 { return nil }
+    var terms_len = oren_list_len(terms)
     var saw_sum = false
     var mod_x = nil
     var mod_i = nil
     var ti = 0
-    while ti < oren_list_len(terms) {
+    while ti < terms_len {
         var t = terms[ti]
         var tname = _arm64_is_ident(t)
         if tname != nil && _arm64_str_eq_bytes(tname, sum_name) {
@@ -1295,8 +1296,9 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
 
     // Slow-sum path: patch all sum-fast failures here and emit full-mod loop.
     var slow_sum_pos = bytes_len(ctx["code"])
+    var slow_sum_jumps_len = oren_list_len(slow_sum_jumps)
     var ssi = 0
-    while ssi < oren_list_len(slow_sum_jumps) {
+    while ssi < slow_sum_jumps_len {
         var sj = slow_sum_jumps[ssi]
         var soff = (slow_sum_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
@@ -1377,8 +1379,9 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
 
     // Slow path: patch all failure branches here and emit generic loop.
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))

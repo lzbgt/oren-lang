@@ -325,8 +325,9 @@ fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b end
 
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
@@ -520,8 +521,9 @@ fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b end
 
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
@@ -723,8 +725,9 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var tick_skip_off = (tick_skip_pos - jpos_tick_skip) / 4
     set_u32_le(ctx["code"], jpos_tick_skip, insn_b_cond(tick_skip_off, 1)) // NE
 
+    var loads_len = oren_list_len(loads)
     var pi = 0
-    while pi < oren_list_len(loads) {
+    while pi < loads_len {
         var list_name2 = loads[pi]
         var list_index = 0
         while list_index < list_count {
@@ -824,8 +827,9 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
 
     // Slow path: patch all failure branches here and emit generic loop.
     var slow_pos = bytes_len(ctx["code"])
+    var slow_jumps_len = oren_list_len(slow_jumps)
     var si = 0
-    while si < oren_list_len(slow_jumps) {
+    while si < slow_jumps_len {
         var sj = slow_jumps[si]
         var soff = (slow_pos - sj["pos"]) / 4
         set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
