@@ -165,7 +165,8 @@ fn native_emit_gc_safepoint_call_pairs(ctx, reg_pairs) {
     // The runtime call itself preserves AAPCS callee-saved regs; these spills exist so the
     // conservative stack scan can still see register-held pointers during `oren_gc_safepoint`.
     var i = 0
-    while i < oren_list_len(reg_pairs) {
+    var reg_pairs_n = oren_list_len(reg_pairs)
+    while i < reg_pairs_n {
         var pair = reg_pairs[i]
         if pair != nil && oren_list_len(pair) >= 2 {
             push_u32_le(ctx["code"], insn_stp_pair_pre(pair[0], pair[1], 31, -16))

@@ -346,6 +346,12 @@
 <p>  before cycle-check and stack-copy traversals, with byte-hotpath guard coverage</p>
 <p>  rejecting direct <code>oren_list_len</code> loop bounds in that runtime injection path.</p>
 <ul>
+<li>Native top-level partitioning, ARM64 wrapper-body emission, and ARM64 GC</li>
+</ul>
+<p>  safepoint spill-pair emission now cache immutable list counts before</p>
+<p>  traversal, with byte-hotpath guard coverage rejecting direct <code>oren_list_len</code></p>
+<p>  loop bounds in those native support paths.</p>
+<ul>
 <li>Regex byte-class matching now caches compiled class range counts before</li>
 </ul>
 <p>  per-byte range probes.</p>

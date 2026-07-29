@@ -73,7 +73,8 @@ fn split_tier1_runtime_user(ctx, err_prefix, runtime_stmts, user_stmts, declared
 
     // Runtime: declarations only (no top-level executable statements).
     var i = 0
-    while i < oren_list_len(runtime_stmts) {
+    var runtime_stmts_n = oren_list_len(runtime_stmts)
+    while i < runtime_stmts_n {
         var st = runtime_stmts[i]
         if st == nil { i = i + 1; continue }
 
@@ -117,7 +118,8 @@ fn split_tier1_runtime_user(ctx, err_prefix, runtime_stmts, user_stmts, declared
 
     // User: declarations + vars + executable top-level.
     i = 0
-    while i < oren_list_len(user_stmts) {
+    var user_stmts_n = oren_list_len(user_stmts)
+    while i < user_stmts_n {
         var st2 = user_stmts[i]
         if st2 == nil { i = i + 1; continue }
 
@@ -180,7 +182,8 @@ fn user_global_init_assign_stmts(user_vars) {
     if user_vars == nil { return [] }
     var out = []
     var i = 0
-    while i < oren_list_len(user_vars) {
+    var user_vars_n = oren_list_len(user_vars)
+    while i < user_vars_n {
         var st = user_vars[i]
         if st != nil {
             oren_list_push(out, {"type": "Assign", "token": st["token"], "name": st["name"], "value": st["value"]})

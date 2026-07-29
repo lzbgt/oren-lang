@@ -213,6 +213,10 @@ surfaces, but the following blockers remain:
 - Native runtime include expansion now caches immutable include-stack counts
   before cycle-check and stack-copy traversals, with hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in that runtime injection path.
+- Native top-level partitioning, ARM64 wrapper-body emission, and ARM64 GC
+  safepoint spill-pair emission now cache immutable list counts before
+  traversal, with hotpath guard coverage rejecting direct `oren_list_len` loop
+  bounds in those native support paths.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.

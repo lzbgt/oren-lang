@@ -1839,6 +1839,7 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/type_ann_lowering.oren \
   lib/compiler/type_name_resolve.oren \
   lib/compiler/native_runtime_inject.oren \
+  lib/compiler/native_toplevel.oren \
   lib/compiler/native_runtime_bundle.oren \
   lib/compiler/native_runtime_obj_cache.oren \
   lib/compiler/native_runtime_obj_cache_sidecars.oren \
@@ -1846,6 +1847,8 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/packview.oren \
   lib/compiler/elf_artifact.oren \
   lib/compiler/arm64_native_program/020_rtobj.oren \
+  lib/compiler/arm64_native_stmt_wrappers.oren \
+  lib/compiler/arm64_native_gc.oren \
   lib/compiler/debug_sugar.oren \
   lib/compiler/capsule.oren \
   lib/compiler/transpiler.oren \

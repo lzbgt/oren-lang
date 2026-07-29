@@ -219,6 +219,10 @@ design evidence lives under `project-doc/`.
 - Native runtime include expansion now caches immutable include-stack counts
   before cycle-check and stack-copy traversals, with byte-hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in that runtime injection path.
+- Native top-level partitioning, ARM64 wrapper-body emission, and ARM64 GC
+  safepoint spill-pair emission now cache immutable list counts before
+  traversal, with byte-hotpath guard coverage rejecting direct `oren_list_len`
+  loop bounds in those native support paths.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
