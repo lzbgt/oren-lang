@@ -171,8 +171,9 @@ fn type_env_push(p) {
     var pending = p["_pending_scope_types"]
     if pending != nil {
         // Merge pending types into the new scope.
+        var pending_len = oren_list_len(pending)
         var i = 0
-        while i < oren_list_len(pending) {
+        while i < pending_len {
             var pair = pending[i]
             if pair != nil && pair["k"] != nil {
                 m[pair["k"]] = pair["v"]
@@ -316,8 +317,9 @@ fn attr_is_reserved(name) {
 
 fn attr_is_known(p, name) {
     var known = p["known_attrs"]
+    var known_len = oren_list_len(known)
     var i = 0
-    while i < oren_list_len(known) {
+    while i < known_len {
         if known[i] == name { return true }
         i = i + 1
     }
@@ -326,8 +328,9 @@ fn attr_is_known(p, name) {
 
 fn attr_is_allowlisted(p, name) {
     var prefixes = p["attr_allow_prefixes"]
+    var prefixes_len = oren_list_len(prefixes)
     var i = 0
-    while i < oren_list_len(prefixes) {
+    while i < prefixes_len {
         var pref = prefixes[i]
         if pref != nil && pref != "" {
             if str_starts_with(name, pref) { return true }
@@ -339,8 +342,9 @@ fn attr_is_allowlisted(p, name) {
 
 fn ident_is_allowlisted(p, name) {
     var prefixes = p["ident_allow_prefixes"]
+    var prefixes_len = oren_list_len(prefixes)
     var i = 0
-    while i < oren_list_len(prefixes) {
+    while i < prefixes_len {
         var pref = prefixes[i]
         if pref != nil && pref != "" {
             if str_starts_with(name, pref) { return true }
@@ -498,8 +502,9 @@ fn docs_join(lines) {
     if lines == nil { return nil }
     if oren_list_len(lines) == 0 { return nil }
     var out = ""
+    var lines_len = oren_list_len(lines)
     var i = 0
-    while i < oren_list_len(lines) {
+    while i < lines_len {
         if i != 0 { out = out + "\n" }
         out = out + lines[i]
         i = i + 1

@@ -1,8 +1,9 @@
 fn _program_needs_generator_core(prog) {
     if prog == nil || prog["statements"] == nil { return false }
     var stmts = prog["statements"]
+    var stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         if _stmt_uses_generator_core(stmts[i]) == true { return true }
         i = i + 1
     }
@@ -464,8 +465,9 @@ fn _generator_core_clone_attr_arg(arg) {
 fn _generator_core_clone_attrs(attrs) {
     if attrs == nil { return nil }
     var out = []
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a == nil {
             oren_list_push(out, nil)
@@ -474,8 +476,9 @@ fn _generator_core_clone_attrs(attrs) {
             var args = a["args"]
             if args != nil {
                 var nargs = []
+                var args_len = oren_list_len(args)
                 var j = 0
-                while j < oren_list_len(args) {
+                while j < args_len {
                     oren_list_push(nargs, _generator_core_clone_attr_arg(args[j]))
                     j = j + 1
                 }
@@ -500,8 +503,10 @@ fn _generator_core_clone_ident(id) {
 
 fn _generator_core_clone_ident_list(xs) {
     var out = []
+    var xs_len = 0
+    if xs != nil { xs_len = oren_list_len(xs) }
     var i = 0
-    while xs != nil && i < oren_list_len(xs) {
+    while i < xs_len {
         oren_list_push(out, _generator_core_clone_ident(xs[i]))
         i = i + 1
     }
@@ -510,8 +515,10 @@ fn _generator_core_clone_ident_list(xs) {
 
 fn _generator_core_clone_expr_list(xs) {
     var out = []
+    var xs_len = 0
+    if xs != nil { xs_len = oren_list_len(xs) }
     var i = 0
-    while xs != nil && i < oren_list_len(xs) {
+    while i < xs_len {
         oren_list_push(out, _generator_core_clone_expr(xs[i]))
         i = i + 1
     }
@@ -520,8 +527,10 @@ fn _generator_core_clone_expr_list(xs) {
 
 fn _generator_core_clone_hash_pairs(ps) {
     var out = []
+    var ps_len = 0
+    if ps != nil { ps_len = oren_list_len(ps) }
     var i = 0
-    while ps != nil && i < oren_list_len(ps) {
+    while i < ps_len {
         var p = ps[i]
         if p == nil {
             oren_list_push(out, nil)
@@ -583,8 +592,10 @@ fn _generator_core_clone_expr(e) {
 
 fn _generator_core_clone_stmt_list(xs) {
     var out = []
+    var xs_len = 0
+    if xs != nil { xs_len = oren_list_len(xs) }
     var i = 0
-    while xs != nil && i < oren_list_len(xs) {
+    while i < xs_len {
         oren_list_push(out, _generator_core_clone_stmt(xs[i]))
         i = i + 1
     }

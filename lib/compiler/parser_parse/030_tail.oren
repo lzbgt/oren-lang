@@ -582,9 +582,11 @@ fn parse_for(p) {
         var guard_block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
         var bind_user = ast.new_var(token.new_token(token.TOK_LET, "var"), user_name, res1)
         oren_list_push(guard_block["stmts"], bind_user)
+        var user_body_stmts = user_body["stmts"]
+        var user_body_stmts_len = oren_list_len(user_body_stmts)
         var bi = 0
-        while bi < oren_list_len(user_body["stmts"]) {
-            oren_list_push(guard_block["stmts"], user_body["stmts"][bi])
+        while bi < user_body_stmts_len {
+            oren_list_push(guard_block["stmts"], user_body_stmts[bi])
             bi = bi + 1
         }
         var if_guard = ast.new_if(token.new_token(token.TOK_IF, "if"), guard_cond, guard_block, nil)

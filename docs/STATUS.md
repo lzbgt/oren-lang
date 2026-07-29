@@ -88,10 +88,11 @@ surfaces, but the following blockers remain:
   immutable expression, attribute, switch-case, splice-list, linked-statement,
   and runtime-statement counts before traversal, with hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in those lowering/prune passes.
-- Parser generator core-use, yield-delegate validation, and generator-yield
-  rewrite traversals now cache immutable AST list counts before iteration, with
-  hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that
-  parser shard.
+- Parser core and parser_parse traversals now cache immutable AST list counts
+  before parser attrs/docs, program/block statement expansion, enum/switch
+  payload/default lowering, trait/function parameter metadata, method-call args,
+  generator clone lists, and for-in yield-tail walks; hotpath guard coverage
+  rejects direct `oren_list_len` loop bounds across those parser shards.
 - Generator import/yield regression probes now force `--no-cache` for traced
   bytecode builds so the semantic guard stays independent from artifact-cache
   restore/write behavior.

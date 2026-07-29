@@ -58,10 +58,12 @@ This file is the concise task view. Detailed implementation status lives in
    - Current parser generator file-hash hex escapes emit lowercase digit bytes
      arithmetically into exact-size two-byte buffers instead of indexing a digit
      string and concatenating per-nibble strings.
-   - Current parser generator core-use, yield-delegate validation, and
-     generator-yield rewrite traversals cache immutable AST list counts before
-     iteration, with source guards rejecting direct `oren_list_len` loop bounds
-     in that parser shard.
+   - Current parser core and parser_parse traversals cache immutable AST list
+     counts before parser attrs/docs, program/block statement expansion,
+     enum/switch payload/default lowering, trait/function parameter metadata,
+     method-call args, generator clone lists, and for-in yield-tail walks, with
+     source guards rejecting direct `oren_list_len` loop bounds across those
+     parser shards.
    - Current generator import/yield regression probe forces `--no-cache` for
      traced bytecode builds so the semantic guard remains independent from
      artifact-cache restore/write behavior.

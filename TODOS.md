@@ -52,10 +52,11 @@ design evidence lives under `project-doc/`.
 - Parser diagnostic and ARM64 native source-location helpers now cache source
   string length before byte-offset line/column scans, and generic-call
   declaration scans cache statement counts plus specialization-name lengths.
-- Parser generator core-use, yield-delegate validation, and generator-yield
-  rewrite traversals now cache immutable AST list counts before iteration, with
-  byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
-  that parser shard.
+- Parser core and parser_parse traversals now cache immutable AST list counts
+  before parser attrs/docs, program/block statement expansion, enum/switch
+  payload/default lowering, trait/function parameter metadata, method-call args,
+  generator clone lists, and for-in yield-tail walks; byte-hotpath guard coverage
+  rejects direct `oren_list_len` loop bounds across those parser shards.
 - Generator import/yield regression probes now force `--no-cache` for traced
   bytecode builds so the semantic guard remains independent from artifact-cache
   restore/write behavior.

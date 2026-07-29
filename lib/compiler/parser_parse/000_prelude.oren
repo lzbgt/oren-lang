@@ -251,9 +251,11 @@ fn parse_program(p) {
                         if group_ret_n > 1 {
                             parser_add_error(p, "ffi group: at most one @ffi.ret(...) may precede `ffi { ... }`")
                         }
+                        var stmt_stmts = stmt["stmts"]
+                        var stmt_stmts_len = oren_list_len(stmt_stmts)
                         var si = 0
-                        while si < oren_list_len(stmt["stmts"]) {
-                            var s = stmt["stmts"][si]
+                        while si < stmt_stmts_len {
+                            var s = stmt_stmts[si]
                             var use_attrs = attrs
                             if group_ret_n == 1 && s != nil && s["type"] == "FFI" {
                                 if _attrs_has_name(s["attrs"], "ffi.ret") {
@@ -286,9 +288,11 @@ fn parse_program(p) {
                         parser_add_error(p, "doc comments may not precede enum/impl sugar expansion yet")
                         p["_pending_doc"] = nil
                     }
+                    var stmt_stmts2 = stmt["stmts"]
+                    var stmt_stmts2_len = oren_list_len(stmt_stmts2)
                     var si2 = 0
-                    while si2 < oren_list_len(stmt["stmts"]) {
-                        oren_list_push(prog["statements"], stmt["stmts"][si2])
+                    while si2 < stmt_stmts2_len {
+                        oren_list_push(prog["statements"], stmt_stmts2[si2])
                         si2 = si2 + 1
                     }
                 }
@@ -497,8 +501,9 @@ fn _merge_attrs(existing, incoming) {
     // Ordering: keep any existing attrs first, then append incoming.
     if incoming == nil || oren_list_len(incoming) == 0 { return existing }
     if existing == nil || oren_list_len(existing) == 0 { return incoming }
+    var incoming_len = oren_list_len(incoming)
     var i = 0
-    while i < oren_list_len(incoming) {
+    while i < incoming_len {
         oren_list_push(existing, incoming[i])
         i = i + 1
     }
@@ -507,8 +512,9 @@ fn _merge_attrs(existing, incoming) {
 
 fn _attrs_all_cfg(attrs) {
     if attrs == nil { return false }
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil {
             if a["type"] != "Attr" { return false }
@@ -522,8 +528,9 @@ fn _attrs_all_cfg(attrs) {
 
 fn _attrs_all_arena_loop(attrs) {
     if attrs == nil { return false }
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil {
             if a["type"] != "Attr" { return false }
@@ -538,8 +545,9 @@ fn _attrs_all_arena_loop(attrs) {
 fn _attrs_count_name(attrs, nm) {
     if attrs == nil || nm == nil { return 0 }
     var n = 0
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == nm {
             n = n + 1
@@ -556,8 +564,9 @@ fn _attrs_has_name(attrs, nm) {
 fn _attrs_filter_out_name(attrs, nm) {
     if attrs == nil { return attrs }
     var out = []
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == nm {
             // skip
@@ -572,8 +581,9 @@ fn _attrs_filter_out_name(attrs, nm) {
 fn _attrs_only_name(attrs, nm) {
     if attrs == nil { return attrs }
     var out = []
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == nm {
             oren_list_push(out, a)
@@ -587,13 +597,15 @@ fn _prepend_stmts(stmts, prefix_stmts) {
     if prefix_stmts == nil || oren_list_len(prefix_stmts) == 0 { return stmts }
     if stmts == nil { return prefix_stmts }
     var out = []
+    var prefix_stmts_len = oren_list_len(prefix_stmts)
     var i = 0
-    while i < oren_list_len(prefix_stmts) {
+    while i < prefix_stmts_len {
         oren_list_push(out, prefix_stmts[i])
         i = i + 1
     }
+    var stmts_len = oren_list_len(stmts)
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         oren_list_push(out, stmts[i])
         i = i + 1
     }
@@ -680,8 +692,9 @@ fn _stmt_supports_pub(stmt) {
         var xs = stmt["stmts"]
         if xs == nil || oren_list_len(xs) == 0 { return false }
         var saw_decl = false
+        var xs_len = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < xs_len {
             if _stmt_supports_pub(xs[i]) != true {
                 return false
             }
@@ -711,8 +724,9 @@ fn _mark_stmt_public(stmt) {
     if t == "StmtList" {
         var xs = stmt["stmts"]
         if xs == nil { return nil }
+        var xs_len = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < xs_len {
             _mark_stmt_public(xs[i])
             i = i + 1
         }
@@ -858,8 +872,9 @@ fn parse_trait_decl(p) {
 
             // Convert params (Identifier AST nodes) into stable metadata.
             var mparams = []
+            var params_len = oren_list_len(params)
             var pi = 0
-            while pi < oren_list_len(params) {
+            while pi < params_len {
                 var id = params[pi]
                 var pname = nil
                 var ann = nil

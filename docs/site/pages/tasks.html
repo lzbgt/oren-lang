@@ -124,11 +124,13 @@
 <p>     arithmetically into exact-size two-byte buffers instead of indexing a digit</p>
 <p>     string and concatenating per-nibble strings.</p>
 <ul>
-<li>Current parser generator core-use, yield-delegate validation, and</li>
+<li>Current parser core and parser_parse traversals cache immutable AST list</li>
 </ul>
-<p>     generator-yield rewrite traversals cache immutable AST list counts before</p>
-<p>     iteration, with source guards rejecting direct <code>oren_list_len</code> loop bounds</p>
-<p>     in that parser shard.</p>
+<p>     counts before parser attrs/docs, program/block statement expansion,</p>
+<p>     enum/switch payload/default lowering, trait/function parameter metadata,</p>
+<p>     method-call args, generator clone lists, and for-in yield-tail walks, with</p>
+<p>     source guards rejecting direct <code>oren_list_len</code> loop bounds across those</p>
+<p>     parser shards.</p>
 <ul>
 <li>Current generator import/yield regression probe forces <code>--no-cache</code> for</li>
 </ul>

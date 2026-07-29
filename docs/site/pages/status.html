@@ -158,11 +158,12 @@
 <p>  and runtime-statement counts before traversal, with hotpath guard coverage</p>
 <p>  rejecting direct <code>oren_list_len</code> loop bounds in those lowering/prune passes.</p>
 <ul>
-<li>Parser generator core-use, yield-delegate validation, and generator-yield</li>
+<li>Parser core and parser_parse traversals now cache immutable AST list counts</li>
 </ul>
-<p>  rewrite traversals now cache immutable AST list counts before iteration, with</p>
-<p>  hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that</p>
-<p>  parser shard.</p>
+<p>  before parser attrs/docs, program/block statement expansion, enum/switch</p>
+<p>  payload/default lowering, trait/function parameter metadata, method-call args,</p>
+<p>  generator clone lists, and for-in yield-tail walks; hotpath guard coverage</p>
+<p>  rejects direct <code>oren_list_len</code> loop bounds across those parser shards.</p>
 <ul>
 <li>Generator import/yield regression probes now force <code>--no-cache</code> for traced</li>
 </ul>

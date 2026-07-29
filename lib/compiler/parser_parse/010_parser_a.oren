@@ -79,8 +79,9 @@ fn parse_match(p) {
             // Prepend bindings as var declarations.
             if binds != nil && oren_list_len(binds) > 0 {
                 var nb = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+                var binds_len = oren_list_len(binds)
                 var bi = 0
-                while bi < oren_list_len(binds) {
+                while bi < binds_len {
                     var bn = binds[bi]
                     var bident = ast.new_identifier(token.new_token(token.TOK_IDENT, bn))
                     var mem = ast.new_member(token.new_token(token.TOK_DOT, "."), tmp_ident, ast.new_identifier(token.new_token(token.TOK_IDENT, "_" + oren_int_to_string(bi))))
@@ -88,9 +89,11 @@ fn parse_match(p) {
                     bi = bi + 1
                 }
                 // Append original body statements.
+                var body_stmts = body["stmts"]
+                var body_stmts_len = oren_list_len(body_stmts)
                 bi = 0
-                while bi < oren_list_len(body["stmts"]) {
-                    oren_list_push(nb["stmts"], body["stmts"][bi])
+                while bi < body_stmts_len {
+                    oren_list_push(nb["stmts"], body_stmts[bi])
                     bi = bi + 1
                 }
                 body = nb
@@ -142,9 +145,11 @@ fn parse_match(p) {
         oren_list_push(out["stmts"], ast.new_expr_stmt(tok, if_expr))
     } else {
         if default_block != nil {
+            var default_stmts = default_block["stmts"]
+            var default_stmts_len = oren_list_len(default_stmts)
             var oi = 0
-            while oi < oren_list_len(default_block["stmts"]) {
-                oren_list_push(out["stmts"], default_block["stmts"][oi])
+            while oi < default_stmts_len {
+                oren_list_push(out["stmts"], default_stmts[oi])
                 oi = oi + 1
             }
         }
@@ -229,8 +234,9 @@ fn parse_enum_decl(p) {
         var fn_tok = token.new_token(token.TOK_FUNCTION, "fn")
         var fn_name = enum_name + "_" + vname
         var params = []
+        var payload_names_len = oren_list_len(payload_names)
         var pi = 0
-        while pi < oren_list_len(payload_names) {
+        while pi < payload_names_len {
             var pn = payload_names[pi]
             oren_list_push(params, ast.new_identifier(token.new_token(token.TOK_IDENT, pn)))
             pi = pi + 1
@@ -245,7 +251,7 @@ fn parse_enum_decl(p) {
         })
 
         pi = 0
-        while pi < oren_list_len(payload_names) {
+        while pi < payload_names_len {
             var k = ast.new_string(token.new_token(token.TOK_STRING, "_" + oren_int_to_string(pi)))
             var v = ast.new_identifier(token.new_token(token.TOK_IDENT, payload_names[pi]))
             oren_list_push(pairs, {"key": k, "value": v})
@@ -287,8 +293,9 @@ fn switch_case_condition(switch_ident, values) {
     var tok_eq = token.new_token(token.TOK_EQ, "==")
     var tok_or = token.new_token(token.TOK_OR, "||")
     var cond = ast.new_infix(tok_eq, switch_ident, "==", values[0])
+    var values_len = oren_list_len(values)
     var i = 1
-    while i < oren_list_len(values) {
+    while i < values_len {
         var c2 = ast.new_infix(tok_eq, switch_ident, "==", values[i])
         cond = ast.new_infix(tok_or, cond, "||", c2)
         i = i + 1
@@ -390,9 +397,11 @@ fn parse_switch(p) {
     } else {
         if default_block != nil {
             // switch expr { default { ... } }
+            var default_stmts = default_block["stmts"]
+            var default_stmts_len = oren_list_len(default_stmts)
             var out_i = 0
-            while out_i < oren_list_len(default_block["stmts"]) {
-                oren_list_push(out["stmts"], default_block["stmts"][out_i])
+            while out_i < default_stmts_len {
+                oren_list_push(out["stmts"], default_stmts[out_i])
                 out_i = out_i + 1
             }
         }
