@@ -216,6 +216,9 @@ surfaces, but the following blockers remain:
   while each backend still reserves the actual zeroed GOT cell locally.
 - X64/ARM64 ELF dynamic metadata finalization now shares final dynamic-section
   append, offset extraction, and return-map assembly through `elf_artifact.oren`.
+- Shared ELF artifact helpers now cache immutable PHDR, DT_NEEDED, import, and
+  export traversal counts before emission, with AVM byte-hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in `elf_artifact.oren`.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

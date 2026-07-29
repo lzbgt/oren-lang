@@ -232,6 +232,9 @@ design evidence lives under `project-doc/`.
   PT_INTERP/init-array prelude placement, dynamic table blob placement, final
   dynamic section append/metadata offsets plus return-map assembly, and stable
   DT_DYNAMIC tags.
+- Shared ELF artifact helpers now cache immutable PHDR, DT_NEEDED, import, and
+  export traversal counts before emission, with AVM byte-hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in `elf_artifact.oren`.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
   index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.

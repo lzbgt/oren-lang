@@ -156,7 +156,8 @@ if ! grep -Fq 'fn bytes_extend_zeros(b, n) { return artifact.bytes_extend_zeros(
   ! grep -Fq 'fn build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, machine, shnum, shstrndx)' <<<"$elf_artifact_dyn_impl" ||
   ! grep -Fq 'artifact.bytes_push(p, 127); artifact.bytes_push(p, 69); artifact.bytes_push(p, 76); artifact.bytes_push(p, 70) // .ELF' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'artifact.push_u16_le(p, machine)' <<<"$elf_artifact_header_impl" ||
-  ! grep -Fq 'artifact.push_u16_le(p, oren_list_len(phdrs))' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'var phdrs_n = oren_list_len(phdrs)' <<<"$elf_artifact_header_impl" ||
+  ! grep -Fq 'artifact.push_u16_le(p, phdrs_n)' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'artifact.push_u16_le(p, shnum)' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'artifact.push_u16_le(p, shstrndx)' <<<"$elf_artifact_header_impl" ||
   ! grep -Fq 'push_phdr(p,' <<<"$elf_artifact_header_impl" ||

@@ -250,6 +250,10 @@ This file is the concise task view. Detailed implementation status lives in
      offset/length metadata plus return-map assembly, and common DT_DYNAMIC tags
      through `elf_artifact.oren` while keeping arch GOT-cell reservation, import
      validation, relocation type constants, and export diagnostic text local.
+   - Shared ELF artifact helpers now cache immutable PHDR, DT_NEEDED, import,
+     and export traversal counts before emission, with AVM byte-hotpath guard
+     coverage rejecting direct `oren_list_len` loop bounds in
+     `elf_artifact.oren`.
    - Current OBC linker cleanup routes NIL constant zero tags through
      byte-builder zero-extension while leaving nonzero constant tags explicit.
    - Current native compiler data-section cleanup routes ARM64/x64 alignment and

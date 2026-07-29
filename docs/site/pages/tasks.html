@@ -412,6 +412,12 @@
 <p>     through <code>elf_artifact.oren</code> while keeping arch GOT-cell reservation, import</p>
 <p>     validation, relocation type constants, and export diagnostic text local.</p>
 <ul>
+<li>Shared ELF artifact helpers now cache immutable PHDR, DT_NEEDED, import,</li>
+</ul>
+<p>     and export traversal counts before emission, with AVM byte-hotpath guard</p>
+<p>     coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
+<p>     <code>elf_artifact.oren</code>.</p>
+<ul>
 <li>Current OBC linker cleanup routes NIL constant zero tags through</li>
 </ul>
 <p>     byte-builder zero-extension while leaving nonzero constant tags explicit.</p>

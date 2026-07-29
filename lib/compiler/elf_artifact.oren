@@ -29,6 +29,7 @@ fn push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, 
 
 fn build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, machine, shnum, shstrndx) {
     var p = artifact.bytes_new()
+    var phdrs_n = oren_list_len(phdrs)
 
     artifact.bytes_push(p, 127); artifact.bytes_push(p, 69); artifact.bytes_push(p, 76); artifact.bytes_push(p, 70) // .ELF
     artifact.bytes_push(p, 2) // ELFCLASS64
@@ -55,13 +56,13 @@ fn build_prefix(base, hdr_size, phdrs, entry_off, is_shared_lib, machine, shnum,
     artifact.push_u32_le(p, 0) // e_flags
     artifact.push_u16_le(p, 64) // e_ehsize
     artifact.push_u16_le(p, 56) // e_phentsize
-    artifact.push_u16_le(p, oren_list_len(phdrs))
+    artifact.push_u16_le(p, phdrs_n)
     artifact.push_u16_le(p, 64) // e_shentsize
     artifact.push_u16_le(p, shnum)
     artifact.push_u16_le(p, shstrndx)
 
     var i = 0
-    while i < oren_list_len(phdrs) {
+    while i < phdrs_n {
         var ph = phdrs[i]
         push_phdr(p,
                   ph["type"],
@@ -219,16 +220,20 @@ fn build_dynamic_name_tables(needed, imports, exports, missing_import_msg, missi
     artifact.bytes_extend_zeros(dynstr, 1) // leading NUL
 
     var needed_dynstr_offs = {}
+    var needed_n = 0
+    if needed != nil { needed_n = oren_list_len(needed) }
     var i_need = 0
-    while needed != nil && i_need < oren_list_len(needed) {
+    while i_need < needed_n {
         var lib = needed[i_need]
         needed_dynstr_offs[lib] = bytes_add_str0(dynstr, lib)
         i_need = i_need + 1
     }
 
     var sym_dynstr_offs = {}
+    var imports_n = 0
+    if imports != nil { imports_n = oren_list_len(imports) }
     var i_imp = 0
-    while imports != nil && i_imp < oren_list_len(imports) {
+    while i_imp < imports_n {
         var imp = imports[i_imp]
         var nm = imp["name"]
         if nm == nil || nm == "" {
@@ -246,8 +251,10 @@ fn build_dynamic_name_tables(needed, imports, exports, missing_import_msg, missi
         i_imp = i_imp + 1
     }
 
+    var exports_n = 0
+    if exports != nil { exports_n = oren_list_len(exports) }
     var i_exp = 0
-    while exports != nil && i_exp < oren_list_len(exports) {
+    while i_exp < exports_n {
         var nm3 = exports[i_exp]
         if nm3 == nil || nm3 == "" { i_exp = i_exp + 1; continue }
         if sym_dynstr_offs[nm3] == nil {
@@ -285,8 +292,10 @@ fn build_dynamic_import_symbols(imports, sym_dynstr_offs) {
     var dynsym = artifact.bytes_new()
     artifact.bytes_extend_zeros(dynsym, 24) // STN_UNDEF
 
+    var imports_n = 0
+    if imports != nil { imports_n = oren_list_len(imports) }
     var i_sym = 0
-    while imports != nil && i_sym < oren_list_len(imports) {
+    while i_sym < imports_n {
         var imp = imports[i_sym]
         var nm = imp["name"]
         var name_off = nil
@@ -360,8 +369,10 @@ fn append_dynamic_export_symbols(dynsym, sym_dynstr_offs, exports, functions, ex
     if missing_export_prefix == nil {
         missing_export_prefix = "elf: internal: export name not found in functions: "
     }
+    var exports_n = 0
+    if exports != nil { exports_n = oren_list_len(exports) }
     var i_sym = 0
-    while exports != nil && i_sym < oren_list_len(exports) {
+    while i_sym < exports_n {
         var enm = exports[i_sym]
         if enm == nil || enm == "" { i_sym = i_sym + 1; continue }
         var fn_off = dynamic_export_offset(functions, export_wrappers, enm)
@@ -453,8 +464,10 @@ fn push_dynamic_entry(dyn, tag, value) {
 
 fn build_dynamic_table(needed, needed_dynstr_offs, data_addr, table_offsets, dynstr, rela, init_array_off) {
     var dyn = artifact.bytes_new()
+    var needed_n = 0
+    if needed != nil { needed_n = oren_list_len(needed) }
     var i_need = 0
-    while needed != nil && i_need < oren_list_len(needed) {
+    while i_need < needed_n {
         var lib = needed[i_need]
         var off = nil
         if needed_dynstr_offs != nil { off = needed_dynstr_offs[lib] }
