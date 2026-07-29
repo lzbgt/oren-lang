@@ -51,10 +51,11 @@ design evidence lives under `project-doc/`.
 - Parser diagnostic and ARM64 native source-location helpers now cache source
   string length before byte-offset line/column scans, and generic-call
   declaration scans cache statement counts plus specialization-name lengths.
-- Compiler loop-list reset and list-int lowering optimizer passes now cache
-  immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,
-  reserve, candidate, touch, and rewrite traversals, with the byte-hotpath guard
-  rejecting direct `oren_list_len` loop bounds in those passes.
+- Compiler loop-list analysis, reset, and list-int lowering optimizer passes now
+  cache immutable AST list counts before continue/exit, side-effect, new-list,
+  identifier, unsafe-use, sink/rewrite, hoist/reset, reserve, candidate, touch,
+  and rewrite traversals, with the byte-hotpath guard rejecting direct
+  `oren_list_len` loop bounds in those passes.
 - Native runtime bundle injection now caches immutable runtime/user statement,
   root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that shared

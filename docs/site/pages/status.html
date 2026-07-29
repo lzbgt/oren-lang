@@ -95,10 +95,11 @@
 </ul>
 <p>  decoded-header scans now cache immutable list lengths before traversal.</p>
 <ul>
-<li>Compiler loop-list reset and list-int lowering optimizer traversals now cache</li>
+<li>Compiler loop-list analysis, reset, and list-int lowering optimizer traversals</li>
 </ul>
-<p>  immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,</p>
-<p>  reserve, candidate, touch, and rewrite scans; the hotpath guard rejects direct</p>
+<p>  now cache immutable AST list counts before continue/exit, side-effect,</p>
+<p>  new-list, identifier, unsafe-use, sink/rewrite, hoist/reset, reserve,</p>
+<p>  candidate, touch, and rewrite scans; the hotpath guard rejects direct</p>
 <p>  <code>oren_list_len</code> loop bounds in those passes.</p>
 <ul>
 <li>Native runtime bundle injection now caches immutable runtime/user statement,</li>

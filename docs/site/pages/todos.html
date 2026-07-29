@@ -96,11 +96,12 @@
 <p>  string length before byte-offset line/column scans, and generic-call</p>
 <p>  declaration scans cache statement counts plus specialization-name lengths.</p>
 <ul>
-<li>Compiler loop-list reset and list-int lowering optimizer passes now cache</li>
+<li>Compiler loop-list analysis, reset, and list-int lowering optimizer passes now</li>
 </ul>
-<p>  immutable AST list counts before unsafe-use, sink/rewrite, hoist/reset,</p>
-<p>  reserve, candidate, touch, and rewrite traversals, with the byte-hotpath guard</p>
-<p>  rejecting direct <code>oren_list_len</code> loop bounds in those passes.</p>
+<p>  cache immutable AST list counts before continue/exit, side-effect, new-list,</p>
+<p>  identifier, unsafe-use, sink/rewrite, hoist/reset, reserve, candidate, touch,</p>
+<p>  and rewrite traversals, with the byte-hotpath guard rejecting direct</p>
+<p>  <code>oren_list_len</code> loop bounds in those passes.</p>
 <ul>
 <li>Native runtime bundle injection now caches immutable runtime/user statement,</li>
 </ul>
