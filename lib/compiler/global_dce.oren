@@ -49,8 +49,9 @@ fn _has_attr(node, name) {
     if node == nil || name == nil { return false }
     var attrs = node["attrs"]
     if attrs == nil { return false }
+    var attr_count = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attr_count {
         var a = attrs[i]
         if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
         i = i + 1
@@ -160,8 +161,9 @@ fn _collect_refs_expr(top_fns, aliases, reachable, queue, expr) {
         _collect_refs_expr(top_fns, aliases, reachable, queue, fn_expr)
         var args = expr["args"]
         if args != nil {
+            var arg_count = oren_list_len(args)
             var i = 0
-            while i < oren_list_len(args) {
+            while i < arg_count {
                 _collect_refs_expr(top_fns, aliases, reachable, queue, args[i])
                 i = i + 1
             }
@@ -195,17 +197,21 @@ fn _collect_refs_expr(top_fns, aliases, reachable, queue, expr) {
         return nil
     }
     if t == "Array" {
+        var elements = expr["elements"]
+        var element_count = oren_list_len(elements)
         var j = 0
-        while j < oren_list_len(expr["elements"]) {
-            _collect_refs_expr(top_fns, aliases, reachable, queue, expr["elements"][j])
+        while j < element_count {
+            _collect_refs_expr(top_fns, aliases, reachable, queue, elements[j])
             j = j + 1
         }
         return nil
     }
     if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pair_count = oren_list_len(pairs)
         var k = 0
-        while k < oren_list_len(expr["pairs"]) {
-            var pair = expr["pairs"][k]
+        while k < pair_count {
+            var pair = pairs[k]
             _collect_refs_expr(top_fns, aliases, reachable, queue, pair["key"])
             _collect_refs_expr(top_fns, aliases, reachable, queue, pair["value"])
             k = k + 1
@@ -234,9 +240,11 @@ fn _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt) {
     if t == "Return" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["value"]); return nil }
     if t == "ExprStmt" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["expr"]); return nil }
     if t == "Block" {
+        var block_stmts = stmt["stmts"]
+        var block_stmt_count = oren_list_len(block_stmts)
         var i = 0
-        while i < oren_list_len(stmt["stmts"]) {
-            _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["stmts"][i])
+        while i < block_stmt_count {
+            _collect_refs_stmt(top_fns, aliases, reachable, queue, block_stmts[i])
             i = i + 1
         }
         return nil
@@ -282,8 +290,9 @@ fn lower_linked_program_in_place(linked) {
 
     // Collect all top-level named functions.
     var top_fns = {}
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var fn_node = _maybe_get_toplevel_function_node(stmts[i])
         if fn_node != nil {
             var name = fn_node["name"]
@@ -308,7 +317,7 @@ fn lower_linked_program_in_place(linked) {
     // that are not visible in the linked AST. `@oren.keep` provides a principled way for the
     // runtime to mark such functions as DCE roots without maintaining huge per-backend root lists.
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var fn0 = _maybe_get_toplevel_function_node(stmts[i])
         if fn0 != nil {
             var nm0 = fn0["name"]
@@ -326,8 +335,9 @@ fn lower_linked_program_in_place(linked) {
     if config != nil {
         var extra = config["roots"]
         if extra != nil {
+            var extra_count = oren_list_len(extra)
             var ei = 0
-            while ei < oren_list_len(extra) {
+            while ei < extra_count {
                 _add_ref_if_toplevel_name(top_fns, reachable, queue, extra[ei])
                 ei = ei + 1
             }
@@ -336,7 +346,7 @@ fn lower_linked_program_in_place(linked) {
 
     var aliases = linked["aliases"]
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var fn2 = _maybe_get_toplevel_function_node(stmts[i])
         if fn2 == nil {
             _collect_refs_stmt(top_fns, aliases, reachable, queue, stmts[i])
@@ -346,19 +356,21 @@ fn lower_linked_program_in_place(linked) {
 
     // Traverse reachable functions.
     var qi = 0
-    while qi < oren_list_len(queue) {
+    var queue_count = oren_list_len(queue)
+    while qi < queue_count {
         var nm = queue[qi]
         var fn_node = top_fns[nm]
         if fn_node != nil {
             _collect_refs_stmt(top_fns, aliases, reachable, queue, fn_node["body"])
         }
         qi = qi + 1
+        queue_count = oren_list_len(queue)
     }
 
     // Filter out unreachable top-level named functions.
     var out = []
     i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var st = stmts[i]
         var fn3 = _maybe_get_toplevel_function_node(st)
         if fn3 != nil {
