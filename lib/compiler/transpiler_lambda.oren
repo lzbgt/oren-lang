@@ -26,8 +26,10 @@ fn lambda_collect_declared_in_expression(exp, declared) {
     if et == "Call" {
         lambda_collect_declared_in_expression(exp["fn"], declared)
         var i = 0
-        while i < oren_list_len(exp["args"]) {
-            lambda_collect_declared_in_expression(exp["args"][i], declared)
+        var args = exp["args"]
+        var args_len = oren_list_len(args)
+        while i < args_len {
+            lambda_collect_declared_in_expression(args[i], declared)
             i = i + 1
         }
         if exp["spread"] != nil { lambda_collect_declared_in_expression(exp["spread"], declared) }
@@ -53,16 +55,20 @@ fn lambda_collect_declared_in_expression(exp, declared) {
     }
     if et == "Array" {
         var j = 0
-        while j < oren_list_len(exp["elements"]) {
-            lambda_collect_declared_in_expression(exp["elements"][j], declared)
+        var elements = exp["elements"]
+        var elements_len = oren_list_len(elements)
+        while j < elements_len {
+            lambda_collect_declared_in_expression(elements[j], declared)
             j = j + 1
         }
         return nil
     }
     if et == "Hash" {
         var k = 0
-        while k < oren_list_len(exp["pairs"]) {
-            var pair = exp["pairs"][k]
+        var pairs = exp["pairs"]
+        var pairs_len = oren_list_len(pairs)
+        while k < pairs_len {
+            var pair = pairs[k]
             lambda_collect_declared_in_expression(pair["key"], declared)
             lambda_collect_declared_in_expression(pair["value"], declared)
             k = k + 1
@@ -92,8 +98,10 @@ fn lambda_collect_declared_in_statement(stmt, declared) {
     if st == "ExprStmt" { lambda_collect_declared_in_expression(stmt["expr"], declared); return nil }
     if st == "Block" {
         var i = 0
-        while i < oren_list_len(stmt["stmts"]) {
-            lambda_collect_declared_in_statement(stmt["stmts"][i], declared)
+        var stmts = stmt["stmts"]
+        var stmts_len = oren_list_len(stmts)
+        while i < stmts_len {
+            lambda_collect_declared_in_statement(stmts[i], declared)
             i = i + 1
         }
         return nil
@@ -136,7 +144,8 @@ fn lambda_collect_used_in_expression(exp, aliases, declared, seen, out) {
         var nested = exp["captures"]
         if nested == nil { nested = lambda_free_vars(exp, aliases) }
         var i = 0
-        while i < oren_list_len(nested) {
+        var nested_len = oren_list_len(nested)
+        while i < nested_len {
             maybe_add_capture(nested[i], aliases, declared, seen, out)
             i = i + 1
         }
@@ -145,8 +154,10 @@ fn lambda_collect_used_in_expression(exp, aliases, declared, seen, out) {
     if et == "Call" {
         lambda_collect_used_in_expression(exp["fn"], aliases, declared, seen, out)
         var i = 0
-        while i < oren_list_len(exp["args"]) {
-            lambda_collect_used_in_expression(exp["args"][i], aliases, declared, seen, out)
+        var args = exp["args"]
+        var args_len = oren_list_len(args)
+        while i < args_len {
+            lambda_collect_used_in_expression(args[i], aliases, declared, seen, out)
             i = i + 1
         }
         if exp["spread"] != nil { lambda_collect_used_in_expression(exp["spread"], aliases, declared, seen, out) }
@@ -175,16 +186,20 @@ fn lambda_collect_used_in_expression(exp, aliases, declared, seen, out) {
     }
     if et == "Array" {
         var j = 0
-        while j < oren_list_len(exp["elements"]) {
-            lambda_collect_used_in_expression(exp["elements"][j], aliases, declared, seen, out)
+        var elements = exp["elements"]
+        var elements_len = oren_list_len(elements)
+        while j < elements_len {
+            lambda_collect_used_in_expression(elements[j], aliases, declared, seen, out)
             j = j + 1
         }
         return nil
     }
     if et == "Hash" {
         var k = 0
-        while k < oren_list_len(exp["pairs"]) {
-            var pair = exp["pairs"][k]
+        var pairs = exp["pairs"]
+        var pairs_len = oren_list_len(pairs)
+        while k < pairs_len {
+            var pair = pairs[k]
             lambda_collect_used_in_expression(pair["key"], aliases, declared, seen, out)
             lambda_collect_used_in_expression(pair["value"], aliases, declared, seen, out)
             k = k + 1
@@ -217,8 +232,10 @@ fn lambda_collect_used_in_statement(stmt, aliases, declared, seen, out) {
     if st == "ExprStmt" { lambda_collect_used_in_expression(stmt["expr"], aliases, declared, seen, out); return nil }
     if st == "Block" {
         var i = 0
-        while i < oren_list_len(stmt["stmts"]) {
-            lambda_collect_used_in_statement(stmt["stmts"][i], aliases, declared, seen, out)
+        var stmts = stmt["stmts"]
+        var stmts_len = oren_list_len(stmts)
+        while i < stmts_len {
+            lambda_collect_used_in_statement(stmts[i], aliases, declared, seen, out)
             i = i + 1
         }
         return nil
@@ -243,8 +260,10 @@ fn lambda_free_vars(fun, aliases) {
     var declared = {}
     // params
     var i = 0
-    while i < oren_list_len(fun["params"]) {
-        declared[fun["params"][i]["value"]] = true
+    var params = fun["params"]
+    var params_len = oren_list_len(params)
+    while i < params_len {
+        declared[params[i]["value"]] = true
         i = i + 1
     }
     // var decls (any depth)
@@ -276,8 +295,10 @@ fn collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp) {
     if et == "Call" {
         collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["fn"])
         var i = 0
-        while i < oren_list_len(exp["args"]) {
-            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["args"][i])
+        var args = exp["args"]
+        var args_len = oren_list_len(args)
+        while i < args_len {
+            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, args[i])
             i = i + 1
         }
         return nil
@@ -302,16 +323,20 @@ fn collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp) {
     }
     if et == "Array" {
         var j = 0
-        while j < oren_list_len(exp["elements"]) {
-            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["elements"][j])
+        var elements = exp["elements"]
+        var elements_len = oren_list_len(elements)
+        while j < elements_len {
+            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, elements[j])
             j = j + 1
         }
         return nil
     }
     if et == "Hash" {
         var k = 0
-        while k < oren_list_len(exp["pairs"]) {
-            var pair = exp["pairs"][k]
+        var pairs = exp["pairs"]
+        var pairs_len = oren_list_len(pairs)
+        while k < pairs_len {
+            var pair = pairs[k]
             collect_lambdas_in_expression(t, unit_prefix, unit_aliases, pair["key"])
             collect_lambdas_in_expression(t, unit_prefix, unit_aliases, pair["value"])
             k = k + 1
@@ -336,8 +361,10 @@ fn collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt) {
     if st == "ExprStmt" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["expr"]); return nil }
     if st == "Block" {
         var i = 0
-        while i < oren_list_len(stmt["stmts"]) {
-            collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt["stmts"][i])
+        var stmts = stmt["stmts"]
+        var stmts_len = oren_list_len(stmts)
+        while i < stmts_len {
+            collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmts[i])
             i = i + 1
         }
         return nil

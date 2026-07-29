@@ -221,11 +221,12 @@
 <p>     with source guards rejecting direct <code>oren_list_len</code> loop bounds in that</p>
 <p>     shared x64/ARM64 runtime-injection path.</p>
 <ul>
-<li>Current C transpiler constructor, lambda, block, branch, call, array,</li>
+<li>Current C transpiler constructor, lambda/capture analysis, list-get</li>
 </ul>
-<p>     function body, and entry-unit emission caches immutable AST list counts</p>
-<p>     before traversal, with source guards rejecting direct <code>oren_list_len</code> loop</p>
-<p>     bounds in that backend.</p>
+<p>     analysis, block, branch, call, array, function body, and entry-unit</p>
+<p>     emission caches immutable AST list counts before traversal, with source</p>
+<p>     guards rejecting direct <code>oren_list_len</code> loop bounds in those backend helper</p>
+<p>     paths.</p>
 <ul>
 <li>Current compiler linked-summary/module-graph dumps and ARM64 Mach-O</li>
 </ul>

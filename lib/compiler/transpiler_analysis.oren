@@ -29,7 +29,8 @@ fn _transpiler_inty_clone(xs) {
     var out = []
     if xs == nil { return out }
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         oren_list_push(out, xs[i])
         i = i + 1
     }
@@ -40,7 +41,8 @@ fn _transpiler_inty_remove(xs, name) {
     if xs == nil { return [] }
     var out = []
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         if str_eq(xs[i], name) != true { oren_list_push(out, xs[i]) }
         i = i + 1
     }
@@ -63,7 +65,8 @@ fn _transpiler_inty_intersect(a, b) {
     var out = []
     if a == nil || b == nil { return out }
     var i = 0
-    while i < oren_list_len(a) {
+    var a_len = oren_list_len(a)
+    while i < a_len {
         if list_contains(b, a[i]) { oren_list_push(out, a[i]) }
         i = i + 1
     }
@@ -205,7 +208,9 @@ fn _transpiler_is_list_int_get_call(t, exp, idx_name) {
     if nm == nil { return nil }
     if str_eq(nm, "oren_list_int_get") != true && str_eq(nm, "STD_list_int_get") != true { return nil }
     var args = exp["args"]
-    if args == nil || oren_list_len(args) != 2 { return nil }
+    var args_len = 0
+    if args != nil { args_len = oren_list_len(args) }
+    if args == nil || args_len != 2 { return nil }
     var list_name = _transpiler_is_ident(args[0])
     var idx = _transpiler_is_ident(args[1])
     if list_name == nil || idx == nil { return nil }
@@ -244,7 +249,9 @@ fn _transpiler_is_list_get_call(t, exp, idx_name) {
     if nm == nil { return nil }
     if str_eq(nm, "oren_list_get") != true && str_eq(nm, "STD_list_get") != true { return nil }
     var args = exp["args"]
-    if args == nil || oren_list_len(args) != 2 { return nil }
+    var args_len = 0
+    if args != nil { args_len = oren_list_len(args) }
+    if args == nil || args_len != 2 { return nil }
     var list_name = _transpiler_is_ident(args[0])
     var idx = _transpiler_is_ident(args[1])
     if list_name == nil || idx == nil { return nil }
@@ -273,7 +280,9 @@ fn _transpiler_is_list_int_push_call(t, exp) {
     if nm == nil { return nil }
     if str_eq(nm, "oren_list_int_push") != true && str_eq(nm, "STD_list_int_push") != true { return nil }
     var args = exp["args"]
-    if args == nil || oren_list_len(args) != 2 { return nil }
+    var args_len = 0
+    if args != nil { args_len = oren_list_len(args) }
+    if args == nil || args_len != 2 { return nil }
     var list_name = _transpiler_is_ident(args[0])
     if list_name == nil { return nil }
     return list_name
@@ -299,7 +308,9 @@ fn _transpiler_is_list_push_call(t, exp) {
     if nm == nil { return nil }
     if str_eq(nm, "oren_list_push") != true { return nil }
     var args = exp["args"]
-    if args == nil || oren_list_len(args) != 2 { return nil }
+    var args_len = 0
+    if args != nil { args_len = oren_list_len(args) }
+    if args == nil || args_len != 2 { return nil }
     var list_name = _transpiler_is_ident(args[0])
     if list_name == nil { return nil }
     return list_name
@@ -374,7 +385,8 @@ fn _transpiler_expr_collect_list_int_gets(t, exp, idx_name, lists) {
         }
         var args = exp["args"]
         var j = 0
-        while j < oren_list_len(args) {
+        var args_len = oren_list_len(args)
+        while j < args_len {
             var r = _transpiler_expr_collect_list_int_gets(t, args[j], idx_name, lists)
             if r["ok"] != true { return r }
             if r["uses_idx"] == true { return r }
@@ -395,7 +407,8 @@ fn _transpiler_expr_collect_list_int_gets(t, exp, idx_name, lists) {
     if et == "Array" {
         var xs = exp["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i < xs_len {
             var r = _transpiler_expr_collect_list_int_gets(t, xs[i], idx_name, lists)
             if r["ok"] != true || r["uses_idx"] == true { return r }
             lists = r["lists"]
@@ -406,7 +419,8 @@ fn _transpiler_expr_collect_list_int_gets(t, exp, idx_name, lists) {
     if et == "Hash" {
         var ps = exp["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i2 < ps_len {
             var r1h = _transpiler_expr_collect_list_int_gets(t, ps[i2]["key"], idx_name, lists)
             if r1h["ok"] != true || r1h["uses_idx"] == true { return r1h }
             var r2h = _transpiler_expr_collect_list_int_gets(t, ps[i2]["value"], idx_name, r1h["lists"])
@@ -483,7 +497,8 @@ fn _transpiler_expr_collect_list_gets(t, exp, idx_name, lists) {
         }
         var args = exp["args"]
         var j = 0
-        while j < oren_list_len(args) {
+        var args_len = oren_list_len(args)
+        while j < args_len {
             var r = _transpiler_expr_collect_list_gets(t, args[j], idx_name, lists)
             if r["ok"] != true { return r }
             if r["uses_idx"] == true { return r }
@@ -504,7 +519,8 @@ fn _transpiler_expr_collect_list_gets(t, exp, idx_name, lists) {
     if et == "Array" {
         var xs = exp["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i < xs_len {
             var r = _transpiler_expr_collect_list_gets(t, xs[i], idx_name, lists)
             if r["ok"] != true || r["uses_idx"] == true { return r }
             lists = r["lists"]
@@ -515,7 +531,8 @@ fn _transpiler_expr_collect_list_gets(t, exp, idx_name, lists) {
     if et == "Hash" {
         var ps = exp["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i2 < ps_len {
             var r1h = _transpiler_expr_collect_list_gets(t, ps[i2]["key"], idx_name, lists)
             if r1h["ok"] != true || r1h["uses_idx"] == true { return r1h }
             var r2h = _transpiler_expr_collect_list_gets(t, ps[i2]["value"], idx_name, r1h["lists"])
@@ -601,7 +618,8 @@ fn _transpiler_expr_uses_ident(exp, name) {
         if _transpiler_expr_uses_ident(exp["fn"], name) { return true }
         var args = exp["args"]
         var i = 0
-        while i < oren_list_len(args) {
+        var args_len = oren_list_len(args)
+        while i < args_len {
             if _transpiler_expr_uses_ident(args[i], name) { return true }
             i = i + 1
         }
@@ -617,7 +635,8 @@ fn _transpiler_expr_uses_ident(exp, name) {
     if et == "Array" {
         var xs = exp["elements"]
         var j = 0
-        while j < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while j < xs_len {
             if _transpiler_expr_uses_ident(xs[j], name) { return true }
             j = j + 1
         }
@@ -626,7 +645,8 @@ fn _transpiler_expr_uses_ident(exp, name) {
     if et == "Hash" {
         var ps = exp["pairs"]
         var k = 0
-        while k < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while k < ps_len {
             if _transpiler_expr_uses_ident(ps[k]["key"], name) { return true }
             if _transpiler_expr_uses_ident(ps[k]["value"], name) { return true }
             k = k + 1
@@ -640,7 +660,8 @@ fn _transpiler_expr_uses_ident(exp, name) {
 fn _transpiler_expr_uses_any_ident(exp, names) {
     if exp == nil || names == nil { return false }
     var i = 0
-    while i < oren_list_len(names) {
+    var names_len = oren_list_len(names)
+    while i < names_len {
         if _transpiler_expr_uses_ident(exp, names[i]) { return true }
         i = i + 1
     }
@@ -807,12 +828,13 @@ fn _transpiler_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name, 
     if mod_ok != true { return nil }
     var terms = []
     _transpiler_collect_add_terms(val["left"], terms)
-    if oren_list_len(terms) != 3 { return nil }
+    var terms_len = oren_list_len(terms)
+    if terms_len != 3 { return nil }
     var saw_sum = false
     var mod_x = nil
     var mod_i = nil
     var ti = 0
-    while ti < oren_list_len(terms) {
+    while ti < terms_len {
         var t = terms[ti]
         var tname = _transpiler_is_ident(t)
         if tname != nil && str_eq(tname, sum_name) {

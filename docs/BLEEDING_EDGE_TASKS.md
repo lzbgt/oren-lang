@@ -119,10 +119,11 @@ This file is the concise task view. Detailed implementation status lives in
      statement, root, parse-error, decoded-list, and merge traversal counts,
      with source guards rejecting direct `oren_list_len` loop bounds in that
      shared x64/ARM64 runtime-injection path.
-   - Current C transpiler constructor, lambda, block, branch, call, array,
-     function body, and entry-unit emission caches immutable AST list counts
-     before traversal, with source guards rejecting direct `oren_list_len` loop
-     bounds in that backend.
+   - Current C transpiler constructor, lambda/capture analysis, list-get
+     analysis, block, branch, call, array, function body, and entry-unit
+     emission caches immutable AST list counts before traversal, with source
+     guards rejecting direct `oren_list_len` loop bounds in those backend helper
+     paths.
    - Current compiler linked-summary/module-graph dumps and ARM64 Mach-O
      function-offset lookup ranking cache immutable list counts before
      traversal, with source guards rejecting direct `oren_list_len` loop bounds

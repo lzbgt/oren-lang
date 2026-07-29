@@ -177,11 +177,11 @@
 <p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that shared</p>
 <p>  x64/ARM64 runtime-injection path.</p>
 <ul>
-<li>C transpiler constructor, lambda, block, branch, call, array, function body,</li>
+<li>C transpiler constructor, lambda/capture analysis, list-get analysis, block,</li>
 </ul>
-<p>  and entry-unit emission now caches immutable AST list counts before traversal,</p>
-<p>  with byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds</p>
-<p>  in that backend.</p>
+<p>  branch, call, array, function body, and entry-unit emission now caches</p>
+<p>  immutable AST list counts before traversal, with byte-hotpath guard coverage</p>
+<p>  rejecting direct <code>oren_list_len</code> loop bounds in those backend helper paths.</p>
 <ul>
 <li>Compiler linked-summary/module-graph dumps and ARM64 Mach-O function-offset</li>
 </ul>
