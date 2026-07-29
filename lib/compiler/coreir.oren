@@ -69,8 +69,9 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
 
     var out = []
     var declared = {}
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var fn0 = _stmt_to_function_decl(stmts[i])
         if fn0 != nil {
             var name = fn0["name"]
@@ -145,8 +146,9 @@ fn collect_top_level_functions_merge(ctx, linked, err_prefix) {
     if declared == nil { declared = {} }
 
     var out = []
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var fn0 = _stmt_to_function_decl(stmts[i])
         if fn0 != nil {
             var name = fn0["name"]
@@ -276,16 +278,18 @@ fn _numeric_scan_expr(ctx, expr, locals_floaty, locals_inty, fn_by_name, evidenc
         var args = expr["args"]
         if args == nil { args = [] }
         if fn_name != nil && fn_by_name != nil && fn_by_name[fn_name] != nil {
+            var arg_count = oren_list_len(args)
             var i = 0
-            while i < oren_list_len(args) {
+            while i < arg_count {
                 _numeric_scan_expr(ctx, args[i], locals_floaty, locals_inty, fn_by_name, evidence)
                 _numeric_evidence_add(evidence, fn_name, i, _numeric_expr_trait(ctx, args[i], locals_floaty, locals_inty))
                 i = i + 1
             }
         } else {
             _numeric_scan_expr(ctx, fn0, locals_floaty, locals_inty, fn_by_name, evidence)
+            var arg_count2 = oren_list_len(args)
             var j = 0
-            while j < oren_list_len(args) {
+            while j < arg_count2 {
                 _numeric_scan_expr(ctx, args[j], locals_floaty, locals_inty, fn_by_name, evidence)
                 j = j + 1
             }
@@ -307,8 +311,9 @@ fn _numeric_scan_expr(ctx, expr, locals_floaty, locals_inty, fn_by_name, evidenc
     if t == "List" {
         var es = expr["elements"]
         if es == nil { es = [] }
+        var element_count = oren_list_len(es)
         var li = 0
-        while li < oren_list_len(es) {
+        while li < element_count {
             _numeric_scan_expr(ctx, es[li], locals_floaty, locals_inty, fn_by_name, evidence)
             li = li + 1
         }
@@ -317,8 +322,9 @@ fn _numeric_scan_expr(ctx, expr, locals_floaty, locals_inty, fn_by_name, evidenc
     if t == "Map" {
         var ps = expr["pairs"]
         if ps == nil { ps = [] }
+        var pair_count = oren_list_len(ps)
         var mi = 0
-        while mi < oren_list_len(ps) {
+        while mi < pair_count {
             var p = ps[mi]
             if p != nil {
                 _numeric_scan_expr(ctx, p["key"], locals_floaty, locals_inty, fn_by_name, evidence)
@@ -332,8 +338,9 @@ fn _numeric_scan_expr(ctx, expr, locals_floaty, locals_inty, fn_by_name, evidenc
 
 fn _numeric_scan_stmt_list(ctx, stmts, locals_floaty, locals_inty, fn_by_name, evidence) {
     if stmts == nil { return nil }
+    var stmt_count = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         _numeric_scan_stmt(ctx, stmts[i], locals_floaty, locals_inty, fn_by_name, evidence)
         i = i + 1
     }
@@ -400,8 +407,9 @@ fn _numeric_seed_param_maps(ctx, fn0, prev_floaty, prev_inty, locals_floaty, loc
     var fn_prev_inty = nil
     if prev_floaty != nil { fn_prev_floaty = prev_floaty[name] }
     if prev_inty != nil { fn_prev_inty = prev_inty[name] }
+    var param_count = oren_list_len(params)
     var i = 0
-    while i < oren_list_len(params) {
+    while i < param_count {
         var p = params[i]
         var pn = nil
         if p != nil { pn = p["value"] }
@@ -420,8 +428,9 @@ fn infer_native_param_numeric_traits(ctx, fns, top_fn, err_prefix) {
     if ctx == nil { return nil }
     if fns == nil { fns = [] }
     var fn_by_name = {}
+    var fn_count = oren_list_len(fns)
     var i = 0
-    while i < oren_list_len(fns) {
+    while i < fn_count {
         var fn0 = fns[i]
         if fn0 != nil && fn0["name"] != nil && fn0["name"] != "" { fn_by_name[fn0["name"]] = fn0 }
         i = i + 1
@@ -432,7 +441,7 @@ fn infer_native_param_numeric_traits(ctx, fns, top_fn, err_prefix) {
     while iter < 8 {
         var evidence = {}
         i = 0
-        while i < oren_list_len(fns) {
+        while i < fn_count {
             var fn1 = fns[i]
             if fn1 != nil {
                 var lf = {}
@@ -450,7 +459,7 @@ fn infer_native_param_numeric_traits(ctx, fns, top_fn, err_prefix) {
         var next_floaty = {}
         var next_inty = {}
         i = 0
-        while i < oren_list_len(fns) {
+        while i < fn_count {
             var fn2 = fns[i]
             if fn2 != nil {
                 var nm = fn2["name"]
@@ -459,8 +468,9 @@ fn infer_native_param_numeric_traits(ctx, fns, top_fn, err_prefix) {
                 var ev = evidence[nm]
                 var nf = {}
                 var ni = {}
+                var param_count2 = oren_list_len(params)
                 var pi = 0
-                while pi < oren_list_len(params) {
+                while pi < param_count2 {
                     var k = _numeric_param_key(pi)
                     var st = nil
                     if ev != nil { st = ev[k] }
