@@ -461,7 +461,7 @@ fn _x64_prepare_lambda_literal_env_slot(ctx, locals) {
         err(ctx, "x64 native v0: missing spill slot for lambda literal env")
         return nil
     }
-    return {"base": base, "slot_env": slot_env, "tmp_env": tmp_env}
+    return [base, slot_env, tmp_env]
 }
 
 fn _x64_emit_empty_lambda_literal_env(ctx, tmp_env) {
@@ -473,9 +473,9 @@ fn _x64_emit_empty_lambda_literal_env(ctx, tmp_env) {
 
 fn _x64_emit_lambda_literal_env_list(ctx, locals, env_state) {
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, env_state["base"]); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - env_state["tmp_env"], 0)
-    return {"type": "IntrTmp", "idx": env_state["slot_env"]}
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, env_state[0]); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - env_state[2], 0)
+    return {"type": "IntrTmp", "idx": env_state[1]}
 }
 
 fn _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, cname, base) {
@@ -490,14 +490,14 @@ fn _x64_emit_lambda_literal_env_captures(ctx, locals, caps, env_state) {
     var caps_len = oren_list_len(caps)
     var i = 0
     while i < caps_len {
-        if _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, caps[i], env_state["base"]) != true { return nil }
+        if _x64_emit_lambda_literal_env_capture(ctx, locals, env_tmp, caps[i], env_state[0]) != true { return nil }
         i = iadd(i, 1)
     }
     return true
 }
 
 fn _x64_emit_lambda_literal_env(ctx, locals, caps, env_state) {
-    var tmp_env = env_state["tmp_env"]
+    var tmp_env = env_state[2]
     if oren_list_len(caps) == 0 {
         return _x64_emit_empty_lambda_literal_env(ctx, tmp_env)
     }
@@ -505,8 +505,8 @@ fn _x64_emit_lambda_literal_env(ctx, locals, caps, env_state) {
 }
 
 fn _x64_emit_lambda_literal_func_obj(ctx, lname, env_state) {
-    var base = env_state["base"]
-    var tmp_env = env_state["tmp_env"]
+    var base = env_state[0]
+    var tmp_env = env_state[2]
     var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
     var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {

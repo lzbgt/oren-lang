@@ -72,9 +72,9 @@ fn _x64_fast_lcg_labels(ctx) {
 }
 
 fn _x64_fast_lcg_entry_load_mod(ctx, prep) {
-    var mod_name = prep["mod"]
-    var mod_const = prep["mod_const"]
-    var off_mod = prep["off_mod"]
+    var mod_name = prep[0]
+    var mod_const = prep[1]
+    var off_mod = prep[15]
     if mod_name != nil {
         _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod)
     } else {
@@ -91,15 +91,15 @@ fn _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, reg, off, target) {
 }
 
 fn _x64_fast_lcg_entry_emit_state_gates(ctx, prep, target, local_fixups) {
-    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 0, prep["off_idx"], target)
-    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 1, prep["off_n"], target)
-    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 2, prep["off_x"], target)
-    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 4, prep["off_sum"], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 0, prep[11], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 1, prep[12], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 2, prep[13], target)
+    _x64_fast_lcg_entry_jump_if_negative(ctx, local_fixups, 4, prep[14], target)
     return nil
 }
 
 fn _x64_fast_lcg_entry_emit_sum_cap_gate(ctx, prep, target, local_fixups) {
-    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, prep["sum_cap"]))
+    bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, prep[6]))
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(12, 9))
     _emit_jcc_to_label(ctx, local_fixups, "lt", target)
     return nil
@@ -121,10 +121,10 @@ fn _x64_fast_lcg_emit_entry_gates(ctx, prep, labels, local_fixups) {
 }
 
 fn _x64_fast_lcg_unsigned_setup_constants(ctx, prep) {
-    var mul = prep["mul"]
-    var add = prep["add"]
-    var mod_x = prep["mod_x"]
-    var mod_i = prep["mod_i"]
+    var mul = prep[2]
+    var add = prep[3]
+    var mod_x = prep[4]
+    var mod_i = prep[5]
 
     // constants in callee-saved regs (survive runtime calls)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(13, mul))  // r13 = mul
@@ -138,13 +138,13 @@ fn _x64_fast_lcg_unsigned_setup_constants(ctx, prep) {
 }
 
 fn _x64_fast_lcg_unsigned_setup_loop_vars(ctx, prep) {
-    var mod_name = prep["mod"]
-    var mod_const = prep["mod_const"]
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
-    var off_mod = prep["off_mod"]
+    var mod_name = prep[0]
+    var mod_const = prep[1]
+    var off_idx = prep[11]
+    var off_n = prep[12]
+    var off_x = prep[13]
+    var off_sum = prep[14]
+    var off_mod = prep[15]
     // load loop vars into regs once
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx) // r9 = i
     _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
@@ -159,8 +159,8 @@ fn _x64_fast_lcg_unsigned_setup_loop_vars(ctx, prep) {
 }
 
 fn _x64_fast_lcg_unsigned_setup_i_mod(ctx, prep, labels, local_fixups) {
-    var modi_recip = prep["modi_recip"]
-    var use_fastmod = prep["use_fastmod"]
+    var modi_recip = prep[9]
+    var use_fastmod = prep[10]
     // i_mod = i % mod_i (fast path only)
     if use_fastmod == true {
         _emit_fastmod_u64_const_x64(ctx, 9, 3, modi_recip, 7, 6, labels, local_fixups, "lcg_i_mod")
@@ -210,10 +210,10 @@ fn _x64_fast_lcg_unsigned_emit_safepoint_guard(ctx, local_fixups) {
 }
 
 fn _x64_fast_lcg_unsigned_spill_safepoint_regs(ctx, prep) {
-    var off_idx = prep["off_idx"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
-    var off_i_mod = prep["off_i_mod"]
+    var off_idx = prep[11]
+    var off_x = prep[13]
+    var off_sum = prep[14]
+    var off_i_mod = prep[17]
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 9)
     _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
@@ -228,11 +228,11 @@ fn _x64_fast_lcg_unsigned_emit_safepoint_call(ctx) {
 }
 
 fn _x64_fast_lcg_unsigned_reload_safepoint_regs(ctx, prep) {
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
-    var off_i_mod = prep["off_i_mod"]
+    var off_idx = prep[11]
+    var off_n = prep[12]
+    var off_x = prep[13]
+    var off_sum = prep[14]
+    var off_i_mod = prep[17]
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)
     _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum)
@@ -242,9 +242,9 @@ fn _x64_fast_lcg_unsigned_reload_safepoint_regs(ctx, prep) {
 }
 
 fn _x64_fast_lcg_unsigned_emit_unroll2(ctx, prep, labels, local_fixups) {
-    var use_fastmod = prep["use_fastmod"]
-    var mod_recip = prep["mod_recip"]
-    var modx_recip = prep["modx_recip"]
+    var use_fastmod = prep[10]
+    var mod_recip = prep[7]
+    var modx_recip = prep[8]
     var l_fast_single = labels["single"]
     var l_fast_cond = labels["cond"]
     // If i + 1 >= n, run single-iter path.
@@ -266,9 +266,9 @@ fn _x64_fast_lcg_unsigned_emit_unroll2(ctx, prep, labels, local_fixups) {
 }
 
 fn _x64_fast_lcg_unsigned_emit_single(ctx, prep, labels, local_fixups) {
-    var use_fastmod = prep["use_fastmod"]
-    var mod_recip = prep["mod_recip"]
-    var modx_recip = prep["modx_recip"]
+    var use_fastmod = prep[10]
+    var mod_recip = prep[7]
+    var modx_recip = prep[8]
     var l_fast_single = labels["single"]
     var l_fast_cond = labels["cond"]
     _emit_label(ctx, labels, l_fast_single)
@@ -279,9 +279,9 @@ fn _x64_fast_lcg_unsigned_emit_single(ctx, prep, labels, local_fixups) {
 }
 
 fn _x64_fast_lcg_unsigned_emit_finish(ctx, prep, labels, local_fixups) {
-    var off_idx = prep["off_idx"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
+    var off_idx = prep[11]
+    var off_x = prep[13]
+    var off_sum = prep[14]
     var l_fast_end = labels["end"]
     _emit_label(ctx, labels, l_fast_end)
     _emit_mov_mrbp_r64(ctx, 0 - off_idx, 9)
@@ -301,8 +301,8 @@ fn _x64_fast_lcg_emit_unsigned_loop(ctx, prep, labels, local_fixups) {
 }
 
 fn _x64_fast_lcg_fullmod_emit_cond(ctx, prep, labels, local_fixups) {
-    var off_idx = prep["off_idx"]
-    var off_n = prep["off_n"]
+    var off_idx = prep[11]
+    var off_n = prep[12]
     var l_fast_cond_mod = labels["cond_mod"]
     var l_fast_end_mod = labels["end_mod"]
 
@@ -330,12 +330,12 @@ fn _x64_fast_lcg_fullmod_emit_safepoint(ctx, labels, local_fixups) {
 }
 
 fn _x64_fast_lcg_fullmod_reload_state(ctx, prep) {
-    var mod_name = prep["mod"]
-    var mod_const = prep["mod_const"]
-    var off_idx = prep["off_idx"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
-    var off_mod = prep["off_mod"]
+    var mod_name = prep[0]
+    var mod_const = prep[1]
+    var off_idx = prep[11]
+    var off_x = prep[13]
+    var off_sum = prep[14]
+    var off_mod = prep[15]
 
     // reload i/x/sum/mod
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
@@ -390,7 +390,7 @@ fn _x64_fast_lcg_fullmod_term_x(ctx) {
 }
 
 fn _x64_fast_lcg_fullmod_term_i(ctx, prep) {
-    var off_idx = prep["off_idx"]
+    var off_idx = prep[11]
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
     bytes_extend(ctx["code"], core.insn_cqo())
     bytes_extend(ctx["code"], core.insn_idiv_r64(3)) // rbx
@@ -409,9 +409,9 @@ fn _x64_fast_lcg_fullmod_reduce_sum(ctx) {
 }
 
 fn _x64_fast_lcg_fullmod_writeback_inc(ctx, prep) {
-    var off_idx = prep["off_idx"]
-    var off_x = prep["off_x"]
-    var off_sum = prep["off_sum"]
+    var off_idx = prep[11]
+    var off_x = prep[13]
+    var off_sum = prep[14]
 
     _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
@@ -442,7 +442,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
 
     var prep = _x64_fast_lcg_prepare(ctx, info, locals)
     if prep == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
-    var base = prep["base"]
+    var base = prep[16]
     var lcg_labels = _x64_fast_lcg_labels(ctx)
     _x64_fast_lcg_emit_entry_gates(ctx, prep, lcg_labels, local_fixups)
     _x64_fast_lcg_emit_unsigned_setup(ctx, prep, lcg_labels, local_fixups)

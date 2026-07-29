@@ -111,7 +111,8 @@ This file is the concise task view. Detailed implementation status lives in
      index-set, list/list_int length/get/set/push, and fast dot helper state
      now uses compact positional spill/dispatch records, and LIST/LIST_INT
      push-while plus LIST_INT get-sum while emitters use positional prep/slot
-     records.
+     records. LCG sum while, lambda literal env, and native allocation kind
+     helpers use positional records too.
    - Current `std:ui` command validation, OGF0 frame sizing/encoding, and
      software rasterization cache immutable command-list lengths before
      traversal.

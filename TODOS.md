@@ -3053,7 +3053,9 @@ design evidence lives under `project-doc/`.
   set lowering plus LIST/LIST_INT push intrinsics use positional spill/dispatch
   records for their checked helper paths. X64 LIST/LIST_INT push-while and
   LIST_INT get-sum while emitters now also use positional prep, ABI, offset,
-  shape, and slot records instead of short-lived keyed maps.
+  shape, and slot records instead of short-lived keyed maps. X64 LCG sum while,
+  lambda literal env, and native allocation kind helpers now also use positional
+  helper records.
 - Linux x64 syscall lowering now uses compact positional scratch-state lists for
   stat/path families, read/write fd-buffer setup, getrandom, futex wait, and
   fd-control/dup/ioctl plus syscall-tail helpers instead of transient keyed state

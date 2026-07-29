@@ -1,23 +1,13 @@
 fn _x64_fast_lcg_prepare_inputs(info) {
     if info == nil { return nil }
-    return {
-        "idx": info["idx"],
-        "n": info["n"],
-        "x": info["x"],
-        "sum": info["sum"],
-        "mod": info["mod"],
-        "mod_const": info["mod_const"],
-        "mul": info["mul"],
-        "add": info["add"],
-        "mod_x": info["mod_x"],
-        "mod_i": info["mod_i"]
-    }
+    return [info["idx"], info["n"], info["x"], info["sum"], info["mod"],
+        info["mod_const"], info["mul"], info["add"], info["mod_x"], info["mod_i"]]
 }
 
 fn _x64_fast_lcg_prepare_mod_recip(inputs) {
-    var mod_const = inputs["mod_const"]
-    var mod_x = inputs["mod_x"]
-    var mod_i = inputs["mod_i"]
+    var mod_const = inputs[5]
+    var mod_x = inputs[8]
+    var mod_i = inputs[9]
     var mod_recip = nil
     var modx_recip = nil
     var modi_recip = nil
@@ -28,36 +18,25 @@ fn _x64_fast_lcg_prepare_mod_recip(inputs) {
         modi_recip = _x64_fastmod_recip_u64(mod_i)
         if mod_recip != nil && modx_recip != nil && modi_recip != nil { use_fastmod = true }
     }
-    return {
-        "mod_recip": mod_recip,
-        "modx_recip": modx_recip,
-        "modi_recip": modi_recip,
-        "use_fastmod": use_fastmod
-    }
+    return [mod_recip, modx_recip, modi_recip, use_fastmod]
 }
 
 fn _x64_fast_lcg_lookup_local_offsets(inputs, locals) {
-    var mod_name = inputs["mod"]
+    var mod_name = inputs[4]
     var off_mod = nil
     if mod_name != nil { off_mod = locals[mod_name] }
-    return {
-        "off_idx": locals[inputs["idx"]],
-        "off_n": locals[inputs["n"]],
-        "off_x": locals[inputs["x"]],
-        "off_sum": locals[inputs["sum"]],
-        "off_mod": off_mod
-    }
+    return [locals[inputs[0]], locals[inputs[1]], locals[inputs[2]], locals[inputs[3]], off_mod]
 }
 
 fn _x64_fast_lcg_offsets_valid(inputs, offsets) {
-    var mod_name = inputs["mod"]
-    if oren_type_tag(offsets["off_idx"]) == 0 || oren_type_tag(offsets["off_n"]) == 0 ||
-       oren_type_tag(offsets["off_x"]) == 0 || oren_type_tag(offsets["off_sum"]) == 0 ||
-       (mod_name != nil && oren_type_tag(offsets["off_mod"]) == 0) {
+    var mod_name = inputs[4]
+    if oren_type_tag(offsets[0]) == 0 || oren_type_tag(offsets[1]) == 0 ||
+       oren_type_tag(offsets[2]) == 0 || oren_type_tag(offsets[3]) == 0 ||
+       (mod_name != nil && oren_type_tag(offsets[4]) == 0) {
         return false
     }
     if mod_name == nil {
-        var mod_const = inputs["mod_const"]
+        var mod_const = inputs[5]
         if mod_const == nil || mod_const <= 0 { return false }
     }
     return true
@@ -84,32 +63,16 @@ fn _x64_fast_lcg_prepare_temp(ctx, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return {"base": base, "off_i_mod": off_i_mod}
+    return [base, off_i_mod]
 }
 
 fn _x64_fast_lcg_prepare_pack(inputs, recips, offsets, temp) {
-    var mod_x = inputs["mod_x"]
-    var mod_i = inputs["mod_i"]
-    return {
-        "mod": inputs["mod"],
-        "mod_const": inputs["mod_const"],
-        "mul": inputs["mul"],
-        "add": inputs["add"],
-        "mod_x": mod_x,
-        "mod_i": mod_i,
-        "sum_cap": mod_x + mod_i,
-        "mod_recip": recips["mod_recip"],
-        "modx_recip": recips["modx_recip"],
-        "modi_recip": recips["modi_recip"],
-        "use_fastmod": recips["use_fastmod"],
-        "off_idx": offsets["off_idx"],
-        "off_n": offsets["off_n"],
-        "off_x": offsets["off_x"],
-        "off_sum": offsets["off_sum"],
-        "off_mod": offsets["off_mod"],
-        "base": temp["base"],
-        "off_i_mod": temp["off_i_mod"]
-    }
+    var mod_x = inputs[8]
+    var mod_i = inputs[9]
+    return [inputs[4], inputs[5], inputs[6], inputs[7], mod_x, mod_i,
+        mod_x + mod_i, recips[0], recips[1], recips[2], recips[3],
+        offsets[0], offsets[1], offsets[2], offsets[3], offsets[4],
+        temp[0], temp[1]]
 }
 
 fn _x64_fast_lcg_prepare(ctx, info, locals) {

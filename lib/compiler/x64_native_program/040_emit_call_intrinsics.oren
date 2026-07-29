@@ -190,12 +190,12 @@ fn _x64_native_alloc_expected_args(nm) {
 }
 
 fn _x64_native_alloc_pop_state(ctx, st) {
-    if st != nil && oren_type_tag(st["base"]) != 0 { _intr_tmp_pop(ctx, st["base"]) }
+    if st != nil && oren_type_tag(st[0]) != 0 { _intr_tmp_pop(ctx, st[0]) }
     return nil
 }
 
 fn _x64_native_alloc_kind_state(ctx, nm, locals, args) {
-    if nm != "malloc_k" { return {"base": nil, "tmp_kind": nil} }
+    if nm != "malloc_k" { return [nil, nil] }
 
     // Preserve kind across the allocator slow path (clobbers R10/R11/RCX).
     var base = _intr_tmp_push(ctx, 1)
@@ -205,7 +205,7 @@ fn _x64_native_alloc_kind_state(ctx, nm, locals, args) {
     _emit_eval_int_to_rax(ctx, args[1], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_kind, 0)
-    return {"base": base, "tmp_kind": tmp_kind}
+    return [base, tmp_kind]
 }
 
 fn _x64_native_alloc_reuse_mode(nm) {
@@ -225,7 +225,7 @@ fn _x64_native_alloc_emit_tracking(ctx, nm, locals, st) {
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(12, 0))
     _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0)
     if nm == "malloc_k" {
-        _emit_mov_r64_mrbp(ctx, 10, 0 - st["tmp_kind"])
+        _emit_mov_r64_mrbp(ctx, 10, 0 - st[1])
     } else {
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(10, 0))
     }
