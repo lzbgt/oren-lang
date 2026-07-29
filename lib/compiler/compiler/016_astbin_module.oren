@@ -92,8 +92,9 @@ fn _astbin_module_keys_for_map(m) {
 }
 
 fn _astbin_module_key_known(keys, want) {
+    var key_count = oren_list_len(keys)
     var i = 0
-    while i < oren_list_len(keys) {
+    while i < key_count {
         if keys[i] == want { return true }
         i = i + 1
     }
@@ -164,8 +165,9 @@ fn _astbin_module_trace_fallback_shape(m) {
 
 fn _astbin_module_count_known_keys(m, keys) {
     var n = 0
+    var key_count = oren_list_len(keys)
     var i = 0
-    while i < oren_list_len(keys) {
+    while i < key_count {
         var k = keys[i]
         if m[k] != nil { n = n + 1 }
         i = i + 1
@@ -189,8 +191,9 @@ fn _astbin_module_collect_strings(v, pool_idx_map, pool) {
     if _astbin_is_map(v) {
         var keys = _astbin_module_keys_for_map(v)
         _astbin_module_trace_unknown_keys(v, keys)
+        var map_key_count = oren_list_len(keys)
         var i2 = 0
-        while i2 < oren_list_len(keys) {
+        while i2 < map_key_count {
             var k = keys[i2]
             var val = v[k]
             if val != nil {
@@ -311,8 +314,9 @@ fn _astbin_module_write_known_map_v2_dyn(b, m, pool_idx_map, budget_ref) {
     var n = _astbin_module_count_known_keys(m, keys)
     _astbin_module_dyn_push_u8(b, 6)
     _astbin_module_dyn_push_uvarint(b, n)
+    var key_count = oren_list_len(keys)
     var i = 0
-    while i < oren_list_len(keys) {
+    while i < key_count {
         var k = keys[i]
         var v = m[k]
         if v != nil {

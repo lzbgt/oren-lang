@@ -1802,12 +1802,14 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/optimizer_loops_list_reset.oren \
   lib/compiler/optimizer_list_int_lower.oren \
 	  lib/compiler/native_runtime_bundle.oren \
+	  lib/compiler/native_runtime_obj_cache_sidecars.oren \
 	  lib/compiler/transpiler.oren \
 	  lib/compiler/dump.oren \
 	  lib/compiler/arm64_macho_resolve.oren \
 	  lib/compiler/compiler/000_prelude_body.oren \
 	  lib/compiler/compiler/010_cli_helpers.oren \
 	  lib/compiler/compiler/012_build_cache.oren \
+	  lib/compiler/compiler/016_astbin_module.oren \
 	  lib/compiler/compiler/030_commands_dump_meta_scan.oren \
 	  lib/compiler/compiler/040_build_pipeline/000_prelude.oren \
 	  lib/compiler/compiler/040_build_pipeline/005_helpers.oren \

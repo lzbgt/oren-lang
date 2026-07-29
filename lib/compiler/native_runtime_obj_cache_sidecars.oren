@@ -11,8 +11,9 @@ fn _rtobj_load_u64_u8_sidecar(path) {
 fn _rtobj_encode_u64_sidecar_from_enc_list(xs) {
     if xs == nil { return nil }
     var b = bytes.bytes_new()
+    var xs_count = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_count {
         var enc = xs[i]
         if oren_type_tag(enc) == 1 && enc > 0 {
             bytes.bytes_push_u64_le(b, enc - 1)
@@ -25,8 +26,9 @@ fn _rtobj_encode_u64_sidecar_from_enc_list(xs) {
 fn _rtobj_encode_reg_u64_sidecar_from_enc_list(xs) {
     if xs == nil { return nil }
     var b = bytes.bytes_new()
+    var xs_count = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_count {
         var enc = xs[i]
         if oren_type_tag(enc) == 1 && enc > 0 { bytes.bytes_push_u64_le(b, enc - 1) }
         else { bytes.bytes_push_u64_le(b, 0) }
@@ -38,8 +40,9 @@ fn _rtobj_encode_reg_u64_sidecar_from_enc_list(xs) {
 fn _rtobj_build_fixups_compact_target_u8_from_names(names, fn_offs_enc) {
     if names == nil { return nil }
     var b = bytes.bytes_new()
+    var name_count = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < name_count {
         var nm = names[i]
         var off_enc = nil
         if fn_offs_enc != nil && nm != nil { off_enc = fn_offs_enc[nm] }
@@ -279,8 +282,9 @@ fn _rtobj_fixups_compact_u8_sidecars_complete(fx, fx_u8) {
 fn _rtobj_build_cstr0_offsets_u8_from_enc(cstr0_list_enc) {
     if cstr0_list_enc == nil { return nil }
     var b = bytes.bytes_new()
+    var cstr0_count = oren_list_len(cstr0_list_enc)
     var i = 0
-    while i < oren_list_len(cstr0_list_enc) {
+    while i < cstr0_count {
         var off_enc = cstr0_list_enc[i]
         if oren_type_tag(off_enc) == 1 && off_enc > 0 {
             bytes.bytes_push_u64_le(b, off_enc - 1)
@@ -334,8 +338,9 @@ fn _rtobj_normalize_debug_funcs_enc(debug_funcs_enc) {
     var names = []
     var starts = []
     var ends = []
+    var debug_func_count = oren_list_len(debug_funcs_enc)
     var i = 0
-    while i < oren_list_len(debug_funcs_enc) {
+    while i < debug_func_count {
         var df = debug_funcs_enc[i]
         if df != nil &&
            df["name"] != nil &&

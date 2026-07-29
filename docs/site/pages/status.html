@@ -144,6 +144,12 @@
 <p>  counts before traversal, with hotpath guard coverage rejecting direct</p>
 <p>  <code>oren_list_len</code> loop bounds in those support stages.</p>
 <ul>
+<li>Compiler ASTBIN module key scans/emission and native runtime-object sidecar</li>
+</ul>
+<p>  C-string/debug-function encoding now cache immutable list counts before</p>
+<p>  traversal, with hotpath guard coverage rejecting direct <code>oren_list_len</code> loop</p>
+<p>  bounds in those artifact support paths.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>
@@ -3583,7 +3589,8 @@
 <p>  source-string byte reads instead of repeated input byte-list materialization.</p>
 <p>  XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,</p>
 <p>  linalg, regex, <code>std:ui</code>, URL allow-list, HTTP/2 header traversal, and</p>
-<p>  module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline, and compiler support loops now cache immutable list lengths before</p>
+<p>  module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,</p>
+<p>  compiler support, and compiler artifact-support loops now cache immutable list lengths before</p>
 <p>  iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>

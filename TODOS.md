@@ -84,6 +84,10 @@ design evidence lives under `project-doc/`.
   path/completion emission, and dump metadata merge scans now cache immutable list
   counts before traversal, with byte-hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in those support stages.
+- Compiler ASTBIN module key scans/emission and native runtime-object sidecar
+  C-string/debug-function encoding now cache immutable list counts before
+  traversal, with byte-hotpath guard coverage rejecting direct `oren_list_len`
+  loop bounds in those artifact support paths.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software
@@ -2983,6 +2987,10 @@ design evidence lives under `project-doc/`.
   path/completion emission, and dump metadata merge scans now cache immutable list
   counts before traversal, with byte-hotpath guard coverage for direct
   `oren_list_len` loop conditions in those support stages.
+- Compiler ASTBIN module key scans/emission and native runtime-object sidecar
+  C-string/debug-function encoding now cache immutable list counts before
+  traversal, with byte-hotpath guard coverage for direct `oren_list_len` loop
+  conditions in those artifact support paths.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.
