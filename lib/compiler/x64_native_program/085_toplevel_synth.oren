@@ -250,8 +250,9 @@ fn _x64_runtime_global_name(st) {
 }
 
 fn _x64_collect_runtime_global_names(runtime_vars, runtime_globals) {
+    var runtime_vars_len = oren_list_len(runtime_vars)
     var ri = 0
-    while ri < oren_list_len(runtime_vars) {
+    while ri < runtime_vars_len {
         var rnm = _x64_runtime_global_name(runtime_vars[ri])
         if rnm != nil { runtime_globals[rnm] = true }
         ri = ri + 1
@@ -278,8 +279,9 @@ fn _x64_prepare_one_runtime_global_slot(ctx, nm) {
 }
 
 fn _x64_allocate_runtime_global_slots(ctx, runtime_vars) {
+    var runtime_vars_len = oren_list_len(runtime_vars)
     var i = 0
-    while i < oren_list_len(runtime_vars) {
+    while i < runtime_vars_len {
         if _x64_prepare_one_runtime_global_slot(ctx, _x64_runtime_global_name(runtime_vars[i])) != true { return false }
         i = i + 1
     }
@@ -312,8 +314,10 @@ fn _x64_prepare_runtime_global_slots(ctx, runtime_vars) {
 
 fn _x64_collect_data_const_alias_targets(ctx, user_vars) {
     var data_const_alias_targets = {}
+    var user_vars_len = 0
+    if user_vars != nil { user_vars_len = oren_list_len(user_vars) }
     var ai = 0
-    while user_vars != nil && ai < oren_list_len(user_vars) {
+    while ai < user_vars_len {
         var ast = user_vars[ai]
         if ast != nil {
             var alias_target = _x64_direct_data_ptr_const_name(ctx, ast["value"])
@@ -582,8 +586,9 @@ fn _x64_user_global_slots_record(state, slot_info) {
 }
 
 fn _x64_prepare_user_global_slots_loop(ctx, state, runtime_vars, user_vars, runtime_globals) {
+    var user_vars_len = oren_list_len(user_vars)
     var i = 0
-    while i < oren_list_len(user_vars) {
+    while i < user_vars_len {
         var st2 = user_vars[i]
         if st2 != nil {
             var slot_info = _x64_prepare_one_user_global_slot(ctx, st2, runtime_vars, runtime_globals,
@@ -819,12 +824,13 @@ fn _x64_build_top_level_init_stmts(ctx, user_ordered, user_global_init_in_data_f
     // Preserve source order across `var` initializers and other executable top-level statements.
     // Rewrite `var x = expr` into global-slot assignments at the same position.
     var state = _x64_top_init_rewrite_state()
+    var user_ordered_len = oren_list_len(user_ordered)
     var j = 0
     var rewrite_start_ns = 0
     if phase_log != nil { rewrite_start_ns = oren_time_now_ns() }
-    while j < oren_list_len(user_ordered) {
+    while j < user_ordered_len {
         var stx = user_ordered[j]
-        _x64_top_init_log_progress(phase_log, state, j, oren_list_len(user_ordered), rewrite_start_ns)
+        _x64_top_init_log_progress(phase_log, state, j, user_ordered_len, rewrite_start_ns)
         if stx != nil && stx["type"] == "Var" {
             if _x64_top_init_rewrite_var(ctx, state, stx, user_global_init_in_data_flags, user_global_off_encs) != true { return nil }
         } else {
@@ -1057,8 +1063,9 @@ fn _x64_extract_type_constructors_v0(ctx, linked) {
     if stmts == nil { return [] }
 
     var out = []
+    var stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         var st = stmts[i]
         if st == nil { i = i + 1; continue }
         if st["type"] != "Type" { i = i + 1; continue }
@@ -1079,8 +1086,9 @@ fn _x64_synth_top_level_fn(stmts) {
     // this explicit so the AST is well-formed even if that rule changes.
     if stmts == nil { stmts = [] }
     var out_stmts = []
+    var stmts_len = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) { oren_list_push(out_stmts, stmts[i]); i = i + 1 }
+    while i < stmts_len { oren_list_push(out_stmts, stmts[i]); i = i + 1 }
     // Ensure a deterministic trailing return in the synthesized block.
     oren_list_push(out_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
     return {

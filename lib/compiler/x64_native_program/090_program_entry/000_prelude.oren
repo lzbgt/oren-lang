@@ -66,8 +66,9 @@ fn _x64_module_graph_needs_full_runtime_profile(g) {
     if _x64_module_path_needs_full_runtime_profile(g["entry"]) { return true }
     var mods = g["modules"]
     if mods == nil { return false }
+    var mods_len = oren_list_len(mods)
     var i = 0
-    while i < oren_list_len(mods) {
+    while i < mods_len {
         var m = mods[i]
         if m != nil {
             if _x64_module_path_needs_full_runtime_profile(m["path"]) { return true }
@@ -669,8 +670,9 @@ fn _x64_rtobj_encode_fn_offsets_compact(m) {
 fn _x64_rtobj_encode_offsets_list_int(xs) {
     if xs == nil { return [] }
     var out = []
+    var xs_len = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len {
         var v = xs[i]
         // Encode as `v+1` so a real offset of 0 is representable; skip non-ints (nil).
         if oren_type_tag(v) == 1 { oren_list_push(out, v + 1) }
@@ -682,8 +684,9 @@ fn _x64_rtobj_encode_offsets_list_int(xs) {
 fn _x64_rtobj_encode_offsets_u8_from_int_list(xs) {
     if xs == nil { return nil }
     var b = bytes_new()
+    var xs_len = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len {
         push_u64_le(b, xs[i])
         i = i + 1
     }
@@ -802,8 +805,9 @@ fn _x64_rtobj_compact_result(st) {
 fn _x64_rtobj_encode_fixups_compact(fixups) {
     if fixups == nil { return nil }
     var st = _x64_rtobj_compact_fixup_state()
+    var fixups_len = oren_list_len(fixups)
     var i = 0
-    while i < oren_list_len(fixups) {
+    while i < fixups_len {
         _x64_rtobj_compact_push_fixup(st, fixups[i])
         i = i + 1
     }
@@ -813,8 +817,9 @@ fn _x64_rtobj_encode_fixups_compact(fixups) {
 fn _x64_rtobj_encode_fixups(fixups) {
     if fixups == nil { return [] }
     var out = []
+    var fixups_len = oren_list_len(fixups)
     var i = 0
-    while i < oren_list_len(fixups) {
+    while i < fixups_len {
         var f0 = fixups[i]
         if f0 != nil {
             // NOTE: rip_data32 fixups are persisted separately in `rip_data32_fixups_enc`
@@ -846,8 +851,9 @@ fn _x64_rtobj_encode_rip_data32_fixups(m) {
         var xs = pair[1]
         if k != nil && xs != nil {
             var enc = []
+            var xs_len = oren_list_len(xs)
             var i = 0
-            while i < oren_list_len(xs) {
+            while i < xs_len {
                 var p = xs[i]
                 if oren_type_tag(p) != 0 { oren_list_push(enc, p + 1) }
                 i = i + 1

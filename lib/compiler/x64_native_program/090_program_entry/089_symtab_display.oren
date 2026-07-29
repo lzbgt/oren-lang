@@ -19,8 +19,9 @@ fn _x64_symtab_display_for_user_fn(fn0) {
 
 fn _x64_setup_user_symtab_display(ctx, fns) {
     // User functions are deterministic in source order.
+    var fns_len = oren_list_len(fns)
     var si0 = 0
-    while si0 < oren_list_len(fns) {
+    while si0 < fns_len {
         var ent = _x64_symtab_display_for_user_fn(fns[si0])
         if ent != nil { ctx["symtab_display"][ent["name"]] = ent["display"] }
         si0 = si0 + 1
@@ -30,8 +31,9 @@ fn _x64_setup_user_symtab_display(ctx, fns) {
 
 fn _x64_setup_wrapper_symtab_display(ctx, wrappers) {
     // Wrappers are compiler-synthesized; keep them clearly marked in stack traces.
+    var wrappers_len = oren_list_len(wrappers)
     var si0 = 0
-    while si0 < oren_list_len(wrappers) {
+    while si0 < wrappers_len {
         var w0 = wrappers[si0]
         if w0 != nil && w0["name"] != nil && w0["name"] != "" {
             var wnm = w0["name"]
@@ -44,8 +46,9 @@ fn _x64_setup_wrapper_symtab_display(ctx, wrappers) {
 
 fn _x64_setup_ffi_symtab_display(ctx, imports0) {
     if imports0 == nil { return nil }
+    var imports0_len = oren_list_len(imports0)
     var ii0 = 0
-    while ii0 < oren_list_len(imports0) {
+    while ii0 < imports0_len {
         var inm = imports0[ii0]
         if inm != nil && inm != "" {
             ctx["symtab_display"][inm] = inm + "@<ffi>"

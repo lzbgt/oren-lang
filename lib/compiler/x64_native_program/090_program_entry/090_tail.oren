@@ -643,13 +643,14 @@ fn _x64_collect_program_type_constructors(ctx, linked2, fns, trace_prog, phase_l
     if trace_prog { print("[x64_compile] type constructors start") }
     var type_ctors = _x64_extract_type_constructors_v0(ctx, linked2)
     if type_ctors == nil { return nil }
+    var type_ctors_len = oren_list_len(type_ctors)
     var tci = 0
-    while tci < oren_list_len(type_ctors) { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
-    if trace_prog { print("[x64_compile] type constructors done count=" + oren_int_to_string(oren_list_len(type_ctors))) }
+    while tci < type_ctors_len { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
+    if trace_prog { print("[x64_compile] type constructors done count=" + oren_int_to_string(type_ctors_len)) }
     if phase_log != nil {
         _x64_program_phase_log_append(phase_log, "x64.codegen.fnmeta.done",
             "fns=" + oren_int_to_string(oren_list_len(fns)) +
-            " type_ctors=" + oren_int_to_string(oren_list_len(type_ctors)))
+            " type_ctors=" + oren_int_to_string(type_ctors_len))
     }
     return type_ctors
 }
@@ -980,12 +981,13 @@ fn native_compile_program_x64(linked, platform) {
     return ctx
 }
 
-	fn native_emit_errors_and_exit(ctx) {
-	    if ctx == nil { return nil }
-	    var errs = ctx["errors"]
-	    if errs == nil || oren_list_len(errs) == 0 { return nil }
+fn native_emit_errors_and_exit(ctx) {
+    if ctx == nil { return nil }
+    var errs = ctx["errors"]
+    if errs == nil || oren_list_len(errs) == 0 { return nil }
+    var errs_len = oren_list_len(errs)
     var i = 0
-    while i < oren_list_len(errs) {
+    while i < errs_len {
         var e = errs[i]
         if e != nil { print(e) }
         i = i + 1

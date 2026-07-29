@@ -1883,7 +1883,15 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/x64_native_program/057_emit_ops_while_list_get_sum.oren \
   lib/compiler/x64_native_program/060_emit_ops.oren \
   lib/compiler/x64_native_program/072_ffi.oren \
+  lib/compiler/x64_native_program/085_toplevel_synth.oren \
   lib/compiler/x64_native_program/080_functions_compile.oren \
+  lib/compiler/x64_native_program/090_program_entry/000_prelude.oren \
+  lib/compiler/x64_native_program/090_program_entry/010_part_a.oren \
+  lib/compiler/x64_native_program/090_program_entry/086_user_function_loop.oren \
+  lib/compiler/x64_native_program/090_program_entry/087_callable_wrappers.oren \
+  lib/compiler/x64_native_program/090_program_entry/089_debug_roots.oren \
+  lib/compiler/x64_native_program/090_program_entry/089_symtab_display.oren \
+  lib/compiler/x64_native_program/090_program_entry/090_tail.oren \
   lib/compiler/debug_sugar.oren \
   lib/compiler/capsule.oren \
   lib/compiler/transpiler.oren \

@@ -72,8 +72,9 @@ fn _x64_reserve_debug_symtab(ctx, fns, wrappers, imports0, used_rtobj) {
 }
 
 fn _x64_push_debug_function_names(sym_seen, sym_names, fns) {
+    var fns_len = oren_list_len(fns)
     var si0 = 0
-    while si0 < oren_list_len(fns) {
+    while si0 < fns_len {
         var fn1 = fns[si0]
         if fn1 != nil && fn1["name"] != nil && fn1["name"] != "" {
             _x64_symtab_push_unique(sym_seen, sym_names, fn1["name"])
@@ -85,8 +86,9 @@ fn _x64_push_debug_function_names(sym_seen, sym_names, fns) {
 
 fn _x64_push_debug_import_names(sym_seen, sym_names, imports0) {
     if imports0 != nil {
+        var imports0_len = oren_list_len(imports0)
         var ii1 = 0
-        while ii1 < oren_list_len(imports0) {
+        while ii1 < imports0_len {
             var inm1 = imports0[ii1]
             if inm1 != nil && inm1 != "" {
                 _x64_symtab_push_unique(sym_seen, sym_names, inm1)

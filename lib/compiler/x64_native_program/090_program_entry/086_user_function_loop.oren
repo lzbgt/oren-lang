@@ -149,8 +149,9 @@ fn _x64_emit_user_function_slow_summary(state, phase_log) {
     var opts2 = state["opts"]
     if opts2["trace_top_slow"] != true { return nil }
     var top_slow = state["top_slow"]
+    var top_slow_len = oren_list_len(top_slow)
     var k = 0
-    while k < oren_list_len(top_slow) {
+    while k < top_slow_len {
         var it = top_slow[k]
         if it != nil {
             print("[x64_compile] top_slow_fn[" + oren_int_to_string(k) +

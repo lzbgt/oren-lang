@@ -293,8 +293,9 @@ fn _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, fx) {
     var names = fx["call_name"]
     if names == nil { return nil }
     var helper_name = _x64_panic_helper_name()
+    var names_len = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < names_len {
         if _x64_rtobj_string_eq(names[i], helper_name) {
             // Runtime object code may contain compiler-generated abort sites that call the
             // shared panic helper. Mark it needed so the final program emits the helper
@@ -662,8 +663,9 @@ fn _x64_rtobj_rewrite_and_collect_lambdas(ctx, stmts, phase_log) {
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, stmts)
 
     // Collect lambdas from the runtime so wrapper naming does not collide later.
+    var stmts_len = oren_list_len(stmts)
     var li = 0
-    while li < oren_list_len(stmts) {
+    while li < stmts_len {
         callable.collect_lambdas_in_statement(ctx, stmts[li])
         li = li + 1
     }
@@ -691,8 +693,9 @@ fn _x64_rtobj_split_runtime_vars(ctx, stmts, phase_log) {
 
 fn _x64_rtobj_allocate_runtime_globals(ctx, runtime_vars, phase_log) {
     if phase_log != nil { _x64_program_phase_log_append(phase_log, "x64.rtobj.build.globals.start", "") }
+    var runtime_vars_len = oren_list_len(runtime_vars)
     var vi = 0
-    while vi < oren_list_len(runtime_vars) {
+    while vi < runtime_vars_len {
         if _x64_rtobj_allocate_runtime_global(ctx, runtime_vars[vi]) != true { return false }
         vi = vi + 1
     }
@@ -777,8 +780,9 @@ fn _x64_rtobj_keep_top_decl(top_decls, top_keep, ent) {
     } else {
         min_ns = ent["ns"]
     }
+    var top_decls_len = oren_list_len(top_decls)
     var j0 = 1
-    while j0 < oren_list_len(top_decls) {
+    while j0 < top_decls_len {
         var e0 = top_decls[j0]
         if e0 != nil && e0["ns"] != nil && e0["ns"] < min_ns {
             min_ns = e0["ns"]
@@ -794,8 +798,9 @@ fn _x64_rtobj_compile_runtime_decls(ctx, fns, platform, call_depth_default_enabl
     var state = _x64_rtobj_compile_runtime_decl_state(ctx, fns, platform, call_depth_default_enabled,
         trace_decls, top_decls, top_keep, phase_log, trace)
     _x64_rtobj_log_runtime_decls_start(state)
+    var fns_len = oren_list_len(fns)
     var i = 0
-    while i < oren_list_len(fns) {
+    while i < fns_len {
         _x64_rtobj_log_runtime_decls_progress(state, i)
         if _x64_rtobj_compile_one_runtime_decl(state, i) != 1 { return nil }
         i = i + 1
@@ -899,9 +904,11 @@ fn _x64_rtobj_fn_wrapper_varargs_fixed(ctx, nm) {
 
 fn _x64_rtobj_append_needed_fn_wrappers(ctx, wrappers) {
     var need = ctx["fnwrap_needed"]
+    var func_decl_order = ctx["func_decl_order"]
+    var func_decl_order_len = oren_list_len(func_decl_order)
     var wi = 0
-    while wi < oren_list_len(ctx["func_decl_order"]) {
-        var nm0 = ctx["func_decl_order"][wi]
+    while wi < func_decl_order_len {
+        var nm0 = func_decl_order[wi]
         if nm0 == nil || nm0 == "" { wi = wi + 1; continue }
         if need == nil || need[nm0] == nil { wi = wi + 1; continue }
 
@@ -922,9 +929,11 @@ fn _x64_rtobj_append_needed_fn_wrappers(ctx, wrappers) {
 }
 
 fn _x64_rtobj_append_lambda_wrappers(ctx, wrappers) {
+    var lambda_defs = ctx["lambda_defs"]
+    var lambda_defs_len = oren_list_len(lambda_defs)
     var lj = 0
-    while lj < oren_list_len(ctx["lambda_defs"]) {
-        var def = ctx["lambda_defs"][lj]
+    while lj < lambda_defs_len {
+        var def = lambda_defs[lj]
         var stl = callable.synth_lambda_wrapper(def)
         if stl != nil && stl["type"] == "ExprStmt" && stl["expr"] != nil && stl["expr"]["type"] == "Function" {
             oren_list_push(wrappers, stl["expr"])
@@ -941,8 +950,9 @@ fn _x64_rtobj_compile_wrappers(ctx, wrappers, platform, call_depth_default_enabl
     var state = _x64_rtobj_compile_wrapper_state(ctx, wrappers, platform, call_depth_default_enabled,
         trace_decls, top_decls, top_keep, phase_log, trace)
     _x64_rtobj_log_wrappers_start(state)
+    var wrappers_len = oren_list_len(wrappers)
     var j = 0
-    while j < oren_list_len(wrappers) {
+    while j < wrappers_len {
         _x64_rtobj_log_wrappers_progress(state, j)
         if _x64_rtobj_compile_one_wrapper(state, j) != 1 {
             return nil
@@ -1027,8 +1037,9 @@ fn _x64_rtobj_log_wrappers_done(state) {
 fn _x64_rtobj_print_top_decls(top_decls, sum_decl_ns) {
     if top_decls == nil { return nil }
     print("[x64_rtobj] top decls (us), sum_compile_ms=" + oren_int_to_string(sum_decl_ns / 1000000) + ":")
+    var top_decls_len = oren_list_len(top_decls)
     var ti = 0
-    while ti < oren_list_len(top_decls) {
+    while ti < top_decls_len {
         var e2 = top_decls[ti]
         if e2 != nil {
             var nm2 = e2["name"]
