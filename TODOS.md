@@ -204,6 +204,10 @@ design evidence lives under `project-doc/`.
   immutable argument, element, pair, statement, nested-capture, and parameter
   counts before traversal, with byte-hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that bytecode support shard.
+- Bytecode expression/function codegen now caches immutable hash/array element,
+  closure-capture, type-constructor, native-call, indirect-call, yield segment,
+  capture-map, and parameter counts before traversal, with byte-hotpath guard
+  coverage rejecting direct `oren_list_len` loop bounds in the `010`/`020` shards.
 - Regex byte-class matching now caches compiled class range counts before
   per-byte range probes.
 - `std:ui` command validation, OGF0 frame sizing/encoding, and software

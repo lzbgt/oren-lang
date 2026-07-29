@@ -58,8 +58,9 @@ fn _bc_yield_v0_stmt_if(cond, consq, alt) {
 
 fn _bc_yield_v0_append_all(dst, src) {
     if dst == nil || src == nil { return dst }
+    var src_n = oren_list_len(src)
     var i = 0
-    while i < oren_list_len(src) {
+    while i < src_n {
         oren_list_push(dst, src[i])
         i = i + 1
     }
@@ -116,11 +117,13 @@ fn _bc_yield_v0_lowered_body(stmt, prepared) {
     if state_local == nil || state_local == "" { return nil }
     var entry_state = prepared["entry_state"]
     var exec_segments = prepared["exec_segments"]
-    if exec_segments == nil || oren_list_len(exec_segments) == 0 { return nil }
+    var exec_segments_n = 0
+    if exec_segments != nil { exec_segments_n = oren_list_len(exec_segments) }
+    if exec_segments_n == 0 { return nil }
 
     var loop_stmts = []
     var i = 0
-    while i < oren_list_len(exec_segments) {
+    while i < exec_segments_n {
         var seg = exec_segments[i]
         oren_list_push(loop_stmts, _bc_yield_v0_stmt_if(
             _bc_yield_v0_expr_state_eq(state_local, seg["state"]),
@@ -189,10 +192,12 @@ fn bytecode_compile_function(ctx, stmt) {
     // Closure env mapping (rolling): captured free vars are accessed via LOAD_ENV.
     ctx["env_captures"] = nil
     var caps = stmt["captures"]
-    if caps != nil && oren_list_len(caps) > 0 {
+    var caps_n = 0
+    if caps != nil { caps_n = oren_list_len(caps) }
+    if caps_n > 0 {
         var cmap = {}
         var ci = 0
-        while ci < oren_list_len(caps) {
+        while ci < caps_n {
             // Store 1-based so 0 is representable while still using `nil` as missing.
             cmap[caps[ci]] = ci + 1
             ci = ci + 1
@@ -201,8 +206,9 @@ fn bytecode_compile_function(ctx, stmt) {
     }
     
     var params = stmt["params"]
+    var params_n = oren_list_len(params)
     var i = 0
-    while i < oren_list_len(params) {
+    while i < params_n {
         var pname = params[i]["value"]
         // Store 1-based so 0 is representable while still using `nil` as missing.
         ctx["locals"][pname] = ctx["local_count"] + 1

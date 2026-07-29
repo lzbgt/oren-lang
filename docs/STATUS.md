@@ -198,6 +198,10 @@ surfaces, but the following blockers remain:
   immutable argument, element, pair, statement, nested-capture, and parameter
   counts before traversal, with hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that bytecode support shard.
+- Bytecode expression/function codegen now caches immutable hash/array element,
+  closure-capture, type-constructor, native-call, indirect-call, yield segment,
+  capture-map, and parameter counts before traversal, with hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in the `010`/`020` shards.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.

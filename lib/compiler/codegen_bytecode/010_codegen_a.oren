@@ -167,27 +167,29 @@ fn bytecode_compile_expr(ctx, expr) {
 
     if expr["type"] == "Hash" {
         var entries = expr["pairs"]
+        var entries_n = oren_list_len(entries)
         var i = 0
-        while i < oren_list_len(entries) {
+        while i < entries_n {
             var ent = entries[i]
             bytecode_compile_expr(ctx, ent["key"])
             bytecode_compile_expr(ctx, ent["value"])
             i = i + 1
         }
         emit_byte(ctx, AVM_NEW_MAP)
-        emit_u16(ctx, oren_list_len(entries))
+        emit_u16(ctx, entries_n)
         return nil
     }
 
     if expr["type"] == "Array" {
         var elements = expr["elements"]
+        var elements_n = oren_list_len(elements)
         var i = 0
-        while i < oren_list_len(elements) {
+        while i < elements_n {
             bytecode_compile_expr(ctx, elements[i])
             i = i + 1
         }
         emit_byte(ctx, AVM_NEW_LIST)
-        emit_u16(ctx, oren_list_len(elements))
+        emit_u16(ctx, elements_n)
         return nil
     }
 
@@ -210,17 +212,18 @@ fn bytecode_compile_expr(ctx, expr) {
 
             var caps = expr["captures"]
             if caps == nil { caps = [] }
+            var caps_n = oren_list_len(caps)
             var ci = 0
-            while ci < oren_list_len(caps) {
+            while ci < caps_n {
                 bytecode_compile_expr(ctx, {"type": "Identifier", "value": caps[ci]})
                 ci = ci + 1
             }
 
             emit_byte(ctx, AVM_PUSH_FUNC32)
             emit_u32(ctx, ctx["functions"][lname] - 1)
-            if oren_list_len(caps) > 0 {
+            if caps_n > 0 {
                 emit_byte(ctx, AVM_MAKE_CLOSURE)
-                emit_byte(ctx, oren_list_len(caps))
+                emit_byte(ctx, caps_n)
             }
             return nil
         }
@@ -681,7 +684,8 @@ fn bytecode_compile_expr(ctx, expr) {
                     return nil
                 }
 
-                if oren_list_len(args0) != targc {
+                var args0_n = oren_list_len(args0)
+                if args0_n != targc {
                     bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
                     return nil
                 }
@@ -693,7 +697,7 @@ fn bytecode_compile_expr(ctx, expr) {
                 emit_byte(ctx, AVM_PUSH_CONST)
                 emit_u16(ctx, type_val_idx)
                 var ai0 = 0
-                while ai0 < oren_list_len(args0) {
+                while ai0 < args0_n {
                     // key
                     var key_idx = add_constant(ctx, {"type": "String", "value": tfields[ai0]})
                     emit_byte(ctx, AVM_PUSH_CONST)
@@ -998,15 +1002,16 @@ fn bytecode_compile_expr(ctx, expr) {
 
         if native_domain != -1 {
             var args = expr["args"]
+            var args_n = oren_list_len(args)
             var i = 0
-            while i < oren_list_len(args) {
+            while i < args_n {
                 bytecode_compile_expr(ctx, args[i])
                 i = i + 1
             }
             emit_byte(ctx, AVM_CALL_NATIVE2)
             emit_byte(ctx, native_domain)
             emit_u16(ctx, native_op)
-            emit_byte(ctx, oren_list_len(args))
+            emit_byte(ctx, args_n)
             return nil
         }
 
@@ -1248,15 +1253,16 @@ fn bytecode_compile_expr(ctx, expr) {
 
         if native_id != -1 {
             var args = expr["args"]
+            var args_n = oren_list_len(args)
             var i = 0
-            while i < oren_list_len(args) {
+            while i < args_n {
                 bytecode_compile_expr(ctx, args[i])
                 i = i + 1
             }
             emit_byte(ctx, AVM_CALL_NATIVE2)
             emit_byte(ctx, AVM_DOMAIN_CORE)
             emit_u16(ctx, native_id)
-            emit_byte(ctx, oren_list_len(args))
+            emit_byte(ctx, args_n)
             return nil
         }
 
@@ -1264,8 +1270,9 @@ fn bytecode_compile_expr(ctx, expr) {
             // General call: fn can be a function value / closure.
             bytecode_compile_expr(ctx, fn_node)
             var args = expr["args"]
+            var args_n = oren_list_len(args)
             var i = 0
-            while i < oren_list_len(args) {
+            while i < args_n {
                 bytecode_compile_expr(ctx, args[i])
                 i = i + 1
             }
@@ -1273,11 +1280,11 @@ fn bytecode_compile_expr(ctx, expr) {
                 // Call-site spread: [... fn fixed_args spread_list] CALL_INDIRECT_SPREAD fixed_count
                 bytecode_compile_expr(ctx, expr["spread"])
                 emit_byte(ctx, AVM_CALL_INDIRECT_SPREAD)
-                emit_byte(ctx, oren_list_len(args))
+                emit_byte(ctx, args_n)
                 return nil
             }
             emit_byte(ctx, AVM_CALL_INDIRECT)
-            emit_byte(ctx, oren_list_len(args))
+            emit_byte(ctx, args_n)
             return nil
         }
 
@@ -1360,21 +1367,22 @@ fn bytecode_compile_expr(ctx, expr) {
             // Spread calls are compiled as indirect calls so we don't need a dynamic
             // CALL-by-name opcode: push a function value, fixed args, spread list.
             bytecode_compile_expr(ctx, fn_node)
+            var args_n = oren_list_len(args)
             var i = 0
-            while i < oren_list_len(args) {
+            while i < args_n {
                 bytecode_compile_expr(ctx, args[i])
                 i = i + 1
             }
             bytecode_compile_expr(ctx, expr["spread"])
             emit_byte(ctx, AVM_CALL_INDIRECT_SPREAD)
-            emit_byte(ctx, oren_list_len(args))
-            return nil
-        }
-        if fixed >= 0 && oren_list_len(args) < fixed {
-            bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + name)
+            emit_byte(ctx, args_n)
             return nil
         }
         var n_args = oren_list_len(args)
+        if fixed >= 0 && n_args < fixed {
+            bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + name)
+            return nil
+        }
         var i = 0
         var fixed_count = n_args
         if fixed >= 0 { fixed_count = fixed }

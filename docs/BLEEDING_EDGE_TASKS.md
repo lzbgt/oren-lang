@@ -227,6 +227,11 @@ This file is the concise task view. Detailed implementation status lives in
      immutable argument, element, pair, statement, nested-capture, and parameter
      counts before traversal, with source guards rejecting direct `oren_list_len`
      loop bounds in that bytecode support shard.
+   - Current bytecode expression/function codegen caches immutable hash/array
+     element, closure-capture, type-constructor, native-call, indirect-call,
+     yield segment, capture-map, and parameter counts before traversal, with
+     source guards rejecting direct `oren_list_len` loop bounds in the `010`/`020`
+     shards.
    - Current AVM bytes hotpath guard maintenance delegates the largest x64
      system/data source-shape checks and shared compiler artifact byte-output
      checks to dedicated scripts while preserving the public

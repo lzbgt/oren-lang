@@ -1829,6 +1829,8 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/renamer.oren \
   lib/compiler/coreir.oren \
   lib/compiler/codegen_bytecode/000_prelude.oren \
+  lib/compiler/codegen_bytecode/010_codegen_a.oren \
+  lib/compiler/codegen_bytecode/020_codegen_b.oren \
   lib/compiler/codegen_bytecode/030_tail.oren \
   lib/compiler/type_ann_lowering.oren \
   lib/compiler/type_name_resolve.oren \
