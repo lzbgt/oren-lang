@@ -31,26 +31,24 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
     _x64_emit_win_createthread_call(ctx)
 
     // rax already contains HANDLE (or 0 on failure)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
 fn _x64_win_createthread_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2)
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["start"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["arg"] = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(state["start"]) == 0 || oren_type_tag(state["arg"]) == 0 {
+    var start = _intr_tmp_off(ctx, locals, base + 0)
+    var arg = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(start) == 0 || oren_type_tag(arg) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["start"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["arg"])
+    _intr_eval_spill_x64(ctx, locals, args[0], start)
+    _intr_eval_spill_x64(ctx, locals, args[1], arg)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return state
+    return [base, start, arg]
 }
 
 fn _x64_emit_win_createthread_args(ctx, state) {
@@ -68,9 +66,9 @@ fn _x64_emit_win_createthread_args(ctx, state) {
     // rdx = dwStackSize = 0
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(2, 2))
     // r8 = lpStartAddress = start
-    _intr_load_x64(ctx, 8, state["start"])
+    _intr_load_x64(ctx, 8, state[1])
     // r9 = lpParameter = arg
-    _intr_load_x64(ctx, 9, state["arg"])
+    _intr_load_x64(ctx, 9, state[2])
 
     // dwCreationFlags = 0
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0))
@@ -89,30 +87,28 @@ fn _x64_emit_win_createthread_call(ctx) {
 fn _x64_win_wait_single_object_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // handle, timeout
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["handle"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["timeout"] = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(state["handle"]) == 0 || oren_type_tag(state["timeout"]) == 0 {
+    var handle = _intr_tmp_off(ctx, locals, base + 0)
+    var timeout = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(handle) == 0 || oren_type_tag(timeout) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["handle"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["timeout"])
+    _intr_eval_spill_x64(ctx, locals, args[0], handle)
+    _intr_eval_spill_x64(ctx, locals, args[1], timeout)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return state
+    return [base, handle, timeout]
 }
 
 fn _x64_emit_win_wait_single_object_args(ctx, labels, fixups, state) {
     // WaitForSingleObject(handle, timeout_ms)
     // - timeout_ms < 0 => INFINITE (0xFFFFFFFF)
     // Win64 ABI shadow space is provided by the function's reserved call area; do not touch RSP.
-    _intr_load_x64(ctx, 1, state["handle"])   // rcx = handle
-    _intr_load_x64(ctx, 0, state["timeout"])  // rax = timeout (i64)
+    _intr_load_x64(ctx, 1, state[1]) // rcx = handle
+    _intr_load_x64(ctx, 0, state[2]) // rax = timeout (i64)
 
     var l_infinite = _new_label(ctx, "win_wso_infinite")
     var l_after_to = _new_label(ctx, "win_wso_after_to")
@@ -133,45 +129,45 @@ fn _x64_emit_win_wait_single_object_call(ctx) {
 }
 
 fn _x64_win_wait_single_object_result_labels(ctx) {
-    return {
-        "ok": _new_label(ctx, "win_wso_ok"),
-        "timeout": _new_label(ctx, "win_wso_timeout"),
-        "fail": _new_label(ctx, "win_wso_fail"),
-        "done": _new_label(ctx, "win_wso_done"),
-    }
+    return [
+        _new_label(ctx, "win_wso_ok"),
+        _new_label(ctx, "win_wso_timeout"),
+        _new_label(ctx, "win_wso_fail"),
+        _new_label(ctx, "win_wso_done")
+    ]
 }
 
 fn _x64_win_wait_single_object_emit_dispatch(ctx, fixups, wlab) {
     // WAIT_OBJECT_0 == 0
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", wlab["ok"])
+    _emit_jcc_to_label(ctx, fixups, "e", wlab[0])
     // WAIT_TIMEOUT == 258
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 258))
-    _emit_jcc_to_label(ctx, fixups, "e", wlab["timeout"])
+    _emit_jcc_to_label(ctx, fixups, "e", wlab[1])
     // WAIT_FAILED == 0xFFFFFFFF
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "e", wlab["fail"])
+    _emit_jcc_to_label(ctx, fixups, "e", wlab[2])
     // unexpected => fail
-    _emit_jmp_to_label(ctx, fixups, wlab["fail"])
+    _emit_jmp_to_label(ctx, fixups, wlab[2])
     return nil
 }
 
 fn _x64_win_wait_single_object_emit_status_paths(ctx, labels, fixups, wlab) {
-    _emit_label(ctx, labels, wlab["ok"])
+    _emit_label(ctx, labels, wlab[0])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, wlab["done"])
+    _emit_jmp_to_label(ctx, fixups, wlab[3])
 
-    _emit_label(ctx, labels, wlab["timeout"])
+    _emit_label(ctx, labels, wlab[1])
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
-    _emit_jmp_to_label(ctx, fixups, wlab["done"])
+    _emit_jmp_to_label(ctx, fixups, wlab[3])
 
-    _emit_label(ctx, labels, wlab["fail"])
+    _emit_label(ctx, labels, wlab[2])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967295))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, wlab["done"])
+    _emit_jmp_to_label(ctx, fixups, wlab[3])
 
-    _emit_label(ctx, labels, wlab["done"])
+    _emit_label(ctx, labels, wlab[3])
     _patch_local_fixups(ctx, labels, fixups)
     return nil
 }
@@ -197,35 +193,33 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
     _x64_emit_win_wait_single_object_call(ctx)
     _x64_emit_win_wait_single_object_result(ctx, labels, fixups)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
 fn _x64_win_terminate_thread_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // handle, exit_code
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["handle"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["exit_code"] = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(state["handle"]) == 0 || oren_type_tag(state["exit_code"]) == 0 {
+    var handle = _intr_tmp_off(ctx, locals, base + 0)
+    var exit_code = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(handle) == 0 || oren_type_tag(exit_code) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["handle"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["exit_code"])
+    _intr_eval_spill_x64(ctx, locals, args[0], handle)
+    _intr_eval_spill_x64(ctx, locals, args[1], exit_code)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    return state
+    return [base, handle, exit_code]
 }
 
 fn _x64_emit_win_terminate_thread_call(ctx, state) {
     // Win64 ABI shadow space is provided by the function's reserved call area; do not touch RSP.
-    _intr_load_x64(ctx, 1, state["handle"])     // rcx = handle
-    _intr_load_x64(ctx, 2, state["exit_code"])  // rdx = exit code (u32)
+    _intr_load_x64(ctx, 1, state[1]) // rcx = handle
+    _intr_load_x64(ctx, 2, state[2]) // rdx = exit code (u32)
     _emit_call_iat_x64(ctx, "IAT_TerminateThread")
     return nil
 }
@@ -259,7 +253,7 @@ fn _emit_intrinsic_sys_win_terminate_thread_windows_x64(ctx, expr, locals, args)
 
     _x64_emit_win_terminate_thread_call(ctx, state)
     _x64_emit_win_terminate_thread_result(ctx)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -272,7 +266,7 @@ fn _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) {
     if state == nil { return nil }
     _x64_emit_win_close_handle_call(ctx, state)
     _x64_emit_win_close_handle_result(ctx)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -283,12 +277,12 @@ fn _x64_win_close_handle_state(ctx, locals, args) {
     if oren_type_tag(tmp_h) == 0 { _intr_tmp_pop(ctx, base); return nil }
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "handle": tmp_h}
+    return [base, tmp_h]
 }
 
 fn _x64_emit_win_close_handle_call(ctx, state) {
     // Win64 ABI shadow space is provided by the function's reserved call area; do not touch RSP.
-    _intr_load_x64(ctx, 1, state["handle"]) // rcx = handle
+    _intr_load_x64(ctx, 1, state[1]) // rcx = handle
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
     return nil
 }

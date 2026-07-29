@@ -4316,6 +4316,11 @@
 <p>  maps, reducing compiler-side allocation and lookup work while preserving emitted</p>
 <p>  syscall sequences.</p>
 <ul>
+<li>Windows x64 thread syscall lowering now uses compact positional spill/result</li>
+</ul>
+<p>  records for CreateThread, WaitForSingleObject, TerminateThread, and CloseHandle</p>
+<p>  helper state instead of transient keyed maps.</p>
+<ul>
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>
 <p>  fourth-character padding plus nonzero trailing pad bits while keeping decoded</p>
