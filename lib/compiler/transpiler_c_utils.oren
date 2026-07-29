@@ -163,10 +163,12 @@ fn type_ctor_name(type_decl) {
 
 fn type_ctor_sig(type_decl) {
     var params = ""
+    var fields = type_decl["fields"]
+    var field_count = oren_list_len(fields)
     var i = 0
-    while i < oren_list_len(type_decl["fields"]) {
+    while i < field_count {
         if i > 0 { params = params + ", " }
-        params = params + "OrenValue " + c_ident(type_decl["fields"][i]["value"])
+        params = params + "OrenValue " + c_ident(fields[i]["value"])
         i = i + 1
     }
     return "OrenValue " + type_ctor_name(type_decl) + "(" + params + ")"
@@ -217,10 +219,12 @@ fn parse_int_lit(s) {
 
 fn function_sig(func_decl) {
     var params = ""
+    var param_nodes = func_decl["params"]
+    var param_count = oren_list_len(param_nodes)
     var i = 0
-    while i < oren_list_len(func_decl["params"]) {
+    while i < param_count {
         if i > 0 { params = params + ", " }
-        params = params + "OrenValue " + c_ident(func_decl["params"][i]["value"])
+        params = params + "OrenValue " + c_ident(param_nodes[i]["value"])
         i = i + 1
     }
     return "OrenValue " + c_fn_name(func_decl["name"]) + "(" + params + ")"

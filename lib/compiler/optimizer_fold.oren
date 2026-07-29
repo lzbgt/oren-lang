@@ -246,8 +246,10 @@ fn expr_list_all_fold_leaf(xs) {
 fn fold_block_updates_nn_env(block) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
+    var ss_len = 0
+    if ss != nil { ss_len = oren_list_len(ss) }
     var i = 0
-    while ss != nil && i < oren_list_len(ss) {
+    while i < ss_len {
         var st = ss[i]
         if st != nil {
             var t = st["type"]

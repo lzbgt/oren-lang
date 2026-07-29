@@ -107,6 +107,10 @@ surfaces, but the following blockers remain:
   array/hash/call, block, and top-level traversals now cache immutable list
   counts before iteration, with hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that semantic lowering pass.
+- Optimizer fold block scans, C transpiler signature assembly, and top-level
+  renamer scans now cache immutable list counts before traversal, with hotpath
+  guard coverage rejecting direct `oren_list_len` loop bounds in those compact
+  compiler support paths.
 - X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and
   shared-library `.init_array` slot reservation through `elf_artifact.oren`;
   interpreter paths, RELA addends, machine IDs, ABI, and codegen stay arch-local.
@@ -3160,7 +3164,8 @@ strings into stack-first raw UTF-8 buffers before the synchronous VFS copy.
   linalg, regex, `std:ui`, URL allow-list, HTTP/2 header traversal, and
   module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,
   compiler support, compiler artifact-support, debug-sugar, capsule-policy,
-  optimizer-DCE, global-DCE, impl-lowering, type-name resolution, native runtime-object cache, and `std:sys` loops now cache immutable list lengths before
+  optimizer-DCE, optimizer-fold, global-DCE, impl-lowering, C-transpiler support,
+  renamer, type-name resolution, native runtime-object cache, and `std:sys` loops now cache immutable list lengths before
   iteration, avoiding repeated dynamic length
   calls while preserving canonical sort and encode order.
   WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,

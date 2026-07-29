@@ -1802,8 +1802,11 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/optimizer_loops_list_reset.oren \
   lib/compiler/optimizer_list_int_lower.oren \
   lib/compiler/optimizer_dce.oren \
+  lib/compiler/optimizer_fold.oren \
   lib/compiler/global_dce.oren \
   lib/compiler/impl_lowering.oren \
+  lib/compiler/transpiler_c_utils.oren \
+  lib/compiler/renamer.oren \
   lib/compiler/type_name_resolve.oren \
   lib/compiler/native_runtime_bundle.oren \
   lib/compiler/native_runtime_obj_cache.oren \

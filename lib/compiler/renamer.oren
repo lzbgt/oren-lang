@@ -117,7 +117,8 @@ fn collect_toplevel_rename_pairs(prog, prefix) {
     var pairs = {}
     var i = 0
     var stmts = prog["statements"]
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         var stmt = stmts[i]
         var ty = stmt["type"]
         if ty == "Var" {
