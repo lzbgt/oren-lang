@@ -429,7 +429,8 @@
 <li>X64 index/list lowering cleanup now separates map-vs-generic runtime-fast</li>
 </ul>
 <p>  index get paths, index-set nil/tracked prechecks, LIST/LIST_INT dot prep/label</p>
-<p>  state, and LIST_INT unchecked negative/upper-bound guards into focused helpers.</p>
+<p>  state, LIST/LIST_INT push spill/label state, and LIST_INT unchecked</p>
+<p>  negative/upper-bound guards into focused helpers.</p>
 <ul>
 <li>X64 function epilogue emission now separates call-depth exit patch points,</li>
 </ul>
@@ -4305,7 +4306,8 @@
 <p>  now use fixed positional records as well. X64 list-int reduce/dot unchecked</p>
 <p>  helper intrinsics use fixed positional records for spill slots, labels, and</p>
 <p>  fixups, and x64 index-set plus list/list_int length, get, unchecked-get, and</p>
-<p>  set lowering use positional spill/dispatch records for their checked helper paths.</p>
+<p>  set lowering plus LIST/LIST_INT push intrinsics use positional spill/dispatch</p>
+<p>  records for their checked helper paths.</p>
 <ul>
 <li>Linux x64 syscall lowering now uses compact positional scratch-state lists for</li>
 </ul>

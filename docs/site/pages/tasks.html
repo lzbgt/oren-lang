@@ -195,9 +195,10 @@
 <li>Current x64 index/list lowering separates map-vs-generic runtime-fast</li>
 </ul>
 <p>     index get paths, index-set nil/tracked prechecks, LIST/LIST_INT dot</p>
-<p>     prep/label state, and LIST_INT unchecked negative/upper-bound guards into</p>
-<p>     focused helpers; checked x64 index-set, list/list_int length/get/set, and</p>
-<p>     fast dot helper state now uses compact positional spill/dispatch records.</p>
+<p>     prep/label state, LIST/LIST_INT push spill/label state, and LIST_INT</p>
+<p>     unchecked negative/upper-bound guards into focused helpers; checked x64</p>
+<p>     index-set, list/list_int length/get/set/push, and fast dot helper state</p>
+<p>     now uses compact positional spill/dispatch records.</p>
 <ul>
 <li>Current <code>std:ui</code> command validation, OGF0 frame sizing/encoding, and</li>
 </ul>
@@ -772,9 +773,9 @@
 <li>Current x64 parser/codegen helper cleanup separates local/global variable</li>
 </ul>
 <p>     loads, function-value suffix resolution, string-compare pointer probes,</p>
-<p>     LIST_INT push reserve emission, fast list-dot prep/label/slot records,</p>
-<p>     list-int reduce/dot unchecked helper records, and late synthesized fnwrap</p>
-<p>     compilation.</p>
+<p>     LIST/LIST_INT push spill/label records, fast list-dot prep/label/slot</p>
+<p>     records, list-int reduce/dot unchecked helper records, and late</p>
+<p>     synthesized fnwrap compilation.</p>
 <ul>
 <li>Current x64 system/data helper cleanup separates GC-root sorted insertion,</li>
 </ul>

@@ -22,7 +22,7 @@ fn _x64_push_alloc_spill_slots(ctx, locals) {
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
     var off_val = _intr_tmp_off(ctx, locals, base + 1)
     if oren_type_tag(off_list) == 0 || oren_type_tag(off_val) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "off_list": off_list, "off_val": off_val}
+    return [base, off_list, off_val, nil, nil, nil, nil]
 }
 
 fn _x64_push_spill_one_arg(ctx, locals, arg, off) {
@@ -33,15 +33,15 @@ fn _x64_push_spill_one_arg(ctx, locals, arg, off) {
 }
 
 fn _x64_push_spill_ltr_args(ctx, locals, args, state) {
-    if _x64_push_spill_one_arg(ctx, locals, args[0], state["off_list"]) != true { return false }
-    if _x64_push_spill_one_arg(ctx, locals, args[1], state["off_val"]) != true { return false }
+    if _x64_push_spill_one_arg(ctx, locals, args[0], state[1]) != true { return false }
+    if _x64_push_spill_one_arg(ctx, locals, args[1], state[2]) != true { return false }
     return true
 }
 
 fn _x64_push_reload_spilled_args(ctx, state) {
     // list -> rdx, value -> r8
-    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"])
-    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state[1])
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state[2])
     return nil
 }
 
@@ -50,7 +50,7 @@ fn _x64_push_spill_args(ctx, locals, args) {
     var state = _x64_push_alloc_spill_slots(ctx, locals)
     if state == nil { return nil }
     if _x64_push_spill_ltr_args(ctx, locals, args, state) != true {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return nil
     }
     _x64_push_reload_spilled_args(ctx, state)
@@ -58,10 +58,10 @@ fn _x64_push_spill_args(ctx, locals, args) {
 }
 
 fn _x64_push_attach_labels(ctx, state, prefix) {
-    state["labels"] = {}
-    state["fixups"] = []
-    state["l_fast"] = _new_label(ctx, prefix + "_fast")
-    state["l_done"] = _new_label(ctx, prefix + "_done")
+    state[3] = {}
+    state[4] = []
+    state[5] = _new_label(ctx, prefix + "_fast")
+    state[6] = _new_label(ctx, prefix + "_done")
     return state
 }
 
@@ -69,9 +69,9 @@ fn _x64_finish_push_intrinsic(ctx, state) {
     // return nil
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
 
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["fixups"])
-    _intr_tmp_pop(ctx, state["base"])
+    _emit_label(ctx, state[3], state[6])
+    _patch_local_fixups(ctx, state[3], state[4])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -90,7 +90,7 @@ fn _x64_list_push_attach_labels(ctx, state) {
 fn _x64_emit_list_push_checked_body(ctx, locals, state) {
     _x64_emit_list_push_validate(ctx, state)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return false
     }
     _x64_emit_list_push_header(ctx)
@@ -117,8 +117,8 @@ fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
 }
 
 fn _x64_emit_list_push_nil_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[3]
+    var local_fixups = state[4]
 
     var l_non_nil = _new_label(ctx, "list_push_non_nil")
     // nil => panic
@@ -130,8 +130,8 @@ fn _x64_emit_list_push_nil_guard(ctx, state) {
 }
 
 fn _x64_emit_list_push_reload_operands(ctx, state) {
-    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"]) // rdx = list
-    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])  // r8  = value
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state[1]) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state[2]) // r8  = value
     return nil
 }
 
@@ -147,8 +147,8 @@ fn _x64_emit_list_push_tracked_lookup(ctx, state) {
 }
 
 fn _x64_emit_list_push_node_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[3]
+    var local_fixups = state[4]
 
     // tracked?
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
@@ -160,8 +160,8 @@ fn _x64_emit_list_push_node_guard(ctx, state) {
 }
 
 fn _x64_emit_list_push_kind_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[3]
+    var local_fixups = state[4]
 
     // kind = *(node + 16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
@@ -176,8 +176,8 @@ fn _x64_emit_list_push_kind_guard(ctx, state) {
 }
 
 fn _x64_emit_list_push_magic_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[3]
+    var local_fixups = state[4]
 
     _x64_emit_list_magic_cmp(ctx)
     var l_magic_ok = _new_label(ctx, "list_push_magic_ok")
@@ -218,10 +218,10 @@ fn _x64_emit_list_push_header(ctx) {
 }
 
 fn _x64_emit_push_slow_path(ctx, locals, state, runtime_fn) {
-    var local_fixups = state["fixups"]
-    var l_done = state["l_done"]
-    var off_list = state["off_list"]
-    var off_val = state["off_val"]
+    var local_fixups = state[4]
+    var l_done = state[6]
+    var off_list = state[1]
+    var off_val = state[2]
     _emit_call_rel32_2args_x64(ctx, locals, runtime_fn, off_list, off_val)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
@@ -242,9 +242,9 @@ fn _x64_emit_push_fast_store(ctx) {
 }
 
 fn _x64_emit_push_slow_or_fast(ctx, locals, state, runtime_fn, trace_op, trace_kind) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var l_fast = state["l_fast"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var l_fast = state[5]
 
     // if count < cap => fast; else slow runtime call
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(9, 10))
@@ -271,13 +271,13 @@ fn _x64_emit_push_trace_arg_regs(ctx) {
         err(ctx, "x64 native v0: missing ABI arg regs for list trace")
         return nil
     }
-    return {"a0": a0_enc - 1, "a1": a1_enc - 1, "a2": a2_enc - 1}
+    return [a0_enc - 1, a1_enc - 1, a2_enc - 1]
 }
 
 fn _x64_emit_push_trace_header_call(ctx, regs, op, kind) {
-    var a0 = regs["a0"]
-    var a1 = regs["a1"]
-    var a2 = regs["a2"]
+    var a0 = regs[0]
+    var a1 = regs[1]
+    var a2 = regs[2]
     if a0 != 2 { bytes_extend(ctx["code"], core.insn_mov_r64_r64(a0, 2)) }
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a1, op))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(a2, kind))
@@ -306,7 +306,7 @@ fn _x64_list_int_push_attach_labels(ctx, state) {
 fn _x64_emit_list_int_push_checked_body(ctx, locals, state) {
     _x64_emit_list_int_push_validate(ctx, locals, state)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return false
     }
     _x64_emit_list_int_push_value_and_header(ctx, locals, state)
@@ -337,8 +337,8 @@ fn _x64_list_int_push_spill_args(ctx, locals, args) {
 }
 
 fn _x64_emit_list_int_push_nil_guard(ctx, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
+    var labels = state[3]
+    var local_fixups = state[4]
 
     var l_non_nil = _new_label(ctx, "list_int_push_non_nil")
     // nil => panic
@@ -350,8 +350,8 @@ fn _x64_emit_list_int_push_nil_guard(ctx, state) {
 }
 
 fn _x64_emit_list_int_push_reload_operands(ctx, state) {
-    _emit_mov_r64_mrbp(ctx, 2, 0 - state["off_list"]) // rdx = list
-    _emit_mov_r64_mrbp(ctx, 8, 0 - state["off_val"])  // r8  = value
+    _emit_mov_r64_mrbp(ctx, 2, 0 - state[1]) // rdx = list
+    _emit_mov_r64_mrbp(ctx, 8, 0 - state[2]) // r8  = value
     return nil
 }
 
@@ -364,9 +364,9 @@ fn _x64_emit_list_int_push_tracked_lookup(ctx, state) {
 }
 
 fn _x64_emit_list_int_push_node_guard(ctx, locals, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var off_list = state[1]
 
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
     var l_node_ok = _new_label(ctx, "list_int_push_node_ok")
@@ -378,9 +378,9 @@ fn _x64_emit_list_int_push_node_guard(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_push_kind_guard(ctx, locals, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var off_list = state[1]
 
     // kind = *(node + 16)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 11))
@@ -396,9 +396,9 @@ fn _x64_emit_list_int_push_kind_guard(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_push_magic_guard(ctx, locals, state) {
-    var labels = state["labels"]
-    var local_fixups = state["fixups"]
-    var off_list = state["off_list"]
+    var labels = state[3]
+    var local_fixups = state[4]
+    var off_list = state[1]
 
     _x64_emit_list_magic_cmp(ctx)
     var l_magic_ok = _new_label(ctx, "list_int_push_magic_ok")
@@ -420,8 +420,8 @@ fn _x64_emit_list_int_push_validate(ctx, locals, state) {
 }
 
 fn _x64_emit_list_int_push_value_and_header(ctx, locals, state) {
-    var off_list = state["off_list"]
-    var off_val = state["off_val"]
+    var off_list = state[1]
+    var off_val = state[2]
     // Validate value is int (no tracked pointer / no nil/bool).
     _emit_call_rel32_1arg_x64(ctx, locals, "_list_int_check_value", off_val)
     // Call clobbers caller-saved regs; reload list/value for header reads + store.
