@@ -113,6 +113,10 @@ design evidence lives under `project-doc/`.
   array/hash/call, block, and top-level traversals now cache immutable list
   counts before iteration, with byte-hotpath guard coverage rejecting direct
   `oren_list_len` loop bounds in that semantic lowering pass.
+- Compiler metadata JSON attribute/list/yield/package/capability/serde,
+  function/trait/global/struct manifest traversals now cache immutable list
+  counts before iteration, with byte-hotpath guard coverage rejecting direct
+  `oren_list_len` loop bounds in that metadata path.
 - Optimizer fold block scans, C transpiler signature assembly, and top-level
   renamer scans now cache immutable list counts before traversal, with
   byte-hotpath guard coverage rejecting direct `oren_list_len` loop bounds in
@@ -3072,6 +3076,10 @@ design evidence lives under `project-doc/`.
   statement emission now cache immutable list counts before traversal, with
   byte-hotpath guard coverage for direct `oren_list_len` loop conditions in that
   backend entry shard.
+- Compiler metadata JSON attribute/list/yield/package/capability/serde,
+  function/trait/global/struct manifest traversals now cache immutable list
+  counts before iteration, with byte-hotpath guard coverage for direct
+  `oren_list_len` loop conditions in that metadata path.
 - `std:ui/scene3d_binary` `.os3d` package magic, header, table reads, and
   payload slices now reuse one cached byte view with length plus hoisted optional
   u8 pointer while keeping list-compatible byte input fallback.

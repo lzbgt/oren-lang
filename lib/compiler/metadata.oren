@@ -83,7 +83,8 @@ fn json_attr_args(args) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(args) {
+    var arg_count = oren_list_len(args)
+    while i < arg_count {
         var a = args[i]
         if !first { out = out + ", " }
         out = out + "{"
@@ -102,7 +103,8 @@ fn json_attrs(attrs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(attrs) {
+    var attr_count = oren_list_len(attrs)
+    while i < attr_count {
         var a = attrs[i]
         if !first { out = out + ", " }
         out = out + "{"
@@ -128,7 +130,8 @@ fn json_named_list(nodes) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(nodes) {
+    var node_count = oren_list_len(nodes)
+    while i < node_count {
         if !first { out = out + ", " }
         out = out + json_named_node(nodes[i])
         first = false
@@ -143,7 +146,8 @@ fn json_string_list(nodes) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(nodes) {
+    var node_count = oren_list_len(nodes)
+    while i < node_count {
         if !first { out = out + ", " }
         out = out + json_string(nodes[i]["value"])
         first = false
@@ -161,7 +165,8 @@ fn to_json(val) {
 fn attr_find(attrs, name) {
     if attrs == nil { return nil }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attr_count = oren_list_len(attrs)
+    while i < attr_count {
         var a = attrs[i]
         if a != nil && meta_str_eq(a["name"], name) { return a }
         i = i + 1
@@ -172,7 +177,8 @@ fn attr_find(attrs, name) {
 fn attr_any_has_prefix(attrs, prefix) {
     if attrs == nil { return false }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attr_count = oren_list_len(attrs)
+    while i < attr_count {
         var a = attrs[i]
         if a != nil {
             var n = a["name"]
@@ -199,7 +205,8 @@ fn attr_kw_value(a, key) {
     var args = a["args"]
     if args == nil { return nil }
     var i = 0
-    while i < oren_list_len(args) {
+    var arg_count = oren_list_len(args)
+    while i < arg_count {
         var x = args[i]
         if x != nil && meta_str_eq(x["key"], key) {
             return x["value"]
@@ -256,7 +263,8 @@ fn json_string_array(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var s = xs[i]
         if s != nil && s != "" {
             if !first { out = out + ", " }
@@ -274,7 +282,8 @@ fn json_yield_states(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var x = xs[i]
         if x != nil {
             if !first { out = out + ", " }
@@ -298,7 +307,8 @@ fn json_yield_points(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var x = xs[i]
         if x != nil {
             if !first { out = out + ", " }
@@ -320,7 +330,8 @@ fn json_yield_value_points(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var x = xs[i]
         if x != nil {
             if !first { out = out + ", " }
@@ -343,7 +354,8 @@ fn json_yield_exchange_points(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var x = xs[i]
         if x != nil {
             if !first { out = out + ", " }
@@ -368,7 +380,8 @@ fn json_generator_finalize_points(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var x = xs[i]
         if x != nil {
             if !first { out = out + ", " }
@@ -499,7 +512,8 @@ fn json_yield_prepared_v0_segments(xs) {
     var out = "["
     var i = 0
     var first = true
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var x = xs[i]
         if x != nil {
             if !first { out = out + ", " }
@@ -567,7 +581,8 @@ fn ascii_upper(s) {
 fn string_list_has(xs, value) {
     if xs == nil { return false }
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         if xs[i] == value { return true }
         i = i + 1
     }
@@ -578,7 +593,8 @@ fn normalize_domain_list(xs) {
     var out = []
     if xs == nil { return out }
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_count = oren_list_len(xs)
+    while i < xs_count {
         var d = ascii_upper(xs[i])
         if d != nil && d != "" && !string_list_has(out, d) {
             oren_list_push(out, d)
@@ -592,7 +608,8 @@ fn string_list_missing(required, actual) {
     var out = []
     if required == nil { return out }
     var i = 0
-    while i < oren_list_len(required) {
+    var required_count = oren_list_len(required)
+    while i < required_count {
         var d = required[i]
         if d != nil && d != "" && !string_list_has(actual, d) && !string_list_has(out, d) {
             oren_list_push(out, d)
@@ -631,7 +648,8 @@ fn metadata_stmt_attrs(s) {
 fn package_attr_for_stmts(stmts) {
     if stmts == nil { return nil }
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         var a = attr_find(metadata_stmt_attrs(stmts[i]), "oren.package")
         if a != nil { return a }
         i = i + 1
@@ -656,7 +674,8 @@ fn json_package_budgets(a) {
     var tail = ""
     var keys = ["cpu_ms", "wall_ms", "heap_bytes", "gas"]
     var i = 0
-    while i < oren_list_len(keys) {
+    var key_count = oren_list_len(keys)
+    while i < key_count {
         var key = keys[i]
         var v = attr_kw_value(a, "budget_" + key)
         if v != nil {
@@ -705,7 +724,8 @@ fn package_budget_declared(a) {
     if a == nil { return false }
     var keys = ["cpu_ms", "wall_ms", "heap_bytes", "gas"]
     var i = 0
-    while i < oren_list_len(keys) {
+    var key_count = oren_list_len(keys)
+    while i < key_count {
         if attr_kw_value(a, "budget_" + keys[i]) != nil { return true }
         i = i + 1
     }
@@ -802,7 +822,8 @@ fn cap_domains_for_attrs(attrs) {
     var out = []
     if attrs == nil { return out }
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attr_count = oren_list_len(attrs)
+    while i < attr_count {
         var d = cap_attr_domain(attrs[i])
         if d != nil && d != "" && !string_list_has(out, d) {
             oren_list_push(out, d)
@@ -816,12 +837,14 @@ fn cap_required_domains(stmts) {
     var out = []
     if stmts == nil { return out }
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         var func = metadata_stmt_function(stmts[i])
         if func != nil {
             var domains = cap_domains_for_attrs(func["attrs"])
+            var domain_count = oren_list_len(domains)
             var j = 0
-            while j < oren_list_len(domains) {
+            while j < domain_count {
                 var d = domains[j]
                 if d != nil && d != "" && !string_list_has(out, d) {
                     oren_list_push(out, d)
@@ -842,7 +865,8 @@ fn json_capability_functions(stmts) {
     }
     var first = true
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         var func = metadata_stmt_function(stmts[i])
         if func != nil {
             var domains = cap_domains_for_attrs(func["attrs"])
@@ -976,7 +1000,9 @@ fn json_serde_schema_for_struct(type_stmt) {
     var has = false
     if attr_any_has_prefix(attrs, "serde") { has = true }
     var i = 0
-    while !has && fields != nil && i < oren_list_len(fields) {
+    var field_count = 0
+    if fields != nil { field_count = oren_list_len(fields) }
+    while !has && i < field_count {
         var f = fields[i]
         if f != nil && attr_any_has_prefix(f["attrs"], "serde") { has = true }
         i = i + 1
@@ -992,7 +1018,7 @@ fn json_serde_schema_for_struct(type_stmt) {
 
     i = 0
     var first = true
-    while fields != nil && i < oren_list_len(fields) {
+    while i < field_count {
         var f2 = fields[i]
         if f2 != nil {
             if !first { out = out + ", " }
@@ -1028,7 +1054,8 @@ fn generate_metadata(prog) {
     var parts = ["{\n", "  \"functions\": [\n"]
     var i = 0
     var first = true
-    while i < oren_list_len(stmts) {
+    var stmt_count = oren_list_len(stmts)
+    while i < stmt_count {
         var s = stmts[i]
         var entry = analysis.top_level_function_surface_entry(s)
         if entry != nil {
@@ -1105,7 +1132,9 @@ fn generate_metadata(prog) {
     var traits = prog["traits"]
     i = 0
     first = true
-    while traits != nil && i < oren_list_len(traits) {
+    var trait_count = 0
+    if traits != nil { trait_count = oren_list_len(traits) }
+    while i < trait_count {
         var t = traits[i]
         if t != nil {
             if !first { oren_list_push(parts, ",\n") }
@@ -1118,7 +1147,9 @@ fn generate_metadata(prog) {
             var mi = 0
             var mfirst = true
             var method_parts = []
-            while ms != nil && mi < oren_list_len(ms) {
+            var method_count = 0
+            if ms != nil { method_count = oren_list_len(ms) }
+            while mi < method_count {
                 var m = ms[mi]
                 if m != nil {
                     if !mfirst { oren_list_push(method_parts, ",\n") }
@@ -1151,7 +1182,7 @@ fn generate_metadata(prog) {
     oren_list_push(parts, "  \"globals\": [\n")
     i = 0
     first = true
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var s = stmts[i]
         if s != nil && s["type"] == "Var" {
             if !first { oren_list_push(parts, ",\n") }
@@ -1178,7 +1209,7 @@ fn generate_metadata(prog) {
     oren_list_push(parts, "  \"structs\": [\n")
     i = 0
     first = true
-    while i < oren_list_len(stmts) {
+    while i < stmt_count {
         var s = stmts[i]
         if s["type"] == "Type" {
             if !first { oren_list_push(parts, ",\n") }
