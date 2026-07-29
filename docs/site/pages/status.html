@@ -160,6 +160,11 @@
 <p>  counts before traversal, with hotpath guard coverage rejecting direct</p>
 <p>  <code>oren_list_len</code> loop bounds in the pure AVM-safe sys facade.</p>
 <ul>
+<li>Optimizer DCE env copies, use/read collection, trivial-var probes, and rewrite</li>
+</ul>
+<p>  walks now cache immutable list counts before traversal, with hotpath guard</p>
+<p>  coverage rejecting direct <code>oren_list_len</code> loop bounds in that pass.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>
@@ -3600,7 +3605,8 @@
 <p>  XML DOM traversal/text extraction plus JSON/CBOR/YAML codec, argparse, HPACK,</p>
 <p>  linalg, regex, <code>std:ui</code>, URL allow-list, HTTP/2 header traversal, and</p>
 <p>  module-linking prelude/parse/pipeline/tail plus build-cache scan/key, build-pipeline,</p>
-<p>  compiler support, compiler artifact-support, debug-sugar, capsule-policy, and <code>std:sys</code> loops now cache immutable list lengths before</p>
+<p>  compiler support, compiler artifact-support, debug-sugar, capsule-policy,</p>
+<p>  optimizer-DCE, and <code>std:sys</code> loops now cache immutable list lengths before</p>
 <p>  iteration, avoiding repeated dynamic length</p>
 <p>  calls while preserving canonical sort and encode order.</p>
 <p>  WebSocket accept hashing now feeds SHA-1 directly from UTF-8 string bytes,</p>

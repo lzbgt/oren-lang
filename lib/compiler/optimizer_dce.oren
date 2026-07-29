@@ -8,8 +8,9 @@ fn env_new() { return [{}] }
 fn env_push(env) {
     // Create a new env stack (do not mutate the parent env list).
     var out = []
+    var env_count = oren_list_len(env)
     var i = 0
-    while i < oren_list_len(env) {
+    while i < env_count {
         oren_list_push(out, env[i])
         i = i + 1
     }
@@ -19,10 +20,11 @@ fn env_push(env) {
 
 
 fn env_pop(env) {
-    if oren_list_len(env) <= 1 { return env }
+    var env_count = oren_list_len(env)
+    if env_count <= 1 { return env }
     var out = []
     var i = 0
-    while i < oren_list_len(env) - 1 {
+    while i < env_count - 1 {
         oren_list_push(out, env[i])
         i = i + 1
     }
@@ -76,8 +78,9 @@ fn collect_uses_expr(e, uses, env) {
     }
     if t == "Array" {
         var xs = e["elements"]
+        var elem_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < elem_count {
             collect_uses_expr(xs[i], uses, env)
             i = i + 1
         }
@@ -85,8 +88,9 @@ fn collect_uses_expr(e, uses, env) {
     }
     if t == "Hash" {
         var ps = e["pairs"]
+        var pair_count = oren_list_len(ps)
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        while i2 < pair_count {
             collect_uses_expr(ps[i2]["key"], uses, env)
             collect_uses_expr(ps[i2]["value"], uses, env)
             i2 = i2 + 1
@@ -109,8 +113,9 @@ fn collect_uses_expr(e, uses, env) {
     if t == "Call" {
         collect_uses_expr(e["fn"], uses, env)
         var args = e["args"]
+        var arg_count = oren_list_len(args)
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        while i3 < arg_count {
             collect_uses_expr(args[i3], uses, env)
             i3 = i3 + 1
         }
@@ -122,8 +127,9 @@ fn collect_uses_expr(e, uses, env) {
         var new_env = env_push(env)
         var params = e["params"]
         if params != nil {
+            var param_count = oren_list_len(params)
             var pi = 0
-            while pi < oren_list_len(params) {
+            while pi < param_count {
                 var id = params[pi]
                 if id != nil && id["type"] == "Identifier" {
                     env_set(new_env, id["value"])
@@ -144,8 +150,9 @@ fn collect_uses_stmt(s, uses, env) {
     if t == "Block" {
         var new_env = env_push(env)
         var ss = s["stmts"]
+        var stmt_count = oren_list_len(ss)
         var i = 0
-        while i < oren_list_len(ss) {
+        while i < stmt_count {
             collect_uses_stmt(ss[i], uses, new_env)
             i = i + 1
         }
@@ -229,8 +236,9 @@ fn collect_reads_expr(e, reads) {
     }
     if t == "Array" {
         var xs = e["elements"]
+        var read_elem_count = oren_list_len(xs)
         var i = 0
-        while i < oren_list_len(xs) {
+        while i < read_elem_count {
             collect_reads_expr(xs[i], reads)
             i = i + 1
         }
@@ -238,8 +246,9 @@ fn collect_reads_expr(e, reads) {
     }
     if t == "Hash" {
         var ps = e["pairs"]
+        var read_pair_count = oren_list_len(ps)
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        while i2 < read_pair_count {
             collect_reads_expr(ps[i2]["key"], reads)
             collect_reads_expr(ps[i2]["value"], reads)
             i2 = i2 + 1
@@ -262,8 +271,9 @@ fn collect_reads_expr(e, reads) {
     if t == "Call" {
         collect_reads_expr(e["fn"], reads)
         var args = e["args"]
+        var read_arg_count = oren_list_len(args)
         var i3 = 0
-        while i3 < oren_list_len(args) {
+        while i3 < read_arg_count {
             collect_reads_expr(args[i3], reads)
             i3 = i3 + 1
         }
@@ -284,8 +294,9 @@ fn collect_reads_stmt(s, reads) {
     var t = s["type"]
     if t == "Block" {
         var ss = s["stmts"]
+        var read_stmt_count = oren_list_len(ss)
         var i = 0
-        while i < oren_list_len(ss) {
+        while i < read_stmt_count {
             collect_reads_stmt(ss[i], reads)
             i = i + 1
         }
@@ -337,8 +348,10 @@ fn collect_reads_stmt(s, reads) {
 fn block_has_trivial_var(block) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
+    if ss == nil { return false }
+    var stmt_count = oren_list_len(ss)
     var i = 0
-    while ss != nil && i < oren_list_len(ss) {
+    while i < stmt_count {
         var st = ss[i]
         if st != nil && st["type"] == "Var" && expr_trivial(st["value"]) { return true }
         i = i + 1
@@ -353,8 +366,9 @@ fn dce_block_in_place(block) {
 
     // Recurse first.
     var ss = block["stmts"]
+    var stmt_count = oren_list_len(ss)
     var i = 0
-    while i < oren_list_len(ss) {
+    while i < stmt_count {
         var st = ss[i]
         if st != nil && st["type"] == "Block" { dce_block_in_place(st) }
         if st != nil && st["type"] == "While" { dce_block_in_place(st["body"]) }
@@ -369,14 +383,14 @@ fn dce_block_in_place(block) {
     // Collect reads in this block (including nested blocks).
     var reads = {}
     i = 0
-    while i < oren_list_len(ss) {
+    while i < stmt_count {
         collect_reads_stmt(ss[i], reads)
         i = i + 1
     }
 
     var out = []
     i = 0
-    while i < oren_list_len(ss) {
+    while i < stmt_count {
         var st2 = ss[i]
         if st2 != nil && st2["type"] == "Var" {
             var nm = st2["name"]
