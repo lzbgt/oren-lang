@@ -276,6 +276,8 @@ surfaces, but the following blockers remain:
 - X64 system-intrinsic cleanup now separates Linux `sys_write` label/body/finish
   lowering, Linux pipe success widening, Linux thread clone setup/syscall, and
   Windows QPC frequency labels/body/finish into focused helpers. Windows x64
+  nanosleep, wait-on-address, gettimeofday, QPC frequency, open, and getentropy
+  helpers now use compact positional spill/label/cache records. Windows x64
   filesystem syscall helpers now use positional stat/fstat, unlink/rmdir,
   rename, and mkdir/chmod spill/capsule records instead of transient keyed maps;
   Windows x64 network syscall helpers now use positional WSAStartup, select,

@@ -472,8 +472,9 @@ This file is the concise task view. Detailed implementation status lives in
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
      open state setup, compact Linux syscall scratch-state wrappers through
-     syscall-tail helpers, positional Windows thread syscall helper records, and
-     positional Windows filesystem plus network syscall spill/capsule records.
+     syscall-tail helpers, positional Windows thread syscall helper records,
+     positional Windows core time/wait/open/RNG syscall records, and positional
+     Windows filesystem plus network syscall spill/capsule records.
    - Current x64 tracking cleanup uses compact positional records for
      tracked-node local labels/fixups, ABI register bundles, and spill slots.
 

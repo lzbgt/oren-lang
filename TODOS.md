@@ -3066,11 +3066,14 @@ design evidence lives under `project-doc/`.
   syscall sequences.
 - Windows x64 thread syscall lowering now uses compact positional spill/result
   records for CreateThread, WaitForSingleObject, TerminateThread, and CloseHandle
-  helper state instead of transient keyed maps. Windows x64 filesystem syscall
-  lowering now also uses positional helper records for stat/fstat, unlink/rmdir,
-  rename, and mkdir/chmod spill/capsule state. Windows x64 network syscall
-  lowering now uses positional helper records for WSAStartup, select, socket,
-  sockaddr, fd2, sockopt, sendto/recvfrom, and close spill/capsule state.
+  helper state instead of transient keyed maps. Windows x64 nanosleep,
+  wait-on-address, gettimeofday, QPC frequency, open, and getentropy helpers now
+  use compact positional spill/label/cache records as well. Windows x64
+  filesystem syscall lowering now also uses positional helper records for
+  stat/fstat, unlink/rmdir, rename, and mkdir/chmod spill/capsule state.
+  Windows x64 network syscall lowering now uses positional helper records for
+  WSAStartup, select, socket, sockaddr, fd2, sockopt, sendto/recvfrom, and close
+  spill/capsule state.
 - Base64 decode now rejects interior padding and third-character padding without
   fourth-character padding plus nonzero trailing pad bits while keeping decoded
   output as exact-size `u8_buf`; strict Base64 decode sizes exactly and validates

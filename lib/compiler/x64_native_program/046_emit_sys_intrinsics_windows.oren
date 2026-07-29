@@ -12,7 +12,7 @@ fn _x64_nanosleep_prepare_windows(ctx, locals, args) {
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_ns": tmp_ns}
+    return [base, tmp_ns]
 }
 
 fn _x64_nanosleep_emit_capsule_pre_windows(ctx, tmp_ns) {
@@ -82,22 +82,22 @@ fn _x64_nanosleep_label_state_windows(ctx) {
     var fixups = []
     var l_sleep = _new_label(ctx, "sys_nanosleep_win_sleep")
     var l_done = _new_label(ctx, "sys_nanosleep_win_done")
-    return {"labels": labels, "fixups": fixups, "sleep": l_sleep, "done": l_done}
+    return [labels, fixups, l_sleep, l_done]
 }
 
 fn _x64_nanosleep_emit_body_windows(ctx, st, labels, fixups, l_sleep, l_done) {
-    _x64_nanosleep_emit_nonpositive_path_windows(ctx, st["tmp_ns"], fixups, l_sleep, l_done)
+    _x64_nanosleep_emit_nonpositive_path_windows(ctx, st[1], fixups, l_sleep, l_done)
 
     _emit_label(ctx, labels, l_sleep)
-    _x64_nanosleep_emit_ms_in_rax_windows(ctx, st["tmp_ns"], labels, fixups)
+    _x64_nanosleep_emit_ms_in_rax_windows(ctx, st[1], labels, fixups)
     _x64_nanosleep_emit_sleep_call_windows(ctx)
     return nil
 }
 
 fn _x64_nanosleep_finish_windows(ctx, st, label_state) {
-    _emit_label(ctx, label_state["labels"], label_state["done"])
-    _patch_local_fixups(ctx, label_state["labels"], label_state["fixups"])
-    _intr_tmp_pop(ctx, st["base"])
+    _emit_label(ctx, label_state[0], label_state[3])
+    _patch_local_fixups(ctx, label_state[0], label_state[1])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -108,11 +108,11 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     // Contract: sys_nanosleep(ns) returns 0 on success; EINTR is not modeled.
     var st = _x64_nanosleep_prepare_windows(ctx, locals, args)
     if st == nil { return nil }
-    _x64_nanosleep_emit_capsule_pre_windows(ctx, st["tmp_ns"])
+    _x64_nanosleep_emit_capsule_pre_windows(ctx, st[1])
 
     var label_state = _x64_nanosleep_label_state_windows(ctx)
-    _x64_nanosleep_emit_body_windows(ctx, st, label_state["labels"], label_state["fixups"],
-        label_state["sleep"], label_state["done"])
+    _x64_nanosleep_emit_body_windows(ctx, st, label_state[0], label_state[1],
+        label_state[2], label_state[3])
     _x64_nanosleep_finish_windows(ctx, st, label_state)
     return nil
 }
@@ -124,14 +124,14 @@ fn _x64_ulock_wait_prepare_windows(ctx, locals) {
     var tmp_val = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 2)
     if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_addr": tmp_addr, "tmp_val": tmp_val, "tmp_to": tmp_to}
+    return [base, tmp_addr, tmp_val, tmp_to]
 }
 
 fn _x64_ulock_wait_spill_args_windows(ctx, locals, args, st) {
-    _intr_eval_spill_x64(ctx, locals, args[1], st["tmp_addr"])
-    _intr_eval_spill_x64(ctx, locals, args[2], st["tmp_val"])
-    _intr_eval_spill_x64(ctx, locals, args[3], st["tmp_to"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return false }
+    _intr_eval_spill_x64(ctx, locals, args[1], st[1])
+    _intr_eval_spill_x64(ctx, locals, args[2], st[2])
+    _intr_eval_spill_x64(ctx, locals, args[3], st[3])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st[0]); return false }
     return true
 }
 
@@ -177,19 +177,19 @@ fn _x64_ulock_wait_emit_call_windows(ctx, tmp_addr, tmp_val) {
 }
 
 fn _x64_ulock_wait_result_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "ok": _new_label(ctx, "ulock_ok"),
-        "fail": _new_label(ctx, "ulock_fail"),
-        "timeout": _new_label(ctx, "ulock_timeout"),
-        "done": _new_label(ctx, "ulock_done")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "ulock_ok"),
+        _new_label(ctx, "ulock_fail"),
+        _new_label(ctx, "ulock_timeout"),
+        _new_label(ctx, "ulock_done")
+    ]
 }
 
 fn _x64_ulock_wait_emit_bool_dispatch_windows(ctx, st) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, st["fixups"], "ne", st["ok"])
+    _emit_jcc_to_label(ctx, st[1], "ne", st[2])
     return nil
 }
 
@@ -197,29 +197,29 @@ fn _x64_ulock_wait_emit_failure_dispatch_windows(ctx, st) {
     // Failure: GetLastError() and map ERROR_TIMEOUT => -ETIMEDOUT, else -EIO.
     _emit_call_iat_x64(ctx, "IAT_GetLastError")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 1460)) // ERROR_TIMEOUT
-    _emit_jcc_to_label(ctx, st["fixups"], "e", st["timeout"])
-    _emit_jmp_to_label(ctx, st["fixups"], st["fail"])
+    _emit_jcc_to_label(ctx, st[1], "e", st[4])
+    _emit_jmp_to_label(ctx, st[1], st[3])
     return nil
 }
 
 fn _x64_ulock_wait_emit_success_result_windows(ctx, st) {
-    _emit_label(ctx, st["labels"], st["ok"])
+    _emit_label(ctx, st[0], st[2])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-    _emit_jmp_to_label(ctx, st["fixups"], st["done"])
+    _emit_jmp_to_label(ctx, st[1], st[5])
     return nil
 }
 
 fn _x64_ulock_wait_emit_timeout_result_windows(ctx, st) {
-    _emit_label(ctx, st["labels"], st["timeout"])
+    _emit_label(ctx, st[0], st[4])
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
-    _emit_jmp_to_label(ctx, st["fixups"], st["done"])
+    _emit_jmp_to_label(ctx, st[1], st[5])
     return nil
 }
 
 fn _x64_ulock_wait_emit_fail_result_windows(ctx, st) {
-    _emit_label(ctx, st["labels"], st["fail"])
+    _emit_label(ctx, st[0], st[3])
     _emit_set_rax_neg_errno_x64(ctx, 5) // -EIO
-    _emit_label(ctx, st["labels"], st["done"])
+    _emit_label(ctx, st[0], st[5])
     return nil
 }
 
@@ -230,7 +230,7 @@ fn _x64_ulock_wait_emit_result_windows(ctx) {
     _x64_ulock_wait_emit_success_result_windows(ctx, st)
     _x64_ulock_wait_emit_timeout_result_windows(ctx, st)
     _x64_ulock_wait_emit_fail_result_windows(ctx, st)
-    _patch_local_fixups(ctx, st["labels"], st["fixups"])
+    _patch_local_fixups(ctx, st[0], st[1])
     return nil
 }
 
@@ -253,11 +253,11 @@ fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
     var st = _x64_ulock_wait_prepare_windows(ctx, locals)
     if st == nil { return nil }
     if _x64_ulock_wait_spill_args_windows(ctx, locals, args, st) != true { return nil }
-    _x64_ulock_wait_emit_timeout_ms_windows(ctx, st["tmp_to"])
-    _x64_ulock_wait_emit_call_windows(ctx, st["tmp_addr"], st["tmp_val"])
+    _x64_ulock_wait_emit_timeout_ms_windows(ctx, st[3])
+    _x64_ulock_wait_emit_call_windows(ctx, st[1], st[2])
     _x64_ulock_wait_emit_result_windows(ctx)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
@@ -313,16 +313,16 @@ fn _x64_prepare_gettimeofday_windows_args(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_abs)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    return {"base": base, "tmp_tv": tmp_tv, "tmp_tz": tmp_tz, "tmp_abs": tmp_abs}
+    return [base, tmp_tv, tmp_tz, tmp_abs]
 }
 
 fn _x64_gettimeofday_windows_capsule_pre(ctx, state) {
     // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
     var capsule = _x64_capsule_enabled(ctx)
     if capsule {
-        _intr_load_x64(ctx, 1, state["tmp_tv"])  // rcx = tv
-        _intr_load_x64(ctx, 2, state["tmp_tz"])  // rdx = tz
-        _intr_load_x64(ctx, 8, state["tmp_abs"]) // r8  = abs
+        _intr_load_x64(ctx, 1, state[1])  // rcx = tv
+        _intr_load_x64(ctx, 2, state[2])  // rdx = tz
+        _intr_load_x64(ctx, 8, state[3]) // r8  = abs
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
     }
     return nil
@@ -413,31 +413,31 @@ fn _x64_gettimeofday_windows_emit_abs_qpc(ctx, labels, fixups, tmp_abs, l_skip_a
 }
 
 fn _x64_gettimeofday_windows_new_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "done": _new_label(ctx, "sys_gettimeofday_win_done"),
-        "skip_abs": _new_label(ctx, "sys_gettimeofday_win_skip_abs"),
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "sys_gettimeofday_win_done"),
+        _new_label(ctx, "sys_gettimeofday_win_skip_abs")
+    ]
 }
 
 fn _x64_gettimeofday_windows_emit_body(ctx, state, lab) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
-    var l_done = lab["done"]
-    var l_skip_abs = lab["skip_abs"]
-    _x64_gettimeofday_windows_validate_tv(ctx, labels, fixups, state["tmp_tv"], l_done)
-    _x64_gettimeofday_windows_emit_wall_time(ctx, state["tmp_tv"])
-    _x64_gettimeofday_windows_emit_abs_qpc(ctx, labels, fixups, state["tmp_abs"], l_skip_abs)
+    var labels = lab[0]
+    var fixups = lab[1]
+    var l_done = lab[2]
+    var l_skip_abs = lab[3]
+    _x64_gettimeofday_windows_validate_tv(ctx, labels, fixups, state[1], l_done)
+    _x64_gettimeofday_windows_emit_wall_time(ctx, state[1])
+    _x64_gettimeofday_windows_emit_abs_qpc(ctx, labels, fixups, state[3], l_skip_abs)
     return nil
 }
 
 fn _x64_gettimeofday_windows_finish(ctx, state, lab) {
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_label(ctx, lab["labels"], lab["done"])
-    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
-    _intr_tmp_pop(ctx, state["base"])
+    _emit_label(ctx, lab[0], lab[2])
+    _patch_local_fixups(ctx, lab[0], lab[1])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -478,7 +478,7 @@ fn _x64_qpc_frequency_prepare_windows(ctx, locals, args) {
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_p)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_p": tmp_p}
+    return [base, tmp_p]
 }
 
 fn _x64_qpc_frequency_emit_ptr_guard_windows(ctx, tmp_p, fixups, l_ok, l_done) {
@@ -521,27 +521,27 @@ fn _x64_qpc_frequency_emit_result_windows(ctx, labels, fixups, l_ret0, l_done) {
 }
 
 fn _x64_qpc_frequency_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "done": _new_label(ctx, "sys_qpc_freq_done"),
-        "ok": _new_label(ctx, "sys_qpc_freq_ok"),
-        "ret0": _new_label(ctx, "sys_qpc_freq_ret0")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "sys_qpc_freq_done"),
+        _new_label(ctx, "sys_qpc_freq_ok"),
+        _new_label(ctx, "sys_qpc_freq_ret0")
+    ]
 }
 
 fn _x64_qpc_frequency_emit_body_windows(ctx, state, lab) {
-    _x64_qpc_frequency_emit_ptr_guard_windows(ctx, state["tmp_p"], lab["fixups"], lab["ok"], lab["done"])
-    _emit_label(ctx, lab["labels"], lab["ok"])
-    _x64_qpc_frequency_emit_call_windows(ctx, state["tmp_p"])
-    _x64_qpc_frequency_emit_result_windows(ctx, lab["labels"], lab["fixups"], lab["ret0"], lab["done"])
+    _x64_qpc_frequency_emit_ptr_guard_windows(ctx, state[1], lab[1], lab[3], lab[2])
+    _emit_label(ctx, lab[0], lab[3])
+    _x64_qpc_frequency_emit_call_windows(ctx, state[1])
+    _x64_qpc_frequency_emit_result_windows(ctx, lab[0], lab[1], lab[4], lab[2])
     return nil
 }
 
 fn _x64_qpc_frequency_finish_windows(ctx, state, lab) {
-    _emit_label(ctx, lab["labels"], lab["done"])
-    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
-    _intr_tmp_pop(ctx, state["base"])
+    _emit_label(ctx, lab[0], lab[2])
+    _patch_local_fixups(ctx, lab[0], lab[1])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -747,14 +747,14 @@ fn _x64_windows_open_alloc_state(ctx, locals) {
     var tmp_mode = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_pair = _intr_tmp_off(ctx, locals, base + 3)
     if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "path": tmp_path, "flags": tmp_flags, "mode": tmp_mode, "pair": tmp_pair}
+    return [base, tmp_path, tmp_flags, tmp_mode, tmp_pair]
 }
 
 fn _x64_windows_open_spill_args(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[0], state["path"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["flags"])
-    _intr_eval_spill_x64(ctx, locals, args[2], state["mode"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return false }
+    _intr_eval_spill_x64(ctx, locals, args[0], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], state[3])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return false }
     return true
 }
 
@@ -767,15 +767,15 @@ fn _x64_windows_open_state(ctx, locals, args) {
 }
 
 fn _x64_windows_open_labels() {
-    return {"labels": {}, "fixups": []}
+    return [{}, []]
 }
 
 fn _x64_windows_open_emit_core(ctx, state, lab, capsule) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
-    var tmp_path = state["path"]
-    var tmp_flags = state["flags"]
-    var tmp_pair = state["pair"]
+    var labels = lab[0]
+    var fixups = lab[1]
+    var tmp_path = state[1]
+    var tmp_flags = state[2]
+    var tmp_pair = state[4]
     _emit_sys_open_windows_capsule_pre_x64(ctx, tmp_path, tmp_flags, tmp_pair, capsule)
     _emit_sys_open_windows_path_arg_x64(ctx, tmp_path, tmp_pair, capsule)
     _emit_sys_open_windows_access_args_x64(ctx, tmp_flags, labels, fixups)
@@ -787,8 +787,8 @@ fn _x64_windows_open_emit_core(ctx, state, lab, capsule) {
 }
 
 fn _x64_windows_open_finish(ctx, state, lab) {
-    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
-    _intr_tmp_pop(ctx, state["base"])
+    _patch_local_fixups(ctx, lab[0], lab[1])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -826,7 +826,7 @@ fn _x64_getentropy_windows_assets(ctx) {
     var slot_off = ctx["win_bcryptgenrandom_slot_enc"] - 1
     var off_dll = _data_add_cstr0(ctx, "bcrypt.dll")
     var off_sym = _data_add_cstr0(ctx, "BCryptGenRandom")
-    return {"slot_off": slot_off, "off_dll": off_dll, "off_sym": off_sym}
+    return [slot_off, off_dll, off_sym]
 }
 
 fn _x64_getentropy_windows_spill_args(ctx, locals, args) {
@@ -839,7 +839,7 @@ fn _x64_getentropy_windows_spill_args(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_buf)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_buf": tmp_buf, "tmp_len": tmp_len}
+    return [base, tmp_buf, tmp_len]
 }
 
 fn _x64_getentropy_windows_init_state(ctx, locals, args) {
@@ -848,20 +848,15 @@ fn _x64_getentropy_windows_init_state(ctx, locals, args) {
     if spills == nil { return nil }
     var labels = {}
     var fixups = []
-    return {
-        "base": spills["base"],
-        "tmp_buf": spills["tmp_buf"],
-        "tmp_len": spills["tmp_len"],
-        "slot_off": assets["slot_off"],
-        "off_dll": assets["off_dll"],
-        "off_sym": assets["off_sym"],
-        "labels": labels,
-        "fixups": fixups,
-        "l_have_fp": _new_label(ctx, "sys_getentropy_have_fp"),
-        "l_fail": _new_label(ctx, "sys_getentropy_fail"),
-        "l_done": _new_label(ctx, "sys_getentropy_done"),
-        "l_ret0": _new_label(ctx, "sys_getentropy_ret0")
-    }
+    return [
+        spills[0], spills[1], spills[2],
+        assets[0], assets[1], assets[2],
+        labels, fixups,
+        _new_label(ctx, "sys_getentropy_have_fp"),
+        _new_label(ctx, "sys_getentropy_fail"),
+        _new_label(ctx, "sys_getentropy_done"),
+        _new_label(ctx, "sys_getentropy_ret0")
+    ]
 }
 
 fn _x64_emit_getentropy_windows_return_i32(ctx, fixups, done_label, rc_u32) {
@@ -872,25 +867,25 @@ fn _x64_emit_getentropy_windows_return_i32(ctx, fixups, done_label, rc_u32) {
 }
 
 fn _x64_emit_getentropy_windows_len_guard(ctx, state) {
-    var labels = state["labels"]
-    var fixups = state["fixups"]
+    var labels = state[6]
+    var fixups = state[7]
     // if len <= 0 => return 0
-    _intr_load_x64(ctx, 0, state["tmp_len"])
+    _intr_load_x64(ctx, 0, state[2])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "g", state["l_have_fp"])
-    _x64_emit_getentropy_windows_return_i32(ctx, fixups, state["l_done"], 0)
-    _emit_label(ctx, labels, state["l_have_fp"])
+    _emit_jcc_to_label(ctx, fixups, "g", state[8])
+    _x64_emit_getentropy_windows_return_i32(ctx, fixups, state[10], 0)
+    _emit_label(ctx, labels, state[8])
     return nil
 }
 
 fn _x64_emit_getentropy_windows_buf_guard(ctx, state) {
-    var labels = state["labels"]
-    var fixups = state["fixups"]
-    _intr_load_x64(ctx, 0, state["tmp_buf"])
+    var labels = state[6]
+    var fixups = state[7]
+    _intr_load_x64(ctx, 0, state[1])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     var l_buf_ok = _new_label(ctx, "sys_getentropy_buf_ok")
     _emit_jcc_to_label(ctx, fixups, "ne", l_buf_ok)
-    _x64_emit_getentropy_windows_return_i32(ctx, fixups, state["l_done"], 4294967282) // -EFAULT
+    _x64_emit_getentropy_windows_return_i32(ctx, fixups, state[10], 4294967282) // -EFAULT
     _emit_label(ctx, labels, l_buf_ok)
     return nil
 }
@@ -903,7 +898,7 @@ fn _x64_emit_getentropy_windows_guards(ctx, state) {
 
 fn _x64_emit_getentropy_windows_slot_lea(ctx, state, dst_reg) {
     // Load &slot into r10
-    var slot_off = state["slot_off"]
+    var slot_off = state[3]
     var lea_slot = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(dst_reg, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot + 3, "data_off": slot_off})
@@ -911,12 +906,12 @@ fn _x64_emit_getentropy_windows_slot_lea(ctx, state, dst_reg) {
 }
 
 fn _x64_emit_getentropy_windows_cached_fp_probe(ctx, state) {
-    var fixups = state["fixups"]
+    var fixups = state[7]
     _x64_emit_getentropy_windows_slot_lea(ctx, state, 10)
     // r11 = *(u64*)slot
     bytes_extend(ctx["code"], core.insn_mov_r64_mr64(11, 10))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", state["l_ret0"]) // fp already cached in r11
+    _emit_jcc_to_label(ctx, fixups, "ne", state[11]) // fp already cached in r11
     return nil
 }
 
@@ -925,7 +920,7 @@ fn _x64_emit_getentropy_windows_load_bcrypt(ctx, state) {
     // rcx = &"bcrypt.dll"
     var lea_dll = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(1, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": state["off_dll"]})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": state[4]})
     // call LoadLibraryA
     var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
@@ -933,7 +928,7 @@ fn _x64_emit_getentropy_windows_load_bcrypt(ctx, state) {
     bytes_extend(ctx["code"], core.insn_call_rax())
     // if rax == 0 => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, state["fixups"], "e", state["l_fail"])
+    _emit_jcc_to_label(ctx, state[7], "e", state[9])
     return nil
 }
 
@@ -944,25 +939,25 @@ fn _x64_emit_getentropy_windows_getproc(ctx, state) {
     // rdx = &"BCryptGenRandom"
     var lea_sym = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_lea_r64_rip_disp32(2, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": state["off_sym"]})
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": state[5]})
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetProcAddress")
     bytes_extend(ctx["code"], core.insn_call_rax())
     // if rax == 0 => fail
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
-    _emit_jcc_to_label(ctx, state["fixups"], "e", state["l_fail"])
+    _emit_jcc_to_label(ctx, state[7], "e", state[9])
     return nil
 }
 
 fn _x64_emit_getentropy_windows_cache_fp(ctx, state) {
-    var labels = state["labels"]
+    var labels = state[6]
     // Cache fp in slot and r11
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 0))
     _x64_emit_getentropy_windows_slot_lea(ctx, state, 10)
     bytes_extend(ctx["code"], core.insn_mov_mr64_r64(10, 11))
 
-    _emit_label(ctx, labels, state["l_ret0"])
+    _emit_label(ctx, labels, state[11])
     return nil
 }
 
@@ -975,8 +970,8 @@ fn _x64_emit_getentropy_windows_resolve_fp(ctx, state) {
 }
 
 fn _x64_emit_getentropy_windows_rng_args(ctx, state) {
-    var tmp_buf = state["tmp_buf"]
-    var tmp_len = state["tmp_len"]
+    var tmp_buf = state[1]
+    var tmp_len = state[2]
     // Call BCryptGenRandom(NULL, buf, (u32)len, 0x2)
     // rcx = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(1, 0))
@@ -988,8 +983,8 @@ fn _x64_emit_getentropy_windows_rng_args(ctx, state) {
 }
 
 fn _x64_emit_getentropy_windows_rng_len_guard(ctx, state) {
-    var labels = state["labels"]
-    var fixups = state["fixups"]
+    var labels = state[6]
+    var fixups = state[7]
     // Fail if len > 0xFFFFFFFF (conservative)
     bytes_extend(ctx["code"], core.insn_mov_r64_imm64(9, 4294967295))
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(8, 9))
@@ -998,13 +993,13 @@ fn _x64_emit_getentropy_windows_rng_len_guard(ctx, state) {
     // -22 (EINVAL)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967274))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, state["l_done"])
+    _emit_jmp_to_label(ctx, fixups, state[10])
     _emit_label(ctx, labels, l_len_ok)
     return nil
 }
 
 fn _x64_emit_getentropy_windows_rng_call(ctx, state) {
-    var fixups = state["fixups"]
+    var fixups = state[7]
     // r9d = flags (BCRYPT_USE_SYSTEM_PREFERRED_RNG = 2)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 2))
     // call fp in r11
@@ -1012,15 +1007,15 @@ fn _x64_emit_getentropy_windows_rng_call(ctx, state) {
     bytes_extend(ctx["code"], core.insn_call_rax())
     // NTSTATUS in eax: 0 => success
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", state["l_fail"])
+    _emit_jcc_to_label(ctx, fixups, "ne", state[9])
     return nil
 }
 
 fn _x64_emit_getentropy_windows_success_rc(ctx, state) {
-    var fixups = state["fixups"]
+    var fixups = state[7]
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_jmp_to_label(ctx, fixups, state["l_done"])
+    _emit_jmp_to_label(ctx, fixups, state[10])
     return nil
 }
 
@@ -1033,12 +1028,12 @@ fn _x64_emit_getentropy_windows_call_rng(ctx, state) {
 }
 
 fn _x64_emit_getentropy_windows_finish(ctx, state) {
-    _emit_label(ctx, state["labels"], state["l_fail"])
+    _emit_label(ctx, state[6], state[9])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 4294967291)) // -EIO
     bytes_extend(ctx["code"], core.insn_cdqe())
 
-    _emit_label(ctx, state["labels"], state["l_done"])
-    _patch_local_fixups(ctx, state["labels"], state["fixups"])
+    _emit_label(ctx, state[6], state[10])
+    _patch_local_fixups(ctx, state[6], state[7])
     return nil
 }
 
@@ -1059,7 +1054,7 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     _x64_emit_getentropy_windows_call_rng(ctx, state)
     _x64_emit_getentropy_windows_finish(ctx, state)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
