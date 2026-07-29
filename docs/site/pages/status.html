@@ -340,6 +340,11 @@
 <p>  traversal, with hotpath guard coverage rejecting direct <code>oren_list_len</code> loop</p>
 <p>  bounds in those bytecode/OBC paths.</p>
 <ul>
+<li>Native runtime include expansion now caches immutable include-stack counts</li>
+</ul>
+<p>  before cycle-check and stack-copy traversals, with hotpath guard coverage</p>
+<p>  rejecting direct <code>oren_list_len</code> loop bounds in that runtime injection path.</p>
+<ul>
 <li>X64/ARM64 ELF dynamic-link metadata now shares PT_INTERP payload placement and</li>
 </ul>
 <p>  shared-library <code>.init_array</code> slot reservation through <code>elf_artifact.oren</code>;</p>

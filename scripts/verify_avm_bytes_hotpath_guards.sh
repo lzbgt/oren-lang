@@ -1838,6 +1838,7 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/obc_link.oren \
   lib/compiler/type_ann_lowering.oren \
   lib/compiler/type_name_resolve.oren \
+  lib/compiler/native_runtime_inject.oren \
   lib/compiler/native_runtime_bundle.oren \
   lib/compiler/native_runtime_obj_cache.oren \
   lib/compiler/native_runtime_obj_cache_sidecars.oren \

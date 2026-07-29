@@ -159,7 +159,8 @@ fn runtime_expand_includes_file_into_parts(ctx, full_path, stack, out_parts) {
     // Cycle check
     if stack != nil {
         var si = 0
-        while si < oren_list_len(stack) {
+        var stack_n = oren_list_len(stack)
+        while si < stack_n {
             if stack[si] == full_path {
                 _err(ctx, "native backend: runtime include cycle: " + full_path)
                 return nil
@@ -180,7 +181,8 @@ fn runtime_expand_includes_file_into_parts(ctx, full_path, stack, out_parts) {
     var next_stack = []
     if stack != nil {
         var ci = 0
-        while ci < oren_list_len(stack) {
+        var stack_n2 = oren_list_len(stack)
+        while ci < stack_n2 {
             oren_list_push(next_stack, stack[ci])
             ci = ci + 1
         }
@@ -294,7 +296,8 @@ fn _runtime_expand_includes_file_into_parts_and_files_inner(ctx, full_path, stac
     // Cycle check
     if stack != nil {
         var si = 0
-        while si < oren_list_len(stack) {
+        var stack_n = oren_list_len(stack)
+        while si < stack_n {
             if stack[si] == full_path {
                 _err(ctx, "native backend: runtime include cycle: " + full_path)
                 return nil
@@ -315,7 +318,8 @@ fn _runtime_expand_includes_file_into_parts_and_files_inner(ctx, full_path, stac
     var next_stack = []
     if stack != nil {
         var ci = 0
-        while ci < oren_list_len(stack) {
+        var stack_n2 = oren_list_len(stack)
+        while ci < stack_n2 {
             oren_list_push(next_stack, stack[ci])
             ci = ci + 1
         }
