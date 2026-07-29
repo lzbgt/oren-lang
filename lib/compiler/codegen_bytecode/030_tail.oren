@@ -27,7 +27,8 @@ fn bytecode_collect_locals_stmt(ctx, stmt) {
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(stmts) {
+        var stmts_len = oren_list_len(stmts)
+        while i < stmts_len {
             bytecode_collect_locals_stmt(ctx, stmts[i])
             i = i + 1
         }
@@ -88,7 +89,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
         var fields = stmt["fields"]
         var fns = []
         var i = 0
-        while i < oren_list_len(fields) {
+        var fields_len = oren_list_len(fields)
+        while i < fields_len {
             oren_list_push(fns, fields[i]["value"])
             i = i + 1
         }
@@ -219,7 +221,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
         var i = 0
-        while i < oren_list_len(stmts) {
+        var stmts_len = oren_list_len(stmts)
+        while i < stmts_len {
             bytecode_compile_stmt(ctx, stmts[i])
             i = i + 1
         }
@@ -266,13 +269,15 @@ fn bytecode_compile_stmt(ctx, stmt) {
 
         // Patch breaks/continues.
         var bi = 0
-        while bi < oren_list_len(loop["break_jumps"]) {
+        var break_jumps_len = oren_list_len(loop["break_jumps"])
+        while bi < break_jumps_len {
             var bpos = loop["break_jumps"][bi]
             patch_u32(ctx, bpos, end_pc - (bpos + 4))
             bi = bi + 1
         }
         var ci = 0
-        while ci < oren_list_len(loop["continue_jumps"]) {
+        var continue_jumps_len = oren_list_len(loop["continue_jumps"])
+        while ci < continue_jumps_len {
             var cpos = loop["continue_jumps"][ci]
             patch_u32(ctx, cpos, loop["continue_target"] - (cpos + 4))
             ci = ci + 1
@@ -334,13 +339,15 @@ fn bytecode_compile_stmt(ctx, stmt) {
 
         // Patch breaks/continues.
         var bi2 = 0
-        while bi2 < oren_list_len(loop["break_jumps"]) {
+        var break_jumps_len2 = oren_list_len(loop["break_jumps"])
+        while bi2 < break_jumps_len2 {
             var bpos2 = loop["break_jumps"][bi2]
             patch_u32(ctx, bpos2, end_pc - (bpos2 + 4))
             bi2 = bi2 + 1
         }
         var ci2 = 0
-        while ci2 < oren_list_len(loop["continue_jumps"]) {
+        var continue_jumps_len2 = oren_list_len(loop["continue_jumps"])
+        while ci2 < continue_jumps_len2 {
             var cpos2 = loop["continue_jumps"][ci2]
             patch_u32(ctx, cpos2, loop["continue_target"] - (cpos2 + 4))
             ci2 = ci2 + 1
@@ -368,14 +375,16 @@ fn bytecode_compile_program(linked, config) {
     // Rolling: use CoreIR v0 metadata extraction to avoid per-backend drift in how varargs and
     // declared-functions are recognized.
     var pi = 0
-    while pi < oren_list_len(stmts) {
+    var stmts_len = oren_list_len(stmts)
+    while pi < stmts_len {
         var st = stmts[pi]
         if st != nil && st["type"] == "Type" {
             var tname = st["name"]["value"]
             var fields = st["fields"]
             var fns = []
             var fi = 0
-            while fi < oren_list_len(fields) {
+            var fields_len = oren_list_len(fields)
+            while fi < fields_len {
                 oren_list_push(fns, fields[fi]["value"])
                 fi = fi + 1
             }
@@ -390,9 +399,11 @@ fn bytecode_compile_program(linked, config) {
 
     var meta = {"errors": []}
     coreir.collect_top_level_functions(meta, linked, "bytecode v0")
-    if meta["errors"] != nil && oren_list_len(meta["errors"]) > 0 {
+    var meta_errors_len = 0
+    if meta["errors"] != nil { meta_errors_len = oren_list_len(meta["errors"]) }
+    if meta_errors_len > 0 {
         var ei = 0
-        while ei < oren_list_len(meta["errors"]) {
+        while ei < meta_errors_len {
             bytecode_error(ctx, meta["errors"][ei])
             ei = ei + 1
         }
@@ -402,7 +413,8 @@ fn bytecode_compile_program(linked, config) {
     // declared_funcs: name -> true (use deterministic source order list when available)
     if meta["func_decl_order"] != nil {
         var di = 0
-        while di < oren_list_len(meta["func_decl_order"]) {
+        var func_decl_order_len = oren_list_len(meta["func_decl_order"])
+        while di < func_decl_order_len {
             var nm0 = meta["func_decl_order"][di]
             ctx["declared_funcs"][nm0] = true
             di = di + 1
@@ -418,7 +430,7 @@ fn bytecode_compile_program(linked, config) {
     }
 
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < stmts_len {
         bytecode_compile_stmt(ctx, stmts[i])
         i = i + 1
     }
@@ -447,7 +459,8 @@ fn bytecode_compile_program(linked, config) {
     var j = 0
     var fixup_names = ctx["fixup_names"]
     var fixup_positions_by_name = ctx["fixup_positions_by_name"]
-    while j < oren_list_len(fixup_names) {
+    var fixup_names_len = oren_list_len(fixup_names)
+    while j < fixup_names_len {
         var name = fixup_names[j]
         var addr = ctx["functions"][name]
         var patched = false
@@ -455,7 +468,8 @@ fn bytecode_compile_program(linked, config) {
             if addr > 0 {
                 var positions = fixup_positions_by_name[name]
                 var pi = 0
-                while pi < oren_list_len(positions) {
+                var positions_len = oren_list_len(positions)
+                while pi < positions_len {
                     patch_u32(ctx, positions[pi], addr - 1)
                     pi = pi + 1
                 }
@@ -467,7 +481,8 @@ fn bytecode_compile_program(linked, config) {
             if ctx["allow_undef"] == true {
                 // Leave placeholder 0 and record relocation for a later linker pass.
                 var ri = 0
-                while ri < oren_list_len(positions2) {
+                var positions2_len = oren_list_len(positions2)
+                while ri < positions2_len {
                     oren_list_push(ctx["relocs"], {"name": name, "pos": positions2[ri], "kind": 0})
                     ri = ri + 1
                 }
@@ -480,14 +495,15 @@ fn bytecode_compile_program(linked, config) {
     if profile_codegen {
         print("[bc_codegen_profile] section=call_fixups ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000) +
             " count=" + oren_int_to_string(ctx["fixup_count"]) +
-            " names=" + oren_int_to_string(oren_list_len(fixup_names)))
+            " names=" + oren_int_to_string(fixup_names_len))
         profile_t = oren_time_now_ns()
     }
 
     var k = 0
     var ffix_names = ctx["fun_fixup_names"]
     var ffix_positions_by_name = ctx["fun_fixup_positions_by_name"]
-    while k < oren_list_len(ffix_names) {
+    var ffix_names_len = oren_list_len(ffix_names)
+    while k < ffix_names_len {
         var name2 = ffix_names[k]
         var addr2 = ctx["functions"][name2]
         var patched2 = false
@@ -495,7 +511,8 @@ fn bytecode_compile_program(linked, config) {
             if addr2 > 0 {
                 var fpositions = ffix_positions_by_name[name2]
                 var fpi = 0
-                while fpi < oren_list_len(fpositions) {
+                var fpositions_len = oren_list_len(fpositions)
+                while fpi < fpositions_len {
                     patch_u32(ctx, fpositions[fpi], addr2 - 1)
                     fpi = fpi + 1
                 }
@@ -507,7 +524,8 @@ fn bytecode_compile_program(linked, config) {
             if ctx["allow_undef"] == true {
                 // Leave placeholder 0 and record relocation for a later linker pass.
                 var fri = 0
-                while fri < oren_list_len(fpositions2) {
+                var fpositions2_len = oren_list_len(fpositions2)
+                while fri < fpositions2_len {
                     oren_list_push(ctx["relocs"], {"name": name2, "pos": fpositions2[fri], "kind": 1})
                     fri = fri + 1
                 }
@@ -520,7 +538,7 @@ fn bytecode_compile_program(linked, config) {
     if profile_codegen {
         print("[bc_codegen_profile] section=func_fixups ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000) +
             " count=" + oren_int_to_string(ctx["fun_fixup_count"]) +
-            " names=" + oren_int_to_string(oren_list_len(ffix_names)))
+            " names=" + oren_int_to_string(ffix_names_len))
         profile_t = oren_time_now_ns()
     }
 

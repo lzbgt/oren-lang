@@ -121,6 +121,13 @@
 <p>  scans, with hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds</p>
 <p>  in that optimizer pass.</p>
 <ul>
+<li>Bytecode tail emission now caches immutable AST, type-field, metadata, and</li>
+</ul>
+<p>  call/function-fixup position counts before local collection, statement</p>
+<p>  emission, loop jump patching, top-level metadata, and relocation scans, with</p>
+<p>  hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in that</p>
+<p>  backend shard.</p>
+<ul>
 <li>Parser generator core-use, yield-delegate validation, and generator-yield</li>
 </ul>
 <p>  rewrite traversals now cache immutable AST list counts before iteration, with</p>

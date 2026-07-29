@@ -128,6 +128,13 @@
 <p>  scans, with byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop</p>
 <p>  bounds in that optimizer pass.</p>
 <ul>
+<li>Bytecode tail emission now caches immutable AST, type-field, metadata, and</li>
+</ul>
+<p>  call/function-fixup position counts before local collection, statement</p>
+<p>  emission, loop jump patching, top-level metadata, and relocation scans, with</p>
+<p>  byte-hotpath guard coverage rejecting direct <code>oren_list_len</code> loop bounds in</p>
+<p>  that backend shard.</p>
+<ul>
 <li>Compiler function/yield analysis now caches immutable program, block,</li>
 </ul>
 <p>  parameter, expression, yield-point, generator-finalize, and function-list</p>
