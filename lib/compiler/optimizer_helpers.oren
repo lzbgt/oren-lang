@@ -60,7 +60,9 @@ fn expr_may_touch_list(expr) {
         if call_may_touch_list(expr) { return true }
         var args = expr["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             if expr_may_touch_list(args[i]) { return true }
             i = i + 1
         }
@@ -81,7 +83,9 @@ fn expr_may_touch_list(expr) {
     if t == "Hash" {
         var ps = expr["pairs"]
         var pi = 0
-        while ps != nil && pi < oren_list_len(ps) {
+        var ps_len = 0
+        if ps != nil { ps_len = oren_list_len(ps) }
+        while pi < ps_len {
             var p = ps[pi]
             if p != nil {
                 if expr_may_touch_list(p["key"]) { return true }
@@ -96,7 +100,9 @@ fn expr_may_touch_list(expr) {
         if expr_may_touch_list(expr["target"]) { return true }
         var cases = expr["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil && stmt_may_touch_list(c["body"]) { return true }
             ci = ci + 1
@@ -115,7 +121,9 @@ fn stmt_may_touch_list(stmt) {
     if t == "StmtList" {
         var sl = stmt["stmts"]
         var si = 0
-        while sl != nil && si < oren_list_len(sl) {
+        var sl_len = 0
+        if sl != nil { sl_len = oren_list_len(sl) }
+        while si < sl_len {
             if stmt_may_touch_list(sl[si]) { return true }
             si = si + 1
         }
@@ -124,7 +132,9 @@ fn stmt_may_touch_list(stmt) {
     if t == "Block" {
         var ss = stmt["stmts"]
         var i = 0
-        while ss != nil && i < oren_list_len(ss) {
+        var ss_len = 0
+        if ss != nil { ss_len = oren_list_len(ss) }
+        while i < ss_len {
             if stmt_may_touch_list(ss[i]) { return true }
             i = i + 1
         }
@@ -158,12 +168,16 @@ fn stmt_may_touch_list(stmt) {
         if expr_may_touch_list(stmt["target"]) { return true }
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil {
                 var vals = c["values"]
                 var vi = 0
-                while vals != nil && vi < oren_list_len(vals) {
+                var vals_len = 0
+                if vals != nil { vals_len = oren_list_len(vals) }
+                while vi < vals_len {
                     if expr_may_touch_list(vals[vi]) { return true }
                     vi = vi + 1
                 }
@@ -190,7 +204,8 @@ fn collect_assigned_names_stmt(out, stmt) {
         var xs = stmt["stmts"]
         if xs == nil { return nil }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i < xs_len {
             collect_assigned_names_stmt(out, xs[i])
             i = i + 1
         }
@@ -212,7 +227,8 @@ fn collect_assigned_names_stmt(out, stmt) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_len = oren_list_len(cases)
+            while ci < cases_len {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { collect_assigned_names_stmt(out, c["body"]) }
                 ci = ci + 1
@@ -233,7 +249,8 @@ fn collect_assigned_names_stmt(out, stmt) {
             var cases2 = e["cases"]
             if cases2 != nil {
                 var ci2 = 0
-                while ci2 < oren_list_len(cases2) {
+                var cases2_len = oren_list_len(cases2)
+                while ci2 < cases2_len {
                     var c2 = cases2[ci2]
                     if c2 != nil && c2["body"] != nil { collect_assigned_names_stmt(out, c2["body"]) }
                     ci2 = ci2 + 1
@@ -253,7 +270,9 @@ fn stmt_may_assign_name(stmt) {
     if t == "Block" || t == "StmtList" {
         var ss = stmt["stmts"]
         var i = 0
-        while ss != nil && i < oren_list_len(ss) {
+        var ss_len = 0
+        if ss != nil { ss_len = oren_list_len(ss) }
+        while i < ss_len {
             if stmt_may_assign_name(ss[i]) { return true }
             i = i + 1
         }
@@ -272,7 +291,9 @@ fn stmt_may_assign_name(stmt) {
     if t == "Switch" {
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil && stmt_may_assign_name(c["body"]) { return true }
             ci = ci + 1
@@ -288,7 +309,9 @@ fn stmt_may_assign_name(stmt) {
         if e != nil && e["type"] == "Switch" {
             var cases2 = e["cases"]
             var ci2 = 0
-            while cases2 != nil && ci2 < oren_list_len(cases2) {
+            var cases2_len = 0
+            if cases2 != nil { cases2_len = oren_list_len(cases2) }
+            while ci2 < cases2_len {
                 var c2 = cases2[ci2]
                 if c2 != nil && stmt_may_assign_name(c2["body"]) { return true }
                 ci2 = ci2 + 1
@@ -306,7 +329,9 @@ fn stmt_may_contain_for(stmt) {
     if t == "Block" || t == "StmtList" {
         var ss = stmt["stmts"]
         var i = 0
-        while ss != nil && i < oren_list_len(ss) {
+        var ss_len = 0
+        if ss != nil { ss_len = oren_list_len(ss) }
+        while i < ss_len {
             if stmt_may_contain_for(ss[i]) { return true }
             i = i + 1
         }
@@ -320,7 +345,9 @@ fn stmt_may_contain_for(stmt) {
     if t == "Switch" {
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil && stmt_may_contain_for(c["body"]) { return true }
             ci = ci + 1
@@ -336,7 +363,9 @@ fn stmt_may_contain_for(stmt) {
         if e != nil && e["type"] == "Switch" {
             var cases2 = e["cases"]
             var ci2 = 0
-            while cases2 != nil && ci2 < oren_list_len(cases2) {
+            var cases2_len = 0
+            if cases2 != nil { cases2_len = oren_list_len(cases2) }
+            while ci2 < cases2_len {
                 var c2 = cases2[ci2]
                 if c2 != nil && stmt_may_contain_for(c2["body"]) { return true }
                 ci2 = ci2 + 1
@@ -354,7 +383,9 @@ fn stmt_may_contain_if(stmt) {
     if t == "Block" || t == "StmtList" {
         var ss = stmt["stmts"]
         var i = 0
-        while ss != nil && i < oren_list_len(ss) {
+        var ss_len = 0
+        if ss != nil { ss_len = oren_list_len(ss) }
+        while i < ss_len {
             if stmt_may_contain_if(ss[i]) { return true }
             i = i + 1
         }
@@ -364,7 +395,9 @@ fn stmt_may_contain_if(stmt) {
     if t == "Switch" {
         var cases = stmt["cases"]
         var ci = 0
-        while cases != nil && ci < oren_list_len(cases) {
+        var cases_len = 0
+        if cases != nil { cases_len = oren_list_len(cases) }
+        while ci < cases_len {
             var c = cases[ci]
             if c != nil && stmt_may_contain_if(c["body"]) { return true }
             ci = ci + 1
@@ -377,7 +410,9 @@ fn stmt_may_contain_if(stmt) {
         if e != nil && e["type"] == "Switch" {
             var cases2 = e["cases"]
             var ci2 = 0
-            while cases2 != nil && ci2 < oren_list_len(cases2) {
+            var cases2_len = 0
+            if cases2 != nil { cases2_len = oren_list_len(cases2) }
+            while ci2 < cases2_len {
                 var c2 = cases2[ci2]
                 if c2 != nil && stmt_may_contain_if(c2["body"]) { return true }
                 ci2 = ci2 + 1
