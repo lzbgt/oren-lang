@@ -105,10 +105,10 @@ This file is the concise task view. Detailed implementation status lives in
      points, callee-save restores, frame teardown/return, and local-fixup
      finalization into focused helpers while preserving return-order emission.
    - Current x64 index/list lowering separates map-vs-generic runtime-fast
-     index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
-     negative/upper-bound guards into focused helpers; checked x64 index-set
-     and list/list_int length/get/set helper state now uses compact positional
-     spill/dispatch records.
+     index get paths, index-set nil/tracked prechecks, LIST/LIST_INT dot
+     prep/label state, and LIST_INT unchecked negative/upper-bound guards into
+     focused helpers; checked x64 index-set, list/list_int length/get/set, and
+     fast dot helper state now uses compact positional spill/dispatch records.
    - Current `std:ui` command validation, OGF0 frame sizing/encoding, and
      software rasterization cache immutable command-list lengths before
      traversal.
@@ -459,8 +459,9 @@ This file is the concise task view. Detailed implementation status lives in
      phases while preserving trace marks and metadata keys.
    - Current x64 parser/codegen helper cleanup separates local/global variable
      loads, function-value suffix resolution, string-compare pointer probes,
-     LIST_INT push reserve emission, fast list-dot helper slot records, list-int
-     reduce/dot unchecked helper records, and late synthesized fnwrap compilation.
+     LIST_INT push reserve emission, fast list-dot prep/label/slot records,
+     list-int reduce/dot unchecked helper records, and late synthesized fnwrap
+     compilation.
    - Current x64 system/data helper cleanup separates GC-root sorted insertion,
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows

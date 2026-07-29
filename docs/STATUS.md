@@ -260,8 +260,8 @@ surfaces, but the following blockers remain:
   export traversal counts before emission, with AVM byte-hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in `elf_artifact.oren`.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
-  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
-  negative/upper-bound guards into focused helpers.
+  index get paths, index-set nil/tracked prechecks, LIST/LIST_INT dot prep/label
+  state, and LIST_INT unchecked negative/upper-bound guards into focused helpers.
 - X64 function epilogue emission now separates call-depth exit patch points,
   callee-save restores, frame teardown/return, and local-fixup finalization into
   focused helpers while preserving return-order emission.
@@ -744,7 +744,7 @@ surfaces, but the following blockers remain:
 | --- | --- | --- |
 | C | Portable bootstrap path through host C toolchain. | Useful baseline, not a stabilized external ABI promise. |
 | Native arm64 macOS | Most mature native path; broadest profile and fixture history. | Rolling Tier-1 intent. |
-| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; x64 list/int length/get/set and index-set helper records are also moving off transient keyed maps. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
+| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; x64 list/int length/get/set, index-set, and fast LIST/LIST_INT dot prep/label helper records have moved off transient keyed maps. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
 | Bytecode / AVM | Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces. | Experimental for production embedding. |
 
 ## AVM SDK Readiness

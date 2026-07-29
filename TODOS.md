@@ -276,8 +276,8 @@ design evidence lives under `project-doc/`.
   export traversal counts before emission, with AVM byte-hotpath guard coverage
   rejecting direct `oren_list_len` loop bounds in `elf_artifact.oren`.
 - X64 index/list lowering cleanup now separates map-vs-generic runtime-fast
-  index get paths, index-set nil/tracked prechecks, and LIST_INT unchecked
-  negative/upper-bound guards into focused helpers.
+  index get paths, index-set nil/tracked prechecks, LIST/LIST_INT dot prep/label
+  state, and LIST_INT unchecked negative/upper-bound guards into focused helpers.
 - X64 function epilogue emission now separates call-depth exit patch points,
   callee-save restores, frame teardown/return, and local-fixup finalization into
   focused helpers while preserving return-order emission.
@@ -3043,10 +3043,11 @@ design evidence lives under `project-doc/`.
   generate Clang oversized signed-literal warnings in math C smokes.
 - X64 fast list/list_int dot while lowering now uses positional helper records
   for offsets, validation slots, and left/right slot pairs instead of
-  short-lived keyed maps. X64 list-int reduce/dot unchecked helper intrinsics now
-  use fixed positional records for spill slots, labels, and fixups as well, and
-  x64 index-set plus list/list_int length, get, unchecked-get, and set lowering
-  use positional spill/dispatch records for their checked helper paths.
+  short-lived keyed maps; LIST/LIST_INT dot prep, label, and checked-path state
+  now use fixed positional records as well. X64 list-int reduce/dot unchecked
+  helper intrinsics use fixed positional records for spill slots, labels, and
+  fixups, and x64 index-set plus list/list_int length, get, unchecked-get, and
+  set lowering use positional spill/dispatch records for their checked helper paths.
 - Linux x64 syscall lowering now uses compact positional scratch-state lists for
   stat/path families, read/write fd-buffer setup, getrandom, futex wait, and
   fd-control/dup/ioctl plus syscall-tail helpers instead of transient keyed state
