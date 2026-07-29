@@ -169,12 +169,13 @@
 <p>  bytecode builds so the semantic guard stays independent from artifact-cache</p>
 <p>  restore/write behavior.</p>
 <ul>
-<li>Native ops plus ARM64 Mach-O/ELF and x64 ELF/PE artifact traversal scans now</li>
+<li>Native ops plus ARM64 Mach-O/ELF, ARM64 statement/list-loop, and x64 ELF/PE</li>
 </ul>
-<p>  cache immutable argument, expression, op, key, library, debug-function,</p>
-<p>  import/export, fixup, and thunk-position counts before iteration, with hotpath</p>
-<p>  guard coverage rejecting direct <code>oren_list_len</code> loop bounds in those native</p>
-<p>  artifact shards.</p>
+<p>  traversal scans now cache immutable argument, expression, op, key, library,</p>
+<p>  debug-function, import/export, fixup, thunk-position, attribute,</p>
+<p>  break/continue patch-list, list-use, push, and fresh-list counts before</p>
+<p>  iteration, with hotpath guard coverage rejecting direct <code>oren_list_len</code> loop</p>
+<p>  bounds in those native shards.</p>
 <ul>
 <li>Compiler function/yield analysis now caches immutable program, block,</li>
 </ul>

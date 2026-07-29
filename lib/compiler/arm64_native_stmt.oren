@@ -43,8 +43,9 @@ fn _arm64_normalize_ann_kind(ann) {
 
 fn _arm64_list_name_in_fast(list_name, lists) {
     if list_name == nil || lists == nil { return false }
+    var lists_len = oren_list_len(lists)
     var i = 0
-    while i < oren_list_len(lists) {
+    while i < lists_len {
         if loopm._arm64_str_eq_bytes(lists[i], list_name) == true { return true }
         i = i + 1
     }
@@ -408,8 +409,9 @@ fn _arm64_collect_ffi_ret_attrs(ctx, st, nm) {
     if ctx["ffi_ret_ptr"] == nil { ctx["ffi_ret_ptr"] = {} }
     if ctx["ffi_ret_usize"] == nil { ctx["ffi_ret_usize"] = {} }
 
+    var attrs_len = oren_list_len(attrs)
     var i = 0
-    while i < oren_list_len(attrs) {
+    while i < attrs_len {
         var a = attrs[i]
         if a == nil || a["type"] != "Attr" { i = i + 1; continue }
         if !loopm._arm64_str_eq_bytes(a["name"], "ffi.ret") { i = i + 1; continue }

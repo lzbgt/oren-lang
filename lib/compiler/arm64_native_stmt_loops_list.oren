@@ -128,8 +128,9 @@ fn _arm64_is_simple_inc(stmt, idx_name) {
 
 fn _arm64_list_contains(xs, value) {
     if xs == nil { return false }
+    var xs_len = oren_list_len(xs)
     var i = 0
-    while i < oren_list_len(xs) {
+    while i < xs_len {
         if _arm64_str_eq_bytes(xs[i], value) { return true }
         i = i + 1
     }
@@ -149,8 +150,9 @@ fn _arm64_expr_uses_ident(exp, name) {
     if et == "Call" {
         if _arm64_expr_uses_ident(exp["fn"], name) { return true }
         var args = exp["args"]
+        var args_len = oren_list_len(args)
         var i = 0
-        while i < oren_list_len(args) {
+        while i < args_len {
             if _arm64_expr_uses_ident(args[i], name) { return true }
             i = i + 1
         }
@@ -165,8 +167,9 @@ fn _arm64_expr_uses_ident(exp, name) {
     }
     if et == "Array" {
         var xs = exp["elements"]
+        var xs_len = oren_list_len(xs)
         var j = 0
-        while j < oren_list_len(xs) {
+        while j < xs_len {
             if _arm64_expr_uses_ident(xs[j], name) { return true }
             j = j + 1
         }
@@ -174,8 +177,9 @@ fn _arm64_expr_uses_ident(exp, name) {
     }
     if et == "Hash" {
         var ps = exp["pairs"]
+        var ps_len = oren_list_len(ps)
         var k = 0
-        while k < oren_list_len(ps) {
+        while k < ps_len {
             if _arm64_expr_uses_ident(ps[k]["key"], name) { return true }
             if _arm64_expr_uses_ident(ps[k]["value"], name) { return true }
             k = k + 1
@@ -188,8 +192,9 @@ fn _arm64_expr_uses_ident(exp, name) {
 
 fn _arm64_expr_uses_any_ident(exp, names) {
     if exp == nil || names == nil { return false }
+    var names_len = oren_list_len(names)
     var i = 0
-    while i < oren_list_len(names) {
+    while i < names_len {
         if _arm64_expr_uses_ident(exp, names[i]) { return true }
         i = i + 1
     }
@@ -648,14 +653,16 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         oren_list_push(pushes, info)
         i = i + 1
     }
-    if oren_list_len(lists) == 0 { return nil }
+    var lists_len = oren_list_len(lists)
+    var pushes_len = oren_list_len(pushes)
+    if lists_len == 0 { return nil }
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    while pi < pushes_len {
         if _arm64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
     var single_list_cursor_safe = false
-    if oren_list_len(pushes) == 1 && _arm64_expr_is_fast_loop_call_free(pushes[0]["value"]) == true {
+    if pushes_len == 1 && _arm64_expr_is_fast_loop_call_free(pushes[0]["value"]) == true {
         single_list_cursor_safe = true
     }
     var all_push_values_idx_int_expr_safe = true
@@ -663,7 +670,7 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
     var nonneg_linear_safe_n_limit = nil
     var fresh_exact_lists = {}
     pi = 0
-    while pi < oren_list_len(pushes) {
+    while pi < pushes_len {
         var linear = _arm64_parse_nonneg_linear(pushes[pi]["value"], idx_name)
         pushes[pi]["linear"] = linear
         if linear == nil {
@@ -686,7 +693,7 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         var fresh_caps = ctx["arm64_fresh_list_int_caps"]
         if fresh_caps != nil {
             var fi = 0
-            while fi < oren_list_len(lists) {
+            while fi < lists_len {
                 var list_name2 = lists[fi]
                 var cap_expr = fresh_caps[list_name2]
                 if _arm64_cap_expr_matches_fast_n(cap_expr, n_name, n_const) == true {
@@ -758,9 +765,11 @@ fn _arm64_match_fast_list_push_while(ctx, stmt) {
         oren_list_push(pushes, info)
         i = i + 1
     }
-    if oren_list_len(lists) == 0 { return nil }
+    var lists_len = oren_list_len(lists)
+    var pushes_len = oren_list_len(pushes)
+    if lists_len == 0 { return nil }
     var pi = 0
-    while pi < oren_list_len(pushes) {
+    while pi < pushes_len {
         if _arm64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }

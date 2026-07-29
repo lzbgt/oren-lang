@@ -1850,6 +1850,9 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/arm64_native_program/020_rtobj.oren \
   lib/compiler/arm64_native_stmt_wrappers.oren \
   lib/compiler/arm64_native_gc.oren \
+  lib/compiler/arm64_native_stmt.oren \
+  lib/compiler/arm64_native_stmt_loops_base.oren \
+  lib/compiler/arm64_native_stmt_loops_list.oren \
   lib/compiler/arm64_macho.oren \
   lib/compiler/arm64_elf.oren \
   lib/compiler/x64_elf.oren \
