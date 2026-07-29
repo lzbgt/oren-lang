@@ -126,6 +126,10 @@ surfaces, but the following blockers remain:
   unchecked-push rewrites, array/hash/switch traversal, and block statement walks
   now cache immutable AST list counts before iteration, with hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that reserve pass.
+- Generic monomorphization clone, template discovery, instantiation collection,
+  constraint validation, specialization emission, and linked-statement rewrite
+  traversals now cache immutable list counts before iteration, with hotpath guard
+  coverage rejecting direct `oren_list_len` loop bounds in that pass.
 - Optimizer fold block scans, C transpiler signature assembly, and top-level
   renamer scans now cache immutable list counts before traversal, with hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in those compact

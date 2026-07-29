@@ -167,7 +167,9 @@ fn clone_expr(e, param, concrete_type, mangled_type) {
         var args = []
         var xs = e["args"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             oren_list_push(args, clone_expr(xs[i], param, concrete_type, mangled_type))
             i = i + 1
         }
@@ -186,7 +188,9 @@ fn clone_expr(e, param, concrete_type, mangled_type) {
         var elems = []
         var xs = e["elements"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             oren_list_push(elems, clone_expr(xs[i], param, concrete_type, mangled_type))
             i = i + 1
         }
@@ -200,7 +204,9 @@ fn clone_expr(e, param, concrete_type, mangled_type) {
         var pairs = []
         var ps = e["pairs"]
         var i = 0
-        while ps != nil && i < oren_list_len(ps) {
+        var ps_len = 0
+        if ps != nil { ps_len = oren_list_len(ps) }
+        while i < ps_len {
             var p = ps[i]
             var k = p["key"]
             var v = p["value"]
@@ -236,7 +242,9 @@ fn clone_expr(e, param, concrete_type, mangled_type) {
 fn clone_id_list(xs, param, concrete_type, mangled_type) {
     var out = []
     var i = 0
-    while xs != nil && i < oren_list_len(xs) {
+    var xs_len = 0
+    if xs != nil { xs_len = oren_list_len(xs) }
+    while i < xs_len {
         oren_list_push(out, clone_identifier(xs[i], param, concrete_type, mangled_type))
         i = i + 1
     }
@@ -253,7 +261,9 @@ fn clone_stmt(s, param, concrete_type, mangled_type) {
         var xs = s["stmts"]
         if xs == nil { xs = s["statements"] }
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             oren_list_push(out_stmts, clone_stmt(xs[i], param, concrete_type, mangled_type))
             i = i + 1
         }
@@ -307,12 +317,16 @@ fn clone_stmt(s, param, concrete_type, mangled_type) {
         var cases0 = []
         var cs = s["cases"]
         var ci = 0
-        while cs != nil && ci < oren_list_len(cs) {
+        var cs_len = 0
+        if cs != nil { cs_len = oren_list_len(cs) }
+        while ci < cs_len {
             var c = cs[ci]
             var vals = []
             var vs = c["values"]
             var vi = 0
-            while vs != nil && vi < oren_list_len(vs) {
+            var vs_len = 0
+            if vs != nil { vs_len = oren_list_len(vs) }
+            while vi < vs_len {
                 oren_list_push(vals, clone_expr(vs[vi], param, concrete_type, mangled_type))
                 vi = vi + 1
             }
@@ -332,7 +346,9 @@ fn clone_stmt(s, param, concrete_type, mangled_type) {
         var fs = []
         var fields = s["fields"]
         var fi = 0
-        while fields != nil && fi < oren_list_len(fields) {
+        var fields_len = 0
+        if fields != nil { fields_len = oren_list_len(fields) }
+        while fi < fields_len {
             oren_list_push(fs, clone_identifier(fields[fi], param, concrete_type, mangled_type))
             fi = fi + 1
         }
@@ -362,7 +378,8 @@ fn collect_generic_templates(linked, errs) {
     var templates = {}
     var ss = linked["statements"]
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         var st = ss[i]
         if st != nil && st["type"] == "ExprStmt" {
             var e = st["expr"]
@@ -387,7 +404,8 @@ fn add_instantiation(insts, base, dotted, mangled) {
     if insts[base] == nil { insts[base] = [] }
     var xs = insts[base]
     var i = 0
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         if xs[i]["mangled"] == mangled { return nil }
         i = i + 1
     }
@@ -399,7 +417,8 @@ fn sort_instantiations(xs) {
     // Insertion sort by `mangled` (small lists expected).
     if xs == nil { return [] }
     var i = 1
-    while i < oren_list_len(xs) {
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
         var key = xs[i]
         var j = i - 1
         while j >= 0 && xs[j]["mangled"] > key["mangled"] {
@@ -437,7 +456,9 @@ fn collect_instantiations_expr(e, templates, insts, errs) {
         collect_instantiations_expr(e["fn"], templates, insts, errs)
         var args = e["args"]
         var i = 0
-        while args != nil && i < oren_list_len(args) {
+        var args_len = 0
+        if args != nil { args_len = oren_list_len(args) }
+        while i < args_len {
             collect_instantiations_expr(args[i], templates, insts, errs)
             i = i + 1
         }
@@ -457,7 +478,9 @@ fn collect_instantiations_expr(e, templates, insts, errs) {
     if t == "Array" {
         var xs = e["elements"]
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             collect_instantiations_expr(xs[i], templates, insts, errs)
             i = i + 1
         }
@@ -466,7 +489,9 @@ fn collect_instantiations_expr(e, templates, insts, errs) {
     if t == "Hash" {
         var ps = e["pairs"]
         var i = 0
-        while ps != nil && i < oren_list_len(ps) {
+        var ps_len = 0
+        if ps != nil { ps_len = oren_list_len(ps) }
+        while i < ps_len {
             var pk = ps[i]["key"]
             var pv = ps[i]["value"]
             if pk == nil { pk = ps[i]["k"] }
@@ -510,10 +535,14 @@ fn collect_instantiations_stmt(s, templates, insts, errs) {
         collect_instantiations_expr(s["value"], templates, insts, errs)
         var cs = s["cases"]
         var ci = 0
-        while cs != nil && ci < oren_list_len(cs) {
+        var cs_len = 0
+        if cs != nil { cs_len = oren_list_len(cs) }
+        while ci < cs_len {
             var vals = cs[ci]["values"]
             var vi = 0
-            while vals != nil && vi < oren_list_len(vals) {
+            var vals_len = 0
+            if vals != nil { vals_len = oren_list_len(vals) }
+            while vi < vals_len {
                 collect_instantiations_expr(vals[vi], templates, insts, errs)
                 vi = vi + 1
             }
@@ -527,7 +556,9 @@ fn collect_instantiations_stmt(s, templates, insts, errs) {
         var xs = s["stmts"]
         if xs == nil { xs = s["statements"] }
         var i = 0
-        while xs != nil && i < oren_list_len(xs) {
+        var xs_len = 0
+        if xs != nil { xs_len = oren_list_len(xs) }
+        while i < xs_len {
             collect_instantiations_stmt(xs[i], templates, insts, errs)
             i = i + 1
         }
@@ -548,7 +579,8 @@ fn emit_specializations_for_template(template_fn, inst_list, errs) {
     if inst_list == nil { return out }
     sort_instantiations(inst_list)
     var i = 0
-    while i < oren_list_len(inst_list) {
+    var inst_list_len = oren_list_len(inst_list)
+    while i < inst_list_len {
         var info = inst_list[i]
         var dotted = info["dotted"]
         var mangled = info["mangled"]
@@ -571,7 +603,9 @@ fn collect_impl_pairs(linked) {
     if linked == nil { return out }
     var ss = linked["statements"]
     var i = 0
-    while ss != nil && i < oren_list_len(ss) {
+    var ss_len = 0
+    if ss != nil { ss_len = oren_list_len(ss) }
+    while i < ss_len {
         var st = ss[i]
         if st != nil && st["type"] == "ExprStmt" {
             var e = st["expr"]
@@ -607,7 +641,9 @@ fn validate_type_param_constraint(template_fn, tp, concrete_type, impl_pairs, er
     }
 
     var i = 0
-    while cs != nil && i < oren_list_len(cs) {
+    var cs_len = 0
+    if cs != nil { cs_len = oren_list_len(cs) }
+    while i < cs_len {
         var c = cs[i]
         if c == nil || c == "" {
             err_push(errs, template_fn["token"], "generic constraint must be a trait name (e.g. T: Foo), got empty constraint")
@@ -649,7 +685,8 @@ fn lower_linked_program_in_place(linked) {
     var insts = {}
     var ss = linked["statements"]
     var i = 0
-    while i < oren_list_len(ss) {
+    var ss_len = oren_list_len(ss)
+    while i < ss_len {
         collect_instantiations_stmt(ss[i], templates, insts, errs)
         i = i + 1
     }
@@ -658,7 +695,7 @@ fn lower_linked_program_in_place(linked) {
     // Rebuild statements: replace each generic template statement with its generated specializations.
     var out_stmts = []
     i = 0
-    while i < oren_list_len(ss) {
+    while i < ss_len {
         var st = ss[i]
         var replaced = false
         if st != nil && st["type"] == "ExprStmt" {
@@ -670,12 +707,15 @@ fn lower_linked_program_in_place(linked) {
                 var tp0 = e["type_params"][0]
                 var il0 = insts[base]
                 var ci0 = 0
-                while il0 != nil && ci0 < oren_list_len(il0) {
+                var il0_len = 0
+                if il0 != nil { il0_len = oren_list_len(il0) }
+                while ci0 < il0_len {
                     validate_type_param_constraint(e, tp0, il0[ci0]["dotted"], impl_pairs, errs)
                     ci0 = ci0 + 1
                 }
                 var si = 0
-                while si < oren_list_len(specs) {
+                var specs_len = oren_list_len(specs)
+                while si < specs_len {
                     oren_list_push(out_stmts, ast.new_expr_stmt(specs[si]["token"], specs[si]))
                     si = si + 1
                 }

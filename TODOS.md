@@ -60,6 +60,10 @@ design evidence lives under `project-doc/`.
   unchecked-push rewrites, array/hash/switch traversal, and block statement walks
   now cache immutable AST list counts before iteration, with byte-hotpath guard
   coverage rejecting direct `oren_list_len` loop bounds in that reserve pass.
+- Generic monomorphization clone, template discovery, instantiation collection,
+  constraint validation, specialization emission, and linked-statement rewrite
+  traversals now cache immutable list counts before iteration, with byte-hotpath
+  guard coverage rejecting direct `oren_list_len` loop bounds in that pass.
 - Native runtime bundle injection now caches immutable runtime/user statement,
   root, parse-error, decoded-list, and merge traversal counts, with byte-hotpath
   guard coverage rejecting direct `oren_list_len` loop bounds in that shared
