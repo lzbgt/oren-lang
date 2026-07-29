@@ -57,40 +57,28 @@ fn _emit_win64_path_norm_setup_x64(ctx, src_reg, buf_add) {
 }
 
 fn _emit_win64_path_norm_labels_x64(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "loop": _new_label(ctx, "win_path_norm_loop"),
-        "store": _new_label(ctx, "win_path_norm_store"),
-        "done": _new_label(ctx, "win_path_norm_done"),
-        "trunc": _new_label(ctx, "win_path_norm_trunc"),
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "win_path_norm_loop"),
+        _new_label(ctx, "win_path_norm_store"),
+        _new_label(ctx, "win_path_norm_done"),
+        _new_label(ctx, "win_path_norm_trunc")
+    ]
 }
 
 fn _emit_win64_path_norm_loop_x64(ctx, st) {
-    var loop = _emit_win64_path_norm_loop_state(st)
-    _emit_label(ctx, loop["labels"], loop["loop"])
-    _emit_win64_path_norm_load_and_guard_x64(ctx, loop)
-    _emit_win64_path_norm_slash_to_backslash_x64(ctx, loop)
-    _emit_win64_path_norm_store_and_advance_x64(ctx, loop)
+    _emit_label(ctx, st[0], st[2])
+    _emit_win64_path_norm_load_and_guard_x64(ctx, st)
+    _emit_win64_path_norm_slash_to_backslash_x64(ctx, st)
+    _emit_win64_path_norm_store_and_advance_x64(ctx, st)
     return nil
 }
 
-fn _emit_win64_path_norm_loop_state(st) {
-    return {
-        "labels": st["labels"],
-        "fixups": st["fixups"],
-        "loop": st["loop"],
-        "store": st["store"],
-        "done": st["done"],
-        "trunc": st["trunc"]
-    }
-}
-
 fn _emit_win64_path_norm_load_and_guard_x64(ctx, loop) {
-    var fixups = loop["fixups"]
-    var l_done = loop["done"]
-    var l_trunc = loop["trunc"]
+    var fixups = loop[1]
+    var l_done = loop[4]
+    var l_trunc = loop[5]
 
     // eax = *src_cursor
     bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 11))
@@ -104,8 +92,8 @@ fn _emit_win64_path_norm_load_and_guard_x64(ctx, loop) {
 }
 
 fn _emit_win64_path_norm_slash_to_backslash_x64(ctx, loop) {
-    var fixups = loop["fixups"]
-    var l_store = loop["store"]
+    var fixups = loop[1]
+    var l_store = loop[3]
 
     // if eax == '/' => eax = '\\'
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 47))
@@ -115,10 +103,10 @@ fn _emit_win64_path_norm_slash_to_backslash_x64(ctx, loop) {
 }
 
 fn _emit_win64_path_norm_store_and_advance_x64(ctx, loop) {
-    var labels = loop["labels"]
-    var fixups = loop["fixups"]
-    var l_loop = loop["loop"]
-    var l_store = loop["store"]
+    var labels = loop[0]
+    var fixups = loop[1]
+    var l_loop = loop[2]
+    var l_store = loop[3]
 
     _emit_label(ctx, labels, l_store)
     // *dst_cursor = al
@@ -132,10 +120,10 @@ fn _emit_win64_path_norm_store_and_advance_x64(ctx, loop) {
 }
 
 fn _emit_win64_path_norm_finish_x64(ctx, st, src_reg) {
-    var labels = st["labels"]
-    var fixups = st["fixups"]
-    var l_trunc = st["trunc"]
-    var l_done = st["done"]
+    var labels = st[0]
+    var fixups = st[1]
+    var l_trunc = st[5]
+    var l_done = st[4]
 
     _emit_label(ctx, labels, l_trunc)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
@@ -406,14 +394,14 @@ fn _x64_windows_stat_emit_capsule_pre(ctx, nm, state, capsule) {
 }
 
 fn _x64_windows_stat_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "done": _new_label(ctx, "sys_stat_win_done"),
-        "handle_ok": _new_label(ctx, "sys_stat_win_handle_ok"),
-        "attr_ok": _new_label(ctx, "sys_stat_win_attr_ok"),
-        "do_file": _new_label(ctx, "sys_stat_win_do_file")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "sys_stat_win_done"),
+        _new_label(ctx, "sys_stat_win_handle_ok"),
+        _new_label(ctx, "sys_stat_win_attr_ok"),
+        _new_label(ctx, "sys_stat_win_do_file")
+    ]
 }
 
 fn _x64_windows_stat_emit_attr_prepare(ctx) {
@@ -436,10 +424,10 @@ fn _x64_windows_stat_emit_attr_fail(ctx, fixups, l_done) {
 }
 
 fn _x64_windows_stat_emit_attr_probe(ctx, lab) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
-    var l_attr_ok = lab["attr_ok"]
-    var l_done = lab["done"]
+    var labels = lab[0]
+    var fixups = lab[1]
+    var l_attr_ok = lab[4]
+    var l_done = lab[2]
     // Open the path for read to determine existence and file size.
     //
     // NOTE (rolling):
@@ -461,11 +449,11 @@ fn _x64_windows_stat_emit_attr_probe(ctx, lab) {
 }
 
 fn _x64_windows_stat_emit_dir_or_file(ctx, lab, tmp_st, tmp_handle) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
-    var l_done = lab["done"]
-    var l_handle_ok = lab["handle_ok"]
-    var l_do_file = lab["do_file"]
+    var labels = lab[0]
+    var fixups = lab[1]
+    var l_done = lab[2]
+    var l_handle_ok = lab[3]
+    var l_do_file = lab[5]
     // If FILE_ATTRIBUTE_DIRECTORY (0x10) is set, emit a directory stat and return rc=0.
     // This is required for mkdir_p on Windows: creating an existing directory returns -EEXIST,
     // and without directory-capable stat, mkdir_p cannot distinguish "dir exists" vs "path is file".
@@ -485,8 +473,8 @@ fn _x64_windows_stat_emit_dir_or_file(ctx, lab, tmp_st, tmp_handle) {
 }
 
 fn _x64_windows_stat_finish(ctx, nm, state, lab, capsule) {
-    _emit_label(ctx, lab["labels"], lab["done"])
-    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
+    _emit_label(ctx, lab[0], lab[2])
+    _patch_local_fixups(ctx, lab[0], lab[1])
     _emit_win64_stat_capsule_post_x64(ctx, nm, capsule, state[3])
     _intr_tmp_pop(ctx, state[0])
     return nil
@@ -641,12 +629,12 @@ fn _x64_windows_fstat_capsule_post(ctx, capsule) {
 }
 
 fn _x64_windows_fstat_labels(ctx) {
-    return {
-        "have_handle": _new_label(ctx, "sys_fstat_have_handle"),
-        "ok": _new_label(ctx, "sys_fstat_ok"),
-        "fail": _new_label(ctx, "sys_fstat_fail"),
-        "done": _new_label(ctx, "sys_fstat_done"),
-    }
+    return [
+        _new_label(ctx, "sys_fstat_have_handle"),
+        _new_label(ctx, "sys_fstat_ok"),
+        _new_label(ctx, "sys_fstat_fail"),
+        _new_label(ctx, "sys_fstat_done")
+    ]
 }
 
 fn _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done) {
@@ -664,10 +652,10 @@ fn _x64_windows_fstat_emit_body(ctx, locals, state, flab, labels, fixups) {
     var base = state[0]
     var tmp_fd = state[1]
     var tmp_st = state[2]
-    var l_have_handle = flab["have_handle"]
-    var l_ok = flab["ok"]
-    var l_fail = flab["fail"]
-    var l_done = flab["done"]
+    var l_have_handle = flab[0]
+    var l_ok = flab[1]
+    var l_fail = flab[2]
+    var l_done = flab[3]
 
     _x64_windows_fstat_emit_handle_resolution(ctx, labels, fixups, tmp_fd, l_have_handle, l_ok, l_fail)
     if _x64_windows_fstat_emit_success(ctx, labels, fixups, locals, base, tmp_st, l_ok, l_fail, l_done) != true {
@@ -689,7 +677,7 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     var labels = {}
     var fixups = []
     var flab = _x64_windows_fstat_labels(ctx)
-    var l_done = flab["done"]
+    var l_done = flab[3]
 
     if _x64_windows_fstat_emit_body(ctx, locals, state, flab, labels, fixups) != true { return nil }
     _x64_windows_fstat_emit_done(ctx, labels, fixups, capsule, base, l_done)

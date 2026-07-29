@@ -3069,8 +3069,8 @@ design evidence lives under `project-doc/`.
   helper state instead of transient keyed maps. Windows x64 nanosleep,
   wait-on-address, gettimeofday, QPC frequency, open, and getentropy helpers now
   use compact positional spill/label/cache records as well. Windows x64
-  filesystem syscall lowering now also uses positional helper records for
-  stat/fstat, unlink/rmdir, rename, and mkdir/chmod spill/capsule state.
+  filesystem syscall lowering now also uses positional path-normalization,
+  stat/fstat label, unlink/rmdir, rename, and mkdir/chmod spill/capsule records.
   Windows x64 network syscall lowering now uses positional helper records for
   WSAStartup, select, socket, sockaddr, fd2, sockopt, sendto/recvfrom, and close
   spill/capsule state.
