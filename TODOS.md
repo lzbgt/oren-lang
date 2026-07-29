@@ -95,6 +95,10 @@ design evidence lives under `project-doc/`.
   expression, call-argument, switch-case, and linked-statement counts before
   traversal, with byte-hotpath guard coverage rejecting direct `oren_list_len`
   loop bounds in that lowering pass.
+- Generic-call lowering, cfg lowering, and native platform pruning now cache
+  immutable expression, attribute, switch-case, splice-list, linked-statement,
+  and runtime-statement counts before traversal, with byte-hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in those lowering/prune passes.
 - Compiler function/yield analysis now caches immutable program, block,
   parameter, expression, yield-point, generator-finalize, and function-list
   traversal counts before iteration, with byte-hotpath guard coverage rejecting

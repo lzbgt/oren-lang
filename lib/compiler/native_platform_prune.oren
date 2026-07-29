@@ -51,7 +51,8 @@ fn _count_prunable_target_os_ifs_in_stmt(stmt, os_id) {
         var xs = stmt["stmts"]
         if xs == nil { return 0 }
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_n = oren_list_len(xs)
+        while i < xs_n {
             out = out + _count_prunable_target_os_ifs_in_stmt(xs[i], os_id)
             i = i + 1
         }
@@ -137,10 +138,12 @@ fn _eval_cond_is_target_os(cond, os_id) {
 
 fn _prune_stmt_keep_one(stmt, os_id) {
     var xs = _prune_stmt(stmt, os_id)
-    if xs == nil || oren_list_len(xs) == 0 {
+    var xs_n = 0
+    if xs != nil { xs_n = oren_list_len(xs) }
+    if xs_n == 0 {
         return {"type": "Block", "stmts": []}
     }
-    if oren_list_len(xs) == 1 {
+    if xs_n == 1 {
         return xs[0]
     }
     return {"type": "Block", "stmts": xs}
@@ -150,11 +153,14 @@ fn _prune_stmt_list(stmts, os_id) {
     if stmts == nil { return [] }
     var out = []
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_n = oren_list_len(stmts)
+    while i < stmts_n {
         var st = stmts[i]
         var xs = _prune_stmt(st, os_id)
         var j = 0
-        while xs != nil && j < oren_list_len(xs) {
+        var xs_n = 0
+        if xs != nil { xs_n = oren_list_len(xs) }
+        while j < xs_n {
             oren_list_push(out, xs[j])
             j = j + 1
         }
@@ -293,7 +299,8 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     var before = 0
     if trace {
         var bi = 0
-        while bi < oren_list_len(stmts) {
+        var trace_stmts_n = oren_list_len(stmts)
+        while bi < trace_stmts_n {
             var st0 = stmts[bi]
             if st0 != nil && st0["__oren_from_runtime"] != nil {
                 if st0["type"] == "Function" {
@@ -311,7 +318,8 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
 
     var out = []
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_n = oren_list_len(stmts)
+    while i < stmts_n {
         var st = stmts[i]
         if st != nil && st["__oren_from_runtime"] != nil {
             // Runtime can contain prunable top-level `if g_target_os == ... { ... }` blocks.
@@ -319,7 +327,8 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
             var sp = _prune_runtime_toplevel_exprstmt_if_to_splice_list(st, os_id)
             if sp != nil {
                 var j0 = 0
-                while j0 < oren_list_len(sp) {
+                var sp_n = oren_list_len(sp)
+                while j0 < sp_n {
                     var stx = sp[j0]
                     if stx != nil {
                         // Preserve runtime tagging for downstream split/cache logic.
@@ -364,7 +373,8 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     if trace {
         var after = 0
         var ai = 0
-        while ai < oren_list_len(out) {
+        var out_n = oren_list_len(out)
+        while ai < out_n {
             var st1 = out[ai]
             if st1 != nil && st1["__oren_from_runtime"] != nil {
                 if st1["type"] == "Function" {

@@ -84,6 +84,10 @@ surfaces, but the following blockers remain:
   expression, call-argument, switch-case, and linked-statement counts before
   traversal, with hotpath guard coverage rejecting direct `oren_list_len` loop
   bounds in that lowering pass.
+- Generic-call lowering, cfg lowering, and native platform pruning now cache
+  immutable expression, attribute, switch-case, splice-list, linked-statement,
+  and runtime-statement counts before traversal, with hotpath guard coverage
+  rejecting direct `oren_list_len` loop bounds in those lowering/prune passes.
 - Parser generator core-use, yield-delegate validation, and generator-yield
   rewrite traversals now cache immutable AST list counts before iteration, with
   hotpath guard coverage rejecting direct `oren_list_len` loop bounds in that

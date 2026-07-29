@@ -1813,7 +1813,10 @@ if grep -nE 'while .*< oren_list_len\(' \
   lib/compiler/optimizer_fold.oren \
   lib/compiler/global_dce.oren \
   lib/compiler/generic_monomorph.oren \
+  lib/compiler/generic_call_lowering.oren \
   lib/compiler/impl_lowering.oren \
+  lib/compiler/cfg_lowering.oren \
+  lib/compiler/native_platform_prune.oren \
   lib/compiler/metadata.oren \
   lib/compiler/typecheck.oren \
   lib/compiler/native_callable.oren \

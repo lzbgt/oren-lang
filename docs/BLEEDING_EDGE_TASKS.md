@@ -176,6 +176,11 @@ This file is the concise task view. Detailed implementation status lives in
      expression, call-argument, switch-case, and linked-statement counts before
      traversal, with source guards rejecting direct `oren_list_len` loop bounds
      in that lowering pass.
+   - Current generic-call lowering, cfg lowering, and native platform pruning
+     cache immutable expression, attribute, switch-case, splice-list,
+     linked-statement, and runtime-statement counts before traversal, with source
+     guards rejecting direct `oren_list_len` loop bounds in those lowering/prune
+     passes.
    - Current global DCE attr, expression, statement, root, and filter scans cache
      immutable list counts before traversal, and its reachable-function worklist
      refreshes a cached queue count after each step, with source guards rejecting

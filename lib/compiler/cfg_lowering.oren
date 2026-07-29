@@ -101,7 +101,8 @@ fn _cfg_split_csv(s) {
 fn _cfg_any_eq(list, want) {
     if list == nil || want == nil { return false }
     var i = 0
-    while i < oren_list_len(list) {
+    var list_n = oren_list_len(list)
+    while i < list_n {
         if _cfg_str_eq(list[i], want) { return true }
         i = i + 1
     }
@@ -158,7 +159,9 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
     }
 
     var args = cfg_attr["args"]
-    if args == nil || oren_list_len(args) == 0 {
+    var args_n = 0
+    if args != nil { args_n = oren_list_len(args) }
+    if args_n == 0 {
         cfg_error(loc + ": @cfg requires at least one argument (e.g. @cfg(os=\"linux\") / @cfg(\"x64-windows\"))")
         return false
     }
@@ -173,7 +176,7 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
     var debug_v = nil
     var has_kw = false
     var i = 0
-    while i < oren_list_len(args) {
+    while i < args_n {
         var a = args[i]
         if a != nil {
             var k = a["key"]
@@ -355,7 +358,9 @@ fn import_attrs_keep(attrs, config) {
     CFG_ERRS = nil
     var keep = true
     var i = 0
-    while attrs != nil && i < oren_list_len(attrs) {
+    var attrs_n = 0
+    if attrs != nil { attrs_n = oren_list_len(attrs) }
+    while i < attrs_n {
         var a = attrs[i]
         if _is_attr_name(a, "oren.cfg") {
             if _cfg_eval_one(a, config, "Import") != true {
@@ -388,7 +393,8 @@ fn _cfg_stmt_keep(stmt, config) {
     if attrs == nil { return true }
     var keep = true
     var i = 0
-    while i < oren_list_len(attrs) {
+    var attrs_n = oren_list_len(attrs)
+    while i < attrs_n {
         var a = attrs[i]
         if _is_attr_name(a, "oren.cfg") {
             if _cfg_eval_one(a, config, stmt["type"]) != true {
@@ -449,7 +455,8 @@ fn _cfg_lower_stmt_in_place(stmt, config) {
         var cases = stmt["cases"]
         if cases != nil {
             var ci = 0
-            while ci < oren_list_len(cases) {
+            var cases_n = oren_list_len(cases)
+            while ci < cases_n {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil { _cfg_lower_stmt_in_place(c["body"], config) }
                 ci = ci + 1
@@ -465,7 +472,8 @@ fn _cfg_lower_stmt_list_in_place(stmts, config) {
     if stmts == nil { return [] }
     var out = []
     var i = 0
-    while i < oren_list_len(stmts) {
+    var stmts_n = oren_list_len(stmts)
+    while i < stmts_n {
         var st = stmts[i]
         if _cfg_stmt_keep(st, config) == true {
             _cfg_lower_stmt_in_place(st, config)
