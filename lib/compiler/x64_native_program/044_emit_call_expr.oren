@@ -124,23 +124,18 @@ fn _x64_call_spread_prepare(ctx, fn_obj_expr, args, spread) {
     var base = _intr_tmp_push(ctx, spill_n)
     if oren_type_tag(base) == 0 { return nil }
 
-    var st = {}
-    st["fn_obj_expr"] = fn_obj_expr
-    st["args"] = args
-    st["spread"] = spread
-    st["argc"] = argc
-    st["base"] = base
-    st["fixed_slot"] = iadd(base, argc)
-    st["spread_slot"] = iadd(base, argc + 1)
-    st["fn_slot"] = iadd(base, argc + 2)
-    return st
+    return [
+        fn_obj_expr, args, spread, argc, base,
+        iadd(base, argc), iadd(base, argc + 1), iadd(base, argc + 2),
+        nil, nil, nil, nil, nil, nil
+    ]
 }
 
 fn _x64_call_spread_spill_explicit_args(ctx, st, locals) {
     // Spill explicit args (evaluate once; preserve LTR semantics).
-    var args = st["args"]
-    var argc = st["argc"]
-    var base = st["base"]
+    var args = st[1]
+    var argc = st[3]
+    var base = st[4]
     var i = 0
     while i < argc {
         _emit_eval_int_to_rax(ctx, args[i], locals)
@@ -154,30 +149,30 @@ fn _x64_call_spread_spill_explicit_args(ctx, st, locals) {
 }
 
 fn _x64_call_spread_prepare_slots(ctx, st, locals) {
-    var base = st["base"]
-    var fixed_off = _intr_tmp_off(ctx, locals, st["fixed_slot"])
-    var spread_off = _intr_tmp_off(ctx, locals, st["spread_slot"])
-    var fn_off = _intr_tmp_off(ctx, locals, st["fn_slot"])
+    var base = st[4]
+    var fixed_off = _intr_tmp_off(ctx, locals, st[5])
+    var spread_off = _intr_tmp_off(ctx, locals, st[6])
+    var fn_off = _intr_tmp_off(ctx, locals, st[7])
     if oren_type_tag(fixed_off) == 0 || oren_type_tag(spread_off) == 0 || oren_type_tag(fn_off) == 0 {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing spill slots for spread call")
         return false
     }
-    st["fixed_off"] = fixed_off
-    st["spread_off"] = spread_off
-    st["fn_off"] = fn_off
+    st[8] = fixed_off
+    st[9] = spread_off
+    st[10] = fn_off
     return true
 }
 
 fn _x64_call_spread_build_fixed_list(ctx, st, locals) {
-    var base = st["base"]
-    var argc = st["argc"]
-    var fixed_slot = st["fixed_slot"]
+    var base = st[4]
+    var argc = st[3]
+    var fixed_slot = st[5]
     var fixed_tmp = {"type": "IntrTmp", "idx": fixed_slot}
     // fixed_list = oren_new_list(0)
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["fixed_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[8], 0)
 
     // Push explicit args into fixed_list.
     var j = 0
@@ -187,32 +182,32 @@ fn _x64_call_spread_build_fixed_list(ctx, st, locals) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
         j = iadd(j, 1)
     }
-    st["fixed_tmp"] = fixed_tmp
+    st[11] = fixed_tmp
     return true
 }
 
 fn _x64_call_spread_spill_spread_and_callee(ctx, st, locals) {
-    var base = st["base"]
+    var base = st[4]
     // Spill spread_list.
-    _emit_eval_int_to_rax(ctx, st["spread"], locals)
+    _emit_eval_int_to_rax(ctx, st[2], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["spread_off"], 0)
-    var spread_tmp = {"type": "IntrTmp", "idx": st["spread_slot"]}
+    _emit_mov_mrbp_r64(ctx, 0 - st[9], 0)
+    var spread_tmp = {"type": "IntrTmp", "idx": st[6]}
 
     // Spill fn_obj.
-    _emit_eval_int_to_rax(ctx, st["fn_obj_expr"], locals)
+    _emit_eval_int_to_rax(ctx, st[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["fn_off"], 0)
-    var fn_tmp = {"type": "IntrTmp", "idx": st["fn_slot"]}
-    st["spread_tmp"] = spread_tmp
-    st["fn_tmp"] = fn_tmp
+    _emit_mov_mrbp_r64(ctx, 0 - st[10], 0)
+    var fn_tmp = {"type": "IntrTmp", "idx": st[7]}
+    st[12] = spread_tmp
+    st[13] = fn_tmp
     return true
 }
 
 fn _x64_call_spread_emit_runtime_helper(ctx, st, locals) {
-    var base = st["base"]
+    var base = st[4]
     // Call runtime helper: oren_call_obj_spread(fn_obj, fixed_args, spread_list)
-    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_call_obj_spread"}, "args": [st["fn_tmp"], st["fixed_tmp"], st["spread_tmp"]]}, locals)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_call_obj_spread"}, "args": [st[13], st[11], st[12]]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
     return true
 }
@@ -236,7 +231,7 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
     if _x64_call_spread_spill_spread_and_callee(ctx, st, locals) != true { return nil }
     if _x64_call_spread_emit_runtime_helper(ctx, st, locals) != true { return nil }
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[4])
     return nil
 }
 
@@ -248,21 +243,18 @@ fn _x64_indirect_call_prepare(ctx, fn_obj_expr, args, argc) {
     var spill_n = argc + 2
     var base = _intr_tmp_push(ctx, spill_n)
     if oren_type_tag(base) == 0 { return nil }
-    var st = {}
-    st["fn_obj_expr"] = fn_obj_expr
-    st["args"] = args
-    st["argc"] = argc
-    st["base"] = base
-    st["args_slot"] = iadd(base, argc)
-    st["callee_slot"] = iadd(base, argc + 1)
-    return st
+    return [
+        fn_obj_expr, args, argc, base,
+        iadd(base, argc), iadd(base, argc + 1),
+        nil, nil, nil
+    ]
 }
 
 fn _x64_indirect_call_spill_explicit_args(ctx, st, locals) {
     // Spill explicit args (evaluate once; preserve LTR semantics).
-    var args = st["args"]
-    var argc = st["argc"]
-    var base = st["base"]
+    var args = st[1]
+    var argc = st[2]
+    var base = st[3]
     var i = 0
     while i < argc {
         _emit_eval_int_to_rax(ctx, args[i], locals)
@@ -276,25 +268,25 @@ fn _x64_indirect_call_spill_explicit_args(ctx, st, locals) {
 }
 
 fn _x64_indirect_call_prepare_slots(ctx, st, locals) {
-    var base = st["base"]
-    var args_slot = st["args_slot"]
+    var base = st[3]
+    var args_slot = st[4]
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
     if oren_type_tag(args_off) == 0 { _intr_tmp_pop(ctx, base); return false }
-    st["args_off"] = args_off
-    st["args_tmp"] = {"type": "IntrTmp", "idx": args_slot}
+    st[6] = args_off
+    st[7] = {"type": "IntrTmp", "idx": args_slot}
 
     // Spill callee fnobj value (can be an arbitrary expression).
-    var callee_slot = st["callee_slot"]
+    var callee_slot = st[5]
     var callee_off = _intr_tmp_off(ctx, locals, callee_slot)
     if oren_type_tag(callee_off) == 0 { _intr_tmp_pop(ctx, base); return false }
-    st["callee_off"] = callee_off
+    st[8] = callee_off
     return true
 }
 
 fn _x64_indirect_call_spill_callee(ctx, st, locals) {
-    var base = st["base"]
-    var fn_obj_expr = st["fn_obj_expr"]
-    var callee_off = st["callee_off"]
+    var base = st[3]
+    var fn_obj_expr = st[0]
+    var callee_off = st[8]
     _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
     _emit_mov_mrbp_r64(ctx, 0 - callee_off, 0)
@@ -302,8 +294,8 @@ fn _x64_indirect_call_spill_callee(ctx, st, locals) {
 }
 
 fn _x64_indirect_call_build_args_list(ctx, st, locals) {
-    var base = st["base"]
-    var args_off = st["args_off"]
+    var base = st[3]
+    var args_off = st[6]
     // Build args_list.
     // args_list = oren_new_list(0)
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
@@ -314,9 +306,9 @@ fn _x64_indirect_call_build_args_list(ctx, st, locals) {
 
 fn _x64_indirect_call_push_explicit_args(ctx, st, locals) {
     // Push explicit args in order.
-    var args_tmp = st["args_tmp"]
-    var argc = st["argc"]
-    var base = st["base"]
+    var args_tmp = st[7]
+    var argc = st[2]
+    var base = st[3]
     var k0 = 0
     while k0 < argc {
         var arg_tmp0 = {"type": "IntrTmp", "idx": iadd(base, k0)}
@@ -328,9 +320,9 @@ fn _x64_indirect_call_push_explicit_args(ctx, st, locals) {
 }
 
 fn _x64_indirect_call_emit_wrapper_call(ctx, st) {
-    var base = st["base"]
-    var args_off = st["args_off"]
-    var callee_off = st["callee_off"]
+    var base = st[3]
+    var args_off = st[6]
+    var callee_off = st[8]
     if _x64_emit_call_obj_list_from_spills(ctx, base, callee_off, args_off, false, "indirect_fnobj_ok", "indirect call") != true {
         return false
     }
@@ -391,7 +383,7 @@ fn _x64_spawn_call_parts(ctx, expr) {
     var args = call2["args"]
     var spread = call2["spread"]
     if fn_expr == nil { err(ctx, "x64 native v0: SpawnExpr missing callee"); return nil }
-    return {"call": call2, "fn_expr": fn_expr, "args": args, "spread": spread}
+    return [call2, fn_expr, args, spread]
 }
 
 fn _x64_spawn_spill_count(argc, has_spread) {
@@ -401,25 +393,20 @@ fn _x64_spawn_spill_count(argc, has_spread) {
 }
 
 fn _x64_spawn_prepare_state(parts, args, argc, spread, has_spread, base) {
-    var st = {}
-    st["call"] = parts["call"]
-    st["fn_expr"] = parts["fn_expr"]
-    st["args"] = args
-    st["spread"] = spread
-    st["argc"] = argc
-    st["has_spread"] = has_spread
-    st["base"] = base
-    st["args_slot"] = iadd(base, argc)
-    return st
+    return [
+        parts[0], parts[1], args, spread, argc, has_spread,
+        base, iadd(base, argc),
+        nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false
+    ]
 }
 
 fn _x64_spawn_expr_prepare(ctx, expr) {
     var parts = _x64_spawn_call_parts(ctx, expr)
     if parts == nil { return nil }
-    var args = parts["args"]
+    var args = parts[2]
     var argc = 0
     if args != nil { argc = oren_list_len(args) }
-    var spread = parts["spread"]
+    var spread = parts[3]
     var has_spread = (spread != nil)
 
     // Spill layout:
@@ -441,16 +428,16 @@ fn _x64_spawn_expr_prepare(ctx, expr) {
 }
 
 fn _x64_spawn_spill_explicit_args(ctx, st, locals) {
-    var args = st["args"]
-    var argc = st["argc"]
-    var base = st["base"]
+    var args = st[2]
+    var argc = st[4]
+    var base = st[6]
     // Spill explicit args.
     var i = 0
     while i < argc {
         _emit_eval_int_to_rax(ctx, args[i], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         var off = _intr_tmp_off(ctx, locals, iadd(base, i))
-        if oren_type_tag(off) == 0 { st["failed"] = true; _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(off) == 0 { st[21] = true; _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         i = iadd(i, 1)
     }
@@ -458,18 +445,18 @@ fn _x64_spawn_spill_explicit_args(ctx, st, locals) {
 }
 
 fn _x64_spawn_prepare_args_slot(ctx, st, locals) {
-    var base = st["base"]
-    var args_slot = st["args_slot"]
+    var base = st[6]
+    var args_slot = st[7]
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
-    if oren_type_tag(args_off) == 0 { st["failed"] = true; _intr_tmp_pop(ctx, base); return nil }
-    st["args_off"] = args_off
-    st["args_tmp"] = {"type": "IntrTmp", "idx": args_slot}
+    if oren_type_tag(args_off) == 0 { st[21] = true; _intr_tmp_pop(ctx, base); return nil }
+    st[8] = args_off
+    st[9] = {"type": "IntrTmp", "idx": args_slot}
     return nil
 }
 
 fn _x64_spawn_build_empty_args_list(ctx, st, locals) {
-    var base = st["base"]
-    var args_off = st["args_off"]
+    var base = st[6]
+    var args_off = st[8]
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
@@ -477,10 +464,10 @@ fn _x64_spawn_build_empty_args_list(ctx, st, locals) {
 }
 
 fn _x64_spawn_push_explicit_args(ctx, st, locals) {
-    var args = st["args"]
-    var argc = st["argc"]
-    var base = st["base"]
-    var args_tmp = st["args_tmp"]
+    var args = st[2]
+    var argc = st[4]
+    var base = st[6]
+    var args_tmp = st[9]
     var j = 0
     while j < argc {
         var arg_tmp = {"type": "IntrTmp", "idx": iadd(base, j)}
@@ -492,108 +479,98 @@ fn _x64_spawn_push_explicit_args(ctx, st, locals) {
 }
 
 fn _x64_spawn_spread_slot_layout(st) {
-    var args_slot = st["args_slot"]
-    return {
-        "spread_slot": iadd(args_slot, 1),
-        "idx_slot": iadd(args_slot, 2),
-        "len_slot": iadd(args_slot, 3),
-        "elem_slot": iadd(args_slot, 4)
-    }
+    var args_slot = st[7]
+    return [iadd(args_slot, 1), iadd(args_slot, 2), iadd(args_slot, 3), iadd(args_slot, 4)]
 }
 
 fn _x64_spawn_spread_slot_offsets(ctx, locals, slots) {
-    var spread_off = _intr_tmp_off(ctx, locals, slots["spread_slot"])
-    var idx_off = _intr_tmp_off(ctx, locals, slots["idx_slot"])
-    var len_off = _intr_tmp_off(ctx, locals, slots["len_slot"])
-    var elem_off = _intr_tmp_off(ctx, locals, slots["elem_slot"])
+    var spread_off = _intr_tmp_off(ctx, locals, slots[0])
+    var idx_off = _intr_tmp_off(ctx, locals, slots[1])
+    var len_off = _intr_tmp_off(ctx, locals, slots[2])
+    var elem_off = _intr_tmp_off(ctx, locals, slots[3])
     if oren_type_tag(spread_off) == 0 || oren_type_tag(idx_off) == 0 || oren_type_tag(len_off) == 0 || oren_type_tag(elem_off) == 0 {
         err(ctx, "x64 native v0: missing spill slots for SpawnExpr spread")
         return nil
     }
-    return {"spread_off": spread_off, "idx_off": idx_off, "len_off": len_off, "elem_off": elem_off}
+    return [spread_off, idx_off, len_off, elem_off]
 }
 
 fn _x64_spawn_attach_spread_slot_state(st, slots, offs) {
-    st["spread_slot"] = slots["spread_slot"]
-    st["idx_slot"] = slots["idx_slot"]
-    st["len_slot"] = slots["len_slot"]
-    st["elem_slot"] = slots["elem_slot"]
-    st["spread_off"] = offs["spread_off"]
-    st["idx_off"] = offs["idx_off"]
-    st["len_off"] = offs["len_off"]
-    st["elem_off"] = offs["elem_off"]
-    st["spread_tmp"] = {"type": "IntrTmp", "idx": slots["spread_slot"]}
-    st["idx_tmp"] = {"type": "IntrTmp", "idx": slots["idx_slot"]}
-    st["elem_tmp"] = {"type": "IntrTmp", "idx": slots["elem_slot"]}
+    st[10] = slots[0]
+    st[11] = slots[1]
+    st[12] = slots[2]
+    st[13] = slots[3]
+    st[14] = offs[0]
+    st[15] = offs[1]
+    st[16] = offs[2]
+    st[17] = offs[3]
+    st[18] = {"type": "IntrTmp", "idx": slots[0]}
+    st[19] = {"type": "IntrTmp", "idx": slots[1]}
+    st[20] = {"type": "IntrTmp", "idx": slots[3]}
     return nil
 }
 
 fn _x64_spawn_prepare_spread_slots(ctx, st, locals) {
     var slots = _x64_spawn_spread_slot_layout(st)
     var offs = _x64_spawn_spread_slot_offsets(ctx, locals, slots)
-    if offs == nil { _intr_tmp_pop(ctx, st["base"]); return nil }
+    if offs == nil { _intr_tmp_pop(ctx, st[6]); return nil }
     _x64_spawn_attach_spread_slot_state(st, slots, offs)
     return nil
 }
 
 fn _x64_spawn_spill_spread_and_len(ctx, st, locals) {
-    var base = st["base"]
-    var spread = st["spread"]
-    var spread_tmp = st["spread_tmp"]
+    var base = st[6]
+    var spread = st[3]
+    var spread_tmp = st[18]
     _emit_eval_int_to_rax(ctx, spread, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - st["spread_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[14], 0)
 
     // len = oren_list_len(spread)
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_len"}, "args": [spread_tmp]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - st["len_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[16], 0)
 
     // idx = 0
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], core.insn_cdqe())
-    _emit_mov_mrbp_r64(ctx, 0 - st["idx_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[15], 0)
     return nil
 }
 
 fn _x64_spawn_spread_loop_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "loop": _new_label(ctx, "spawn_spread_loop"),
-        "done": _new_label(ctx, "spawn_spread_done")
-    }
+    return [{}, [], _new_label(ctx, "spawn_spread_loop"), _new_label(ctx, "spawn_spread_done")]
 }
 
 fn _x64_spawn_spread_loop_guard(ctx, st, ls) {
-    _emit_label(ctx, ls["labels"], ls["loop"])
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["idx_off"]) // rax = idx
-    _emit_mov_r64_mrbp(ctx, 2, 0 - st["len_off"]) // rdx = len
+    _emit_label(ctx, ls[0], ls[2])
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st[15]) // rax = idx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - st[16]) // rdx = len
     bytes_extend(ctx["code"], core.insn_cmp_r64_r64(0, 2))
-    _emit_jcc_to_label(ctx, ls["fixups"], "ge", ls["done"])
+    _emit_jcc_to_label(ctx, ls[1], "ge", ls[3])
     return nil
 }
 
 fn _x64_spawn_spread_spill_elem(ctx, st, locals) {
-    _emit_eval_int_to_rax(ctx, {"type": "Index", "left": st["spread_tmp"], "index": st["idx_tmp"]}, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - st["elem_off"], 0)
+    _emit_eval_int_to_rax(ctx, {"type": "Index", "left": st[18], "index": st[19]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st[6]); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - st[17], 0)
     return true
 }
 
 fn _x64_spawn_spread_push_elem(ctx, st, locals) {
     var push_fn = {"type": "Identifier", "value": "oren_list_push"}
-    var push_expr = {"type": "Call", "fn": push_fn, "args": [st["args_tmp"], st["elem_tmp"]]}
+    var push_expr = {"type": "Call", "fn": push_fn, "args": [st[9], st[20]]}
     _emit_eval_int_to_rax(ctx, push_expr, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st["base"]); return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, st[6]); return nil }
     return true
 }
 
 fn _x64_spawn_spread_inc_idx(ctx, st, ls) {
-    _emit_mov_r64_mrbp(ctx, 0, 0 - st["idx_off"])
+    _emit_mov_r64_mrbp(ctx, 0, 0 - st[15])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(0, 1))
-    _emit_mov_mrbp_r64(ctx, 0 - st["idx_off"], 0)
-    _emit_jmp_to_label(ctx, ls["fixups"], ls["loop"])
+    _emit_mov_mrbp_r64(ctx, 0 - st[15], 0)
+    _emit_jmp_to_label(ctx, ls[1], ls[2])
     return nil
 }
 
@@ -603,13 +580,13 @@ fn _x64_spawn_expand_spread_loop(ctx, st, locals) {
     if _x64_spawn_spread_spill_elem(ctx, st, locals) == nil { return nil }
     if _x64_spawn_spread_push_elem(ctx, st, locals) == nil { return nil }
     _x64_spawn_spread_inc_idx(ctx, st, ls)
-    _emit_label(ctx, ls["labels"], ls["done"])
-    _patch_local_fixups(ctx, ls["labels"], ls["fixups"])
+    _emit_label(ctx, ls[0], ls[3])
+    _patch_local_fixups(ctx, ls[0], ls[1])
     return nil
 }
 
 fn _x64_spawn_build_args_list(ctx, st, locals) {
-    if st["has_spread"] == true {
+    if st[5] == true {
         _x64_spawn_build_empty_args_list(ctx, st, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         _x64_spawn_push_explicit_args(ctx, st, locals)
@@ -621,24 +598,24 @@ fn _x64_spawn_build_args_list(ctx, st, locals) {
         _x64_spawn_expand_spread_loop(ctx, st, locals)
         return nil
     }
-    var base = st["base"]
-    var argc = st["argc"]
+    var base = st[6]
+    var argc = st[4]
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - st["args_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[8], 0)
     _x64_spawn_push_explicit_args(ctx, st, locals)
     return nil
 }
 
 fn _x64_spawn_emit_runtime_call(ctx, st, locals) {
-    var base = st["base"]
-    var fn_expr = st["fn_expr"]
-    var args_tmp = st["args_tmp"]
+    var base = st[6]
+    var fn_expr = st[1]
+    var args_tmp = st[9]
     // Spill fn_obj (callee evaluated as a first-class callable value).
-    var fn_slot = iadd(st["args_slot"], 1)
-    if st["has_spread"] == true { fn_slot = iadd(st["args_slot"], 5) }
+    var fn_slot = iadd(st[7], 1)
+    if st[5] == true { fn_slot = iadd(st[7], 5) }
     var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
-    if oren_type_tag(fn_off) == 0 { st["failed"] = true; _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(fn_off) == 0 { st[21] = true; _intr_tmp_pop(ctx, base); return nil }
     _emit_eval_int_to_rax(ctx, fn_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
@@ -669,13 +646,13 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     var st = _x64_spawn_expr_prepare(ctx, expr)
     if st == nil { return nil }
     _x64_spawn_spill_explicit_args(ctx, st, locals)
-    if st["failed"] == true { return nil }
+    if st[21] == true { return nil }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _x64_spawn_prepare_args_slot(ctx, st, locals)
-    if st["failed"] == true { return nil }
+    if st[21] == true { return nil }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _x64_spawn_build_args_list(ctx, st, locals)
-    if st["failed"] == true { return nil }
+    if st[21] == true { return nil }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     _x64_spawn_emit_runtime_call(ctx, st, locals)
     return nil
@@ -691,20 +668,13 @@ fn _x64_varargs_named_call_prepare(ctx, nm, args) {
     var spill_n = argc + 2
     var base = _intr_tmp_push(ctx, spill_n)
     if oren_type_tag(base) == 0 { return nil }
-    return {
-        "nm": nm,
-        "args": args,
-        "argc": argc,
-        "base": base,
-        "args_slot": iadd(base, argc),
-        "fn_slot": iadd(base, argc + 1)
-    }
+    return [nm, args, argc, base, iadd(base, argc), iadd(base, argc + 1), nil, nil, nil, nil]
 }
 
 fn _x64_varargs_named_spill_explicit_args(ctx, st, locals) {
-    var args = st["args"]
-    var argc = st["argc"]
-    var base = st["base"]
+    var args = st[1]
+    var argc = st[2]
+    var base = st[3]
     var i = 0
     while i < argc {
         _emit_eval_int_to_rax(ctx, args[i], locals)
@@ -718,9 +688,9 @@ fn _x64_varargs_named_spill_explicit_args(ctx, st, locals) {
 }
 
 fn _x64_varargs_named_prepare_slots(ctx, st, locals) {
-    var base = st["base"]
-    var args_slot = st["args_slot"]
-    var fn_slot = st["fn_slot"]
+    var base = st[3]
+    var args_slot = st[4]
+    var fn_slot = st[5]
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
     var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
     if oren_type_tag(args_off) == 0 || oren_type_tag(fn_off) == 0 {
@@ -728,26 +698,26 @@ fn _x64_varargs_named_prepare_slots(ctx, st, locals) {
         err(ctx, "x64 native v0: missing spill slots for varargs call")
         return false
     }
-    st["args_off"] = args_off
-    st["fn_off"] = fn_off
-    st["args_tmp"] = {"type": "IntrTmp", "idx": args_slot}
-    st["fn_tmp"] = {"type": "IntrTmp", "idx": fn_slot}
+    st[6] = args_off
+    st[7] = fn_off
+    st[8] = {"type": "IntrTmp", "idx": args_slot}
+    st[9] = {"type": "IntrTmp", "idx": fn_slot}
     return true
 }
 
 fn _x64_varargs_named_build_args_list(ctx, st, locals) {
-    var base = st["base"]
+    var base = st[3]
     // args_list = oren_new_list(argc)
-    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(st["argc"])}]}, locals)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(st[2])}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["args_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[6], 0)
     return true
 }
 
 fn _x64_varargs_named_push_args(ctx, st, locals) {
-    var base = st["base"]
-    var argc = st["argc"]
-    var args_tmp = st["args_tmp"]
+    var base = st[3]
+    var argc = st[2]
+    var args_tmp = st[8]
     // Push args into args_list in order.
     var j = 0
     while j < argc {
@@ -760,24 +730,24 @@ fn _x64_varargs_named_push_args(ctx, st, locals) {
 }
 
 fn _x64_varargs_named_spill_fnobj(ctx, st, locals) {
-    var base = st["base"]
+    var base = st[3]
     // Spill fn_obj (named function used as value => fnobj record pointing at `__oren_fnwrap_*`).
-    _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": st["nm"]}, locals)
+    _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": st[0]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["fn_off"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[7], 0)
     return true
 }
 
 fn _x64_varargs_named_emit_call(ctx, st, locals) {
-    var base = st["base"]
+    var base = st[3]
     // Inline-call: oren_call_obj_list(fn_obj, args_list)
-    _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, st["fn_tmp"], st["args_tmp"])
+    _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, st[9], st[8])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return false }
     return true
 }
 
 fn _x64_varargs_named_call_emit_prepared(ctx, locals, st) {
-    var base = st["base"]
+    var base = st[3]
     if _x64_varargs_named_spill_explicit_args(ctx, st, locals) != true { return nil }
     if _x64_varargs_named_prepare_slots(ctx, st, locals) != true { return nil }
     if _x64_varargs_named_build_args_list(ctx, st, locals) != true { return nil }
