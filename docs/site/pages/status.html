@@ -6153,7 +6153,11 @@ make docs-site</code></pre>
 <p>							  descriptors plus key/value/key-kind storage and roots</p>
 <p>							  proven map locals across safepoints; `make</p>
 <p>							  verify-native-ir-llvm-map-runtime` proves linked execution</p>
-<p>							  parity and forced GC-at-safepoint for that surface.</p>
+<p>							  parity and forced GC-at-safepoint for that surface. The</p>
+<p>							  lowerer now carries map descriptor provenance through</p>
+<p>							  constant-index list reads and known-key map reads, so nested</p>
+<p>							  map descriptors stored in lists or maps can be read after</p>
+<p>							  forced GC without opaque fallback.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -919,7 +919,10 @@
 <p>		     through the real C runtime. <code>make verify-native-ir-llvm-map-runtime</code></p>
 <p>		     proves linked execution parity, key-kind sidecar metadata, string-key</p>
 <p>		     semantic lookup through length plus <code>memcmp</code>, and forced</p>
-<p>		     GC-at-safepoint; nested map provenance remains follow-up work.</p>
+<p>		     GC-at-safepoint. The lowerer now propagates map descriptor facts</p>
+<p>		     through constant-index list reads and known-key map reads, proving</p>
+<p>		     nested list/map descriptors can survive parent-rooted forced GC</p>
+<p>		     without opaque fallback.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

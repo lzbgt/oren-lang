@@ -5191,7 +5191,11 @@ make docs-site
 							  descriptors plus key/value/key-kind storage and roots
 							  proven map locals across safepoints; `make
 							  verify-native-ir-llvm-map-runtime` proves linked execution
-							  parity and forced GC-at-safepoint for that surface.
+							  parity and forced GC-at-safepoint for that surface. The
+							  lowerer now carries map descriptor provenance through
+							  constant-index list reads and known-key map reads, so nested
+							  map descriptors stored in lists or maps can be read after
+							  forced GC without opaque fallback.
 
 ## Documentation Guardrail
 

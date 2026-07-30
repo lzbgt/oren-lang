@@ -61,9 +61,11 @@ grep -Fq "declare i32 @memcmp(i8*, i8*, i64)" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_roots_push_map(i64)" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_register_map" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_roots_push_map" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_roots_push_list" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_map_len" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_map_get" "$object.ll"
 grep -Fq "call void @oren_llvm_helper_oren_map_set" "$object.ll"
+grep -Fq "call i64 @oren_llvm_helper_oren_list_get" "$object.ll"
 if grep -Fq "call i64 @oren_llvm_opaque_expr" "$object.ll" ||
    grep -Fq "call i64 @oren_llvm_opaque_index_get" "$object.ll" ||
    grep -Fq "call void @oren_llvm_opaque_index_set" "$object.ll" ||
@@ -120,7 +122,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,forced-gc-at-map-safepoint\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM map runtime parity passed; summary: $summary"

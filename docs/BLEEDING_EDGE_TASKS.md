@@ -597,7 +597,10 @@ This file is the concise task view. Detailed implementation status lives in
 		     through the real C runtime. `make verify-native-ir-llvm-map-runtime`
 		     proves linked execution parity, key-kind sidecar metadata, string-key
 		     semantic lookup through length plus `memcmp`, and forced
-		     GC-at-safepoint; nested map provenance remains follow-up work.
+		     GC-at-safepoint. The lowerer now propagates map descriptor facts
+		     through constant-index list reads and known-key map reads, proving
+		     nested list/map descriptors can survive parent-rooted forced GC
+		     without opaque fallback.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

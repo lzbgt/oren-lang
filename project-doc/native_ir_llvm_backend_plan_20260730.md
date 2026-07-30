@@ -396,5 +396,10 @@ after it has round-trip/parity evidence. Until then:
     treating integer keys as pointers. The map runtime fixture proves a sliced
     dynamic `"alpha"` descriptor reads and replaces an existing literal
     `"alpha"` key while preserving map length.
-51. Add nested map descriptor provenance/rooting through lists/maps, then expand
-    runtime-shaped records and broader runtime-varying descriptor inputs.
+51. Done: add nested map descriptor provenance/rooting through lists/maps.
+    The lowerer now carries map descriptor facts through constant-index list
+    reads and known-key map reads, including local aliases. The focused map
+    fixture stores a map in a list and another map as a map value, forces
+    safepoint GC while only the parent container is rooted, then reads nested map
+    contents without opaque fallback.
+52. Add runtime-shaped records and broader runtime-varying descriptor inputs.

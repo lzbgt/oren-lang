@@ -26,6 +26,12 @@ from native_ir_llvm_bytes_helpers import (
     emit_string_from_bytes_slice_helper,
     emit_u8_buf_from_bytes_slice_helper,
 )
+from native_ir_llvm_descriptor_helpers import (
+    apply_list_element_fact,
+    apply_map_element_fact,
+    const_key_value,
+    intersect_origin_envs,
+)
 from native_ir_llvm_map_helpers import (
     emit_map_find_helper,
     emit_map_find_string_helper,
@@ -1015,30 +1021,6 @@ def collect_map_descriptor_values(fn):
     return values
 
 
-def const_int_value(consts, value):
-    item = consts.get(value)
-    if not item or item[0] != "int":
-        return None
-    try:
-        return int(item[1])
-    except Exception:
-        return None
-
-
-def intersect_origin_envs(envs):
-    if not envs:
-        return {}
-    keys = set(envs[0])
-    for env in envs[1:]:
-        keys &= set(env)
-    out = {}
-    for key in keys:
-        value = envs[0][key]
-        if all(env.get(key) == value for env in envs[1:]):
-            out[key] = value
-    return out
-
-
 def collect_descriptor_facts(fn):
     blocks = fn["blocks"]
     labels = [block["label"] for block in blocks]
@@ -1055,6 +1037,7 @@ def collect_descriptor_facts(fn):
     out_bytes_env = {label: set(all_slots) for label in labels}
     out_map_env = {label: set(all_slots) for label in labels}
     out_origin_env = {label: {} for label in labels}
+    out_map_origin_env = {label: {} for label in labels}
     string_in_env = {label: set() for label in labels}
     list_in_env = {label: set() for label in labels}
     bytes_in_env = {label: set() for label in labels}
@@ -1071,13 +1054,16 @@ def collect_descriptor_facts(fn):
         bytes_values = set()
         maps = set()
         value_list_origin = {}
+        value_map_origin = {}
         origin_elements = {}
+        map_origin_elements = {}
         mutated_origins = set()
         next_string_out = {}
         next_list_out = {}
         next_bytes_out = {}
         next_map_out = {}
         next_origin_out = {}
+        next_map_origin_out = {}
         next_string_in = {}
         next_list_in = {}
         next_bytes_in = {}
@@ -1088,17 +1074,20 @@ def collect_descriptor_facts(fn):
                 local_strings = set()
                 local_lists = set()
                 local_origins = {}
+                local_map_origins = {}
             else:
                 incoming_strings = [out_string_env[pred] for pred in preds[label]]
                 incoming_lists = [out_list_env[pred] for pred in preds[label]]
                 incoming_bytes = [out_bytes_env[pred] for pred in preds[label]]
                 incoming_maps = [out_map_env[pred] for pred in preds[label]]
                 incoming_origins = [out_origin_env[pred] for pred in preds[label]]
+                incoming_map_origins = [out_map_origin_env[pred] for pred in preds[label]]
                 local_strings = set.intersection(*incoming_strings) if incoming_strings else set()
                 local_lists = set.intersection(*incoming_lists) if incoming_lists else set()
                 local_bytes = set.intersection(*incoming_bytes) if incoming_bytes else set()
                 local_maps = set.intersection(*incoming_maps) if incoming_maps else set()
                 local_origins = intersect_origin_envs(incoming_origins)
+                local_map_origins = intersect_origin_envs(incoming_map_origins)
                 next_bytes_in[label] = set(local_bytes)
                 next_map_in[label] = set(local_maps)
                 next_string_in[label] = set(local_strings)
@@ -1106,6 +1095,7 @@ def collect_descriptor_facts(fn):
             if idx == 0 or not preds[label]:
                 local_bytes = set()
                 local_maps = set()
+                local_map_origins = {}
             next_string_in[label] = set(local_strings)
             next_list_in[label] = set(local_lists)
             next_bytes_in[label] = set(local_bytes)
@@ -1162,7 +1152,9 @@ def collect_descriptor_facts(fn):
                             strings,
                             lists,
                             bytes_values,
+                            maps,
                             value_list_origin,
+                            value_map_origin,
                             origin_elements,
                             mutated_origins,
                         )
@@ -1174,12 +1166,14 @@ def collect_descriptor_facts(fn):
                     value_list_origin[result] = result
                     elems = {}
                     for elem_idx, elem in enumerate(op.get("elements", [])):
-                        if elem in strings or elem in lists or elem in bytes_values:
+                        if elem in strings or elem in lists or elem in bytes_values or elem in maps:
                             elems[elem_idx] = elem
                     origin_elements[result] = elems
                 elif kind == "opaque_expr" and op.get("expr_type") == "Hash":
                     if result is not None:
                         maps.add(result)
+                        value_map_origin[result] = result
+                        map_origin_elements[result] = {}
                 elif kind == "index_get":
                     apply_list_element_fact(
                         op["container"],
@@ -1189,15 +1183,42 @@ def collect_descriptor_facts(fn):
                         strings,
                         lists,
                         bytes_values,
+                        maps,
                         value_list_origin,
+                        value_map_origin,
                         origin_elements,
                         mutated_origins,
+                    )
+                    apply_map_element_fact(
+                        op["container"],
+                        op["index"],
+                        result,
+                        consts,
+                        strings,
+                        lists,
+                        bytes_values,
+                        maps,
+                        value_list_origin,
+                        value_map_origin,
+                        map_origin_elements,
                     )
                 elif kind == "index_set":
                     origin = value_list_origin.get(op["container"])
                     if origin is not None:
                         mutated_origins.add(origin)
                         origin_elements.pop(origin, None)
+                    map_origin = value_map_origin.get(op["container"])
+                    if map_origin is not None:
+                        key = const_key_value(consts, op["index"])
+                        if key is None:
+                            map_origin_elements.pop(map_origin, None)
+                        else:
+                            entries = map_origin_elements.setdefault(map_origin, {})
+                            value = op["value"]
+                            if value in strings or value in lists or value in bytes_values or value in maps:
+                                entries[key] = value
+                            else:
+                                entries.pop(key, None)
                 elif kind == "local_get":
                     if op["name"] in local_strings:
                         strings.add(result)
@@ -1210,6 +1231,9 @@ def collect_descriptor_facts(fn):
                         bytes_values.add(result)
                     if op["name"] in local_maps:
                         maps.add(result)
+                        origin = local_map_origins.get(op["name"])
+                        if origin is not None:
+                            value_map_origin[result] = origin
                 elif kind == "local_set":
                     if op["value"] in strings:
                         local_strings.add(op["name"])
@@ -1231,13 +1255,20 @@ def collect_descriptor_facts(fn):
                         local_bytes.discard(op["name"])
                     if op["value"] in maps:
                         local_maps.add(op["name"])
+                        origin = value_map_origin.get(op["value"])
+                        if origin is not None:
+                            local_map_origins[op["name"]] = origin
+                        else:
+                            local_map_origins.pop(op["name"], None)
                     else:
                         local_maps.discard(op["name"])
+                        local_map_origins.pop(op["name"], None)
             next_string_out[label] = local_strings
             next_list_out[label] = local_lists
             next_bytes_out[label] = local_bytes
             next_map_out[label] = local_maps
             next_origin_out[label] = local_origins
+            next_map_origin_out[label] = local_map_origins
 
         if next_string_out != out_string_env:
             out_string_env = next_string_out
@@ -1253,6 +1284,9 @@ def collect_descriptor_facts(fn):
             changed = True
         if next_origin_out != out_origin_env:
             out_origin_env = next_origin_out
+            changed = True
+        if next_map_origin_out != out_map_origin_env:
+            out_map_origin_env = next_map_origin_out
             changed = True
         if next_string_in != string_in_env:
             string_in_env = next_string_in
@@ -1279,38 +1313,6 @@ def collect_descriptor_facts(fn):
             final_maps = maps
             changed = True
     return final_strings, string_in_env, final_lists, list_in_env, final_bytes, bytes_in_env, final_maps, map_in_env
-
-
-def apply_list_element_fact(
-    container,
-    index,
-    result,
-    consts,
-    strings,
-    lists,
-    bytes_values,
-    value_list_origin,
-    origin_elements,
-    mutated_origins,
-):
-    elem_idx = const_int_value(consts, index)
-    origin = value_list_origin.get(container)
-    if elem_idx is None or origin is None or origin in mutated_origins:
-        return
-    source = origin_elements.get(origin, {}).get(elem_idx)
-    if source is None:
-        return
-    if source in strings:
-        strings.add(result)
-        return
-    if source in lists:
-        lists.add(result)
-        source_origin = value_list_origin.get(source)
-        if source_origin is not None:
-            value_list_origin[result] = source_origin
-        return
-    if source in bytes_values:
-        bytes_values.add(result)
 
 
 def term_successors(term):
