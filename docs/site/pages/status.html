@@ -6018,11 +6018,13 @@ make docs-site</code></pre>
 <p>  backend-neutral <code>tagged</code>/<code>void</code> type layouts, function return/value types, and</p>
 <p>  runtime-helper arg/result types for the initial fixture set across x64 Linux,</p>
 <p>  x64 Windows, and ARM64 macOS. The <code>verify-native-ir-llvm-object</code> gate now</p>
-<p>  validates native IR plus type metadata and writes</p>
-<p>  <code>build/native_ir/llvm_object/manifest.txt</code>, skipping clearly when the full</p>
-<p>  LLVM toolchain is absent and failing fast when <code>NATIVE_IR_REQUIRE_LLVM=1</code>.</p>
-<p>  Semantic LLVM lowering remains gated on explicit full LLVM toolchain</p>
-<p>  availability and an opt-in backend path.</p>
+<p>  validates native IR plus type metadata, lowers the typed <code>main</code> CFG subset to</p>
+<p>  textual LLVM IR with real blocks, branches, local slots, constants,</p>
+<p>  arithmetic/comparison ops, opaque call/container shims, and runtime-helper</p>
+<p>  call markers, and writes <code>build/native_ir/llvm_object/manifest.txt</code>, skipping</p>
+<p>  object emission clearly when the full LLVM toolchain is absent and failing</p>
+<p>  fast when <code>NATIVE_IR_REQUIRE_LLVM=1</code>. Executable LLVM backend work remains</p>
+<p>  gated on explicit full LLVM toolchain availability and an opt-in backend path.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

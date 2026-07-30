@@ -157,6 +157,12 @@ after it has round-trip/parity evidence. Until then:
     object. The v0 schema now carries `tagged`/`void` layouts, function
     return/value-type records, and runtime-helper arg/result type records; dump,
     parity, validator, and LLVM-object gates validate that surface.
-11. Add semantic LLVM IR lowering for the typed const/CFG/helper subset behind
-    the existing full-toolchain gate, keeping current x64/ARM64 emitters as the
-    oracle until object emission can pass parity.
+11. Done: add semantic LLVM IR lowering for the typed const/CFG/helper subset
+    behind the existing object gate. The gate now writes textual LLVM IR with
+    real `main` CFG blocks, branches, i64 local slots, constants,
+    arithmetic/comparison ops, opaque shims for not-yet-semantic calls and
+    container operations, and runtime-helper call markers before either skipping
+    object emission on hosts without full LLVM or passing the IR to `llc`.
+12. Add an opt-in `llvm-native` backend command path and object/parity fixture
+    once a full LLVM toolchain is available; keep x64/ARM64 as the oracle until
+    the LLVM path can execute parity fixtures, not just compile probe objects.

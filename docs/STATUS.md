@@ -5056,11 +5056,13 @@ make docs-site
   backend-neutral `tagged`/`void` type layouts, function return/value types, and
   runtime-helper arg/result types for the initial fixture set across x64 Linux,
   x64 Windows, and ARM64 macOS. The `verify-native-ir-llvm-object` gate now
-  validates native IR plus type metadata and writes
-  `build/native_ir/llvm_object/manifest.txt`, skipping clearly when the full
-  LLVM toolchain is absent and failing fast when `NATIVE_IR_REQUIRE_LLVM=1`.
-  Semantic LLVM lowering remains gated on explicit full LLVM toolchain
-  availability and an opt-in backend path.
+  validates native IR plus type metadata, lowers the typed `main` CFG subset to
+  textual LLVM IR with real blocks, branches, local slots, constants,
+  arithmetic/comparison ops, opaque call/container shims, and runtime-helper
+  call markers, and writes `build/native_ir/llvm_object/manifest.txt`, skipping
+  object emission clearly when the full LLVM toolchain is absent and failing
+  fast when `NATIVE_IR_REQUIRE_LLVM=1`. Executable LLVM backend work remains
+  gated on explicit full LLVM toolchain availability and an opt-in backend path.
 
 ## Documentation Guardrail
 
