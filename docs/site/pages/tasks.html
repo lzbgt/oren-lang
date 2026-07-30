@@ -890,12 +890,17 @@
 <p>     reset after helper calls. The C runtime now recursively marks nested</p>
 <p>     LLVM list/string descriptor contents from a parent list root, and the</p>
 <p>     list runtime gate proves a parent-list -&gt; child-list -&gt; dynamic-string</p>
-<p>     graph survives forced safepoint GC when only the parent list is rooted.</p>
-<p>     The lowerer now carries list element descriptor provenance through origins,</p>
-<p>     local aliases, and constant-index nested reads, so nested list values can</p>
-<p>     feed descriptor string concat without opaque fallback. Explicit helper</p>
-<p>     roots are routed by proven descriptor kind instead of treating all tagged</p>
-<p>     roots as strings.</p>
+<p>	     graph survives forced safepoint GC when only the parent list is rooted.</p>
+<p>	     The lowerer now carries list element descriptor provenance through origins,</p>
+<p>	     local aliases, and constant-index nested reads, so nested list values can</p>
+<p>	     feed descriptor string concat without opaque fallback. Explicit helper</p>
+<p>	     roots are routed by proven descriptor kind instead of treating all tagged</p>
+<p>	     roots as strings. LLVM-native now also lowers bytes into</p>
+<p>	     <code>%oren_llvm_bytes { len, data, owner_kind }</code> descriptors with</p>
+<p>	     runtime-owned raw backing storage, bytes registration/root hooks, and</p>
+<p>	     generated <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>, and</p>
+<p>	     <code>oren_bytes_get_u8</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
+<p>	     proves linked execution parity under forced GC-at-safepoint.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

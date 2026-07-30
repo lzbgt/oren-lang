@@ -38,6 +38,11 @@ design evidence lives under `project-doc/`.
 
 ## Current Done Evidence
 
+- LLVM-native now has a typed `%oren_llvm_bytes { len, data, owner_kind }`
+  descriptor ABI backed by runtime-owned raw byte storage, generated
+  `oren_bytes_from_hex`/`oren_bytes_len`/`oren_bytes_get_u8` helpers,
+  type-specific bytes roots, and a forced-GC linked runtime proof via
+  `make verify-native-ir-llvm-bytes-runtime`.
 - `std:math` now includes deterministic scalar `lgamma` and `tgamma` helpers in
   a focused gamma include shard plus component-wise `vec2`/`vec3`/`vec4`
   wrappers that propagate scalar domain errors, with Lanczos/reflection coverage

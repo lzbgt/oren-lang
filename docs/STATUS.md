@@ -5160,10 +5160,17 @@ make docs-site
 				  safepoint GC keeps nested descriptors live when only the parent list
 				  is explicitly rooted. The LLVM lowerer now carries list element
 				  descriptor provenance through list origins, local aliases, and
-				  constant-index nested reads, so `parent[0][0] + "ed"` lowers through
-				  descriptor list gets plus descriptor string concat. Explicit helper
-				  roots are now routed by proven descriptor kind, avoiding string-root
-				  pushes for integer immediates or list handles.
+					  constant-index nested reads, so `parent[0][0] + "ed"` lowers through
+					  descriptor list gets plus descriptor string concat. Explicit helper
+					  roots are now routed by proven descriptor kind, avoiding string-root
+					  pushes for integer immediates or list handles. LLVM-native now also
+					  has `%oren_llvm_bytes { len, data, owner_kind }` descriptor handles
+					  backed by runtime-owned `OREN_ALLOC_RAW` storage. Generated
+					  `oren_bytes_from_hex`, `oren_bytes_len`, and `oren_bytes_get_u8`
+					  helpers allocate/register bytes descriptors, route proven bytes
+					  locals through `oren_llvm_runtime_roots_push_bytes`, and pass `make
+					  verify-native-ir-llvm-bytes-runtime` under forced
+					  GC-at-safepoint.
 
 ## Documentation Guardrail
 

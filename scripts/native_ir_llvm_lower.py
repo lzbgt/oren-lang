@@ -58,6 +58,9 @@ GENERATED_HELPERS = {
     "oren_string_char_at",
     "oren_string_char_at_unchecked",
     "oren_string_char_code_at",
+    "oren_bytes_from_hex",
+    "oren_bytes_len",
+    "oren_bytes_get_u8",
 }
 
 STRING_DESCRIPTOR_HELPERS = {
@@ -91,6 +94,18 @@ LIST_PUSH_HELPERS = {
     "oren_list_int_push_unchecked",
     "oren_list_push",
     "oren_list_push_unchecked",
+}
+
+BYTES_DESCRIPTOR_HELPERS = {
+    "oren_bytes_from_hex",
+}
+
+BYTES_LEN_HELPERS = {
+    "oren_bytes_len",
+}
+
+BYTES_GET_HELPERS = {
+    "oren_bytes_get_u8",
 }
 
 
@@ -141,7 +156,9 @@ def collect_slots(fn):
 
 def collect_generic_helpers(fn):
     helpers = set()
+    descriptors = collect_descriptor_values(fn)
     list_values = collect_list_descriptor_values(fn)
+    bytes_values = collect_bytes_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] != "runtime_helper_call":
@@ -151,6 +168,16 @@ def collect_generic_helpers(fn):
             if op["name"] in (LIST_LEN_HELPERS | LIST_GET_HELPERS | LIST_PUSH_HELPERS):
                 if op.get("args") and op["args"][0] in list_values:
                     continue
+            if op["name"] in (BYTES_LEN_HELPERS | BYTES_GET_HELPERS):
+                if op.get("args") and op["args"][0] in bytes_values:
+                    continue
+                helpers.add(op["name"])
+                continue
+            if op["name"] in BYTES_DESCRIPTOR_HELPERS:
+                if op.get("args") and op["args"][0] in descriptors:
+                    continue
+                helpers.add(op["name"])
+                continue
             if op["name"] not in GENERATED_HELPERS:
                 helpers.add(op["name"])
     return sorted(helpers)
@@ -159,11 +186,14 @@ def collect_generic_helpers(fn):
 def function_needs_root_hooks(fn):
     descriptors = collect_descriptor_values(fn)
     list_values = collect_list_descriptor_values(fn)
+    bytes_values = collect_bytes_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and op.get("roots"):
                 return True
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and list_values:
+                return True
+            if op["kind"] == "runtime_helper_call" and op.get("safepoint") and bytes_values:
                 return True
             if op["kind"] == "binary" and op["op"] == "+":
                 if op["left"] in descriptors and op["right"] in descriptors:
@@ -181,13 +211,29 @@ def function_needs_list_alloc(fn):
     return False
 
 
+def function_needs_bytes_alloc(fn):
+    return bool(BYTES_DESCRIPTOR_HELPERS & collect_generated_helpers(fn))
+
+
+def function_needs_bytes_type(fn):
+    return bool(collect_bytes_descriptor_values(fn))
+
+
 def collect_generated_helpers(fn):
     helpers = set()
     descriptors = collect_descriptor_values(fn)
+    bytes_values = collect_bytes_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] in GENERATED_HELPERS:
-                helpers.add(op["name"])
+                if op["name"] in (BYTES_LEN_HELPERS | BYTES_GET_HELPERS):
+                    if op.get("args") and op["args"][0] in bytes_values:
+                        helpers.add(op["name"])
+                elif op["name"] in BYTES_DESCRIPTOR_HELPERS:
+                    if op.get("args") and op["args"][0] in descriptors:
+                        helpers.add(op["name"])
+                else:
+                    helpers.add(op["name"])
             elif op["kind"] == "binary" and op["op"] == "+":
                 if op["left"] in descriptors and op["right"] in descriptors:
                     helpers.add("oren_string_concat")
@@ -229,8 +275,10 @@ class FunctionLowerer:
         self.const_values = collect_const_values(fn)
         self.descriptor_values, self.descriptor_block_in = collect_descriptor_analysis(fn)
         self.list_values, self.list_block_in = collect_list_descriptor_analysis(fn)
+        self.bytes_values, self.bytes_block_in = collect_bytes_descriptor_analysis(fn)
         self.current_descriptor_locals = set()
         self.current_list_locals = set()
+        self.current_bytes_locals = set()
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
         self.slot_vars = {name: f"%slot{idx}" for idx, name in enumerate(self.slots)}
@@ -264,8 +312,10 @@ class FunctionLowerer:
         mark = None
         string_roots = []
         list_roots = []
+        bytes_roots = []
         seen_string_roots = set()
         seen_list_roots = set()
+        seen_bytes_roots = set()
         for root_value in root_values:
             if root_value in self.descriptor_values and root_value not in seen_string_roots:
                 string_roots.append(root_value)
@@ -273,6 +323,9 @@ class FunctionLowerer:
             elif root_value in self.list_values and root_value not in seen_list_roots:
                 list_roots.append(root_value)
                 seen_list_roots.add(root_value)
+            elif root_value in self.bytes_values and root_value not in seen_bytes_roots:
+                bytes_roots.append(root_value)
+                seen_bytes_roots.add(root_value)
         for local_name in sorted(self.current_descriptor_locals):
             if local_name not in seen_string_roots:
                 string_roots.append(local_name)
@@ -281,7 +334,11 @@ class FunctionLowerer:
             if local_name not in seen_list_roots:
                 list_roots.append(local_name)
                 seen_list_roots.add(local_name)
-        if op.get("safepoint") and (string_roots or list_roots):
+        for local_name in sorted(self.current_bytes_locals):
+            if local_name not in seen_bytes_roots:
+                bytes_roots.append(local_name)
+                seen_bytes_roots.add(local_name)
+        if op.get("safepoint") and (string_roots or list_roots or bytes_roots):
             mark = self.scratch_var("root_mark")
             self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
             for root_value in string_roots:
@@ -293,6 +350,11 @@ class FunctionLowerer:
                 root_ref = self.value_ref(root_value)
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_list(i64 {root_ref}) ; safepoint root list {root_value}"
+                )
+            for root_value in bytes_roots:
+                root_ref = self.value_ref(root_value)
+                self.write_inst(
+                    f"call void @oren_llvm_runtime_roots_push_bytes(i64 {root_ref}) ; safepoint root bytes {root_value}"
                 )
             self.write_inst("call void @oren_llvm_runtime_safepoint_poll() ; forced GC safepoint poll")
         self.write_inst(f"{helper_call} ; helper {helper_name} safepoint={op.get('safepoint', False)}")
@@ -309,6 +371,7 @@ class FunctionLowerer:
             self.out.write(f"{label_names[block['label']]}:\n")
             self.current_descriptor_locals = set(self.descriptor_block_in.get(block["label"], set()))
             self.current_list_locals = set(self.list_block_in.get(block["label"], set()))
+            self.current_bytes_locals = set(self.bytes_block_in.get(block["label"], set()))
             if bidx == 0:
                 for name in self.slots:
                     self.write_inst(f"{self.slot_vars[name]} = alloca i64, align 8 ; local {name}")
@@ -345,6 +408,10 @@ class FunctionLowerer:
                 self.current_list_locals.add(name)
             else:
                 self.current_list_locals.discard(name)
+            if op["value"] in self.bytes_values:
+                self.current_bytes_locals.add(name)
+            else:
+                self.current_bytes_locals.discard(name)
         elif kind == "binary":
             self.lower_binary(op)
         elif kind == "unary":
@@ -405,6 +472,25 @@ class FunctionLowerer:
             if op["name"] in LIST_PUSH_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.list_values:
                 helper_call = (
                     f"{dst} = call i64 @oren_llvm_helper_oren_list_push("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] == "oren_bytes_from_hex" and len(op["args"]) > 0 and op["args"][0] in self.descriptor_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_oren_bytes_from_hex("
+                    f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                    f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_LEN_HELPERS and len(op["args"]) > 0 and op["args"][0] in self.bytes_values:
+                helper_call = f"{dst} = call i64 @oren_llvm_helper_oren_bytes_len(i64 {helper_args[0]})"
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_GET_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_oren_bytes_get_u8("
                     f"i64 {helper_args[0]}, i64 {helper_args[1]})"
                 )
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
@@ -606,14 +692,24 @@ def collect_list_descriptor_values(fn):
     return values
 
 
+def collect_bytes_descriptor_values(fn):
+    values, _ = collect_bytes_descriptor_analysis(fn)
+    return values
+
+
 def collect_descriptor_analysis(fn):
-    string_values, string_in, _, _ = collect_descriptor_facts(fn)
+    string_values, string_in, _, _, _, _ = collect_descriptor_facts(fn)
     return string_values, string_in
 
 
 def collect_list_descriptor_analysis(fn):
-    _, _, list_values, list_in = collect_descriptor_facts(fn)
+    _, _, list_values, list_in, _, _ = collect_descriptor_facts(fn)
     return list_values, list_in
+
+
+def collect_bytes_descriptor_analysis(fn):
+    _, _, _, _, bytes_values, bytes_in = collect_descriptor_facts(fn)
+    return bytes_values, bytes_in
 
 
 def const_int_value(consts, value):
@@ -653,24 +749,30 @@ def collect_descriptor_facts(fn):
 
     out_string_env = {label: set(all_slots) for label in labels}
     out_list_env = {label: set(all_slots) for label in labels}
+    out_bytes_env = {label: set(all_slots) for label in labels}
     out_origin_env = {label: {} for label in labels}
     string_in_env = {label: set() for label in labels}
     list_in_env = {label: set() for label in labels}
+    bytes_in_env = {label: set() for label in labels}
     final_strings = set()
     final_lists = set()
+    final_bytes = set()
     changed = True
     while changed:
         changed = False
         strings = set()
         lists = set()
+        bytes_values = set()
         value_list_origin = {}
         origin_elements = {}
         mutated_origins = set()
         next_string_out = {}
         next_list_out = {}
+        next_bytes_out = {}
         next_origin_out = {}
         next_string_in = {}
         next_list_in = {}
+        next_bytes_in = {}
         for idx, block in enumerate(blocks):
             label = block["label"]
             if idx == 0 or not preds[label]:
@@ -680,12 +782,20 @@ def collect_descriptor_facts(fn):
             else:
                 incoming_strings = [out_string_env[pred] for pred in preds[label]]
                 incoming_lists = [out_list_env[pred] for pred in preds[label]]
+                incoming_bytes = [out_bytes_env[pred] for pred in preds[label]]
                 incoming_origins = [out_origin_env[pred] for pred in preds[label]]
                 local_strings = set.intersection(*incoming_strings) if incoming_strings else set()
                 local_lists = set.intersection(*incoming_lists) if incoming_lists else set()
+                local_bytes = set.intersection(*incoming_bytes) if incoming_bytes else set()
                 local_origins = intersect_origin_envs(incoming_origins)
+                next_bytes_in[label] = set(local_bytes)
+                next_string_in[label] = set(local_strings)
+                next_list_in[label] = set(local_lists)
+            if idx == 0 or not preds[label]:
+                local_bytes = set()
             next_string_in[label] = set(local_strings)
             next_list_in[label] = set(local_lists)
+            next_bytes_in[label] = set(local_bytes)
 
             for op in block["ops"]:
                 result = op.get("result")
@@ -700,6 +810,9 @@ def collect_descriptor_facts(fn):
                         lists.add(result)
                         value_list_origin[result] = result
                         origin_elements[result] = {}
+                elif kind == "runtime_helper_call" and op.get("name") in BYTES_DESCRIPTOR_HELPERS:
+                    if result is not None and op.get("args") and op["args"][0] in strings:
+                        bytes_values.add(result)
                 elif kind == "runtime_helper_call" and op.get("name") in LIST_PUSH_HELPERS:
                     if op.get("args"):
                         origin = value_list_origin.get(op["args"][0])
@@ -718,6 +831,7 @@ def collect_descriptor_facts(fn):
                             consts,
                             strings,
                             lists,
+                            bytes_values,
                             value_list_origin,
                             origin_elements,
                             mutated_origins,
@@ -730,7 +844,7 @@ def collect_descriptor_facts(fn):
                     value_list_origin[result] = result
                     elems = {}
                     for elem_idx, elem in enumerate(op.get("elements", [])):
-                        if elem in strings or elem in lists:
+                        if elem in strings or elem in lists or elem in bytes_values:
                             elems[elem_idx] = elem
                     origin_elements[result] = elems
                 elif kind == "index_get":
@@ -741,6 +855,7 @@ def collect_descriptor_facts(fn):
                         consts,
                         strings,
                         lists,
+                        bytes_values,
                         value_list_origin,
                         origin_elements,
                         mutated_origins,
@@ -758,6 +873,8 @@ def collect_descriptor_facts(fn):
                         origin = local_origins.get(op["name"])
                         if origin is not None:
                             value_list_origin[result] = origin
+                    if op["name"] in local_bytes:
+                        bytes_values.add(result)
                 elif kind == "local_set":
                     if op["value"] in strings:
                         local_strings.add(op["name"])
@@ -773,8 +890,13 @@ def collect_descriptor_facts(fn):
                     else:
                         local_lists.discard(op["name"])
                         local_origins.pop(op["name"], None)
+                    if op["value"] in bytes_values:
+                        local_bytes.add(op["name"])
+                    else:
+                        local_bytes.discard(op["name"])
             next_string_out[label] = local_strings
             next_list_out[label] = local_lists
+            next_bytes_out[label] = local_bytes
             next_origin_out[label] = local_origins
 
         if next_string_out != out_string_env:
@@ -782,6 +904,9 @@ def collect_descriptor_facts(fn):
             changed = True
         if next_list_out != out_list_env:
             out_list_env = next_list_out
+            changed = True
+        if next_bytes_out != out_bytes_env:
+            out_bytes_env = next_bytes_out
             changed = True
         if next_origin_out != out_origin_env:
             out_origin_env = next_origin_out
@@ -792,13 +917,19 @@ def collect_descriptor_facts(fn):
         if next_list_in != list_in_env:
             list_in_env = next_list_in
             changed = True
+        if next_bytes_in != bytes_in_env:
+            bytes_in_env = next_bytes_in
+            changed = True
         if strings != final_strings:
             final_strings = strings
             changed = True
         if lists != final_lists:
             final_lists = lists
             changed = True
-    return final_strings, string_in_env, final_lists, list_in_env
+        if bytes_values != final_bytes:
+            final_bytes = bytes_values
+            changed = True
+    return final_strings, string_in_env, final_lists, list_in_env, final_bytes, bytes_in_env
 
 
 def apply_list_element_fact(
@@ -808,6 +939,7 @@ def apply_list_element_fact(
     consts,
     strings,
     lists,
+    bytes_values,
     value_list_origin,
     origin_elements,
     mutated_origins,
@@ -827,6 +959,9 @@ def apply_list_element_fact(
         source_origin = value_list_origin.get(source)
         if source_origin is not None:
             value_list_origin[result] = source_origin
+        return
+    if source in bytes_values:
+        bytes_values.add(result)
 
 
 def term_successors(term):
@@ -1246,6 +1381,164 @@ def emit_list_set_helper(out):
     out.write("}\n")
 
 
+def emit_bytes_runtime_alloc(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_runtime_alloc_bytes_desc(i64 %len) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %neg = icmp slt i64 %len, 0\n")
+    out.write("  br i1 %neg, label %invalid, label %alloc\n")
+    out.write("alloc:\n")
+    out.write("  %bytes = call i8* @oren_llvm_runtime_alloc_bytes(i64 %len, i64 5)\n")
+    out.write("  %raw_desc = call i8* @oren_llvm_runtime_alloc_bytes(i64 24, i64 4)\n")
+    out.write("  %desc = bitcast i8* %raw_desc to %oren_llvm_bytes*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %desc, i32 0, i32 0\n")
+    out.write("  store i64 %len, i64* %lenp, align 8\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %desc, i32 0, i32 1\n")
+    out.write("  store i8* %bytes, i8** %datap, align 8\n")
+    out.write("  %ownerp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %desc, i32 0, i32 2\n")
+    out.write("  store i64 1, i64* %ownerp, align 8\n")
+    out.write("  %ret = ptrtoint %oren_llvm_bytes* %desc to i64\n")
+    out.write("  call void @oren_llvm_runtime_register_bytes(i64 %ret, i8* %bytes, i64 %len)\n")
+    out.write("  ret i64 %ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
+def emit_hex_nibble_helper(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_helper_hex_nibble(i8 %ch) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %c = zext i8 %ch to i64\n")
+    out.write("  %ge0 = icmp sge i64 %c, 48\n")
+    out.write("  %le9 = icmp sle i64 %c, 57\n")
+    out.write("  %is_digit = and i1 %ge0, %le9\n")
+    out.write("  br i1 %is_digit, label %digit, label %lower\n")
+    out.write("digit:\n")
+    out.write("  %dv = sub i64 %c, 48\n")
+    out.write("  ret i64 %dv\n")
+    out.write("lower:\n")
+    out.write("  %gea = icmp sge i64 %c, 97\n")
+    out.write("  %lef = icmp sle i64 %c, 102\n")
+    out.write("  %is_lower = and i1 %gea, %lef\n")
+    out.write("  br i1 %is_lower, label %lower_hex, label %upper\n")
+    out.write("lower_hex:\n")
+    out.write("  %lv0 = sub i64 %c, 97\n")
+    out.write("  %lv = add i64 %lv0, 10\n")
+    out.write("  ret i64 %lv\n")
+    out.write("upper:\n")
+    out.write("  %geA = icmp sge i64 %c, 65\n")
+    out.write("  %leF = icmp sle i64 %c, 70\n")
+    out.write("  %is_upper = and i1 %geA, %leF\n")
+    out.write("  br i1 %is_upper, label %upper_hex, label %invalid\n")
+    out.write("upper_hex:\n")
+    out.write("  %uv0 = sub i64 %c, 65\n")
+    out.write("  %uv = add i64 %uv0, 10\n")
+    out.write("  ret i64 %uv\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 -1\n")
+    out.write("}\n")
+
+
+def emit_bytes_from_hex_helper(out):
+    out.write("\n")
+    out.write(
+        "define i64 @oren_llvm_helper_oren_bytes_from_hex("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+    )
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %arg0, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %src = inttoptr i64 %arg0 to %oren_llvm_string*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 0\n")
+    out.write("  %src_len = load i64, i64* %lenp, align 8\n")
+    out.write("  %odd = and i64 %src_len, 1\n")
+    out.write("  %is_odd = icmp ne i64 %odd, 0\n")
+    out.write("  br i1 %is_odd, label %invalid, label %alloc\n")
+    out.write("alloc:\n")
+    out.write("  %out_len = sdiv i64 %src_len, 2\n")
+    out.write("  %out_handle = call i64 @oren_llvm_runtime_alloc_bytes_desc(i64 %out_len)\n")
+    out.write("  %out_desc = inttoptr i64 %out_handle to %oren_llvm_bytes*\n")
+    out.write("  %out_datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %out_desc, i32 0, i32 1\n")
+    out.write("  %out_data = load i8*, i8** %out_datap, align 8\n")
+    out.write("  %src_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 1\n")
+    out.write("  %src_data = load i8*, i8** %src_datap, align 8\n")
+    out.write("  br label %loop\n")
+    out.write("loop:\n")
+    out.write("  %i = phi i64 [0, %alloc], [%next_i, %store]\n")
+    out.write("  %done = icmp sge i64 %i, %out_len\n")
+    out.write("  br i1 %done, label %done_block, label %decode\n")
+    out.write("decode:\n")
+    out.write("  %src_i = mul i64 %i, 2\n")
+    out.write("  %hi_ptr = getelementptr inbounds i8, i8* %src_data, i64 %src_i\n")
+    out.write("  %lo_i = add i64 %src_i, 1\n")
+    out.write("  %lo_ptr = getelementptr inbounds i8, i8* %src_data, i64 %lo_i\n")
+    out.write("  %hi_ch = load i8, i8* %hi_ptr, align 1\n")
+    out.write("  %lo_ch = load i8, i8* %lo_ptr, align 1\n")
+    out.write("  %hi = call i64 @oren_llvm_helper_hex_nibble(i8 %hi_ch)\n")
+    out.write("  %lo = call i64 @oren_llvm_helper_hex_nibble(i8 %lo_ch)\n")
+    out.write("  %hi_bad = icmp slt i64 %hi, 0\n")
+    out.write("  %lo_bad = icmp slt i64 %lo, 0\n")
+    out.write("  %bad = or i1 %hi_bad, %lo_bad\n")
+    out.write("  br i1 %bad, label %invalid, label %store\n")
+    out.write("store:\n")
+    out.write("  %hi_shift = shl i64 %hi, 4\n")
+    out.write("  %byte64 = or i64 %hi_shift, %lo\n")
+    out.write("  %byte = trunc i64 %byte64 to i8\n")
+    out.write("  %dst_ptr = getelementptr inbounds i8, i8* %out_data, i64 %i\n")
+    out.write("  store i8 %byte, i8* %dst_ptr, align 1\n")
+    out.write("  %next_i = add i64 %i, 1\n")
+    out.write("  br label %loop\n")
+    out.write("done_block:\n")
+    out.write("  ret i64 %out_handle\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
+def emit_bytes_len_helper(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_helper_oren_bytes_len(i64 %bytes_handle) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %bytes_handle, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %bytes = inttoptr i64 %bytes_handle to %oren_llvm_bytes*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write("  ret i64 %len\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
+def emit_bytes_get_u8_helper(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_helper_oren_bytes_get_u8(i64 %bytes_handle, i64 %idx) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %bytes_handle, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %bytes = inttoptr i64 %bytes_handle to %oren_llvm_bytes*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write("  %idx_nonneg = icmp sge i64 %idx, 0\n")
+    out.write("  %idx_lt_len = icmp slt i64 %idx, %len\n")
+    out.write("  %ok = and i1 %idx_nonneg, %idx_lt_len\n")
+    out.write("  br i1 %ok, label %read, label %invalid\n")
+    out.write("read:\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 1\n")
+    out.write("  %data = load i8*, i8** %datap, align 8\n")
+    out.write("  %ptr = getelementptr inbounds i8, i8* %data, i64 %idx\n")
+    out.write("  %byte = load i8, i8* %ptr, align 1\n")
+    out.write("  %ret = zext i8 %byte to i64\n")
+    out.write("  ret i64 %ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
 def emit_module(ir_path, out_path, ir, main):
     schema = ir["schema"].encode("utf-8")
     schema_literal = "".join(
@@ -1255,13 +1548,15 @@ def emit_module(ir_path, out_path, ir, main):
     helpers_to_emit = collect_generated_helpers(main)
     needs_string_alloc = bool({"oren_string_slice", "oren_string_concat"} & helpers_to_emit)
     needs_list_alloc = function_needs_list_alloc(main)
-    needs_alloc_bytes = needs_string_alloc or needs_list_alloc
+    needs_bytes_alloc = function_needs_bytes_alloc(main)
+    needs_alloc_bytes = needs_string_alloc or needs_list_alloc or needs_bytes_alloc
     with open(out_path, "w", encoding="utf-8") as out:
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
         out.write(f"target triple = \"{target_triple(ir['target'])}\"\n\n")
         out.write("%oren_llvm_string = type { i64, i8*, i64 }\n")
         out.write("%oren_llvm_list = type { i64, i64*, i64, i64 }\n\n")
+        out.write("%oren_llvm_bytes = type { i64, i8*, i64 }\n\n")
         out.write("@oren_native_ir_schema = private unnamed_addr constant ")
         out.write(f"[{len(schema) + 1} x i8] c\"{schema_literal}\\00\", align 1\n\n")
         out.write("declare i64 @oren_llvm_opaque_call(i64, i64)\n")
@@ -1278,6 +1573,7 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare i64 @oren_llvm_runtime_roots_mark()\n")
             out.write("declare void @oren_llvm_runtime_roots_push_string(i64)\n")
             out.write("declare void @oren_llvm_runtime_roots_push_list(i64)\n")
+            out.write("declare void @oren_llvm_runtime_roots_push_bytes(i64)\n")
             out.write("declare void @oren_llvm_runtime_safepoint_poll()\n")
             out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:
@@ -1291,6 +1587,8 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
         if needs_list_alloc:
             out.write("declare void @oren_llvm_runtime_register_list(i64, i64*, i64)\n")
+        if needs_bytes_alloc:
+            out.write("declare void @oren_llvm_runtime_register_bytes(i64, i8*, i64)\n")
         if "oren_string_eq" in helpers_to_emit:
             out.write("declare i32 @memcmp(i8*, i8*, i64)\n")
         if "exit" in helpers_to_emit:
@@ -1306,6 +1604,14 @@ def emit_module(ir_path, out_path, ir, main):
             emit_list_get_helper(out)
             emit_list_push_helper(out)
             emit_list_set_helper(out)
+        if needs_bytes_alloc:
+            emit_bytes_runtime_alloc(out)
+            emit_hex_nibble_helper(out)
+            emit_bytes_from_hex_helper(out)
+        if "oren_bytes_len" in helpers_to_emit:
+            emit_bytes_len_helper(out)
+        if "oren_bytes_get_u8" in helpers_to_emit:
+            emit_bytes_get_u8_helper(out)
         if "oren_string_slice" in helpers_to_emit:
             emit_string_slice_helper(out)
         if "oren_string_slice_unchecked" in helpers_to_emit:

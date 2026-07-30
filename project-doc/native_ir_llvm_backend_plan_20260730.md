@@ -338,5 +338,13 @@ after it has round-trip/parity evidence. Until then:
     treating every tagged root as a string. The list runtime fixture now proves
     `parent[0][0] + "ed"` lowers to descriptor list gets plus descriptor string
     concat after forced GC.
-42. Broaden descriptor ABI lowering to additional non-string helper families
-    beyond strings and lists.
+42. Done: broaden descriptor ABI lowering to bytes. LLVM-native now has
+    `%oren_llvm_bytes { len, data, owner_kind }`, runtime-owned raw byte
+    allocation plus registration hooks, type-specific bytes roots, and generated
+    descriptor helpers for `oren_bytes_from_hex`, `oren_bytes_len`, and
+    `oren_bytes_get_u8`. `make verify-native-ir-llvm-bytes-runtime` proves
+    linked execution parity against the native backend oracle while forcing GC at
+    helper safepoints.
+43. Expand bytes descriptor helpers to materialization/interop operations such as
+    `oren_bytes_to_hex`, `oren_bytes_pack`, and `oren_bytes_unpack`, then extend
+    non-string descriptor coverage to maps and runtime-shaped records.

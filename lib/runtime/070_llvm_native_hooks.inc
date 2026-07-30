@@ -11,9 +11,22 @@ typedef struct OrenLlvmList {
     int64_t capacity;
 } OrenLlvmList;
 
+typedef struct OrenLlvmBytes {
+    int64_t len;
+    uint8_t* data;
+    int64_t owner_kind;
+} OrenLlvmBytes;
+
+typedef struct OrenLlvmRootMark {
+    size_t string_depth;
+    size_t list_depth;
+    size_t bytes_depth;
+} OrenLlvmRootMark;
+
 static int64_t g_llvm_runtime_alloc_calls = 0;
 static int64_t g_llvm_runtime_registered_strings = 0;
 static int64_t g_llvm_runtime_registered_lists = 0;
+static int64_t g_llvm_runtime_registered_bytes = 0;
 static int64_t g_llvm_runtime_root_pushes = 0;
 static int64_t g_llvm_runtime_safepoint_collections = 0;
 static OrenLlvmString** g_llvm_runtime_string_roots = NULL;
@@ -22,6 +35,12 @@ static size_t g_llvm_runtime_string_roots_cap = 0;
 static OrenLlvmList** g_llvm_runtime_list_roots = NULL;
 static size_t g_llvm_runtime_list_roots_len = 0;
 static size_t g_llvm_runtime_list_roots_cap = 0;
+static OrenLlvmBytes** g_llvm_runtime_bytes_roots = NULL;
+static size_t g_llvm_runtime_bytes_roots_len = 0;
+static size_t g_llvm_runtime_bytes_roots_cap = 0;
+static OrenLlvmRootMark* g_llvm_runtime_root_marks = NULL;
+static size_t g_llvm_runtime_root_marks_len = 0;
+static size_t g_llvm_runtime_root_marks_cap = 0;
 
 static int oren_llvm_runtime_force_gc_cached(void) {
     static int cached = -1;
@@ -114,6 +133,37 @@ static OrenAllocNode* oren_llvm_runtime_find_list_desc_locked(int64_t desc_handl
     return n;
 }
 
+static OrenAllocNode* oren_llvm_runtime_find_bytes_desc_locked(int64_t desc_handle) {
+    if (desc_handle == 0) return NULL;
+    OrenThreadState* st = oren_thread_state();
+    if (st) {
+        OrenAllocNode* cur = st->local_allocs;
+        while (cur) {
+            if (cur->ptr == (void*)(uintptr_t)desc_handle &&
+                cur->freed == 0 &&
+                cur->kind == OREN_ALLOC_STRUCT) {
+                OrenLlvmBytes* desc = (OrenLlvmBytes*)(uintptr_t)desc_handle;
+                if (desc->owner_kind == 1 &&
+                    desc->data != NULL &&
+                    desc->len >= 0 &&
+                    oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_RAW, 0)) {
+                    return cur;
+                }
+                return NULL;
+            }
+            cur = cur->next;
+        }
+    }
+    OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
+    if (!n || n->freed != 0 || n->kind != OREN_ALLOC_STRUCT) return NULL;
+    OrenLlvmBytes* desc = (OrenLlvmBytes*)(uintptr_t)desc_handle;
+    if (desc->owner_kind != 1 ||
+        desc->data == NULL ||
+        desc->len < 0 ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_RAW, 0)) return NULL;
+    return n;
+}
+
 static OrenAllocNode* oren_llvm_runtime_find_string_desc_for_mark_locked(int64_t desc_handle) {
     if (desc_handle == 0) return NULL;
     OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
@@ -139,6 +189,18 @@ static OrenAllocNode* oren_llvm_runtime_find_list_desc_for_mark_locked(int64_t d
     return n;
 }
 
+static OrenAllocNode* oren_llvm_runtime_find_bytes_desc_for_mark_locked(int64_t desc_handle) {
+    if (desc_handle == 0) return NULL;
+    OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
+    if (!n || (n->freed != 0 && n->freed != -1) || n->kind != OREN_ALLOC_STRUCT) return NULL;
+    OrenLlvmBytes* desc = (OrenLlvmBytes*)(uintptr_t)desc_handle;
+    if (desc->owner_kind != 1 ||
+        desc->data == NULL ||
+        desc->len < 0 ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_RAW, 1)) return NULL;
+    return n;
+}
+
 static void oren_llvm_runtime_mark_string_desc_locked(OrenLlvmString* desc) {
     if (!desc) return;
     OrenAllocNode* dn = oren_llvm_runtime_find_string_desc_for_mark_locked((int64_t)(uintptr_t)desc);
@@ -153,6 +215,8 @@ static void oren_llvm_runtime_mark_string_desc_locked(OrenLlvmString* desc) {
         }
     }
 }
+
+static void oren_llvm_runtime_mark_bytes_desc_locked(OrenLlvmBytes* desc);
 
 static void oren_llvm_runtime_mark_list_desc_rec_locked(OrenLlvmList* desc, int depth) {
     if (!desc || depth <= 0) return;
@@ -176,6 +240,11 @@ static void oren_llvm_runtime_mark_list_desc_rec_locked(OrenLlvmList* desc, int 
         OrenAllocNode* ln = oren_llvm_runtime_find_list_desc_for_mark_locked(item);
         if (ln) {
             oren_llvm_runtime_mark_list_desc_rec_locked((OrenLlvmList*)ln->ptr, depth - 1);
+            continue;
+        }
+        OrenAllocNode* bn = oren_llvm_runtime_find_bytes_desc_for_mark_locked(item);
+        if (bn) {
+            oren_llvm_runtime_mark_bytes_desc_locked((OrenLlvmBytes*)bn->ptr);
         }
     }
 }
@@ -184,18 +253,48 @@ static void oren_llvm_runtime_mark_list_desc_locked(OrenLlvmList* desc) {
     oren_llvm_runtime_mark_list_desc_rec_locked(desc, 64);
 }
 
+static void oren_llvm_runtime_mark_bytes_desc_locked(OrenLlvmBytes* desc) {
+    if (!desc) return;
+    OrenAllocNode* dn = oren_llvm_runtime_find_bytes_desc_for_mark_locked((int64_t)(uintptr_t)desc);
+    if (!dn) return;
+    if (dn->freed == 0) {
+        dn->freed = -1;
+    }
+    if (desc->data) {
+        OrenAllocNode* bn = oren_find_node(desc->data);
+        if (bn && bn->freed == 0 && bn->kind == OREN_ALLOC_RAW) {
+            bn->freed = -1;
+        }
+    }
+}
+
 int64_t oren_llvm_runtime_roots_mark(void) {
     pthread_mutex_lock(&g_alloc_mutex);
-    if (g_llvm_runtime_string_roots_len > 0xffffffffu ||
-        g_llvm_runtime_list_roots_len > 0xffffffffu) {
+    if (g_llvm_runtime_root_marks_len == g_llvm_runtime_root_marks_cap) {
+        size_t next_cap = g_llvm_runtime_root_marks_cap == 0 ? 16u : g_llvm_runtime_root_marks_cap * 2u;
+        OrenLlvmRootMark* next_marks = (OrenLlvmRootMark*)realloc(
+            g_llvm_runtime_root_marks,
+            next_cap * sizeof(OrenLlvmRootMark)
+        );
+        if (!next_marks) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            oren_panic("llvm runtime roots: mark grow failed");
+            return 0;
+        }
+        g_llvm_runtime_root_marks = next_marks;
+        g_llvm_runtime_root_marks_cap = next_cap;
+    }
+    if (g_llvm_runtime_root_marks_len >= (size_t)INT64_MAX) {
         pthread_mutex_unlock(&g_alloc_mutex);
         oren_panic("llvm runtime roots: mark overflow");
         return 0;
     }
-    int64_t mark = ((int64_t)g_llvm_runtime_string_roots_len << 32) |
-        (int64_t)g_llvm_runtime_list_roots_len;
+    size_t mark_index = g_llvm_runtime_root_marks_len++;
+    g_llvm_runtime_root_marks[mark_index].string_depth = g_llvm_runtime_string_roots_len;
+    g_llvm_runtime_root_marks[mark_index].list_depth = g_llvm_runtime_list_roots_len;
+    g_llvm_runtime_root_marks[mark_index].bytes_depth = g_llvm_runtime_bytes_roots_len;
     pthread_mutex_unlock(&g_alloc_mutex);
-    return mark;
+    return (int64_t)(mark_index + 1u);
 }
 
 void oren_llvm_runtime_roots_push_string(int64_t desc_handle) {
@@ -250,17 +349,50 @@ void oren_llvm_runtime_roots_push_list(int64_t desc_handle) {
     pthread_mutex_unlock(&g_alloc_mutex);
 }
 
+void oren_llvm_runtime_roots_push_bytes(int64_t desc_handle) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_llvm_runtime_find_bytes_desc_locked(desc_handle);
+    if (!n) {
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    if (g_llvm_runtime_bytes_roots_len == g_llvm_runtime_bytes_roots_cap) {
+        size_t next_cap = g_llvm_runtime_bytes_roots_cap == 0 ? 16u : g_llvm_runtime_bytes_roots_cap * 2u;
+        OrenLlvmBytes** next_roots = (OrenLlvmBytes**)realloc(
+            g_llvm_runtime_bytes_roots,
+            next_cap * sizeof(OrenLlvmBytes*)
+        );
+        if (!next_roots) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            oren_panic("llvm runtime bytes roots: grow failed");
+            return;
+        }
+        g_llvm_runtime_bytes_roots = next_roots;
+        g_llvm_runtime_bytes_roots_cap = next_cap;
+    }
+    g_llvm_runtime_bytes_roots[g_llvm_runtime_bytes_roots_len++] = (OrenLlvmBytes*)n->ptr;
+    g_llvm_runtime_root_pushes++;
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
 void oren_llvm_runtime_roots_reset(int64_t mark) {
     pthread_mutex_lock(&g_alloc_mutex);
-    if (mark < 0) mark = 0;
-    size_t string_mark = (size_t)(((uint64_t)mark >> 32) & 0xffffffffu);
-    size_t list_mark = (size_t)((uint64_t)mark & 0xffffffffu);
-    if (string_mark < g_llvm_runtime_string_roots_len) {
-        g_llvm_runtime_string_roots_len = string_mark;
+    if (mark <= 0 || (size_t)mark > g_llvm_runtime_root_marks_len) {
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
     }
-    if (list_mark < g_llvm_runtime_list_roots_len) {
-        g_llvm_runtime_list_roots_len = list_mark;
+    size_t mark_index = (size_t)mark - 1u;
+    OrenLlvmRootMark snap = g_llvm_runtime_root_marks[mark_index];
+    if (snap.string_depth < g_llvm_runtime_string_roots_len) {
+        g_llvm_runtime_string_roots_len = snap.string_depth;
     }
+    if (snap.list_depth < g_llvm_runtime_list_roots_len) {
+        g_llvm_runtime_list_roots_len = snap.list_depth;
+    }
+    if (snap.bytes_depth < g_llvm_runtime_bytes_roots_len) {
+        g_llvm_runtime_bytes_roots_len = snap.bytes_depth;
+    }
+    g_llvm_runtime_root_marks_len = mark_index;
     pthread_mutex_unlock(&g_alloc_mutex);
 }
 
@@ -277,6 +409,9 @@ static void oren_llvm_runtime_mark_roots(void) {
     }
     for (size_t i = 0; i < g_llvm_runtime_list_roots_len; i++) {
         oren_llvm_runtime_mark_list_desc_locked(g_llvm_runtime_list_roots[i]);
+    }
+    for (size_t i = 0; i < g_llvm_runtime_bytes_roots_len; i++) {
+        oren_llvm_runtime_mark_bytes_desc_locked(g_llvm_runtime_bytes_roots[i]);
     }
 #endif
 }
@@ -298,8 +433,10 @@ void* oren_llvm_runtime_alloc_bytes(int64_t byte_count, int64_t alloc_kind) {
 #ifndef OREN_NO_GC
     if (alloc_kind == 1) {
         oren_register_alloc(p, OREN_ALLOC_STRING);
+    } else if (alloc_kind == 5) {
+        oren_register_alloc(p, OREN_ALLOC_RAW);
     } else {
-        // LLVM string descriptors are opaque runtime structs, not raw payload blocks.
+        // LLVM descriptors and list payload arrays are opaque runtime structs.
         oren_register_alloc(p, OREN_ALLOC_STRUCT);
     }
 #endif
@@ -335,6 +472,20 @@ void oren_llvm_runtime_register_list(int64_t desc_handle, int64_t* data, int64_t
     g_llvm_runtime_registered_lists++;
 }
 
+void oren_llvm_runtime_register_bytes(int64_t desc_handle, uint8_t* data, int64_t len) {
+    if (desc_handle == 0 || data == NULL || len < 0) {
+        oren_panic("llvm runtime bytes register: invalid allocation");
+        return;
+    }
+
+    OrenLlvmBytes* desc = (OrenLlvmBytes*)(uintptr_t)desc_handle;
+    if (desc->len != len || desc->data != data || desc->owner_kind != 1) {
+        oren_panic("llvm runtime bytes register: descriptor metadata mismatch");
+        return;
+    }
+    g_llvm_runtime_registered_bytes++;
+}
+
 int64_t oren_llvm_runtime_alloc_calls(void) {
     return g_llvm_runtime_alloc_calls;
 }
@@ -345,6 +496,10 @@ int64_t oren_llvm_runtime_registered_strings(void) {
 
 int64_t oren_llvm_runtime_registered_lists(void) {
     return g_llvm_runtime_registered_lists;
+}
+
+int64_t oren_llvm_runtime_registered_bytes(void) {
+    return g_llvm_runtime_registered_bytes;
 }
 
 int64_t oren_llvm_runtime_is_live_string(int64_t desc_handle) {
@@ -361,9 +516,20 @@ int64_t oren_llvm_runtime_is_live_list(int64_t desc_handle) {
     return live;
 }
 
+int64_t oren_llvm_runtime_is_live_bytes(int64_t desc_handle) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    int64_t live = oren_llvm_runtime_find_bytes_desc_locked(desc_handle) ? 1 : 0;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return live;
+}
+
 int64_t oren_llvm_runtime_root_depth(void) {
     pthread_mutex_lock(&g_alloc_mutex);
-    int64_t n = (int64_t)(g_llvm_runtime_string_roots_len + g_llvm_runtime_list_roots_len);
+    int64_t n = (int64_t)(
+        g_llvm_runtime_string_roots_len +
+        g_llvm_runtime_list_roots_len +
+        g_llvm_runtime_bytes_roots_len
+    );
     pthread_mutex_unlock(&g_alloc_mutex);
     return n;
 }
