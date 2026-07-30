@@ -1,0 +1,13 @@
+// Native IR LLVM string slice smoke:
+// - proves generated oren_string_slice materialization composes with len and eq
+
+fn main() {
+    var s = oren_string_slice("abcdef", 1, 4)
+    if oren_string_eq(s, "bcd") == false {
+        return 1
+    }
+    if oren_string_len(s) != 3 {
+        return 2
+    }
+    return 0
+}

@@ -5106,7 +5106,10 @@ make docs-site
   against the native backend oracle. `make
   verify-native-ir-llvm-string-eq-runtime` adds generated
   `oren_llvm_helper_oren_string_eq` semantics for equal and unequal constant
-  string-token branches against the native backend oracle.
+  string-token branches against the native backend oracle. `make
+  verify-native-ir-llvm-string-slice-runtime` now proves generated
+  `oren_llvm_helper_oren_string_slice` constant-token materialization, including
+  composition through generated string equality and length helpers.
 
 ## Documentation Guardrail
 

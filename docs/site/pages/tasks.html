@@ -860,7 +860,10 @@
 <p>     returns UTF-8 byte lengths, links, and executes against the native backend</p>
 <p>     oracle. <code>make verify-native-ir-llvm-string-eq-runtime</code> adds generated</p>
 <p>     <code>oren_llvm_helper_oren_string_eq</code> semantics for equal and unequal constant</p>
-<p>     string-token branches against the native backend oracle.</p>
+<p>     string-token branches against the native backend oracle. `make</p>
+<p>     verify-native-ir-llvm-string-slice-runtime` now proves generated</p>
+<p>     <code>oren_llvm_helper_oren_string_slice</code> constant-token materialization,</p>
+<p>     including composition through generated string equality and length helpers.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

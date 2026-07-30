@@ -93,7 +93,7 @@ def collect_slots(fn):
 
 def collect_generic_helpers(fn):
     helpers = set()
-    generated_helpers = {"print", "exit", "oren_string_len", "oren_string_eq"}
+    generated_helpers = {"print", "exit", "oren_string_len", "oren_string_eq", "oren_string_slice"}
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] not in generated_helpers:
@@ -230,6 +230,14 @@ class FunctionLowerer:
                 )
                 self.write_inst(f"{helper_call} ; helper oren_string_eq safepoint={op['safepoint']}")
                 return
+            if op["name"] == "oren_string_slice":
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_oren_string_slice("
+                    f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                    f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+                )
+                self.write_inst(f"{helper_call} ; helper oren_string_slice safepoint={op['safepoint']}")
+                return
             helper_symbol = llvm_helper_symbol(op["name"])
             helper_call = (
                 f"{dst} = call i64 @{helper_symbol}("
@@ -326,6 +334,49 @@ def collect_string_tokens(token_table):
     return string_tokens
 
 
+def collect_const_values(fn):
+    consts = {}
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] == "const":
+                consts[op["result"]] = (op["value_kind"], op["value"])
+    return consts
+
+
+def collect_const_string_slices(fn, token_table):
+    consts = collect_const_values(fn)
+    slices = []
+    seen = set()
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] != "runtime_helper_call" or op["name"] != "oren_string_slice":
+                continue
+            if len(op["args"]) < 3:
+                continue
+            source = consts.get(op["args"][0])
+            start = consts.get(op["args"][1])
+            end = consts.get(op["args"][2])
+            if source is None or start is None or end is None:
+                continue
+            if source[0] != "string" or start[0] != "int" or end[0] != "int":
+                continue
+            try:
+                start_i = int(start[1])
+                end_i = int(end[1])
+            except Exception:
+                continue
+            value = source[1]
+            if start_i < 0 or end_i < start_i or end_i > len(value):
+                continue
+            source_tid = token_id(token_table, f"string:{value}")
+            result_tid = token_id(token_table, f"string:{value[start_i:end_i]}")
+            key = (source_tid, start_i, end_i, result_tid)
+            if key not in seen:
+                seen.add(key)
+                slices.append(key)
+    return sorted(slices)
+
+
 def emit_print_helper(out, token_table):
     string_tokens = collect_string_tokens(token_table)
     if not string_tokens:
@@ -366,6 +417,48 @@ def emit_exit_helper(out):
     out.write("entry:\n")
     out.write("  %code32 = trunc i64 %code to i32\n")
     out.write("  call void @exit(i32 %code32)\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
+def emit_string_slice_helper(out, fn, token_table):
+    slices = collect_const_string_slices(fn, token_table)
+
+    out.write("\n")
+    out.write(
+        "define i64 @oren_llvm_helper_oren_string_slice("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+    )
+    out.write("entry:\n")
+    if not slices:
+        out.write("  ret i64 0\n")
+        out.write("}\n")
+        return
+
+    by_source = {}
+    for source_tid, start_i, end_i, result_tid in slices:
+        by_source.setdefault(source_tid, {}).setdefault(start_i, []).append((end_i, result_tid))
+
+    out.write("  switch i64 %arg0, label %unknown [\n")
+    for source_tid in sorted(by_source):
+        out.write(f"    i64 {source_tid}, label %src_{source_tid}\n")
+    out.write("  ]\n")
+    for source_tid, starts in sorted(by_source.items()):
+        out.write(f"src_{source_tid}:\n")
+        out.write("  switch i64 %arg1, label %unknown [\n")
+        for start_i in sorted(starts):
+            out.write(f"    i64 {start_i}, label %src_{source_tid}_start_{start_i}\n")
+        out.write("  ]\n")
+        for start_i, ends in sorted(starts.items()):
+            out.write(f"src_{source_tid}_start_{start_i}:\n")
+            out.write("  switch i64 %arg2, label %unknown [\n")
+            for end_i, _result_tid in sorted(ends):
+                out.write(f"    i64 {end_i}, label %src_{source_tid}_slice_{start_i}_{end_i}\n")
+            out.write("  ]\n")
+            for end_i, result_tid in sorted(ends):
+                out.write(f"src_{source_tid}_slice_{start_i}_{end_i}:\n")
+                out.write(f"  ret i64 {result_tid}\n")
+    out.write("unknown:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
 
@@ -450,6 +543,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare i32 @puts(i8*)\n\n")
         out.write("declare void @exit(i32)\n\n")
         slots, values, token_table = lower_function(main, out)
+        emit_string_slice_helper(out, main, token_table)
         emit_print_helper(out, token_table)
         emit_exit_helper(out)
         emit_string_len_helper(out, token_table)
