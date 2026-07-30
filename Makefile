@@ -1072,10 +1072,13 @@ verify-native-ir-llvm-string-slice-runtime: oren_stage2
 	@./scripts/verify_native_ir_llvm_string_slice_runtime.sh "./$(OREN_STAGE2_BIN)"
 
 verify-native-ir-llvm-string-access-runtime: oren_stage2
-	@./scripts/verify_native_ir_llvm_string_access_runtime.sh "./$(OREN_STAGE2_BIN)"
+		@./scripts/verify_native_ir_llvm_string_access_runtime.sh "./$(OREN_STAGE2_BIN)"
+
+verify-native-ir-llvm-list-runtime: oren_stage2
+		@./scripts/verify_native_ir_llvm_list_runtime.sh "./$(OREN_STAGE2_BIN)"
 
 verify-native-ir-llvm-smoke: oren_stage2
-	@./scripts/verify_native_ir_llvm_smoke.sh "./$(OREN_STAGE2_BIN)"
+		@./scripts/verify_native_ir_llvm_smoke.sh "./$(OREN_STAGE2_BIN)"
 
 verify-native-ir-llvm-workflow:
 	@./scripts/verify_native_ir_llvm_workflow.sh "./$(OREN_STAGE2_BIN)"

@@ -1,0 +1,14 @@
+// Native IR LLVM list layout smoke:
+// - proves array literals lower to descriptor-backed lists
+// - proves indexed reads use the generated list get helper
+
+fn main() {
+    var xs = [3, 4, 5]
+    if xs[0] != 3 { return 1 }
+    if xs[1] != 4 { return 2 }
+    if xs[2] != 5 { return 3 }
+
+    var picked = xs
+    if picked[1] != 4 { return 4 }
+    return 0
+}

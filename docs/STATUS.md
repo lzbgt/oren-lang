@@ -5137,11 +5137,17 @@ make docs-site
 		  descriptor-local facts are now pushed as safepoint roots, preventing
 		  forced GC-at-safepoint from reclaiming a live descriptor stored in a local
 		  before later use. The descriptor helper family also covers
-		  `oren_string_slice_unchecked` and `oren_string_char_code_at`: unchecked
-		  slice reuses the generated descriptor slice body, char-code access reuses
-		  descriptor byte loads, and the existing focused slice/access runtime gates
-		  prove both under real runtime allocation hooks, safepoint roots, and
-		  forced GC-at-safepoint.
+			  `oren_string_slice_unchecked` and `oren_string_char_code_at`: unchecked
+			  slice reuses the generated descriptor slice body, char-code access reuses
+			  descriptor byte loads, and the existing focused slice/access runtime gates
+			  prove both under real runtime allocation hooks, safepoint roots, and
+			  forced GC-at-safepoint. LLVM-native now has the first container layout
+			  record as well: array literals lower to `%oren_llvm_list { len, data,
+			  owner_kind }`, descriptor-backed `index_get` lowers through
+			  `oren_llvm_helper_oren_list_get`, and the C runtime validates registered
+			  list descriptor metadata. `make verify-native-ir-llvm-list-runtime`
+			  proves linked execution parity against the native backend oracle and
+			  rejects opaque array/index call fallbacks for this subset.
 
 ## Documentation Guardrail
 

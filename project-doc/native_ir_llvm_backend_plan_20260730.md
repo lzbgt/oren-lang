@@ -302,6 +302,12 @@ after it has round-trip/parity evidence. Until then:
     those facts for descriptor concat selection, and pushes currently proven
     descriptor locals as safepoint roots. The slice runtime fixture now proves
     `picked + suffix` after an `if` join under forced GC-at-safepoint.
-37. Expand native-IR/LLVM descriptor ABI support to runtime-varying non-string
-    helpers and the first container/list layout records while keeping x64/ARM64
-    as the oracle.
+37. Done: add the first native-IR/LLVM container layout record. Array literals
+    now lower to `%oren_llvm_list { len, data, owner_kind }` descriptors,
+    descriptor-backed `index_get` lowers to `oren_llvm_helper_oren_list_get`,
+    and the real C runtime validates registered list descriptor metadata. `make
+    verify-native-ir-llvm-list-runtime` proves linked execution parity against
+    the native backend oracle without falling back to opaque array/index calls.
+38. Extend LLVM list descriptors to mutation/push plus GC root marking for list
+    descriptors that contain tracked Oren values, then expand runtime-varying
+    non-string helpers beyond list reads.

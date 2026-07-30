@@ -134,6 +134,14 @@ def function_needs_root_hooks(fn):
     return False
 
 
+def function_needs_list_alloc(fn):
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] == "array":
+                return True
+    return False
+
+
 def collect_generated_helpers(fn):
     helpers = set()
     descriptors = collect_descriptor_values(fn)
@@ -181,6 +189,7 @@ class FunctionLowerer:
         self.token_table = {}
         self.const_values = collect_const_values(fn)
         self.descriptor_values, self.descriptor_block_in = collect_descriptor_analysis(fn)
+        self.list_values = collect_list_descriptor_values(fn)
         self.current_descriptor_locals = set()
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
@@ -356,12 +365,28 @@ class FunctionLowerer:
             for elem in op["elements"]:
                 self.value_ref(elem)
             dst = self.result_var(op["result"])
-            self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_array(i64 {len(op['elements'])})")
+            self.write_inst(f"{dst} = call i64 @oren_llvm_runtime_alloc_list(i64 {len(op['elements'])})")
+            list_ptr = self.scratch_var("list_desc")
+            data_ptr_ptr = self.scratch_var("list_datap")
+            data_ptr = self.scratch_var("list_data")
+            self.write_inst(f"{list_ptr} = inttoptr i64 {dst} to %oren_llvm_list*")
+            self.write_inst(
+                f"{data_ptr_ptr} = getelementptr inbounds %oren_llvm_list, "
+                f"%oren_llvm_list* {list_ptr}, i32 0, i32 1"
+            )
+            self.write_inst(f"{data_ptr} = load i64*, i64** {data_ptr_ptr}, align 8")
+            for idx, elem in enumerate(op["elements"]):
+                elem_ptr = self.scratch_var("list_elem")
+                self.write_inst(f"{elem_ptr} = getelementptr inbounds i64, i64* {data_ptr}, i64 {idx}")
+                self.write_inst(f"store i64 {self.value_ref(elem)}, i64* {elem_ptr}, align 8")
         elif kind == "index_get":
             dst = self.result_var(op["result"])
             container = self.value_ref(op["container"])
             index = self.value_ref(op["index"])
-            self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_index_get(i64 {container}, i64 {index})")
+            if op["container"] in self.list_values:
+                self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_list_get(i64 {container}, i64 {index})")
+            else:
+                self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_index_get(i64 {container}, i64 {index})")
         elif kind == "index_set":
             container = self.value_ref(op["container"])
             index = self.value_ref(op["index"])
@@ -491,6 +516,11 @@ def collect_descriptor_values(fn):
     return descriptors
 
 
+def collect_list_descriptor_values(fn):
+    values, _ = collect_list_descriptor_analysis(fn)
+    return values
+
+
 def collect_descriptor_analysis(fn):
     blocks = fn["blocks"]
     labels = [block["label"] for block in blocks]
@@ -550,6 +580,61 @@ def collect_descriptor_analysis(fn):
             final_descriptors = descriptors
             changed = True
     return final_descriptors, in_env
+
+
+def collect_list_descriptor_analysis(fn):
+    blocks = fn["blocks"]
+    labels = [block["label"] for block in blocks]
+    all_slots = set(collect_slots(fn))
+    preds = {label: [] for label in labels}
+    for block in blocks:
+        for target in term_successors(block["terminator"]):
+            if target in preds:
+                preds[target].append(block["label"])
+
+    out_env = {label: set(all_slots) for label in labels}
+    in_env = {label: set() for label in labels}
+    final_values = set()
+    changed = True
+    while changed:
+        changed = False
+        values = set()
+        next_out = {}
+        next_in = {}
+        for idx, block in enumerate(blocks):
+            label = block["label"]
+            if idx == 0 or not preds[label]:
+                local_desc = set()
+            else:
+                incoming = [out_env[pred] for pred in preds[label]]
+                local_desc = set.intersection(*incoming) if incoming else set()
+            next_in[label] = set(local_desc)
+
+            for op in block["ops"]:
+                result = op.get("result")
+                kind = op["kind"]
+                if kind == "array":
+                    values.add(result)
+                elif kind == "local_get":
+                    if op["name"] in local_desc:
+                        values.add(result)
+                elif kind == "local_set":
+                    if op["value"] in values:
+                        local_desc.add(op["name"])
+                    else:
+                        local_desc.discard(op["name"])
+            next_out[label] = local_desc
+
+        if next_out != out_env:
+            out_env = next_out
+            changed = True
+        if next_in != in_env:
+            in_env = next_in
+            changed = True
+        if values != final_values:
+            final_values = values
+            changed = True
+    return final_values, in_env
 
 
 def term_successors(term):
@@ -826,6 +911,57 @@ def emit_string_eq_helper(out):
     out.write("}\n")
 
 
+def emit_list_runtime_alloc(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_runtime_alloc_list(i64 %len) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %neg = icmp slt i64 %len, 0\n")
+    out.write("  br i1 %neg, label %invalid, label %alloc\n")
+    out.write("alloc:\n")
+    out.write("  %elem_bytes = mul i64 %len, 8\n")
+    out.write("  %raw_data = call i8* @oren_llvm_runtime_alloc_bytes(i64 %elem_bytes, i64 3)\n")
+    out.write("  %data = bitcast i8* %raw_data to i64*\n")
+    out.write("  %raw_desc = call i8* @oren_llvm_runtime_alloc_bytes(i64 24, i64 4)\n")
+    out.write("  %desc = bitcast i8* %raw_desc to %oren_llvm_list*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %desc, i32 0, i32 0\n")
+    out.write("  store i64 %len, i64* %lenp, align 8\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %desc, i32 0, i32 1\n")
+    out.write("  store i64* %data, i64** %datap, align 8\n")
+    out.write("  %ownerp = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %desc, i32 0, i32 2\n")
+    out.write("  store i64 1, i64* %ownerp, align 8\n")
+    out.write("  %ret = ptrtoint %oren_llvm_list* %desc to i64\n")
+    out.write("  call void @oren_llvm_runtime_register_list(i64 %ret, i64* %data, i64 %len)\n")
+    out.write("  ret i64 %ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
+def emit_list_get_helper(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_helper_oren_list_get(i64 %list_handle, i64 %idx) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %list_handle, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %list = inttoptr i64 %list_handle to %oren_llvm_list*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write("  %idx_nonneg = icmp sge i64 %idx, 0\n")
+    out.write("  %idx_lt_len = icmp slt i64 %idx, %len\n")
+    out.write("  %ok = and i1 %idx_nonneg, %idx_lt_len\n")
+    out.write("  br i1 %ok, label %read, label %invalid\n")
+    out.write("read:\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 1\n")
+    out.write("  %data = load i64*, i64** %datap, align 8\n")
+    out.write("  %elem = getelementptr inbounds i64, i64* %data, i64 %idx\n")
+    out.write("  %ret = load i64, i64* %elem, align 8\n")
+    out.write("  ret i64 %ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
 def emit_module(ir_path, out_path, ir, main):
     schema = ir["schema"].encode("utf-8")
     schema_literal = "".join(
@@ -834,11 +970,14 @@ def emit_module(ir_path, out_path, ir, main):
     )
     helpers_to_emit = collect_generated_helpers(main)
     needs_string_alloc = bool({"oren_string_slice", "oren_string_concat"} & helpers_to_emit)
+    needs_list_alloc = function_needs_list_alloc(main)
+    needs_alloc_bytes = needs_string_alloc or needs_list_alloc
     with open(out_path, "w", encoding="utf-8") as out:
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
         out.write(f"target triple = \"{target_triple(ir['target'])}\"\n\n")
-        out.write("%oren_llvm_string = type { i64, i8*, i64 }\n\n")
+        out.write("%oren_llvm_string = type { i64, i8*, i64 }\n")
+        out.write("%oren_llvm_list = type { i64, i64*, i64 }\n\n")
         out.write("@oren_native_ir_schema = private unnamed_addr constant ")
         out.write(f"[{len(schema) + 1} x i8] c\"{schema_literal}\\00\", align 1\n\n")
         out.write("declare i64 @oren_llvm_opaque_call(i64, i64)\n")
@@ -858,10 +997,13 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:
             out.write("declare i32 @puts(i8*)\n")
-        if needs_string_alloc:
+        if needs_alloc_bytes:
             out.write("declare i8* @oren_llvm_runtime_alloc_bytes(i64, i64)\n")
+        if needs_string_alloc:
             out.write("declare void @oren_llvm_runtime_register_string(i64, i8*, i64)\n")
             out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
+        if needs_list_alloc:
+            out.write("declare void @oren_llvm_runtime_register_list(i64, i64*, i64)\n")
         if "oren_string_eq" in helpers_to_emit:
             out.write("declare i32 @memcmp(i8*, i8*, i64)\n")
         if "exit" in helpers_to_emit:
@@ -871,6 +1013,9 @@ def emit_module(ir_path, out_path, ir, main):
         emit_string_globals(out, token_table)
         if needs_string_alloc:
             emit_string_runtime_alloc(out)
+        if needs_list_alloc:
+            emit_list_runtime_alloc(out)
+            emit_list_get_helper(out)
         if "oren_string_slice" in helpers_to_emit:
             emit_string_slice_helper(out)
         if "oren_string_slice_unchecked" in helpers_to_emit:

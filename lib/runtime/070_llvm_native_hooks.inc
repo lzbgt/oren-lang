@@ -4,8 +4,15 @@ typedef struct OrenLlvmString {
     int64_t owner_kind;
 } OrenLlvmString;
 
+typedef struct OrenLlvmList {
+    int64_t len;
+    int64_t* data;
+    int64_t owner_kind;
+} OrenLlvmList;
+
 static int64_t g_llvm_runtime_alloc_calls = 0;
 static int64_t g_llvm_runtime_registered_strings = 0;
+static int64_t g_llvm_runtime_registered_lists = 0;
 static int64_t g_llvm_runtime_root_pushes = 0;
 static int64_t g_llvm_runtime_safepoint_collections = 0;
 static OrenLlvmString** g_llvm_runtime_roots = NULL;
@@ -150,12 +157,30 @@ void oren_llvm_runtime_register_string(int64_t desc_handle, char* data, int64_t 
     g_llvm_runtime_registered_strings++;
 }
 
+void oren_llvm_runtime_register_list(int64_t desc_handle, int64_t* data, int64_t len) {
+    if (desc_handle == 0 || data == NULL || len < 0) {
+        oren_panic("llvm runtime list register: invalid allocation");
+        return;
+    }
+
+    OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
+    if (desc->len != len || desc->data != data || desc->owner_kind != 1) {
+        oren_panic("llvm runtime list register: descriptor metadata mismatch");
+        return;
+    }
+    g_llvm_runtime_registered_lists++;
+}
+
 int64_t oren_llvm_runtime_alloc_calls(void) {
     return g_llvm_runtime_alloc_calls;
 }
 
 int64_t oren_llvm_runtime_registered_strings(void) {
     return g_llvm_runtime_registered_strings;
+}
+
+int64_t oren_llvm_runtime_registered_lists(void) {
+    return g_llvm_runtime_registered_lists;
 }
 
 int64_t oren_llvm_runtime_root_depth(void) {

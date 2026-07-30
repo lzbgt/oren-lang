@@ -6099,11 +6099,17 @@ make docs-site</code></pre>
 <p>		  descriptor-local facts are now pushed as safepoint roots, preventing</p>
 <p>		  forced GC-at-safepoint from reclaiming a live descriptor stored in a local</p>
 <p>		  before later use. The descriptor helper family also covers</p>
-<p>		  <code>oren_string_slice_unchecked</code> and <code>oren_string_char_code_at</code>: unchecked</p>
-<p>		  slice reuses the generated descriptor slice body, char-code access reuses</p>
-<p>		  descriptor byte loads, and the existing focused slice/access runtime gates</p>
-<p>		  prove both under real runtime allocation hooks, safepoint roots, and</p>
-<p>		  forced GC-at-safepoint.</p>
+<p>			  <code>oren_string_slice_unchecked</code> and <code>oren_string_char_code_at</code>: unchecked</p>
+<p>			  slice reuses the generated descriptor slice body, char-code access reuses</p>
+<p>			  descriptor byte loads, and the existing focused slice/access runtime gates</p>
+<p>			  prove both under real runtime allocation hooks, safepoint roots, and</p>
+<p>			  forced GC-at-safepoint. LLVM-native now has the first container layout</p>
+<p>			  record as well: array literals lower to `%oren_llvm_list { len, data,</p>
+<p>			  owner_kind }<code>, descriptor-backed </code>index_get` lowers through</p>
+<p>			  <code>oren_llvm_helper_oren_list_get</code>, and the C runtime validates registered</p>
+<p>			  list descriptor metadata. <code>make verify-native-ir-llvm-list-runtime</code></p>
+<p>			  proves linked execution parity against the native backend oracle and</p>
+<p>			  rejects opaque array/index call fallbacks for this subset.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

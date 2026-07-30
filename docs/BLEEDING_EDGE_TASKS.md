@@ -555,7 +555,12 @@ This file is the concise task view. Detailed implementation status lives in
      Descriptor facts now use a conservative CFG must-analysis at block joins,
      and lowered safepoints push proven descriptor locals as roots, so a value
      selected by `if` can be concatenated and sliced after forced GC without
-     reverting to opaque or numeric lowering.
+     reverting to opaque or numeric lowering. LLVM-native also has the first
+     container descriptor layout: array literals become `%oren_llvm_list { len,
+     data, owner_kind }`, descriptor-backed index reads use
+     `oren_llvm_helper_oren_list_get`, and `make
+     verify-native-ir-llvm-list-runtime` proves linked execution parity without
+     opaque array/index call fallbacks.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop
