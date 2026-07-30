@@ -1,27 +1,27 @@
 fn _x64_wsa_overlapped_msg_state(ctx, locals, base, extra_slots) {
     var wsabuf_slot = base + 6 + extra_slots
-    return {
-        "base": base,
-        "tmp_s": _intr_tmp_off(ctx, locals, base + 0),
-        "tmp_buf": _intr_tmp_off(ctx, locals, base + 1),
-        "tmp_len": _intr_tmp_off(ctx, locals, base + 2),
-        "tmp_flags": _intr_tmp_off(ctx, locals, base + 3),
-        "tmp_bytes": _intr_tmp_off(ctx, locals, base + 4),
-        "tmp_ov": _intr_tmp_off(ctx, locals, base + 5),
-        "tmp_wsabuf_len": _intr_tmp_off(ctx, locals, wsabuf_slot),
-        "tmp_wsabuf_buf": _intr_tmp_off(ctx, locals, wsabuf_slot + 1)
-    }
+    return [
+        base,
+        _intr_tmp_off(ctx, locals, base + 0),
+        _intr_tmp_off(ctx, locals, base + 1),
+        _intr_tmp_off(ctx, locals, base + 2),
+        _intr_tmp_off(ctx, locals, base + 3),
+        _intr_tmp_off(ctx, locals, base + 4),
+        _intr_tmp_off(ctx, locals, base + 5),
+        _intr_tmp_off(ctx, locals, wsabuf_slot),
+        _intr_tmp_off(ctx, locals, wsabuf_slot + 1)
+    ]
 }
 
 fn _x64_wsa_overlapped_msg_state_valid(state) {
-    return oren_type_tag(state["tmp_s"]) != 0 &&
-           oren_type_tag(state["tmp_buf"]) != 0 &&
-           oren_type_tag(state["tmp_len"]) != 0 &&
-           oren_type_tag(state["tmp_flags"]) != 0 &&
-           oren_type_tag(state["tmp_bytes"]) != 0 &&
-           oren_type_tag(state["tmp_ov"]) != 0 &&
-           oren_type_tag(state["tmp_wsabuf_len"]) != 0 &&
-           oren_type_tag(state["tmp_wsabuf_buf"]) != 0
+    return oren_type_tag(state[1]) != 0 &&
+           oren_type_tag(state[2]) != 0 &&
+           oren_type_tag(state[3]) != 0 &&
+           oren_type_tag(state[4]) != 0 &&
+           oren_type_tag(state[5]) != 0 &&
+           oren_type_tag(state[6]) != 0 &&
+           oren_type_tag(state[7]) != 0 &&
+           oren_type_tag(state[8]) != 0
 }
 
 fn _x64_wsa_overlapped_msg_alloc_state(ctx, locals, extra_slots) {
@@ -36,14 +36,14 @@ fn _x64_wsa_overlapped_msg_alloc_state(ctx, locals, extra_slots) {
 }
 
 fn _x64_wsa_overlapped_msg_spill_args(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_s"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_buf"])
-    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_len"])
-    _intr_eval_spill_x64(ctx, locals, args[3], state["tmp_flags"])
-    _intr_eval_spill_x64(ctx, locals, args[4], state["tmp_bytes"])
-    _intr_eval_spill_x64(ctx, locals, args[5], state["tmp_ov"])
+    _intr_eval_spill_x64(ctx, locals, args[0], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], state[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], state[4])
+    _intr_eval_spill_x64(ctx, locals, args[4], state[5])
+    _intr_eval_spill_x64(ctx, locals, args[5], state[6])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-        _intr_tmp_pop(ctx, state["base"])
+        _intr_tmp_pop(ctx, state[0])
         return nil
     }
     return true
@@ -63,13 +63,13 @@ fn _x64_wsarecv_spill_state(ctx, locals, args) {
 fn _x64_wsarecv_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_wsarecv_pre(sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr)
     if capsule {
-        _intr_load_x64(ctx, 1, state["tmp_s"])
-        _intr_load_x64(ctx, 2, state["tmp_buf"])
-        _intr_load_x64(ctx, 8, state["tmp_len"])
-        _intr_load_x64(ctx, 9, state["tmp_flags"])
-        _intr_load_x64(ctx, 10, state["tmp_bytes"])
+        _intr_load_x64(ctx, 1, state[1])
+        _intr_load_x64(ctx, 2, state[2])
+        _intr_load_x64(ctx, 8, state[3])
+        _intr_load_x64(ctx, 9, state[4])
+        _intr_load_x64(ctx, 10, state[5])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, state["tmp_ov"])
+        _intr_load_x64(ctx, 10, state[6])
         _emit_mov_mrsp_r64(ctx, 40, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsarecv_pre")
     }
@@ -83,27 +83,27 @@ fn _x64_wsa_store_wsabuf_local(ctx, state) {
     // Layout:
     // - [rbp - tmp_wsabuf_len] stores len (u64; low 32 bits are used)
     // - [rbp - tmp_wsabuf_buf] stores buf ptr (u64)
-    _intr_load_x64(ctx, 0, state["tmp_len"])
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_len"], 0)
-    _intr_load_x64(ctx, 0, state["tmp_buf"])
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_buf"], 0)
+    _intr_load_x64(ctx, 0, state[3])
+    _emit_mov_mrbp_r64(ctx, 0 - state[7], 0)
+    _intr_load_x64(ctx, 0, state[2])
+    _emit_mov_mrbp_r64(ctx, 0 - state[8], 0)
     return nil
 }
 
 fn _x64_wsa_load_common_receive_args(ctx, state) {
-    _intr_load_x64(ctx, 1, state["tmp_s"])
+    _intr_load_x64(ctx, 1, state[1])
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state["tmp_wsabuf_len"]))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state[7]))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
-    _intr_load_x64(ctx, 9, state["tmp_bytes"])               // r9  = bytes_ptr
+    _intr_load_x64(ctx, 9, state[5])               // r9  = bytes_ptr
     return nil
 }
 
 fn _x64_wsarecv_emit_stack_args(ctx, state) {
-    _intr_load_x64(ctx, 10, state["tmp_flags"])
+    _intr_load_x64(ctx, 10, state[4])
     _emit_mov_mrsp_r64(ctx, 32, 10) // flags_ptr
-    _intr_load_x64(ctx, 10, state["tmp_ov"])
+    _intr_load_x64(ctx, 10, state[6])
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
@@ -123,42 +123,42 @@ fn _x64_wsarecv_emit_call(ctx, state) {
 }
 
 fn _x64_wsa_overlapped_labels(ctx, label_prefix) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "ok": _new_label(ctx, label_prefix + "_ok"),
-        "pending_ok": _new_label(ctx, label_prefix + "_pending_ok"),
-        "done": _new_label(ctx, label_prefix + "_done")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, label_prefix + "_ok"),
+        _new_label(ctx, label_prefix + "_pending_ok"),
+        _new_label(ctx, label_prefix + "_done")
+    ]
 }
 
 fn _x64_wsa_overlapped_emit_initial_result(ctx, lab) {
-    var fixups = lab["fixups"]
+    var fixups = lab[1]
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "e", lab["ok"])
+    _emit_jcc_to_label(ctx, fixups, "e", lab[2])
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 4294967295))
-    _emit_jcc_to_label(ctx, fixups, "ne", lab["ok"]) // nonstandard but treat any non -1 as success
+    _emit_jcc_to_label(ctx, fixups, "ne", lab[2]) // nonstandard but treat any non -1 as success
     return nil
 }
 
 fn _x64_wsa_overlapped_emit_error_path(ctx, lab) {
-    var fixups = lab["fixups"]
+    var fixups = lab[1]
     _emit_wsa_get_last_error_x64(ctx) // eax = last error
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 997)) // WSA_IO_PENDING
-    _emit_jcc_to_label(ctx, fixups, "e", lab["pending_ok"])
+    _emit_jcc_to_label(ctx, fixups, "e", lab[3])
     _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
-    _emit_jmp_to_label(ctx, fixups, lab["done"])
+    _emit_jmp_to_label(ctx, fixups, lab[4])
     return nil
 }
 
 fn _x64_wsa_overlapped_emit_success_paths(ctx, lab) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
-    _emit_label(ctx, labels, lab["pending_ok"])
+    var labels = lab[0]
+    var fixups = lab[1]
+    _emit_label(ctx, labels, lab[3])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
-    _emit_jmp_to_label(ctx, fixups, lab["done"])
+    _emit_jmp_to_label(ctx, fixups, lab[4])
 
-    _emit_label(ctx, labels, lab["ok"])
+    _emit_label(ctx, labels, lab[2])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0))
     return nil
 }
@@ -170,8 +170,8 @@ fn _x64_wsa_overlapped_normalize_result(ctx, label_prefix) {
     _x64_wsa_overlapped_emit_initial_result(ctx, lab)
     _x64_wsa_overlapped_emit_error_path(ctx, lab)
     _x64_wsa_overlapped_emit_success_paths(ctx, lab)
-    _emit_label(ctx, lab["labels"], lab["done"])
-    _patch_local_fixups(ctx, lab["labels"], lab["fixups"])
+    _emit_label(ctx, lab[0], lab[4])
+    _patch_local_fixups(ctx, lab[0], lab[1])
     return nil
 }
 
@@ -183,14 +183,14 @@ fn _x64_wsarecv_capsule_post(ctx, state, capsule) {
     // post: native_capsule_sys_wsarecv_post(rc, sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr) -> rc
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-        _intr_load_x64(ctx, 2, state["tmp_s"])
-        _intr_load_x64(ctx, 8, state["tmp_buf"])
-        _intr_load_x64(ctx, 9, state["tmp_len"])
-        _intr_load_x64(ctx, 10, state["tmp_flags"])
+        _intr_load_x64(ctx, 2, state[1])
+        _intr_load_x64(ctx, 8, state[2])
+        _intr_load_x64(ctx, 9, state[3])
+        _intr_load_x64(ctx, 10, state[4])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, state["tmp_bytes"])
+        _intr_load_x64(ctx, 10, state[5])
         _emit_mov_mrsp_r64(ctx, 40, 10)
-        _intr_load_x64(ctx, 10, state["tmp_ov"])
+        _intr_load_x64(ctx, 10, state[6])
         _emit_mov_mrsp_r64(ctx, 48, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsarecv_post")
     }
@@ -216,14 +216,14 @@ fn _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) {
     _x64_wsarecv_normalize_result(ctx)
     _x64_wsarecv_capsule_post(ctx, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
 fn _x64_wsarecvfrom_spill_state(ctx, locals, args) {
     var state = _x64_wsa_overlapped_msg_spill_base(ctx, locals, args, 2)
     if state == nil { return nil }
-    var base = state["base"]
+    var base = state[0]
     var tmp_sa = _intr_tmp_off(ctx, locals, base + 6)
     var tmp_sa_lenp = _intr_tmp_off(ctx, locals, base + 7)
     if oren_type_tag(tmp_sa) == 0 || oren_type_tag(tmp_sa_lenp) == 0 {
@@ -234,25 +234,25 @@ fn _x64_wsarecvfrom_spill_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[6], tmp_sa)
     _intr_eval_spill_x64(ctx, locals, args[7], tmp_sa_lenp)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    state["tmp_sa"] = tmp_sa
-    state["tmp_sa_lenp"] = tmp_sa_lenp
+    oren_list_push(state, tmp_sa)
+    oren_list_push(state, tmp_sa_lenp)
     return state
 }
 
 fn _x64_wsarecvfrom_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_wsarecvfrom_pre(sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr, sa_out, sa_lenp)
     if capsule {
-        _intr_load_x64(ctx, 1, state["tmp_s"])
-        _intr_load_x64(ctx, 2, state["tmp_buf"])
-        _intr_load_x64(ctx, 8, state["tmp_len"])
-        _intr_load_x64(ctx, 9, state["tmp_flags"])
-        _intr_load_x64(ctx, 10, state["tmp_bytes"])
+        _intr_load_x64(ctx, 1, state[1])
+        _intr_load_x64(ctx, 2, state[2])
+        _intr_load_x64(ctx, 8, state[3])
+        _intr_load_x64(ctx, 9, state[4])
+        _intr_load_x64(ctx, 10, state[5])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, state["tmp_ov"])
+        _intr_load_x64(ctx, 10, state[6])
         _emit_mov_mrsp_r64(ctx, 40, 10)
-        _intr_load_x64(ctx, 10, state["tmp_sa"])
+        _intr_load_x64(ctx, 10, state[9])
         _emit_mov_mrsp_r64(ctx, 48, 10)
-        _intr_load_x64(ctx, 10, state["tmp_sa_lenp"])
+        _intr_load_x64(ctx, 10, state[10])
         _emit_mov_mrsp_r64(ctx, 56, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsarecvfrom_pre")
     }
@@ -268,13 +268,13 @@ fn _x64_wsarecvfrom_emit_call(ctx, state) {
     // [rsp+32]=flags_ptr, [rsp+40]=sa_out, [rsp+48]=sa_lenp,
     // [rsp+56]=ov_ptr, [rsp+64]=NULL(completionRoutine)
     _x64_wsa_load_common_receive_args(ctx, state)
-    _intr_load_x64(ctx, 10, state["tmp_flags"])
+    _intr_load_x64(ctx, 10, state[4])
     _emit_mov_mrsp_r64(ctx, 32, 10)
-    _intr_load_x64(ctx, 10, state["tmp_sa"])
+    _intr_load_x64(ctx, 10, state[9])
     _emit_mov_mrsp_r64(ctx, 40, 10)
-    _intr_load_x64(ctx, 10, state["tmp_sa_lenp"])
+    _intr_load_x64(ctx, 10, state[10])
     _emit_mov_mrsp_r64(ctx, 48, 10)
-    _intr_load_x64(ctx, 10, state["tmp_ov"])
+    _intr_load_x64(ctx, 10, state[6])
     _emit_mov_mrsp_r64(ctx, 56, 10)
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 64, 10) // completionRoutine=NULL
@@ -291,18 +291,18 @@ fn _x64_wsarecvfrom_capsule_post(ctx, state, capsule) {
     // post: native_capsule_sys_wsarecvfrom_post(rc, sock, buf, len, flags_ptr, bytes_ptr, overlapped_ptr, sa_out, sa_lenp) -> rc
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-        _intr_load_x64(ctx, 2, state["tmp_s"])
-        _intr_load_x64(ctx, 8, state["tmp_buf"])
-        _intr_load_x64(ctx, 9, state["tmp_len"])
-        _intr_load_x64(ctx, 10, state["tmp_flags"])
+        _intr_load_x64(ctx, 2, state[1])
+        _intr_load_x64(ctx, 8, state[2])
+        _intr_load_x64(ctx, 9, state[3])
+        _intr_load_x64(ctx, 10, state[4])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, state["tmp_bytes"])
+        _intr_load_x64(ctx, 10, state[5])
         _emit_mov_mrsp_r64(ctx, 40, 10)
-        _intr_load_x64(ctx, 10, state["tmp_ov"])
+        _intr_load_x64(ctx, 10, state[6])
         _emit_mov_mrsp_r64(ctx, 48, 10)
-        _intr_load_x64(ctx, 10, state["tmp_sa"])
+        _intr_load_x64(ctx, 10, state[9])
         _emit_mov_mrsp_r64(ctx, 56, 10)
-        _intr_load_x64(ctx, 10, state["tmp_sa_lenp"])
+        _intr_load_x64(ctx, 10, state[10])
         _emit_mov_mrsp_r64(ctx, 64, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsarecvfrom_post")
     }
@@ -333,7 +333,7 @@ fn _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) {
     _x64_wsarecvfrom_normalize_result(ctx)
     _x64_wsarecvfrom_capsule_post(ctx, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -344,13 +344,13 @@ fn _x64_wsasend_spill_state(ctx, locals, args) {
 fn _x64_wsasend_capsule_pre(ctx, state, capsule) {
     // pre: native_capsule_sys_wsasend_pre(sock, buf, len, flags, bytes_ptr, overlapped_ptr)
     if capsule {
-        _intr_load_x64(ctx, 1, state["tmp_s"])
-        _intr_load_x64(ctx, 2, state["tmp_buf"])
-        _intr_load_x64(ctx, 8, state["tmp_len"])
-        _intr_load_x64(ctx, 9, state["tmp_flags"])
-        _intr_load_x64(ctx, 10, state["tmp_bytes"])
+        _intr_load_x64(ctx, 1, state[1])
+        _intr_load_x64(ctx, 2, state[2])
+        _intr_load_x64(ctx, 8, state[3])
+        _intr_load_x64(ctx, 9, state[4])
+        _intr_load_x64(ctx, 10, state[5])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, state["tmp_ov"])
+        _intr_load_x64(ctx, 10, state[6])
         _emit_mov_mrsp_r64(ctx, 40, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsasend_pre")
     }
@@ -359,23 +359,23 @@ fn _x64_wsasend_capsule_pre(ctx, state, capsule) {
 
 fn _x64_wsasend_emit_call(ctx, state) {
     // Build WSABUF as two 8-byte locals (see wsarecv above).
-    _intr_load_x64(ctx, 0, state["tmp_len"])
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_len"], 0)
-    _intr_load_x64(ctx, 0, state["tmp_buf"])
-    _emit_mov_mrbp_r64(ctx, 0 - state["tmp_wsabuf_buf"], 0)
+    _intr_load_x64(ctx, 0, state[3])
+    _emit_mov_mrbp_r64(ctx, 0 - state[7], 0)
+    _intr_load_x64(ctx, 0, state[2])
+    _emit_mov_mrbp_r64(ctx, 0 - state[8], 0)
 
     // Call WSASend:
     // rcx=s, rdx=&wsabuf, r8=1, r9=bytes_ptr,
     // [rsp+32]=flags (DWORD, in low bits), [rsp+40]=ov_ptr, [rsp+48]=NULL(completionRoutine)
-    _intr_load_x64(ctx, 1, state["tmp_s"])
+    _intr_load_x64(ctx, 1, state[1])
     // rdx = &WSABUF (rbp - tmp_wsabuf_len)
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 5)) // rdx = rbp
-    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state["tmp_wsabuf_len"]))
+    bytes_extend(ctx["code"], core.insn_sub_r64_imm32(2, state[7]))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 1))      // r8d = 1
-    _intr_load_x64(ctx, 9, state["tmp_bytes"])               // r9  = bytes_ptr
-    _intr_load_x64(ctx, 0, state["tmp_flags"])
+    _intr_load_x64(ctx, 9, state[5])               // r9  = bytes_ptr
+    _intr_load_x64(ctx, 0, state[4])
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r32(32, 0)) // flags DWORD (eax)
-    _intr_load_x64(ctx, 10, state["tmp_ov"])
+    _intr_load_x64(ctx, 10, state[6])
     _emit_mov_mrsp_r64(ctx, 40, 10) // overlapped_ptr
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(10, 10))
     _emit_mov_mrsp_r64(ctx, 48, 10) // completionRoutine=NULL
@@ -392,14 +392,14 @@ fn _x64_wsasend_capsule_post(ctx, state, capsule) {
     // post: native_capsule_sys_wsasend_post(rc, sock, buf, len, flags, bytes_ptr, overlapped_ptr) -> rc
     if capsule {
         bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-        _intr_load_x64(ctx, 2, state["tmp_s"])
-        _intr_load_x64(ctx, 8, state["tmp_buf"])
-        _intr_load_x64(ctx, 9, state["tmp_len"])
-        _intr_load_x64(ctx, 10, state["tmp_flags"])
+        _intr_load_x64(ctx, 2, state[1])
+        _intr_load_x64(ctx, 8, state[2])
+        _intr_load_x64(ctx, 9, state[3])
+        _intr_load_x64(ctx, 10, state[4])
         _emit_mov_mrsp_r64(ctx, 32, 10)
-        _intr_load_x64(ctx, 10, state["tmp_bytes"])
+        _intr_load_x64(ctx, 10, state[5])
         _emit_mov_mrsp_r64(ctx, 40, 10)
-        _intr_load_x64(ctx, 10, state["tmp_ov"])
+        _intr_load_x64(ctx, 10, state[6])
         _emit_mov_mrsp_r64(ctx, 48, 10)
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wsasend_post")
     }
@@ -425,7 +425,7 @@ fn _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) {
     _x64_wsasend_normalize_result(ctx)
     _x64_wsasend_capsule_post(ctx, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -438,11 +438,11 @@ fn _x64_fcntl_getfl_windows_state(ctx, locals, args) {
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
-    return {"base": base, "fd": tmp_fd}
+    return [base, tmp_fd]
 }
 
 fn _x64_emit_fcntl_getfl_windows_args(ctx, state) {
-    _intr_load_x64(ctx, 1, state["fd"])
+    _intr_load_x64(ctx, 1, state[1])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, 0))
     return nil
@@ -467,7 +467,7 @@ fn _x64_emit_fcntl_getfl_windows_posthook(ctx, state, capsule) {
     if !capsule { return nil }
     // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, state["fd"]) // rdx = fd
+    _intr_load_x64(ctx, 2, state[1]) // rdx = fd
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, labi.posix_fcntl_f_getfl())) // r8 = cmd
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(9, 0)) // r9 = arg
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
@@ -487,24 +487,25 @@ fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
     _x64_emit_fcntl_getfl_windows_result(ctx)
     _x64_emit_fcntl_getfl_windows_posthook(ctx, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
 fn _x64_fcntl_setfl_windows_state(ctx, locals, args) {
     var base = _intr_tmp_push(ctx, 2) // fd, oren_flags
     if oren_type_tag(base) == 0 { return nil }
-    var state = {}
-    state["base"] = base
-    state["fd"] = _intr_tmp_off(ctx, locals, base + 0)
-    state["flags"] = _intr_tmp_off(ctx, locals, base + 1)
-    if oren_type_tag(state["fd"]) == 0 || oren_type_tag(state["flags"]) == 0 {
+    var state = [
+        base,
+        _intr_tmp_off(ctx, locals, base + 0),
+        _intr_tmp_off(ctx, locals, base + 1)
+    ]
+    if oren_type_tag(state[1]) == 0 || oren_type_tag(state[2]) == 0 {
         _intr_tmp_pop(ctx, base)
         return nil
     }
 
-    _intr_eval_spill_x64(ctx, locals, args[0], state["fd"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["flags"])
+    _intr_eval_spill_x64(ctx, locals, args[0], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
         _intr_tmp_pop(ctx, base)
         return nil
@@ -514,9 +515,9 @@ fn _x64_fcntl_setfl_windows_state(ctx, locals, args) {
 
 fn _x64_emit_fcntl_setfl_windows_prehook(ctx, state, capsule) {
     if !capsule { return nil }
-    _intr_load_x64(ctx, 1, state["fd"])
+    _intr_load_x64(ctx, 1, state[1])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
-    _intr_load_x64(ctx, 8, state["flags"])
+    _intr_load_x64(ctx, 8, state[2])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
     return nil
 }
@@ -527,7 +528,7 @@ fn _x64_emit_fcntl_setfl_windows_mode(ctx, labels, fixups, state) {
     // mode is u_long (32-bit). Use the call-area scratch at [rsp+0x20] as storage.
     // Initialize to 0, set to 1 if (flags & OREN_O_NONBLOCK) != 0.
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_imm32(32, 0)) // mode=0
-    _intr_load_x64(ctx, 10, state["flags"]) // r10 = flags
+    _intr_load_x64(ctx, 10, state[2]) // r10 = flags
     bytes_extend(ctx["code"], core.insn_and_r64_imm32(10, OREN_O_NONBLOCK))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(10, 0))
     var l_skip = _new_label(ctx, "fcntl_setfl_win_skip")
@@ -538,7 +539,7 @@ fn _x64_emit_fcntl_setfl_windows_mode(ctx, labels, fixups, state) {
 }
 
 fn _x64_emit_fcntl_setfl_windows_ioctl(ctx, state) {
-    _intr_load_x64(ctx, 1, state["fd"]) // rcx = fd
+    _intr_load_x64(ctx, 1, state[1]) // rcx = fd
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 2147772030)) // edx = FIONBIO (0x8004667e)
     bytes_extend(ctx["code"], core.insn_lea_r64_rsp_disp8(8, 32)) // r8 = &mode
     _emit_call_iat_x64(ctx, "IAT_ioctlsocket")
@@ -564,9 +565,9 @@ fn _x64_emit_fcntl_setfl_windows_result(ctx, labels, fixups) {
 fn _x64_emit_fcntl_setfl_windows_posthook(ctx, state, capsule) {
     if !capsule { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, state["fd"])
+    _intr_load_x64(ctx, 2, state[1])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(8, labi.posix_fcntl_f_setfl()))
-    _intr_load_x64(ctx, 9, state["flags"]) // r9 = original oren flags (debug)
+    _intr_load_x64(ctx, 9, state[2]) // r9 = original oren flags (debug)
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
     return nil
 }
@@ -586,12 +587,12 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
 }
 
 fn _x64_fcntl_setfl_windows_labels() {
-    return {"labels": {}, "fixups": []}
+    return [{}, []]
 }
 
 fn _x64_emit_fcntl_setfl_windows_body(ctx, state, capsule, lab) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
+    var labels = lab[0]
+    var fixups = lab[1]
     _x64_emit_fcntl_setfl_windows_prehook(ctx, state, capsule)
     _x64_emit_fcntl_setfl_windows_mode(ctx, labels, fixups, state)
     _x64_emit_fcntl_setfl_windows_ioctl(ctx, state)
@@ -601,10 +602,10 @@ fn _x64_emit_fcntl_setfl_windows_body(ctx, state, capsule, lab) {
 }
 
 fn _x64_finish_fcntl_setfl_windows(ctx, state, lab) {
-    var labels = lab["labels"]
-    var fixups = lab["fixups"]
+    var labels = lab[0]
+    var fixups = lab[1]
     _patch_local_fixups(ctx, labels, fixups)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -653,14 +654,14 @@ fn _x64_iocp_create_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_key)
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_thr)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_file": tmp_file, "tmp_port": tmp_port, "tmp_key": tmp_key, "tmp_thr": tmp_thr}
+    return [base, tmp_file, tmp_port, tmp_key, tmp_thr]
 }
 
 fn _x64_iocp_create_emit_call(ctx, state) {
-    _intr_load_x64(ctx, 1, state["tmp_file"]) // rcx = file_handle
-    _intr_load_x64(ctx, 2, state["tmp_port"]) // rdx = existing_port
-    _intr_load_x64(ctx, 8, state["tmp_key"])  // r8  = completion_key
-    _intr_load_x64(ctx, 9, state["tmp_thr"])  // r9  = concurrent_threads
+    _intr_load_x64(ctx, 1, state[1]) // rcx = file_handle
+    _intr_load_x64(ctx, 2, state[2]) // rdx = existing_port
+    _intr_load_x64(ctx, 8, state[3]) // r8  = completion_key
+    _intr_load_x64(ctx, 9, state[4]) // r9  = concurrent_threads
     _emit_call_iat_x64(ctx, "IAT_CreateIoCompletionPort")
     return nil
 }
@@ -698,7 +699,7 @@ fn _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, 
     if state == nil { return nil }
     _x64_iocp_create_emit_call(ctx, state)
     _x64_iocp_create_emit_result(ctx)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -717,42 +718,37 @@ fn _x64_iocp_post_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_ov)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    return {"base": base, "tmp_port": tmp_port, "tmp_bytes": tmp_bytes, "tmp_key": tmp_key, "tmp_ov": tmp_ov}
+    return [base, tmp_port, tmp_bytes, tmp_key, tmp_ov]
 }
 
 fn _x64_iocp_post_emit_call(ctx, st) {
-    _intr_load_x64(ctx, 1, st["tmp_port"])  // rcx = port
-    _intr_load_x64(ctx, 2, st["tmp_bytes"]) // rdx = bytes
-    _intr_load_x64(ctx, 8, st["tmp_key"])   // r8  = key
-    _intr_load_x64(ctx, 9, st["tmp_ov"])    // r9  = overlapped
+    _intr_load_x64(ctx, 1, st[1]) // rcx = port
+    _intr_load_x64(ctx, 2, st[2]) // rdx = bytes
+    _intr_load_x64(ctx, 8, st[3]) // r8  = key
+    _intr_load_x64(ctx, 9, st[4]) // r9  = overlapped
     _emit_call_iat_x64(ctx, "IAT_PostQueuedCompletionStatus")
     // BOOL in eax (0 => failure)
     return nil
 }
 
 fn _x64_iocp_post_result_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "ok": _new_label(ctx, "iocp_post_ok"),
-        "done": _new_label(ctx, "iocp_post_done")
-    }
+    return [{}, [], _new_label(ctx, "iocp_post_ok"), _new_label(ctx, "iocp_post_done")]
 }
 
 fn _x64_iocp_post_emit_bool_dispatch(ctx, res) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, res["fixups"], "ne", res["ok"])
+    _emit_jcc_to_label(ctx, res[1], "ne", res[2])
     return nil
 }
 
 fn _x64_iocp_post_emit_error_mapping(ctx, res) {
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
-    _x64_iocp_emit_invalid_param_handle_eio(ctx, res["labels"], res["fixups"], res["done"], "iocp_post_err")
+    _x64_iocp_emit_invalid_param_handle_eio(ctx, res[0], res[1], res[3], "iocp_post_err")
     return nil
 }
 
 fn _x64_iocp_post_emit_success(ctx, res) {
-    _emit_label(ctx, res["labels"], res["ok"])
+    _emit_label(ctx, res[0], res[2])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     return nil
 }
@@ -762,8 +758,8 @@ fn _x64_iocp_post_emit_result(ctx) {
     _x64_iocp_post_emit_bool_dispatch(ctx, res)
     _x64_iocp_post_emit_error_mapping(ctx, res)
     _x64_iocp_post_emit_success(ctx, res)
-    _emit_label(ctx, res["labels"], res["done"])
-    _patch_local_fixups(ctx, res["labels"], res["fixups"])
+    _emit_label(ctx, res[0], res[3])
+    _patch_local_fixups(ctx, res[0], res[1])
     return nil
 }
 
@@ -777,34 +773,34 @@ fn _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, loca
     if st == nil { return nil }
     _x64_iocp_post_emit_call(ctx, st)
     _x64_iocp_post_emit_result(ctx)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return nil
 }
 
 fn _x64_gqcsx_alloc_state(ctx, locals) {
     var base = _intr_tmp_push(ctx, 6)
     if oren_type_tag(base) == 0 { return nil }
-    var state = {
-        "base": base,
-        "tmp_port": _intr_tmp_off(ctx, locals, base + 0),
-        "tmp_entries": _intr_tmp_off(ctx, locals, base + 1),
-        "tmp_cap": _intr_tmp_off(ctx, locals, base + 2),
-        "tmp_removed": _intr_tmp_off(ctx, locals, base + 3),
-        "tmp_timeout": _intr_tmp_off(ctx, locals, base + 4),
-        "tmp_alert": _intr_tmp_off(ctx, locals, base + 5)
-    }
-    if oren_type_tag(state["tmp_port"]) == 0 || oren_type_tag(state["tmp_entries"]) == 0 || oren_type_tag(state["tmp_cap"]) == 0 || oren_type_tag(state["tmp_removed"]) == 0 || oren_type_tag(state["tmp_timeout"]) == 0 || oren_type_tag(state["tmp_alert"]) == 0 { _intr_tmp_pop(ctx, base); return nil }
+    var state = [
+        base,
+        _intr_tmp_off(ctx, locals, base + 0),
+        _intr_tmp_off(ctx, locals, base + 1),
+        _intr_tmp_off(ctx, locals, base + 2),
+        _intr_tmp_off(ctx, locals, base + 3),
+        _intr_tmp_off(ctx, locals, base + 4),
+        _intr_tmp_off(ctx, locals, base + 5)
+    ]
+    if oren_type_tag(state[1]) == 0 || oren_type_tag(state[2]) == 0 || oren_type_tag(state[3]) == 0 || oren_type_tag(state[4]) == 0 || oren_type_tag(state[5]) == 0 || oren_type_tag(state[6]) == 0 { _intr_tmp_pop(ctx, base); return nil }
     return state
 }
 
 fn _x64_gqcsx_spill_args(ctx, locals, args, state) {
-    _intr_eval_spill_x64(ctx, locals, args[0], state["tmp_port"])
-    _intr_eval_spill_x64(ctx, locals, args[1], state["tmp_entries"])
-    _intr_eval_spill_x64(ctx, locals, args[2], state["tmp_cap"])
-    _intr_eval_spill_x64(ctx, locals, args[3], state["tmp_removed"])
-    _intr_eval_spill_x64(ctx, locals, args[4], state["tmp_timeout"])
-    _intr_eval_spill_x64(ctx, locals, args[5], state["tmp_alert"])
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state["base"]); return false }
+    _intr_eval_spill_x64(ctx, locals, args[0], state[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], state[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], state[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], state[4])
+    _intr_eval_spill_x64(ctx, locals, args[4], state[5])
+    _intr_eval_spill_x64(ctx, locals, args[5], state[6])
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, state[0]); return false }
     return true
 }
 
@@ -816,15 +812,15 @@ fn _x64_gqcsx_spill_state(ctx, locals, args) {
 }
 
 fn _x64_gqcsx_emit_call(ctx, state) {
-    _intr_load_x64(ctx, 1, state["tmp_port"])    // rcx = port
-    _intr_load_x64(ctx, 2, state["tmp_entries"]) // rdx = entries
-    _intr_load_x64(ctx, 8, state["tmp_cap"])     // r8  = entry_cap
-    _intr_load_x64(ctx, 9, state["tmp_removed"]) // r9  = removed_ptr
+    _intr_load_x64(ctx, 1, state[1]) // rcx = port
+    _intr_load_x64(ctx, 2, state[2]) // rdx = entries
+    _intr_load_x64(ctx, 8, state[3]) // r8  = entry_cap
+    _intr_load_x64(ctx, 9, state[4]) // r9  = removed_ptr
 
     // Stack args (Win64 ABI): [rsp+32] = timeout_ms, [rsp+40] = alertable
-    _intr_load_x64(ctx, 0, state["tmp_timeout"])
+    _intr_load_x64(ctx, 0, state[5])
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(32, 0))
-    _intr_load_x64(ctx, 0, state["tmp_alert"])
+    _intr_load_x64(ctx, 0, state[6])
     bytes_extend(ctx["code"], core.insn_mov_mrsp_disp8_r64(40, 0))
 
     _emit_call_iat_x64(ctx, "IAT_GetQueuedCompletionStatusEx")
@@ -843,45 +839,45 @@ fn _x64_gqcsx_normalize_result(ctx) {
 }
 
 fn _x64_gqcsx_result_labels(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "ok": _new_label(ctx, "iocp_gqcsx_ok"),
-        "timeout": _new_label(ctx, "iocp_gqcsx_timeout"),
-        "done": _new_label(ctx, "iocp_gqcsx_done")
-    }
+    return [
+        {},
+        [],
+        _new_label(ctx, "iocp_gqcsx_ok"),
+        _new_label(ctx, "iocp_gqcsx_timeout"),
+        _new_label(ctx, "iocp_gqcsx_done")
+    ]
 }
 
 fn _x64_gqcsx_emit_bool_dispatch(ctx, res) {
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, res["fixups"], "ne", res["ok"])
+    _emit_jcc_to_label(ctx, res[1], "ne", res[2])
     return nil
 }
 
 fn _x64_gqcsx_emit_error_mapping(ctx, res) {
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 258)) // WAIT_TIMEOUT
-    _emit_jcc_to_label(ctx, res["fixups"], "e", res["timeout"])
-    _x64_iocp_emit_invalid_param_handle_eio(ctx, res["labels"], res["fixups"], res["done"], "iocp_gqcsx_err")
+    _emit_jcc_to_label(ctx, res[1], "e", res[3])
+    _x64_iocp_emit_invalid_param_handle_eio(ctx, res[0], res[1], res[4], "iocp_gqcsx_err")
     return nil
 }
 
 fn _x64_gqcsx_emit_timeout_result(ctx, res) {
-    _emit_label(ctx, res["labels"], res["timeout"])
+    _emit_label(ctx, res[0], res[3])
     _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
-    _emit_jmp_to_label(ctx, res["fixups"], res["done"])
+    _emit_jmp_to_label(ctx, res[1], res[4])
     return nil
 }
 
 fn _x64_gqcsx_emit_success(ctx, res) {
-    _emit_label(ctx, res["labels"], res["ok"])
+    _emit_label(ctx, res[0], res[2])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     return nil
 }
 
 fn _x64_gqcsx_finish_result(ctx, res) {
-    _emit_label(ctx, res["labels"], res["done"])
-    _patch_local_fixups(ctx, res["labels"], res["fixups"])
+    _emit_label(ctx, res[0], res[4])
+    _patch_local_fixups(ctx, res[0], res[1])
     return nil
 }
 
@@ -895,7 +891,7 @@ fn _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, lo
     if state == nil { return nil }
     _x64_gqcsx_emit_call(ctx, state)
     _x64_gqcsx_normalize_result(ctx)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }
 
@@ -909,27 +905,27 @@ fn _x64_cancel_io_ex_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_file)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_ov)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_file": tmp_file, "tmp_ov": tmp_ov}
+    return [base, tmp_file, tmp_ov]
 }
 
 fn _x64_cancel_io_ex_emit_call(ctx, state) {
-    _intr_load_x64(ctx, 1, state["tmp_file"]) // rcx = file_handle
-    _intr_load_x64(ctx, 2, state["tmp_ov"])   // rdx = overlapped_ptr (NULL cancels all)
+    _intr_load_x64(ctx, 1, state[1]) // rcx = file_handle
+    _intr_load_x64(ctx, 2, state[2]) // rdx = overlapped_ptr (NULL cancels all)
     _emit_call_iat_x64(ctx, "IAT_CancelIoEx")
     return nil
 }
 
 fn _x64_cancel_io_ex_result_labels(ctx) {
-    return {
-        "ok": _new_label(ctx, "iocp_cancel_ok"),
-        "not_found": _new_label(ctx, "iocp_cancel_not_found"),
-        "done": _new_label(ctx, "iocp_cancel_done")
-    }
+    return [
+        _new_label(ctx, "iocp_cancel_ok"),
+        _new_label(ctx, "iocp_cancel_not_found"),
+        _new_label(ctx, "iocp_cancel_done")
+    ]
 }
 
 fn _x64_cancel_io_ex_emit_failure(ctx, labels, fixups, lab) {
-    var l_not_found = lab["not_found"]
-    var l_done = lab["done"]
+    var l_not_found = lab[1]
+    var l_done = lab[2]
     _emit_call_iat_x64(ctx, "IAT_GetLastError") // eax = error
     // ERROR_NOT_FOUND(1168): nothing to cancel (treat as success for idempotent cancellation).
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 1168))
@@ -939,11 +935,11 @@ fn _x64_cancel_io_ex_emit_failure(ctx, labels, fixups, lab) {
 }
 
 fn _x64_cancel_io_ex_emit_success_labels(ctx, labels, fixups, lab) {
-    var l_done = lab["done"]
-    _emit_label(ctx, labels, lab["not_found"])
+    var l_done = lab[2]
+    _emit_label(ctx, labels, lab[1])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     _emit_jmp_to_label(ctx, fixups, l_done)
-    _emit_label(ctx, labels, lab["ok"])
+    _emit_label(ctx, labels, lab[0])
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(0, 0)) // rax = 0
     return nil
 }
@@ -953,9 +949,9 @@ fn _x64_cancel_io_ex_emit_result(ctx) {
     var labels = {}
     var fixups = []
     var lab = _x64_cancel_io_ex_result_labels(ctx)
-    var l_done = lab["done"]
+    var l_done = lab[2]
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", lab["ok"])
+    _emit_jcc_to_label(ctx, fixups, "ne", lab[0])
     _x64_cancel_io_ex_emit_failure(ctx, labels, fixups, lab)
     _x64_cancel_io_ex_emit_success_labels(ctx, labels, fixups, lab)
     _emit_label(ctx, labels, l_done)
@@ -973,6 +969,6 @@ fn _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) {
     if state == nil { return nil }
     _x64_cancel_io_ex_emit_call(ctx, state)
     _x64_cancel_io_ex_emit_result(ctx)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return nil
 }

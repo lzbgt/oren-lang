@@ -3071,9 +3071,10 @@ design evidence lives under `project-doc/`.
   use compact positional spill/label/cache records as well. Windows x64
   filesystem syscall lowering now also uses positional path-normalization,
   stat/fstat label, unlink/rmdir, rename, and mkdir/chmod spill/capsule records.
-  Windows x64 network syscall lowering now uses positional helper records for
-  WSAStartup, select, socket, sockaddr, fd2, sockopt, sendto/recvfrom, and close
-  spill/capsule state.
+  Windows x64 network and IOCP syscall lowering now uses positional helper
+  records for WSAStartup, select, socket, sockaddr, fd2, sockopt,
+  sendto/recvfrom, close, overlapped WSA messages, fcntl, create/post IOCP,
+  GetQueuedCompletionStatusEx, and CancelIoEx spill/label/result state.
 - Base64 decode now rejects interior padding and third-character padding without
   fourth-character padding plus nonzero trailing pad bits while keeping decoded
   output as exact-size `u8_buf`; strict Base64 decode sizes exactly and validates

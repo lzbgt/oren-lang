@@ -4333,9 +4333,10 @@
 <p>  use compact positional spill/label/cache records as well. Windows x64</p>
 <p>  filesystem syscall lowering now also uses positional path-normalization,</p>
 <p>  stat/fstat label, unlink/rmdir, rename, and mkdir/chmod spill/capsule records.</p>
-<p>  Windows x64 network syscall lowering now uses positional helper records for</p>
-<p>  WSAStartup, select, socket, sockaddr, fd2, sockopt, sendto/recvfrom, and close</p>
-<p>  spill/capsule state.</p>
+<p>  Windows x64 network and IOCP syscall lowering now uses positional helper</p>
+<p>  records for WSAStartup, select, socket, sockaddr, fd2, sockopt,</p>
+<p>  sendto/recvfrom, close, overlapped WSA messages, fcntl, create/post IOCP,</p>
+<p>  GetQueuedCompletionStatusEx, and CancelIoEx spill/label/result state.</p>
 <ul>
 <li>Base64 decode now rejects interior padding and third-character padding without</li>
 </ul>
