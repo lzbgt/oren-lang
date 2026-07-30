@@ -424,5 +424,11 @@ after it has round-trip/parity evidence. Until then:
     calls, so a dynamic descriptor key such as `oren_string_slice("zalphaq", 1,
     6)` can retrieve a known map descriptor value, survive a forced-GC
     safepoint as a map root, and continue through generated map helpers.
-56. Add broader descriptor inputs beyond known/derived keys to unknown runtime
-    keys and values.
+56. Done: add runtime-validated generic descriptor roots for unknown helper
+    inputs. LLVM safepoints now emit `oren_llvm_runtime_roots_push_value` for
+    unproven helper roots, and the C runtime validates candidate values against
+    registered string/list/bytes/map descriptor layouts before adding a generic
+    root. The map fixture proves a branch-merged string key can retrieve a map
+    value with unknown static provenance and pass it into generated `oren_map_len`
+    under forced GC.
+57. Add dynamic container operation dispatch for unknown descriptor values.

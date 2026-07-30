@@ -505,10 +505,12 @@ class FunctionLowerer:
         list_roots = []
         bytes_roots = []
         map_roots = []
+        value_roots = []
         seen_string_roots = set()
         seen_list_roots = set()
         seen_bytes_roots = set()
         seen_map_roots = set()
+        seen_value_roots = set()
         for root_value in root_values:
             if root_value in self.descriptor_values and root_value not in seen_string_roots:
                 string_roots.append(root_value)
@@ -522,6 +524,9 @@ class FunctionLowerer:
             elif root_value in self.map_values and root_value not in seen_map_roots:
                 map_roots.append(root_value)
                 seen_map_roots.add(root_value)
+            elif root_value not in seen_value_roots and self.const_values.get(root_value) is None:
+                value_roots.append(root_value)
+                seen_value_roots.add(root_value)
         for local_name in sorted(self.current_descriptor_locals):
             if local_name not in seen_string_roots:
                 string_roots.append(local_name)
@@ -538,7 +543,7 @@ class FunctionLowerer:
             if local_name not in seen_map_roots:
                 map_roots.append(local_name)
                 seen_map_roots.add(local_name)
-        if op.get("safepoint") and (string_roots or list_roots or bytes_roots or map_roots):
+        if op.get("safepoint") and (string_roots or list_roots or bytes_roots or map_roots or value_roots):
             mark = self.scratch_var("root_mark")
             self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
             for root_value in string_roots:
@@ -560,6 +565,11 @@ class FunctionLowerer:
                 root_ref = self.value_ref(root_value)
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_map(i64 {root_ref}) ; safepoint root map {root_value}"
+                )
+            for root_value in value_roots:
+                root_ref = self.value_ref(root_value)
+                self.write_inst(
+                    f"call void @oren_llvm_runtime_roots_push_value(i64 {root_ref}) ; safepoint root value {root_value}"
                 )
             self.write_inst("call void @oren_llvm_runtime_safepoint_poll() ; forced GC safepoint poll")
         self.write_inst(f"{helper_call} ; helper {helper_name} safepoint={op.get('safepoint', False)}")
@@ -686,7 +696,7 @@ class FunctionLowerer:
                 )
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
-            if op["name"] in MAP_LEN_HELPERS and len(op["args"]) > 0 and op["args"][0] in self.map_values:
+            if op["name"] in MAP_LEN_HELPERS and len(op["args"]) > 0:
                 helper_call = f"{dst} = call i64 @oren_llvm_helper_oren_map_len(i64 {helper_args[0]})"
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
@@ -1788,6 +1798,7 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare void @oren_llvm_runtime_roots_push_list(i64)\n")
             out.write("declare void @oren_llvm_runtime_roots_push_bytes(i64)\n")
             out.write("declare void @oren_llvm_runtime_roots_push_map(i64)\n")
+            out.write("declare void @oren_llvm_runtime_roots_push_value(i64)\n")
             out.write("declare void @oren_llvm_runtime_safepoint_poll()\n")
             out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:

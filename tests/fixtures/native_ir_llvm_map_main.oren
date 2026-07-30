@@ -59,5 +59,13 @@ fn main() {
     if oren_string_len("gc") != 2 { return 13 }
     var from_map = holder["child"]
     if from_map["nested"] != 23 { return 14 }
+    var runtime_key = "child"
+    if oren_string_len("gc") == 2 {
+        runtime_key = oren_string_slice("xchildy", 1, 6)
+    } else {
+        runtime_key = "child"
+    }
+    var runtime_child = holder[runtime_key]
+    if oren_map_len(runtime_child) != 1 { return 15 }
     return 0
 }

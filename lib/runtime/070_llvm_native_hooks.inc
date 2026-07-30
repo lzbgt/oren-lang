@@ -31,6 +31,7 @@ typedef struct OrenLlvmRootMark {
     size_t list_depth;
     size_t bytes_depth;
     size_t map_depth;
+    size_t value_depth;
 } OrenLlvmRootMark;
 
 static int64_t g_llvm_runtime_alloc_calls = 0;
@@ -52,6 +53,9 @@ static size_t g_llvm_runtime_bytes_roots_cap = 0;
 static OrenLlvmMap** g_llvm_runtime_map_roots = NULL;
 static size_t g_llvm_runtime_map_roots_len = 0;
 static size_t g_llvm_runtime_map_roots_cap = 0;
+static int64_t* g_llvm_runtime_value_roots = NULL;
+static size_t g_llvm_runtime_value_roots_len = 0;
+static size_t g_llvm_runtime_value_roots_cap = 0;
 static OrenLlvmRootMark* g_llvm_runtime_root_marks = NULL;
 static size_t g_llvm_runtime_root_marks_len = 0;
 static size_t g_llvm_runtime_root_marks_cap = 0;
@@ -432,6 +436,7 @@ int64_t oren_llvm_runtime_roots_mark(void) {
     g_llvm_runtime_root_marks[mark_index].list_depth = g_llvm_runtime_list_roots_len;
     g_llvm_runtime_root_marks[mark_index].bytes_depth = g_llvm_runtime_bytes_roots_len;
     g_llvm_runtime_root_marks[mark_index].map_depth = g_llvm_runtime_map_roots_len;
+    g_llvm_runtime_root_marks[mark_index].value_depth = g_llvm_runtime_value_roots_len;
     pthread_mutex_unlock(&g_alloc_mutex);
     return (int64_t)(mark_index + 1u);
 }
@@ -540,6 +545,34 @@ void oren_llvm_runtime_roots_push_map(int64_t desc_handle) {
     pthread_mutex_unlock(&g_alloc_mutex);
 }
 
+void oren_llvm_runtime_roots_push_value(int64_t desc_handle) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    if (!oren_llvm_runtime_find_string_desc_locked(desc_handle) &&
+        !oren_llvm_runtime_find_list_desc_locked(desc_handle) &&
+        !oren_llvm_runtime_find_bytes_desc_locked(desc_handle) &&
+        !oren_llvm_runtime_find_map_desc_locked(desc_handle)) {
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    if (g_llvm_runtime_value_roots_len == g_llvm_runtime_value_roots_cap) {
+        size_t next_cap = g_llvm_runtime_value_roots_cap == 0 ? 16u : g_llvm_runtime_value_roots_cap * 2u;
+        int64_t* next_roots = (int64_t*)realloc(
+            g_llvm_runtime_value_roots,
+            next_cap * sizeof(int64_t)
+        );
+        if (!next_roots) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            oren_panic("llvm runtime value roots: grow failed");
+            return;
+        }
+        g_llvm_runtime_value_roots = next_roots;
+        g_llvm_runtime_value_roots_cap = next_cap;
+    }
+    g_llvm_runtime_value_roots[g_llvm_runtime_value_roots_len++] = desc_handle;
+    g_llvm_runtime_root_pushes++;
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
 void oren_llvm_runtime_roots_reset(int64_t mark) {
     pthread_mutex_lock(&g_alloc_mutex);
     if (mark <= 0 || (size_t)mark > g_llvm_runtime_root_marks_len) {
@@ -559,6 +592,9 @@ void oren_llvm_runtime_roots_reset(int64_t mark) {
     }
     if (snap.map_depth < g_llvm_runtime_map_roots_len) {
         g_llvm_runtime_map_roots_len = snap.map_depth;
+    }
+    if (snap.value_depth < g_llvm_runtime_value_roots_len) {
+        g_llvm_runtime_value_roots_len = snap.value_depth;
     }
     g_llvm_runtime_root_marks_len = mark_index;
     pthread_mutex_unlock(&g_alloc_mutex);
@@ -583,6 +619,9 @@ static void oren_llvm_runtime_mark_roots(void) {
     }
     for (size_t i = 0; i < g_llvm_runtime_map_roots_len; i++) {
         oren_llvm_runtime_mark_map_desc_locked(g_llvm_runtime_map_roots[i]);
+    }
+    for (size_t i = 0; i < g_llvm_runtime_value_roots_len; i++) {
+        oren_llvm_runtime_mark_descriptor_handle_locked(g_llvm_runtime_value_roots[i], 64);
     }
 #endif
 }
@@ -733,7 +772,8 @@ int64_t oren_llvm_runtime_root_depth(void) {
         g_llvm_runtime_string_roots_len +
         g_llvm_runtime_list_roots_len +
         g_llvm_runtime_bytes_roots_len +
-        g_llvm_runtime_map_roots_len
+        g_llvm_runtime_map_roots_len +
+        g_llvm_runtime_value_roots_len
     );
     pthread_mutex_unlock(&g_alloc_mutex);
     return n;
