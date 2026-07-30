@@ -6,6 +6,14 @@ import os
 import re
 import sys
 
+from native_ir_llvm_bytes_helpers import (
+    emit_bytes_get_u16_helper,
+    emit_bytes_get_u32_helper,
+    emit_bytes_set_u8_helper,
+    emit_string_from_bytes_slice_helper,
+    emit_u8_buf_from_bytes_slice_helper,
+)
+
 
 def load_ir(path):
     with open(path, "r", encoding="utf-8") as fh:
@@ -61,7 +69,14 @@ GENERATED_HELPERS = {
     "oren_bytes_from_hex",
     "oren_bytes_len",
     "oren_bytes_get_u8",
+    "oren_bytes_get_u16_be",
+    "oren_bytes_get_u16_le",
+    "oren_bytes_get_u32_be",
+    "oren_bytes_get_u32_le",
+    "oren_bytes_set_u8",
     "oren_bytes_to_hex",
+    "oren_string_from_bytes_slice",
+    "oren_u8_buf_from_bytes_slice",
     "oren_bytes_pack",
     "oren_bytes_unpack",
 }
@@ -111,8 +126,27 @@ BYTES_GET_HELPERS = {
     "oren_bytes_get_u8",
 }
 
+BYTES_GET_U16_HELPERS = {
+    "oren_bytes_get_u16_be",
+    "oren_bytes_get_u16_le",
+}
+
+BYTES_GET_U32_HELPERS = {
+    "oren_bytes_get_u32_be",
+    "oren_bytes_get_u32_le",
+}
+
+BYTES_SET_U8_HELPERS = {
+    "oren_bytes_set_u8",
+}
+
 BYTES_TO_STRING_HELPERS = {
     "oren_bytes_to_hex",
+    "oren_string_from_bytes_slice",
+}
+
+BYTES_TO_BYTES_HELPERS = {
+    "oren_u8_buf_from_bytes_slice",
 }
 
 BYTES_FROM_LIST_HELPERS = {
@@ -183,7 +217,16 @@ def collect_generic_helpers(fn):
             if op["name"] in (LIST_LEN_HELPERS | LIST_GET_HELPERS | LIST_PUSH_HELPERS):
                 if op.get("args") and op["args"][0] in list_values:
                     continue
-            if op["name"] in (BYTES_LEN_HELPERS | BYTES_GET_HELPERS | BYTES_TO_STRING_HELPERS | BYTES_TO_LIST_HELPERS):
+            if op["name"] in (
+                BYTES_LEN_HELPERS
+                | BYTES_GET_HELPERS
+                | BYTES_GET_U16_HELPERS
+                | BYTES_GET_U32_HELPERS
+                | BYTES_SET_U8_HELPERS
+                | BYTES_TO_STRING_HELPERS
+                | BYTES_TO_BYTES_HELPERS
+                | BYTES_TO_LIST_HELPERS
+            ):
                 if op.get("args") and op["args"][0] in bytes_values:
                     continue
                 helpers.add(op["name"])
@@ -234,7 +277,7 @@ def function_needs_list_alloc(fn):
 
 
 def function_needs_bytes_alloc(fn):
-    return bool((BYTES_DESCRIPTOR_HELPERS | BYTES_FROM_LIST_HELPERS) & collect_generated_helpers(fn))
+    return bool((BYTES_DESCRIPTOR_HELPERS | BYTES_FROM_LIST_HELPERS | BYTES_TO_BYTES_HELPERS) & collect_generated_helpers(fn))
 
 
 def function_needs_bytes_type(fn):
@@ -249,10 +292,16 @@ def collect_generated_helpers(fn):
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] in GENERATED_HELPERS:
-                if op["name"] in (BYTES_LEN_HELPERS | BYTES_GET_HELPERS):
+                if op["name"] in (
+                    BYTES_LEN_HELPERS
+                    | BYTES_GET_HELPERS
+                    | BYTES_GET_U16_HELPERS
+                    | BYTES_GET_U32_HELPERS
+                    | BYTES_SET_U8_HELPERS
+                ):
                     if op.get("args") and op["args"][0] in bytes_values:
                         helpers.add(op["name"])
-                elif op["name"] in (BYTES_TO_STRING_HELPERS | BYTES_TO_LIST_HELPERS):
+                elif op["name"] in (BYTES_TO_STRING_HELPERS | BYTES_TO_BYTES_HELPERS | BYTES_TO_LIST_HELPERS):
                     if op.get("args") and op["args"][0] in bytes_values:
                         helpers.add(op["name"])
                 elif op["name"] in BYTES_FROM_LIST_HELPERS:
@@ -524,9 +573,38 @@ class FunctionLowerer:
                 )
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
+            if op["name"] in BYTES_GET_U16_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_GET_U32_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_SET_U8_HELPERS and len(op["args"]) > 2 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_oren_bytes_set_u8("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]}, i64 {helper_args[2]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
             if op["name"] in BYTES_TO_STRING_HELPERS and len(op["args"]) > 0 and op["args"][0] in self.bytes_values:
                 helper_call = (
-                    f"{dst} = call i64 @oren_llvm_helper_oren_bytes_to_hex("
+                    f"{dst} = call i64 @{llvm_helper_symbol(op['name'])}("
+                    f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                    f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_TO_BYTES_HELPERS and len(op["args"]) > 0 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @{llvm_helper_symbol(op['name'])}("
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
@@ -869,6 +947,9 @@ def collect_descriptor_facts(fn):
                 elif kind == "runtime_helper_call" and op.get("name") in BYTES_TO_STRING_HELPERS:
                     if result is not None and op.get("args") and op["args"][0] in bytes_values:
                         strings.add(result)
+                elif kind == "runtime_helper_call" and op.get("name") in BYTES_TO_BYTES_HELPERS:
+                    if result is not None and op.get("args") and op["args"][0] in bytes_values:
+                        bytes_values.add(result)
                 elif kind == "runtime_helper_call" and op.get("name") in LIST_PUSH_HELPERS:
                     if op.get("args"):
                         origin = value_list_origin.get(op["args"][0])
@@ -1757,10 +1838,14 @@ def emit_module(ir_path, out_path, ir, main):
         for b in schema
     )
     helpers_to_emit = collect_generated_helpers(main)
-    needs_string_alloc = bool({"oren_string_slice", "oren_string_concat", "oren_bytes_to_hex"} & helpers_to_emit)
+    needs_string_alloc = bool(
+        {"oren_string_slice", "oren_string_concat", "oren_bytes_to_hex", "oren_string_from_bytes_slice"}
+        & helpers_to_emit
+    )
     needs_list_alloc = function_needs_list_alloc(main)
     needs_bytes_alloc = function_needs_bytes_alloc(main)
     needs_alloc_bytes = needs_string_alloc or needs_list_alloc or needs_bytes_alloc
+    needs_memcpy = needs_string_alloc or needs_list_alloc or bool(BYTES_TO_BYTES_HELPERS & helpers_to_emit)
     with open(out_path, "w", encoding="utf-8") as out:
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
@@ -1793,8 +1878,7 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare i8* @oren_llvm_runtime_alloc_bytes(i64, i64)\n")
         if needs_string_alloc:
             out.write("declare void @oren_llvm_runtime_register_string(i64, i8*, i64)\n")
-            out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
-        elif needs_list_alloc:
+        if needs_memcpy:
             out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
         if needs_list_alloc:
             out.write("declare void @oren_llvm_runtime_register_list(i64, i64*, i64)\n")
@@ -1824,9 +1908,23 @@ def emit_module(ir_path, out_path, ir, main):
             emit_bytes_len_helper(out)
         if "oren_bytes_get_u8" in helpers_to_emit:
             emit_bytes_get_u8_helper(out)
+        if "oren_bytes_get_u16_be" in helpers_to_emit:
+            emit_bytes_get_u16_helper(out, "oren_bytes_get_u16_be", False)
+        if "oren_bytes_get_u16_le" in helpers_to_emit:
+            emit_bytes_get_u16_helper(out, "oren_bytes_get_u16_le", True)
+        if "oren_bytes_get_u32_be" in helpers_to_emit:
+            emit_bytes_get_u32_helper(out, "oren_bytes_get_u32_be", False)
+        if "oren_bytes_get_u32_le" in helpers_to_emit:
+            emit_bytes_get_u32_helper(out, "oren_bytes_get_u32_le", True)
+        if "oren_bytes_set_u8" in helpers_to_emit:
+            emit_bytes_set_u8_helper(out)
         if "oren_bytes_to_hex" in helpers_to_emit:
             emit_hex_digit_helper(out)
             emit_bytes_to_hex_helper(out)
+        if "oren_u8_buf_from_bytes_slice" in helpers_to_emit:
+            emit_u8_buf_from_bytes_slice_helper(out)
+        if "oren_string_from_bytes_slice" in helpers_to_emit:
+            emit_string_from_bytes_slice_helper(out)
         if "oren_bytes_pack" in helpers_to_emit:
             emit_bytes_pack_helper(out)
         if "oren_bytes_unpack" in helpers_to_emit:

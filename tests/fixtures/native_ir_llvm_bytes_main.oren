@@ -2,6 +2,7 @@
 // - proves hex strings lower into runtime-owned bytes descriptors
 // - proves descriptor-backed length and byte access helpers
 // - proves bytes-to-hex, bytes-unpack, and bytes-pack materialization
+// - proves endian reads, byte mutation, and bytes/string slice helpers
 // - proves bytes roots survive helper safepoints and forced GC
 
 fn main() {
@@ -21,5 +22,16 @@ fn main() {
     var packed = oren_bytes_pack(unpacked)
     if oren_bytes_get_u8(packed, 2) != 171 { return 9 }
     if oren_string_eq(oren_bytes_to_hex(packed), "00ffab20") != true { return 10 }
+    if oren_bytes_get_u16_be(packed, 0) != 255 { return 11 }
+    if oren_bytes_get_u16_le(packed, 0) != 65280 { return 12 }
+    if oren_bytes_get_u32_be(packed, 0) != 16755488 { return 13 }
+    if oren_bytes_get_u32_le(packed, 0) != 548142848 { return 14 }
+    if oren_bytes_set_u8(packed, 3, 64) != 64 { return 15 }
+    if oren_string_eq(oren_bytes_to_hex(packed), "00ffab40") != true { return 16 }
+
+    var sub = oren_u8_buf_from_bytes_slice(packed, 1, 2)
+    if oren_bytes_len(sub) != 2 { return 17 }
+    if oren_bytes_get_u16_be(sub, 0) != 65451 { return 18 }
+    if oren_string_eq(oren_string_from_bytes_slice(oren_bytes_from_hex("41424344"), 1, 2), "BC") != true { return 19 }
     return 0
 }

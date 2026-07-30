@@ -5167,13 +5167,15 @@ make docs-site
 					  has `%oren_llvm_bytes { len, data, owner_kind }` descriptor handles
 						  backed by runtime-owned `OREN_ALLOC_RAW` storage. Generated
 						  `oren_bytes_from_hex`, `oren_bytes_len`, `oren_bytes_get_u8`,
-						  `oren_bytes_to_hex`, `oren_bytes_pack`, and `oren_bytes_unpack`
-						  helpers allocate/register bytes, string, and list descriptors,
+						  u16/u32 endian reads, `oren_bytes_set_u8`, `oren_bytes_to_hex`,
+						  `oren_u8_buf_from_bytes_slice`, `oren_string_from_bytes_slice`,
+						  `oren_bytes_pack`, and `oren_bytes_unpack` helpers
+						  allocate/register bytes, string, and list descriptors,
 						  route proven bytes locals through
 						  `oren_llvm_runtime_roots_push_bytes`, and pass `make
 						  verify-native-ir-llvm-bytes-runtime` with a hex -> bytes ->
-						  list -> mutated bytes -> hex roundtrip under forced
-						  GC-at-safepoint.
+						  list -> mutated bytes -> hex plus bytes/string slice roundtrip
+						  under forced GC-at-safepoint.
 
 ## Documentation Guardrail
 

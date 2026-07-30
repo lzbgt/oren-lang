@@ -6129,13 +6129,15 @@ make docs-site</code></pre>
 <p>					  has <code>%oren_llvm_bytes { len, data, owner_kind }</code> descriptor handles</p>
 <p>						  backed by runtime-owned <code>OREN_ALLOC_RAW</code> storage. Generated</p>
 <p>						  <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>, <code>oren_bytes_get_u8</code>,</p>
-<p>						  <code>oren_bytes_to_hex</code>, <code>oren_bytes_pack</code>, and <code>oren_bytes_unpack</code></p>
-<p>						  helpers allocate/register bytes, string, and list descriptors,</p>
+<p>						  u16/u32 endian reads, <code>oren_bytes_set_u8</code>, <code>oren_bytes_to_hex</code>,</p>
+<p>						  <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_string_from_bytes_slice</code>,</p>
+<p>						  <code>oren_bytes_pack</code>, and <code>oren_bytes_unpack</code> helpers</p>
+<p>						  allocate/register bytes, string, and list descriptors,</p>
 <p>						  route proven bytes locals through</p>
 <p>						  <code>oren_llvm_runtime_roots_push_bytes</code>, and pass `make</p>
 <p>						  verify-native-ir-llvm-bytes-runtime` with a hex -&gt; bytes -&gt;</p>
-<p>						  list -&gt; mutated bytes -&gt; hex roundtrip under forced</p>
-<p>						  GC-at-safepoint.</p>
+<p>						  list -&gt; mutated bytes -&gt; hex plus bytes/string slice roundtrip</p>
+<p>						  under forced GC-at-safepoint.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

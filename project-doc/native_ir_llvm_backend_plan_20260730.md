@@ -355,6 +355,17 @@ after it has round-trip/parity evidence. Until then:
     adding more helper families. `scripts/native_ir_llvm_lower.py` is now a
     stable CLI wrapper, while `scripts/native_ir_llvm_lower_impl.py` carries the
     current implementation below the source-line cap.
-45. Extend bytes descriptors to endian read/write helpers, byte slices/copy, and
-    runtime-varying inputs, then extend non-string descriptor coverage to maps
-    and runtime-shaped records.
+45. Done: extend bytes descriptors to endian reads, byte mutation, and slice
+    helpers. LLVM-native now lowers proven `%oren_llvm_bytes` descriptor calls
+    for `oren_bytes_get_u16_be`, `oren_bytes_get_u16_le`,
+    `oren_bytes_get_u32_be`, `oren_bytes_get_u32_le`, `oren_bytes_set_u8`,
+    `oren_u8_buf_from_bytes_slice`, and `oren_string_from_bytes_slice`. The
+    focused bytes runtime gate proves endian values, in-place byte mutation,
+    descriptor-backed byte slicing, descriptor-backed string slicing, real C
+    runtime registration/rooting, and forced GC-at-safepoint against the native
+    backend oracle.
+46. Move the remaining older byte helper emitters from
+    `scripts/native_ir_llvm_lower_impl.py` into
+    `scripts/native_ir_llvm_bytes_helpers.py` before adding copy helpers, u64
+    and signed endian helpers, runtime-varying inputs, maps, and
+    runtime-shaped records.
