@@ -6023,8 +6023,12 @@ make docs-site</code></pre>
 <p>  arithmetic/comparison ops, opaque call/container shims, and runtime-helper</p>
 <p>  call markers, and writes <code>build/native_ir/llvm_object/manifest.txt</code>, skipping</p>
 <p>  object emission clearly when the full LLVM toolchain is absent and failing</p>
-<p>  fast when <code>NATIVE_IR_REQUIRE_LLVM=1</code>. Executable LLVM backend work remains</p>
-<p>  gated on explicit full LLVM toolchain availability and an opt-in backend path.</p>
+<p>  fast when <code>NATIVE_IR_REQUIRE_LLVM=1</code>. <code>verify-native-ir-llvm-lowering</code> now</p>
+<p>  proves textual LLVM lowering over the same seven-fixture,</p>
+<p>  three-platform parity matrix used by <code>verify-native-ir-parity</code>, while</p>
+<p>  preserving the current x64/ARM64 production emitters. Executable LLVM backend</p>
+<p>  work remains gated on explicit full LLVM toolchain availability and an opt-in</p>
+<p>  backend path.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

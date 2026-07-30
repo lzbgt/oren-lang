@@ -5061,8 +5061,12 @@ make docs-site
   arithmetic/comparison ops, opaque call/container shims, and runtime-helper
   call markers, and writes `build/native_ir/llvm_object/manifest.txt`, skipping
   object emission clearly when the full LLVM toolchain is absent and failing
-  fast when `NATIVE_IR_REQUIRE_LLVM=1`. Executable LLVM backend work remains
-  gated on explicit full LLVM toolchain availability and an opt-in backend path.
+  fast when `NATIVE_IR_REQUIRE_LLVM=1`. `verify-native-ir-llvm-lowering` now
+  proves textual LLVM lowering over the same seven-fixture,
+  three-platform parity matrix used by `verify-native-ir-parity`, while
+  preserving the current x64/ARM64 production emitters. Executable LLVM backend
+  work remains gated on explicit full LLVM toolchain availability and an opt-in
+  backend path.
 
 ## Documentation Guardrail
 

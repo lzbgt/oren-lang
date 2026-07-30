@@ -163,6 +163,10 @@ after it has round-trip/parity evidence. Until then:
     arithmetic/comparison ops, opaque shims for not-yet-semantic calls and
     container operations, and runtime-helper call markers before either skipping
     object emission on hosts without full LLVM or passing the IR to `llc`.
-12. Add an opt-in `llvm-native` backend command path and object/parity fixture
+12. Done: add `verify-native-ir-llvm-lowering`, a textual lowering parity gate
+    over the same seven native-IR fixtures and three target platforms as the
+    linked-surface parity gate. This proves the current LLVM textual lowering
+    remains target-triple aware and fixture-broad even on hosts without `llc`.
+13. Add an opt-in `llvm-native` backend command path and object/parity fixture
     once a full LLVM toolchain is available; keep x64/ARM64 as the oracle until
     the LLVM path can execute parity fixtures, not just compile probe objects.

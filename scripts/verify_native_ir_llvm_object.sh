@@ -39,6 +39,7 @@ llc_path="$(read_report_value llc_path)"
 
 python3 - "$native_ir_json" "$platform" "$llvm_ir" >"$emit_log" <<'PY'
 import json
+import os
 import re
 import sys
 
@@ -250,7 +251,8 @@ with open(llvm_ir_path, "w", encoding="utf-8") as out:
     out.write("declare i64 @oren_llvm_runtime_helper(i64, i64)\n\n")
     slots, values = lower_function(main, out)
 
-assert helper_ops, main
+if os.environ.get("NATIVE_IR_LLVM_REQUIRE_HELPERS", "1") == "1":
+    assert helper_ops, main
 print(f"native_ir_validated=1 platform={platform} functions={len(ir['functions'])} main_helpers={len(helper_ops)} types={len(type_map)}")
 print(f"llvm_ir_lowered=1 path={llvm_ir_path} main_blocks={len(main['blocks'])} main_slots={slots} main_values={values}")
 PY
@@ -258,8 +260,12 @@ PY
 test -s "$llvm_ir"
 grep -Fq "native_ir_llvm_lowered_subset_v0" "$llvm_ir"
 grep -Fq "define i64 @oren_native_ir_main_probe()" "$llvm_ir"
-grep -Fq "br i1" "$llvm_ir"
-grep -Fq "@oren_llvm_runtime_helper" "$llvm_ir"
+if [ "${NATIVE_IR_LLVM_REQUIRE_BRANCH:-1}" = "1" ]; then
+  grep -Fq "br i1" "$llvm_ir"
+fi
+if [ "${NATIVE_IR_LLVM_REQUIRE_HELPERS:-1}" = "1" ]; then
+  grep -Fq "; helper " "$llvm_ir"
+fi
 
 {
   printf 'native_ir_llvm_object_v0\n'
