@@ -285,6 +285,8 @@ design evidence lives under `project-doc/`.
   compact positional state for fixed-shape label/fixup/temp bundles.
 - X64 pointer string length labels/fixups and runtime `oren_add` operand spill
   records now use compact positional state for fixed-shape helper bundles.
+- X64 stack symbol-resolution labels/fixups, Linux stat-copy gate labels, and
+  top-level batch loop patch positions now use compact positional state.
 - X64 function epilogue emission now separates call-depth exit patch points,
   callee-save restores, frame teardown/return, and local-fixup finalization into
   focused helpers while preserving return-order emission.

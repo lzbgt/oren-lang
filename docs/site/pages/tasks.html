@@ -782,7 +782,7 @@
 <p>     <code>sys_write</code> temp-state records, list-int reduce/dot unchecked helper</p>
 <p>     records, atomic add/CAS scratch records, logical infix label/fixup</p>
 <p>     records, modulo runtime spill records, string-helper label/spill records,</p>
-<p>     and late synthesized fnwrap compilation.</p>
+<p>     stack symbol-resolution labels/fixups, and late synthesized fnwrap compilation.</p>
 <ul>
 <li>Current x64 system/data helper cleanup separates GC-root sorted insertion,</li>
 </ul>
@@ -792,8 +792,9 @@
 <p>     syscall-tail helpers plus Linux epoll/socket network helpers, positional</p>
 <p>     Windows thread syscall helper records,</p>
 <p>     positional Windows core time/wait/open/RNG syscall records, positional</p>
-<p>     Windows FS path/stat label records, and positional Windows filesystem,</p>
-<p>     network, IOCP, and CreateProcess syscall spill/label/result records.</p>
+<p>     Windows FS path/stat label records, Linux stat-copy gate records, and</p>
+<p>     positional Windows filesystem, network, IOCP, and CreateProcess syscall</p>
+<p>     spill/label/result records.</p>
 <ul>
 <li>Current x64 tracking cleanup uses compact positional records for</li>
 </ul>

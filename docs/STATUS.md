@@ -4866,6 +4866,9 @@ make docs-site
 - X64 string helper lowering now uses compact positional records for pointer
   string-length labels/fixups and runtime `oren_add` operand spill slots,
   removing transient keyed maps from fixed-shape string helper state.
+- X64 stack symbol-resolution label/fixup state, Linux stat-copy gate state, and
+  top-level string/empty-container batch loop patch positions now use compact
+  positional records for fixed-shape codegen helper state.
 - Windows x64 `GetQueuedCompletionStatusEx` result normalization now separates
   result-label state, BOOL dispatch, timeout-aware `GetLastError` mapping,
   success emission, and final fixup patching while reusing the shared IOCP

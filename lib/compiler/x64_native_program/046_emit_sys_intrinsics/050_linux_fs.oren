@@ -4,7 +4,7 @@ fn _x64_linux_stat_copy_gate(ctx, label_name) {
     var l_done = _new_label(ctx, label_name)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "l", l_done)
-    return {"labels": labels, "fixups": fixups, "done": l_done}
+    return [labels, fixups, l_done]
 }
 
 fn _x64_linux_stat_copy_load_bases(ctx, tmp_st, off_host0) {
@@ -56,8 +56,8 @@ fn _x64_emit_linux_stat_copy_to_oren_v0(ctx, locals, tmp_st, off_host0, label_na
     _x64_linux_stat_copy_size_mode(ctx)
     _x64_linux_stat_copy_times(ctx)
 
-    _emit_label(ctx, gate["labels"], gate["done"])
-    _patch_local_fixups(ctx, gate["labels"], gate["fixups"])
+    _emit_label(ctx, gate[0], gate[2])
+    _patch_local_fixups(ctx, gate[0], gate[1])
     return nil
 }
 

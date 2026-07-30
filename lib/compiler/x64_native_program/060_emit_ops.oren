@@ -109,7 +109,7 @@ fn _x64_emit_top_string_batch_loop_header(ctx) {
     bytes_push(code, 72); bytes_push(code, 133); bytes_push(code, 201) // test rcx, rcx
     var jz_pos = bytes_len(code)
     bytes_push(code, 15); bytes_push(code, 132); push_u32_le(code, 0)   // jz done
-    return {"loop": loop_pos, "jz": jz_pos}
+    return [loop_pos, jz_pos]
 }
 
 fn _x64_emit_top_string_batch_slot_ptr(ctx, code) {
@@ -144,8 +144,8 @@ fn _x64_emit_top_string_batch_loop_body(ctx) {
 fn _x64_patch_top_string_batch_loop(ctx, loop_state, jmp_pos) {
     var code = ctx["code"]
     var done_pos = bytes_len(code)
-    var loop_pos = loop_state["loop"]
-    var jz_pos = loop_state["jz"]
+    var loop_pos = loop_state[0]
+    var jz_pos = loop_state[1]
     set_u32_le(code, jz_pos + 2, done_pos - (jz_pos + 6))
     set_u32_le(code, jmp_pos + 1, core.int_mod(loop_pos - (jmp_pos + 5), 4294967296))
     return nil
@@ -196,7 +196,7 @@ fn _x64_emit_top_empty_container_batch_loop_header(ctx) {
     bytes_extend(code, core.insn_cmp_r64_imm32(3, 0))
     var jz_pos = bytes_len(code)
     bytes_push(code, 15); bytes_push(code, 132); push_u32_le(code, 0) // jz done
-    return {"loop": loop_pos, "jz": jz_pos}
+    return [loop_pos, jz_pos]
 }
 
 fn _x64_emit_top_empty_container_batch_loop_body(ctx, sym, arg0) {
@@ -218,8 +218,8 @@ fn _x64_emit_top_empty_container_batch_loop_body(ctx, sym, arg0) {
 fn _x64_patch_top_empty_container_batch_loop(ctx, loop_state, jmp_pos) {
     var code = ctx["code"]
     var done_pos = bytes_len(code)
-    var loop_pos = loop_state["loop"]
-    var jz_pos = loop_state["jz"]
+    var loop_pos = loop_state[0]
+    var jz_pos = loop_state[1]
     set_u32_le(code, jz_pos + 2, done_pos - (jz_pos + 6))
     set_u32_le(code, jmp_pos + 1, core.int_mod(loop_pos - (jmp_pos + 5), 4294967296))
     return nil

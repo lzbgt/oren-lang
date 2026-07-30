@@ -469,7 +469,7 @@ This file is the concise task view. Detailed implementation status lives in
      `sys_write` temp-state records, list-int reduce/dot unchecked helper
      records, atomic add/CAS scratch records, logical infix label/fixup
      records, modulo runtime spill records, string-helper label/spill records,
-     and late synthesized fnwrap compilation.
+     stack symbol-resolution labels/fixups, and late synthesized fnwrap compilation.
    - Current x64 system/data helper cleanup separates GC-root sorted insertion,
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
@@ -477,8 +477,9 @@ This file is the concise task view. Detailed implementation status lives in
      syscall-tail helpers plus Linux epoll/socket network helpers, positional
      Windows thread syscall helper records,
      positional Windows core time/wait/open/RNG syscall records, positional
-     Windows FS path/stat label records, and positional Windows filesystem,
-     network, IOCP, and CreateProcess syscall spill/label/result records.
+     Windows FS path/stat label records, Linux stat-copy gate records, and
+     positional Windows filesystem, network, IOCP, and CreateProcess syscall
+     spill/label/result records.
    - Current x64 tracking cleanup uses compact positional records for
      tracked-node local labels/fixups, ABI register bundles, and spill slots.
 
