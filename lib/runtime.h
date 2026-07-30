@@ -144,6 +144,12 @@ void oren_roots_push(OrenValue* slot);
 void oren_roots_push_value(OrenValue v);
 void oren_roots_reset(size_t mark);
 
+// LLVM-native runtime bridge.
+void* oren_llvm_runtime_alloc_bytes(int64_t byte_count, int64_t alloc_kind);
+void oren_llvm_runtime_register_string(int64_t desc_handle, char* data, int64_t len);
+int64_t oren_llvm_runtime_alloc_calls(void);
+int64_t oren_llvm_runtime_registered_strings(void);
+
 // List utilities.
 // - `oren_list_reserve_raw` is an internal fast path that operates on raw list pointers.
 // - `oren_list_reserve` is the OrenValue-level wrapper used by compiled Oren code.

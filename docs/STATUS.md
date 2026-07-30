@@ -5110,12 +5110,15 @@ make docs-site
   `oren_llvm_runtime_alloc_string(len)` to create heap descriptors with
   `owner_kind=1`. That allocator no longer embeds libc `malloc` in the lowered
   object: dynamic strings cross explicit `oren_llvm_runtime_alloc_bytes` and
-  `oren_llvm_runtime_register_string` hooks, and the focused runtime harness
-  validates descriptor metadata at registration time. `make
-  verify-native-ir-llvm-string-slice-runtime` now compares a runtime-hook-backed
-  slice against a runtime-hook-backed concat result, while the existing fast
-  smoke keeps this proof inside the targeted LLVM integration gate instead of
-  adding another broad test sweep.
+  `oren_llvm_runtime_register_string` hooks now defined by the real C runtime
+  surface in `lib/runtime/070_llvm_native_hooks.inc`. The hooks register string
+  bytes as GC-tracked string storage and descriptors as tracked runtime structs,
+  and they validate `{ len, data, owner_kind=1 }` metadata at registration time.
+  `make verify-native-ir-llvm-string-slice-runtime` now links `lib/runtime.c`
+  plus `lib/runtime_buf.c` and compares a runtime-hook-backed slice against a
+  runtime-hook-backed concat result, while the existing fast smoke keeps this
+  proof inside the targeted LLVM integration gate instead of adding another
+  broad test sweep.
 
 ## Documentation Guardrail
 

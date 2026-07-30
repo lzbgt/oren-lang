@@ -20,7 +20,6 @@ link_log="$log_dir/native_ir_llvm_string_access_runtime_link.log"
 llvm_run_log="$log_dir/native_ir_llvm_string_access_runtime_run.log"
 summary="$out_dir/summary.txt"
 harness="$out_dir/string_access_harness.c"
-runtime_hooks="tests/fixtures/native_ir_llvm_runtime_hooks.c"
 object="$out_dir/string_access_arm64_macos.o"
 native_bin="$out_dir/native_oracle"
 llvm_bin="$out_dir/llvm_string_access_probe"
@@ -94,7 +93,7 @@ int main(void) {
 }
 C
 
-"$clang_path" "$harness" "$runtime_hooks" "$object" -o "$llvm_bin" >"$link_log" 2>&1
+"$clang_path" "$harness" "$object" lib/runtime.c lib/runtime_buf.c -Ilib -pthread -o "$llvm_bin" >"$link_log" 2>&1
 "$llvm_bin" >"$llvm_run_log" 2>&1
 
 end="$(date +%s)"
@@ -106,7 +105,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,runtime-hook-backed-char-access,string-owner-metadata,string-runtime-registration,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,runtime-hook-backed-char-access,string-owner-metadata,string-runtime-registration,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string access runtime parity passed; summary: $summary"

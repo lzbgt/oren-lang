@@ -542,8 +542,11 @@ This file is the concise task view. Detailed implementation status lives in
      `owner_kind=1`. That allocator no longer embeds libc `malloc` in the
      lowered object: dynamic strings cross explicit
      `oren_llvm_runtime_alloc_bytes` and `oren_llvm_runtime_register_string`
-     hooks, and the focused runtime harness validates descriptor metadata at
-     registration time. The existing slice runtime gate compares a
+     hooks now defined by the real C runtime surface in
+     `lib/runtime/070_llvm_native_hooks.inc`. The hooks register string bytes as
+     GC-tracked string storage and descriptors as tracked runtime structs, and
+     they validate descriptor metadata at registration time. The existing slice
+     runtime gate links `lib/runtime.c` plus `lib/runtime_buf.c` and compares a
      runtime-hook-backed slice against a runtime-hook-backed concat result, so
      fast LLVM smoke covers true runtime helper arguments without adding another
      broad test sweep.

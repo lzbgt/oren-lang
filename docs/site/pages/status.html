@@ -6072,12 +6072,15 @@ make docs-site</code></pre>
 <p>  <code>oren_llvm_runtime_alloc_string(len)</code> to create heap descriptors with</p>
 <p>  <code>owner_kind=1</code>. That allocator no longer embeds libc <code>malloc</code> in the lowered</p>
 <p>  object: dynamic strings cross explicit <code>oren_llvm_runtime_alloc_bytes</code> and</p>
-<p>  <code>oren_llvm_runtime_register_string</code> hooks, and the focused runtime harness</p>
-<p>  validates descriptor metadata at registration time. `make</p>
-<p>  verify-native-ir-llvm-string-slice-runtime` now compares a runtime-hook-backed</p>
-<p>  slice against a runtime-hook-backed concat result, while the existing fast</p>
-<p>  smoke keeps this proof inside the targeted LLVM integration gate instead of</p>
-<p>  adding another broad test sweep.</p>
+<p>  <code>oren_llvm_runtime_register_string</code> hooks now defined by the real C runtime</p>
+<p>  surface in <code>lib/runtime/070_llvm_native_hooks.inc</code>. The hooks register string</p>
+<p>  bytes as GC-tracked string storage and descriptors as tracked runtime structs,</p>
+<p>  and they validate <code>{ len, data, owner_kind=1 }</code> metadata at registration time.</p>
+<p>  <code>make verify-native-ir-llvm-string-slice-runtime</code> now links <code>lib/runtime.c</code></p>
+<p>  plus <code>lib/runtime_buf.c</code> and compares a runtime-hook-backed slice against a</p>
+<p>  runtime-hook-backed concat result, while the existing fast smoke keeps this</p>
+<p>  proof inside the targeted LLVM integration gate instead of adding another</p>
+<p>  broad test sweep.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

@@ -265,11 +265,14 @@ after it has round-trip/parity evidence. Until then:
 30. Done: remove temporary libc allocation from lowered LLVM program objects.
     `oren_llvm_runtime_alloc_string(len)` now calls external
     `oren_llvm_runtime_alloc_bytes(bytes, kind)` and
-    `oren_llvm_runtime_register_string(desc, data, len)` hooks. Focused runtime
-    harnesses provide the current host implementation and validate that
-    registered heap descriptors have coherent `{ len, data, owner_kind=1 }`
-    metadata.
-31. Replace the harness-only allocation/register hooks with the real Oren
-    runtime allocation and GC registration surface, then expand the same
-    descriptor ABI to non-constant program input and broader runtime helpers
-    while keeping x64/ARM64 as the oracle.
+    `oren_llvm_runtime_register_string(desc, data, len)` hooks.
+31. Done: move those hooks into the real C runtime surface. The hook
+    implementation lives in `lib/runtime/070_llvm_native_hooks.inc`, registers
+    string bytes as GC-tracked string storage, registers descriptor blocks as
+    tracked runtime structs, and validates `{ len, data, owner_kind=1 }`
+    metadata. The focused LLVM string runtime probes now link `lib/runtime.c`
+    plus `lib/runtime_buf.c` instead of a harness-only shim.
+32. Extend LLVM-native root/safepoint metadata so descriptor handles remain live
+    across runtime calls and GC, then expand the same descriptor ABI to
+    non-constant program input and broader runtime helpers while keeping x64/ARM64
+    as the oracle.

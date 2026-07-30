@@ -25,3 +25,4 @@
 #include "runtime/044_byte_access.inc"
 #include "runtime/045_bytes_helpers.inc"
 #include "runtime/050_io_misc.inc"
+#include "runtime/070_llvm_native_hooks.inc"
