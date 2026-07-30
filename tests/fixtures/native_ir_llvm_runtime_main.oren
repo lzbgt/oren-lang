@@ -1,0 +1,16 @@
+// Native IR LLVM runtime smoke:
+// - stays inside the current semantic lowering subset
+// - proves linked execution of real CFG, local slots, comparisons, and arithmetic
+
+fn main() {
+    var total = 0
+    var i = 0
+    while i < 5 {
+        total = total + i
+        i = i + 1
+    }
+    if total != 10 { return 1 }
+    var scaled = total * 2 + 1
+    if scaled == 21 { return 0 }
+    return 2
+}

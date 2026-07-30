@@ -6043,7 +6043,10 @@ make docs-site</code></pre>
 <p>  <code>make verify-native-ir-llvm-smoke</code> is the preferred fast iteration gate for</p>
 <p>  this area: two integration programs cover helper-heavy and helper-free object</p>
 <p>  emission, target triples, and compile-only <code>test</code> rejection without replaying</p>
-<p>  broad runtime suites.</p>
+<p>  broad runtime suites. <code>make verify-native-ir-llvm-runtime</code> now adds the first</p>
+<p>  linked execution parity proof: a semantic-subset fixture is built with native</p>
+<p>  backend as oracle, then built with <code>--backend llvm-native</code>, linked into a tiny</p>
+<p>  C harness, and executed on host ARM64 macOS.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

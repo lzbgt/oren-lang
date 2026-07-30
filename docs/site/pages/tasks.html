@@ -841,7 +841,9 @@
 <p>     oracle. <code>make verify-native-ir-llvm-workflow</code> records per-gate timings and</p>
 <p>     skips the redundant <code>make test</code> replay of <code>test-native-quick</code>; `make</p>
 <p>     verify-native-ir-llvm-smoke` is the fast iteration gate with two integrated</p>
-<p>     object-emission fixtures.</p>
+<p>     object-emission fixtures. <code>make verify-native-ir-llvm-runtime</code> now proves</p>
+<p>     linked execution for a semantic-subset CFG/arithmetic fixture against the</p>
+<p>     native backend oracle on host ARM64 macOS.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

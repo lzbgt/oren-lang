@@ -182,7 +182,8 @@ after it has round-trip/parity evidence. Until then:
     produce relocatable objects plus adjacent native-IR/LLVM/manifest sidecars.
     `make verify-native-ir-llvm-backend` proves helper-bearing hello object
     emission, helper-free arithmetic object emission, and explicit rejection of
-    `oren test --backend llvm-native` until object linking/runtime parity exists.
+    `oren test --backend llvm-native` until executable runtime/helper parity
+    exists.
 16. Done: add `make verify-native-ir-llvm-workflow`, a timed aggregate local
     verification path for native-IR/LLVM work. It runs the focused native-IR
     gates, stage2, native quick, x64 compile, AVM, and iOS SDK gates while
@@ -194,6 +195,13 @@ after it has round-trip/parity evidence. Until then:
     toolchain discovery, build dispatch, native-IR dump, LLVM lowering, `llc`
     object emission, helper calls, helper-free arithmetic, target triples, and
     compile-only `test` rejection without replaying broad runtime suites.
-18. Add LLVM runtime linking/execution parity fixtures; keep x64/ARM64 as the
-    oracle until the LLVM path can run parity programs, not just compile
-    relocatable objects.
+18. Done: add first LLVM linked-execution parity fixture. `make
+    verify-native-ir-llvm-runtime` builds
+    `tests/fixtures/native_ir_llvm_runtime_main.oren` with the native backend as
+    oracle, builds the same fixture with `--backend llvm-native`, links the LLVM
+    relocatable object into a tiny C harness, and runs it on host ARM64 macOS.
+    The fixture stays inside the current semantic subset and proves CFG, local
+    slots, comparisons, and arithmetic execute after LLVM object linking.
+19. Add real runtime-helper linking/execution parity for helper-bearing programs;
+    keep x64/ARM64 as the oracle until the LLVM path can run those parity
+    programs without opaque test shims.

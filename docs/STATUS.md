@@ -5081,7 +5081,10 @@ make docs-site
   `make verify-native-ir-llvm-smoke` is the preferred fast iteration gate for
   this area: two integration programs cover helper-heavy and helper-free object
   emission, target triples, and compile-only `test` rejection without replaying
-  broad runtime suites.
+  broad runtime suites. `make verify-native-ir-llvm-runtime` now adds the first
+  linked execution parity proof: a semantic-subset fixture is built with native
+  backend as oracle, then built with `--backend llvm-native`, linked into a tiny
+  C harness, and executed on host ARM64 macOS.
 
 ## Documentation Guardrail
 
