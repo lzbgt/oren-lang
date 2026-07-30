@@ -95,8 +95,8 @@ static void oren_llvm_runtime_mark_string_desc_locked(OrenLlvmString* desc) {
     }
 }
 
-static void oren_llvm_runtime_mark_list_desc_locked(OrenLlvmList* desc) {
-    if (!desc) return;
+static void oren_llvm_runtime_mark_list_desc_rec_locked(OrenLlvmList* desc, int depth) {
+    if (!desc || depth <= 0) return;
     OrenAllocNode* dn = oren_find_node(desc);
     if (dn && dn->freed == 0 && dn->kind == OREN_ALLOC_STRUCT) {
         dn->freed = -1;
@@ -115,19 +115,13 @@ static void oren_llvm_runtime_mark_list_desc_locked(OrenLlvmList* desc) {
         }
         OrenAllocNode* ln = oren_llvm_runtime_find_list_desc_locked(item);
         if (ln) {
-            OrenLlvmList* child = (OrenLlvmList*)ln->ptr;
-            OrenAllocNode* cn = oren_find_node(child);
-            if (cn && cn->freed == 0 && cn->kind == OREN_ALLOC_STRUCT) {
-                cn->freed = -1;
-            }
-            if (child->data) {
-                OrenAllocNode* cdn = oren_find_node(child->data);
-                if (cdn && cdn->freed == 0 && cdn->kind == OREN_ALLOC_STRUCT) {
-                    cdn->freed = -1;
-                }
-            }
+            oren_llvm_runtime_mark_list_desc_rec_locked((OrenLlvmList*)ln->ptr, depth - 1);
         }
     }
+}
+
+static void oren_llvm_runtime_mark_list_desc_locked(OrenLlvmList* desc) {
+    oren_llvm_runtime_mark_list_desc_rec_locked(desc, 64);
 }
 
 int64_t oren_llvm_runtime_roots_mark(void) {
@@ -291,6 +285,20 @@ int64_t oren_llvm_runtime_registered_strings(void) {
 
 int64_t oren_llvm_runtime_registered_lists(void) {
     return g_llvm_runtime_registered_lists;
+}
+
+int64_t oren_llvm_runtime_is_live_string(int64_t desc_handle) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    int64_t live = oren_llvm_runtime_find_string_desc_locked(desc_handle) ? 1 : 0;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return live;
+}
+
+int64_t oren_llvm_runtime_is_live_list(int64_t desc_handle) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    int64_t live = oren_llvm_runtime_find_list_desc_locked(desc_handle) ? 1 : 0;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return live;
 }
 
 int64_t oren_llvm_runtime_root_depth(void) {

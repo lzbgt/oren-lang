@@ -565,7 +565,10 @@ This file is the concise task view. Detailed implementation status lives in
      fallbacks. The same gate covers push growth from initial capacity,
      descriptor-backed mutation through an alias, forced-GC safepoints with
      proven list locals rooted via `oren_llvm_runtime_roots_push_list`, and root
-     reset after helper calls.
+     reset after helper calls. The C runtime now recursively marks nested
+     LLVM list/string descriptor contents from a parent list root, and the
+     list runtime gate proves a parent-list -> child-list -> dynamic-string
+     graph survives forced safepoint GC when only the parent list is rooted.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

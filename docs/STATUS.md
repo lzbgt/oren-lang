@@ -5153,7 +5153,12 @@ make docs-site
 				  against the native backend oracle, rejects opaque
 				  array/index/list-int helper fallbacks for this subset, proves push
 				  growth from initial capacity, forces GC between list allocation and
-				  later reads, and verifies root-stack reset after helper calls.
+				  later reads, and verifies root-stack reset after helper calls. The C
+				  runtime now recursively marks nested LLVM list/string descriptor
+				  contents from a parent list root, and the list runtime gate builds a
+				  parent-list -> child-list -> dynamic-string graph to prove a forced
+				  safepoint GC keeps nested descriptors live when only the parent list
+				  is explicitly rooted.
 
 ## Documentation Guardrail
 

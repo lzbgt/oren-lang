@@ -6115,7 +6115,12 @@ make docs-site</code></pre>
 <p>				  against the native backend oracle, rejects opaque</p>
 <p>				  array/index/list-int helper fallbacks for this subset, proves push</p>
 <p>				  growth from initial capacity, forces GC between list allocation and</p>
-<p>				  later reads, and verifies root-stack reset after helper calls.</p>
+<p>				  later reads, and verifies root-stack reset after helper calls. The C</p>
+<p>				  runtime now recursively marks nested LLVM list/string descriptor</p>
+<p>				  contents from a parent list root, and the list runtime gate builds a</p>
+<p>				  parent-list -&gt; child-list -&gt; dynamic-string graph to prove a forced</p>
+<p>				  safepoint GC keeps nested descriptors live when only the parent list</p>
+<p>				  is explicitly rooted.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

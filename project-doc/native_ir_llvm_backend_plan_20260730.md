@@ -325,5 +325,11 @@ after it has round-trip/parity evidence. Until then:
     push/length/get helpers. `make verify-native-ir-llvm-list-runtime` proves
     empty-list growth through repeated push, length reads, indexed reads, alias
     mutation, and forced-GC list rooting.
-40. Expand descriptor ABI support to additional non-string helpers and nested
-    descriptor values beyond the current conservative string/list subset.
+40. Done: add runtime-level nested descriptor root marking. The C runtime now
+    recursively marks LLVM list descriptor contents, including nested list and
+    string descriptors, with a bounded recursion guard. `make
+    verify-native-ir-llvm-list-runtime` builds a parent-list -> child-list ->
+    dynamic-string graph, pushes only the parent list root, forces a safepoint
+    GC, and proves the nested descriptors remain live.
+41. Add lowerer-side element descriptor provenance for nested list indexing and
+    broaden non-string helper lowering beyond the current string/list subset.

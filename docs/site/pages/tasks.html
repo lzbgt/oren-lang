@@ -887,7 +887,10 @@
 <p>     fallbacks. The same gate covers push growth from initial capacity,</p>
 <p>     descriptor-backed mutation through an alias, forced-GC safepoints with</p>
 <p>     proven list locals rooted via <code>oren_llvm_runtime_roots_push_list</code>, and root</p>
-<p>     reset after helper calls.</p>
+<p>     reset after helper calls. The C runtime now recursively marks nested</p>
+<p>     LLVM list/string descriptor contents from a parent list root, and the</p>
+<p>     list runtime gate proves a parent-list -&gt; child-list -&gt; dynamic-string</p>
+<p>     graph survives forced safepoint GC when only the parent list is rooted.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
