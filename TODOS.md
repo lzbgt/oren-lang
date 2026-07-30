@@ -281,6 +281,8 @@ design evidence lives under `project-doc/`.
   negative/upper-bound guards into focused helpers.
 - X64 atomic add/CAS intrinsic scratch records now use compact positional state
   instead of transient keyed maps for fixed-shape temp slots.
+- X64 logical infix short-circuit and modulo runtime spill records now use
+  compact positional state for fixed-shape label/fixup/temp bundles.
 - X64 function epilogue emission now separates call-depth exit patch points,
   callee-save restores, frame teardown/return, and local-fixup finalization into
   focused helpers while preserving return-order emission.

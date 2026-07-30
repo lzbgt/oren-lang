@@ -16,47 +16,41 @@ fn _x64_emit_bool_singleton_from_rax_nonzero(ctx, prefix) {
 }
 
 fn _x64_logical_infix_state(ctx) {
-    return {
-        "labels": {},
-        "fixups": [],
-        "l_rhs": _new_label(ctx, "sc_rhs"),
-        "l_false": _new_label(ctx, "sc_false"),
-        "end": _new_label(ctx, "sc_end")
-    }
+    return [{}, [], _new_label(ctx, "sc_rhs"), _new_label(ctx, "sc_false"), _new_label(ctx, "sc_end")]
 }
 
 fn _x64_logical_emit_false_end(ctx, st) {
-    _emit_label(ctx, st["labels"], st["l_false"])
+    _emit_label(ctx, st[0], st[3])
     _x64_emit_load_value_singleton(ctx, 0, 376) // false
-    _emit_label(ctx, st["labels"], st["end"])
-    _patch_local_fixups(ctx, st["labels"], st["fixups"])
+    _emit_label(ctx, st[0], st[4])
+    _patch_local_fixups(ctx, st[0], st[1])
     return nil
 }
 
 fn _x64_logical_emit_and_rhs(ctx, st, r, locals) {
     // If lhs is falsey => false, else evaluate rhs and return truthiness(rhs).
-    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_false"])
+    _x64_emit_jcc_if_rax_falsey(ctx, st[1], st[3])
     _emit_eval_int_to_rax(ctx, r, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_false"])
+    _x64_emit_jcc_if_rax_falsey(ctx, st[1], st[3])
     _x64_emit_load_value_singleton(ctx, 0, 384) // true
-    _emit_jmp_to_label(ctx, st["fixups"], st["end"])
+    _emit_jmp_to_label(ctx, st[1], st[4])
     _x64_logical_emit_false_end(ctx, st)
     return nil
 }
 
 fn _x64_logical_emit_or_rhs(ctx, st, r, locals) {
     // If lhs is falsey => eval rhs, else true.
-    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_rhs"])
+    _x64_emit_jcc_if_rax_falsey(ctx, st[1], st[2])
     _x64_emit_load_value_singleton(ctx, 0, 384) // true
-    _emit_jmp_to_label(ctx, st["fixups"], st["end"])
+    _emit_jmp_to_label(ctx, st[1], st[4])
 
-    _emit_label(ctx, st["labels"], st["l_rhs"])
+    _emit_label(ctx, st[0], st[2])
     _emit_eval_int_to_rax(ctx, r, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    _x64_emit_jcc_if_rax_falsey(ctx, st["fixups"], st["l_false"])
+    _x64_emit_jcc_if_rax_falsey(ctx, st[1], st[3])
     _x64_emit_load_value_singleton(ctx, 0, 384) // true
-    _emit_jmp_to_label(ctx, st["fixups"], st["end"])
+    _emit_jmp_to_label(ctx, st[1], st[4])
 
     _x64_logical_emit_false_end(ctx, st)
     return nil
@@ -135,11 +129,11 @@ fn _x64_prepare_mod_runtime_args(ctx, l, r, locals) {
     _emit_eval_int_to_rax(ctx, r, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
-    return {"base": base_mod, "lhs": tmp_a, "rhs": tmp_b}
+    return [base_mod, tmp_a, tmp_b]
 }
 
 fn _x64_emit_mod_runtime_call(ctx, state) {
-    var base_mod = state["base"]
+    var base_mod = state[0]
     var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1m_enc = abi.int_arg_reg(ctx["abi"], 1)
     if oren_type_tag(a0m_enc) == 0 || oren_type_tag(a1m_enc) == 0 {
@@ -149,8 +143,8 @@ fn _x64_emit_mod_runtime_call(ctx, state) {
     }
     var a0m = a0m_enc - 1
     var a1m = a1m_enc - 1
-    _emit_mov_r64_mrbp(ctx, a0m, 0 - state["lhs"])
-    _emit_mov_r64_mrbp(ctx, a1m, 0 - state["rhs"])
+    _emit_mov_r64_mrbp(ctx, a0m, 0 - state[1])
+    _emit_mov_r64_mrbp(ctx, a1m, 0 - state[2])
     var call_posm = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_posm, "name": "oren_mod"})
