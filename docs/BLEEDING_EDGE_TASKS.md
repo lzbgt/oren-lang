@@ -577,12 +577,15 @@ This file is the concise task view. Detailed implementation status lives in
 	     `%oren_llvm_bytes { len, data, owner_kind }` descriptors with
 	     runtime-owned raw backing storage, bytes registration/root hooks, and
 	     generated `oren_bytes_from_hex`, `oren_bytes_len`,
-	     `oren_bytes_get_u8`, u16/u32 endian reads, `oren_bytes_set_u8`,
-	     `oren_bytes_to_hex`, `oren_u8_buf_from_bytes_slice`,
-	     `oren_string_from_bytes_slice`, `oren_bytes_pack`, and
+	     `oren_bytes_get_u8`, u16/u32/u64 endian reads, signed i16/i32/i64
+	     endian reads, `oren_bytes_set_u8`, `oren_bytes_to_hex`,
+	     `oren_u8_buf_from_bytes_slice`, `oren_string_from_bytes_slice`,
+	     `oren_bytes_pack`, and
 	     `oren_bytes_unpack` helpers. `make verify-native-ir-llvm-bytes-runtime`
 	     proves linked hex -> bytes -> list -> mutated bytes -> hex plus
-	     bytes/string slice execution parity under forced GC-at-safepoint.
+	     bytes/string slice execution parity under forced GC-at-safepoint, with
+	     byte helper emitters split out of the core lowerer for source-line
+	     headroom.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

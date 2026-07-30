@@ -2,7 +2,7 @@
 // - proves hex strings lower into runtime-owned bytes descriptors
 // - proves descriptor-backed length and byte access helpers
 // - proves bytes-to-hex, bytes-unpack, and bytes-pack materialization
-// - proves endian reads, byte mutation, and bytes/string slice helpers
+// - proves unsigned/signed endian reads, byte mutation, and bytes/string slice helpers
 // - proves bytes roots survive helper safepoints and forced GC
 
 fn main() {
@@ -33,5 +33,15 @@ fn main() {
     if oren_bytes_len(sub) != 2 { return 17 }
     if oren_bytes_get_u16_be(sub, 0) != 65451 { return 18 }
     if oren_string_eq(oren_string_from_bytes_slice(oren_bytes_from_hex("41424344"), 1, 2), "BC") != true { return 19 }
+    if oren_bytes_get_i16_be(oren_bytes_from_hex("fffe"), 0) != -2 { return 20 }
+    if oren_bytes_get_i16_le(oren_bytes_from_hex("feff"), 0) != -2 { return 21 }
+    if oren_bytes_get_i32_be(oren_bytes_from_hex("fffffffe"), 0) != -2 { return 22 }
+    if oren_bytes_get_i32_le(oren_bytes_from_hex("feffffff"), 0) != -2 { return 23 }
+
+    var wide = oren_bytes_from_hex("0102030405060708")
+    if oren_bytes_get_u64_be(wide, 0) != 72623859790382856 { return 24 }
+    if oren_bytes_get_u64_le(wide, 0) != 578437695752307201 { return 25 }
+    if oren_bytes_get_i64_be(oren_bytes_from_hex("fffffffffffffffe"), 0) != -2 { return 26 }
+    if oren_bytes_get_i64_le(oren_bytes_from_hex("feffffffffffffff"), 0) != -2 { return 27 }
     return 0
 }

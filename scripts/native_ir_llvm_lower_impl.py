@@ -7,9 +7,21 @@ import re
 import sys
 
 from native_ir_llvm_bytes_helpers import (
+    emit_bytes_from_hex_helper,
+    emit_bytes_get_u8_helper,
+    emit_bytes_get_i16_helper,
+    emit_bytes_get_i32_helper,
     emit_bytes_get_u16_helper,
     emit_bytes_get_u32_helper,
+    emit_bytes_get_u64_helper,
+    emit_bytes_len_helper,
+    emit_bytes_pack_helper,
+    emit_bytes_runtime_alloc,
     emit_bytes_set_u8_helper,
+    emit_bytes_to_hex_helper,
+    emit_bytes_unpack_helper,
+    emit_hex_digit_helper,
+    emit_hex_nibble_helper,
     emit_string_from_bytes_slice_helper,
     emit_u8_buf_from_bytes_slice_helper,
 )
@@ -71,8 +83,16 @@ GENERATED_HELPERS = {
     "oren_bytes_get_u8",
     "oren_bytes_get_u16_be",
     "oren_bytes_get_u16_le",
+    "oren_bytes_get_i16_be",
+    "oren_bytes_get_i16_le",
     "oren_bytes_get_u32_be",
     "oren_bytes_get_u32_le",
+    "oren_bytes_get_i32_be",
+    "oren_bytes_get_i32_le",
+    "oren_bytes_get_u64_be",
+    "oren_bytes_get_u64_le",
+    "oren_bytes_get_i64_be",
+    "oren_bytes_get_i64_le",
     "oren_bytes_set_u8",
     "oren_bytes_to_hex",
     "oren_string_from_bytes_slice",
@@ -131,9 +151,26 @@ BYTES_GET_U16_HELPERS = {
     "oren_bytes_get_u16_le",
 }
 
+BYTES_GET_I16_HELPERS = {
+    "oren_bytes_get_i16_be",
+    "oren_bytes_get_i16_le",
+}
+
 BYTES_GET_U32_HELPERS = {
     "oren_bytes_get_u32_be",
     "oren_bytes_get_u32_le",
+}
+
+BYTES_GET_I32_HELPERS = {
+    "oren_bytes_get_i32_be",
+    "oren_bytes_get_i32_le",
+}
+
+BYTES_GET_U64_HELPERS = {
+    "oren_bytes_get_u64_be",
+    "oren_bytes_get_u64_le",
+    "oren_bytes_get_i64_be",
+    "oren_bytes_get_i64_le",
 }
 
 BYTES_SET_U8_HELPERS = {
@@ -221,7 +258,10 @@ def collect_generic_helpers(fn):
                 BYTES_LEN_HELPERS
                 | BYTES_GET_HELPERS
                 | BYTES_GET_U16_HELPERS
+                | BYTES_GET_I16_HELPERS
                 | BYTES_GET_U32_HELPERS
+                | BYTES_GET_I32_HELPERS
+                | BYTES_GET_U64_HELPERS
                 | BYTES_SET_U8_HELPERS
                 | BYTES_TO_STRING_HELPERS
                 | BYTES_TO_BYTES_HELPERS
@@ -296,7 +336,10 @@ def collect_generated_helpers(fn):
                     BYTES_LEN_HELPERS
                     | BYTES_GET_HELPERS
                     | BYTES_GET_U16_HELPERS
+                    | BYTES_GET_I16_HELPERS
                     | BYTES_GET_U32_HELPERS
+                    | BYTES_GET_I32_HELPERS
+                    | BYTES_GET_U64_HELPERS
                     | BYTES_SET_U8_HELPERS
                 ):
                     if op.get("args") and op["args"][0] in bytes_values:
@@ -580,7 +623,28 @@ class FunctionLowerer:
                 )
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
+            if op["name"] in BYTES_GET_I16_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
             if op["name"] in BYTES_GET_U32_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_GET_I32_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_GET_U64_HELPERS and len(op["args"]) > 1 and op["args"][0] in self.bytes_values:
                 helper_call = (
                     f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
                     f"i64 {helper_args[0]}, i64 {helper_args[1]})"
@@ -1518,319 +1582,6 @@ def emit_list_set_helper(out):
     out.write("}\n")
 
 
-def emit_bytes_runtime_alloc(out):
-    out.write("\n")
-    out.write("define i64 @oren_llvm_runtime_alloc_bytes_desc(i64 %len) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %neg = icmp slt i64 %len, 0\n")
-    out.write("  br i1 %neg, label %invalid, label %alloc\n")
-    out.write("alloc:\n")
-    out.write("  %bytes = call i8* @oren_llvm_runtime_alloc_bytes(i64 %len, i64 5)\n")
-    out.write("  %raw_desc = call i8* @oren_llvm_runtime_alloc_bytes(i64 24, i64 4)\n")
-    out.write("  %desc = bitcast i8* %raw_desc to %oren_llvm_bytes*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %desc, i32 0, i32 0\n")
-    out.write("  store i64 %len, i64* %lenp, align 8\n")
-    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %desc, i32 0, i32 1\n")
-    out.write("  store i8* %bytes, i8** %datap, align 8\n")
-    out.write("  %ownerp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %desc, i32 0, i32 2\n")
-    out.write("  store i64 1, i64* %ownerp, align 8\n")
-    out.write("  %ret = ptrtoint %oren_llvm_bytes* %desc to i64\n")
-    out.write("  call void @oren_llvm_runtime_register_bytes(i64 %ret, i8* %bytes, i64 %len)\n")
-    out.write("  ret i64 %ret\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
-def emit_hex_nibble_helper(out):
-    out.write("\n")
-    out.write("define i64 @oren_llvm_helper_hex_nibble(i8 %ch) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %c = zext i8 %ch to i64\n")
-    out.write("  %ge0 = icmp sge i64 %c, 48\n")
-    out.write("  %le9 = icmp sle i64 %c, 57\n")
-    out.write("  %is_digit = and i1 %ge0, %le9\n")
-    out.write("  br i1 %is_digit, label %digit, label %lower\n")
-    out.write("digit:\n")
-    out.write("  %dv = sub i64 %c, 48\n")
-    out.write("  ret i64 %dv\n")
-    out.write("lower:\n")
-    out.write("  %gea = icmp sge i64 %c, 97\n")
-    out.write("  %lef = icmp sle i64 %c, 102\n")
-    out.write("  %is_lower = and i1 %gea, %lef\n")
-    out.write("  br i1 %is_lower, label %lower_hex, label %upper\n")
-    out.write("lower_hex:\n")
-    out.write("  %lv0 = sub i64 %c, 97\n")
-    out.write("  %lv = add i64 %lv0, 10\n")
-    out.write("  ret i64 %lv\n")
-    out.write("upper:\n")
-    out.write("  %geA = icmp sge i64 %c, 65\n")
-    out.write("  %leF = icmp sle i64 %c, 70\n")
-    out.write("  %is_upper = and i1 %geA, %leF\n")
-    out.write("  br i1 %is_upper, label %upper_hex, label %invalid\n")
-    out.write("upper_hex:\n")
-    out.write("  %uv0 = sub i64 %c, 65\n")
-    out.write("  %uv = add i64 %uv0, 10\n")
-    out.write("  ret i64 %uv\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 -1\n")
-    out.write("}\n")
-
-
-def emit_bytes_from_hex_helper(out):
-    out.write("\n")
-    out.write(
-        "define i64 @oren_llvm_helper_oren_bytes_from_hex("
-        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
-    )
-    out.write("entry:\n")
-    out.write("  %is_null = icmp eq i64 %arg0, 0\n")
-    out.write("  br i1 %is_null, label %invalid, label %load\n")
-    out.write("load:\n")
-    out.write("  %src = inttoptr i64 %arg0 to %oren_llvm_string*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 0\n")
-    out.write("  %src_len = load i64, i64* %lenp, align 8\n")
-    out.write("  %odd = and i64 %src_len, 1\n")
-    out.write("  %is_odd = icmp ne i64 %odd, 0\n")
-    out.write("  br i1 %is_odd, label %invalid, label %alloc\n")
-    out.write("alloc:\n")
-    out.write("  %out_len = sdiv i64 %src_len, 2\n")
-    out.write("  %out_handle = call i64 @oren_llvm_runtime_alloc_bytes_desc(i64 %out_len)\n")
-    out.write("  %out_desc = inttoptr i64 %out_handle to %oren_llvm_bytes*\n")
-    out.write("  %out_datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %out_desc, i32 0, i32 1\n")
-    out.write("  %out_data = load i8*, i8** %out_datap, align 8\n")
-    out.write("  %src_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 1\n")
-    out.write("  %src_data = load i8*, i8** %src_datap, align 8\n")
-    out.write("  br label %loop\n")
-    out.write("loop:\n")
-    out.write("  %i = phi i64 [0, %alloc], [%next_i, %store]\n")
-    out.write("  %done = icmp sge i64 %i, %out_len\n")
-    out.write("  br i1 %done, label %done_block, label %decode\n")
-    out.write("decode:\n")
-    out.write("  %src_i = mul i64 %i, 2\n")
-    out.write("  %hi_ptr = getelementptr inbounds i8, i8* %src_data, i64 %src_i\n")
-    out.write("  %lo_i = add i64 %src_i, 1\n")
-    out.write("  %lo_ptr = getelementptr inbounds i8, i8* %src_data, i64 %lo_i\n")
-    out.write("  %hi_ch = load i8, i8* %hi_ptr, align 1\n")
-    out.write("  %lo_ch = load i8, i8* %lo_ptr, align 1\n")
-    out.write("  %hi = call i64 @oren_llvm_helper_hex_nibble(i8 %hi_ch)\n")
-    out.write("  %lo = call i64 @oren_llvm_helper_hex_nibble(i8 %lo_ch)\n")
-    out.write("  %hi_bad = icmp slt i64 %hi, 0\n")
-    out.write("  %lo_bad = icmp slt i64 %lo, 0\n")
-    out.write("  %bad = or i1 %hi_bad, %lo_bad\n")
-    out.write("  br i1 %bad, label %invalid, label %store\n")
-    out.write("store:\n")
-    out.write("  %hi_shift = shl i64 %hi, 4\n")
-    out.write("  %byte64 = or i64 %hi_shift, %lo\n")
-    out.write("  %byte = trunc i64 %byte64 to i8\n")
-    out.write("  %dst_ptr = getelementptr inbounds i8, i8* %out_data, i64 %i\n")
-    out.write("  store i8 %byte, i8* %dst_ptr, align 1\n")
-    out.write("  %next_i = add i64 %i, 1\n")
-    out.write("  br label %loop\n")
-    out.write("done_block:\n")
-    out.write("  ret i64 %out_handle\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
-def emit_bytes_len_helper(out):
-    out.write("\n")
-    out.write("define i64 @oren_llvm_helper_oren_bytes_len(i64 %bytes_handle) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %is_null = icmp eq i64 %bytes_handle, 0\n")
-    out.write("  br i1 %is_null, label %invalid, label %load\n")
-    out.write("load:\n")
-    out.write("  %bytes = inttoptr i64 %bytes_handle to %oren_llvm_bytes*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
-    out.write("  %len = load i64, i64* %lenp, align 8\n")
-    out.write("  ret i64 %len\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
-def emit_bytes_get_u8_helper(out):
-    out.write("\n")
-    out.write("define i64 @oren_llvm_helper_oren_bytes_get_u8(i64 %bytes_handle, i64 %idx) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %is_null = icmp eq i64 %bytes_handle, 0\n")
-    out.write("  br i1 %is_null, label %invalid, label %load\n")
-    out.write("load:\n")
-    out.write("  %bytes = inttoptr i64 %bytes_handle to %oren_llvm_bytes*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
-    out.write("  %len = load i64, i64* %lenp, align 8\n")
-    out.write("  %idx_nonneg = icmp sge i64 %idx, 0\n")
-    out.write("  %idx_lt_len = icmp slt i64 %idx, %len\n")
-    out.write("  %ok = and i1 %idx_nonneg, %idx_lt_len\n")
-    out.write("  br i1 %ok, label %read, label %invalid\n")
-    out.write("read:\n")
-    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 1\n")
-    out.write("  %data = load i8*, i8** %datap, align 8\n")
-    out.write("  %ptr = getelementptr inbounds i8, i8* %data, i64 %idx\n")
-    out.write("  %byte = load i8, i8* %ptr, align 1\n")
-    out.write("  %ret = zext i8 %byte to i64\n")
-    out.write("  ret i64 %ret\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
-def emit_hex_digit_helper(out):
-    out.write("\n")
-    out.write("define i8 @oren_llvm_helper_hex_digit(i64 %n) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %is_digit = icmp slt i64 %n, 10\n")
-    out.write("  br i1 %is_digit, label %digit, label %letter\n")
-    out.write("digit:\n")
-    out.write("  %d = add i64 %n, 48\n")
-    out.write("  %db = trunc i64 %d to i8\n")
-    out.write("  ret i8 %db\n")
-    out.write("letter:\n")
-    out.write("  %l = add i64 %n, 87\n")
-    out.write("  %lb = trunc i64 %l to i8\n")
-    out.write("  ret i8 %lb\n")
-    out.write("}\n")
-
-
-def emit_bytes_to_hex_helper(out):
-    out.write("\n")
-    out.write(
-        "define i64 @oren_llvm_helper_oren_bytes_to_hex("
-        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
-    )
-    out.write("entry:\n")
-    out.write("  %is_null = icmp eq i64 %arg0, 0\n")
-    out.write("  br i1 %is_null, label %invalid, label %load\n")
-    out.write("load:\n")
-    out.write("  %bytes = inttoptr i64 %arg0 to %oren_llvm_bytes*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
-    out.write("  %len = load i64, i64* %lenp, align 8\n")
-    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 1\n")
-    out.write("  %data = load i8*, i8** %datap, align 8\n")
-    out.write("  %out_len = mul i64 %len, 2\n")
-    out.write("  %out_handle = call i64 @oren_llvm_runtime_alloc_string(i64 %out_len)\n")
-    out.write("  %out_desc = inttoptr i64 %out_handle to %oren_llvm_string*\n")
-    out.write("  %out_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %out_desc, i32 0, i32 1\n")
-    out.write("  %out_data = load i8*, i8** %out_datap, align 8\n")
-    out.write("  br label %loop\n")
-    out.write("loop:\n")
-    out.write("  %i = phi i64 [0, %load], [%next_i, %write]\n")
-    out.write("  %done = icmp sge i64 %i, %len\n")
-    out.write("  br i1 %done, label %done_block, label %read\n")
-    out.write("read:\n")
-    out.write("  %srcp = getelementptr inbounds i8, i8* %data, i64 %i\n")
-    out.write("  %byte = load i8, i8* %srcp, align 1\n")
-    out.write("  %byte64 = zext i8 %byte to i64\n")
-    out.write("  %hi = lshr i64 %byte64, 4\n")
-    out.write("  %lo = and i64 %byte64, 15\n")
-    out.write("  %hi_ch = call i8 @oren_llvm_helper_hex_digit(i64 %hi)\n")
-    out.write("  %lo_ch = call i8 @oren_llvm_helper_hex_digit(i64 %lo)\n")
-    out.write("  %dst_i = mul i64 %i, 2\n")
-    out.write("  %hi_dst = getelementptr inbounds i8, i8* %out_data, i64 %dst_i\n")
-    out.write("  store i8 %hi_ch, i8* %hi_dst, align 1\n")
-    out.write("  %lo_i = add i64 %dst_i, 1\n")
-    out.write("  %lo_dst = getelementptr inbounds i8, i8* %out_data, i64 %lo_i\n")
-    out.write("  store i8 %lo_ch, i8* %lo_dst, align 1\n")
-    out.write("  br label %write\n")
-    out.write("write:\n")
-    out.write("  %next_i = add i64 %i, 1\n")
-    out.write("  br label %loop\n")
-    out.write("done_block:\n")
-    out.write("  ret i64 %out_handle\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
-def emit_bytes_pack_helper(out):
-    out.write("\n")
-    out.write("define i64 @oren_llvm_helper_oren_bytes_pack(i64 %list_handle) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %is_null = icmp eq i64 %list_handle, 0\n")
-    out.write("  br i1 %is_null, label %invalid, label %load\n")
-    out.write("load:\n")
-    out.write("  %list = inttoptr i64 %list_handle to %oren_llvm_list*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 0\n")
-    out.write("  %len = load i64, i64* %lenp, align 8\n")
-    out.write("  %datap = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 1\n")
-    out.write("  %data = load i64*, i64** %datap, align 8\n")
-    out.write("  br label %validate\n")
-    out.write("validate:\n")
-    out.write("  %vi = phi i64 [0, %load], [%next_vi, %valid_elem]\n")
-    out.write("  %v_done = icmp sge i64 %vi, %len\n")
-    out.write("  br i1 %v_done, label %alloc, label %check_elem\n")
-    out.write("check_elem:\n")
-    out.write("  %elem_p = getelementptr inbounds i64, i64* %data, i64 %vi\n")
-    out.write("  %elem = load i64, i64* %elem_p, align 8\n")
-    out.write("  %ge0 = icmp sge i64 %elem, 0\n")
-    out.write("  %le255 = icmp sle i64 %elem, 255\n")
-    out.write("  %ok = and i1 %ge0, %le255\n")
-    out.write("  br i1 %ok, label %valid_elem, label %invalid\n")
-    out.write("valid_elem:\n")
-    out.write("  %next_vi = add i64 %vi, 1\n")
-    out.write("  br label %validate\n")
-    out.write("alloc:\n")
-    out.write("  %out_handle = call i64 @oren_llvm_runtime_alloc_bytes_desc(i64 %len)\n")
-    out.write("  %out_desc = inttoptr i64 %out_handle to %oren_llvm_bytes*\n")
-    out.write("  %out_datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %out_desc, i32 0, i32 1\n")
-    out.write("  %out_data = load i8*, i8** %out_datap, align 8\n")
-    out.write("  br label %copy\n")
-    out.write("copy:\n")
-    out.write("  %ci = phi i64 [0, %alloc], [%next_ci, %store]\n")
-    out.write("  %c_done = icmp sge i64 %ci, %len\n")
-    out.write("  br i1 %c_done, label %done_block, label %store\n")
-    out.write("store:\n")
-    out.write("  %src_elem_p = getelementptr inbounds i64, i64* %data, i64 %ci\n")
-    out.write("  %src_elem = load i64, i64* %src_elem_p, align 8\n")
-    out.write("  %byte = trunc i64 %src_elem to i8\n")
-    out.write("  %dst = getelementptr inbounds i8, i8* %out_data, i64 %ci\n")
-    out.write("  store i8 %byte, i8* %dst, align 1\n")
-    out.write("  %next_ci = add i64 %ci, 1\n")
-    out.write("  br label %copy\n")
-    out.write("done_block:\n")
-    out.write("  ret i64 %out_handle\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
-def emit_bytes_unpack_helper(out):
-    out.write("\n")
-    out.write("define i64 @oren_llvm_helper_oren_bytes_unpack(i64 %bytes_handle) nounwind {\n")
-    out.write("entry:\n")
-    out.write("  %is_null = icmp eq i64 %bytes_handle, 0\n")
-    out.write("  br i1 %is_null, label %invalid, label %load\n")
-    out.write("load:\n")
-    out.write("  %bytes = inttoptr i64 %bytes_handle to %oren_llvm_bytes*\n")
-    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
-    out.write("  %len = load i64, i64* %lenp, align 8\n")
-    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 1\n")
-    out.write("  %data = load i8*, i8** %datap, align 8\n")
-    out.write("  %list_handle = call i64 @oren_llvm_runtime_alloc_list(i64 %len)\n")
-    out.write("  %list = inttoptr i64 %list_handle to %oren_llvm_list*\n")
-    out.write("  %list_datap = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 1\n")
-    out.write("  %list_data = load i64*, i64** %list_datap, align 8\n")
-    out.write("  br label %loop\n")
-    out.write("loop:\n")
-    out.write("  %i = phi i64 [0, %load], [%next_i, %store]\n")
-    out.write("  %done = icmp sge i64 %i, %len\n")
-    out.write("  br i1 %done, label %done_block, label %store\n")
-    out.write("store:\n")
-    out.write("  %src = getelementptr inbounds i8, i8* %data, i64 %i\n")
-    out.write("  %byte = load i8, i8* %src, align 1\n")
-    out.write("  %val = zext i8 %byte to i64\n")
-    out.write("  %dst = getelementptr inbounds i64, i64* %list_data, i64 %i\n")
-    out.write("  store i64 %val, i64* %dst, align 8\n")
-    out.write("  %next_i = add i64 %i, 1\n")
-    out.write("  br label %loop\n")
-    out.write("done_block:\n")
-    out.write("  ret i64 %list_handle\n")
-    out.write("invalid:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
-
-
 def emit_module(ir_path, out_path, ir, main):
     schema = ir["schema"].encode("utf-8")
     schema_literal = "".join(
@@ -1912,10 +1663,34 @@ def emit_module(ir_path, out_path, ir, main):
             emit_bytes_get_u16_helper(out, "oren_bytes_get_u16_be", False)
         if "oren_bytes_get_u16_le" in helpers_to_emit:
             emit_bytes_get_u16_helper(out, "oren_bytes_get_u16_le", True)
+        if "oren_bytes_get_i16_be" in helpers_to_emit:
+            if "oren_bytes_get_u16_be" not in helpers_to_emit:
+                emit_bytes_get_u16_helper(out, "oren_bytes_get_u16_be", False)
+            emit_bytes_get_i16_helper(out, "oren_bytes_get_i16_be", "oren_bytes_get_u16_be")
+        if "oren_bytes_get_i16_le" in helpers_to_emit:
+            if "oren_bytes_get_u16_le" not in helpers_to_emit:
+                emit_bytes_get_u16_helper(out, "oren_bytes_get_u16_le", True)
+            emit_bytes_get_i16_helper(out, "oren_bytes_get_i16_le", "oren_bytes_get_u16_le")
         if "oren_bytes_get_u32_be" in helpers_to_emit:
             emit_bytes_get_u32_helper(out, "oren_bytes_get_u32_be", False)
         if "oren_bytes_get_u32_le" in helpers_to_emit:
             emit_bytes_get_u32_helper(out, "oren_bytes_get_u32_le", True)
+        if "oren_bytes_get_i32_be" in helpers_to_emit:
+            if "oren_bytes_get_u32_be" not in helpers_to_emit:
+                emit_bytes_get_u32_helper(out, "oren_bytes_get_u32_be", False)
+            emit_bytes_get_i32_helper(out, "oren_bytes_get_i32_be", "oren_bytes_get_u32_be")
+        if "oren_bytes_get_i32_le" in helpers_to_emit:
+            if "oren_bytes_get_u32_le" not in helpers_to_emit:
+                emit_bytes_get_u32_helper(out, "oren_bytes_get_u32_le", True)
+            emit_bytes_get_i32_helper(out, "oren_bytes_get_i32_le", "oren_bytes_get_u32_le")
+        if "oren_bytes_get_u64_be" in helpers_to_emit or "oren_bytes_get_i64_be" in helpers_to_emit:
+            emit_bytes_get_u64_helper(out, "oren_bytes_get_u64_be", False)
+        if "oren_bytes_get_u64_le" in helpers_to_emit or "oren_bytes_get_i64_le" in helpers_to_emit:
+            emit_bytes_get_u64_helper(out, "oren_bytes_get_u64_le", True)
+        if "oren_bytes_get_i64_be" in helpers_to_emit:
+            emit_bytes_get_u64_helper(out, "oren_bytes_get_i64_be", False)
+        if "oren_bytes_get_i64_le" in helpers_to_emit:
+            emit_bytes_get_u64_helper(out, "oren_bytes_get_i64_le", True)
         if "oren_bytes_set_u8" in helpers_to_emit:
             emit_bytes_set_u8_helper(out)
         if "oren_bytes_to_hex" in helpers_to_emit:

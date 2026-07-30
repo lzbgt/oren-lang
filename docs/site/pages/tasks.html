@@ -899,12 +899,15 @@
 <p>	     <code>%oren_llvm_bytes { len, data, owner_kind }</code> descriptors with</p>
 <p>	     runtime-owned raw backing storage, bytes registration/root hooks, and</p>
 <p>	     generated <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>,</p>
-<p>	     <code>oren_bytes_get_u8</code>, u16/u32 endian reads, <code>oren_bytes_set_u8</code>,</p>
-<p>	     <code>oren_bytes_to_hex</code>, <code>oren_u8_buf_from_bytes_slice</code>,</p>
-<p>	     <code>oren_string_from_bytes_slice</code>, <code>oren_bytes_pack</code>, and</p>
+<p>	     <code>oren_bytes_get_u8</code>, u16/u32/u64 endian reads, signed i16/i32/i64</p>
+<p>	     endian reads, <code>oren_bytes_set_u8</code>, <code>oren_bytes_to_hex</code>,</p>
+<p>	     <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_string_from_bytes_slice</code>,</p>
+<p>	     <code>oren_bytes_pack</code>, and</p>
 <p>	     <code>oren_bytes_unpack</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
 <p>	     proves linked hex -&gt; bytes -&gt; list -&gt; mutated bytes -&gt; hex plus</p>
-<p>	     bytes/string slice execution parity under forced GC-at-safepoint.</p>
+<p>	     bytes/string slice execution parity under forced GC-at-safepoint, with</p>
+<p>	     byte helper emitters split out of the core lowerer for source-line</p>
+<p>	     headroom.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

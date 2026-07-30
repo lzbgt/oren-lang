@@ -364,8 +364,12 @@ after it has round-trip/parity evidence. Until then:
     descriptor-backed byte slicing, descriptor-backed string slicing, real C
     runtime registration/rooting, and forced GC-at-safepoint against the native
     backend oracle.
-46. Move the remaining older byte helper emitters from
+46. Done: move the remaining older byte helper emitters from
     `scripts/native_ir_llvm_lower_impl.py` into
-    `scripts/native_ir_llvm_bytes_helpers.py` before adding copy helpers, u64
-    and signed endian helpers, runtime-varying inputs, maps, and
+    `scripts/native_ir_llvm_bytes_helpers.py` and add signed/u64 endian read
+    lowering. The implementation file is back below the source-line guardrail,
+    the byte helper module owns all LLVM-native bytes helper bodies, and
+    `make verify-native-ir-llvm-bytes-runtime` proves signed 16/32 plus
+    u64/i64 endian reads against the native backend oracle.
+47. Add copy helpers, wider endian writes, runtime-varying inputs, maps, and
     runtime-shaped records.
