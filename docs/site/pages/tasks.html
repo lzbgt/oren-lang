@@ -901,12 +901,14 @@
 <p>	     generated <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>,</p>
 <p>		     <code>oren_bytes_get_u8</code>, u16/u32/u64 endian reads, signed i16/i32/i64</p>
 <p>		     endian reads, u8 plus wider unsigned/signed endian writes,</p>
+<p>		     runtime-varying slice-copy via <code>oren_u8_buf_from_bytes_slice</code>,</p>
 <p>		     <code>oren_bytes_to_hex</code>,</p>
 <p>	     <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_string_from_bytes_slice</code>,</p>
 <p>	     <code>oren_bytes_pack</code>, and</p>
 <p>	     <code>oren_bytes_unpack</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
-<p>	     proves linked hex -&gt; bytes -&gt; list -&gt; mutated bytes -&gt; hex plus</p>
-<p>	     bytes/string slice execution parity under forced GC-at-safepoint, with</p>
+<p>		     proves linked hex -&gt; bytes -&gt; list -&gt; mutated bytes -&gt; hex plus</p>
+<p>		     computed-offset bytes/string slice execution parity under forced</p>
+<p>		     GC-at-safepoint, with</p>
 <p>	     byte helper emitters split out of the core lowerer for source-line</p>
 <p>	     headroom.</p>
 <ol>

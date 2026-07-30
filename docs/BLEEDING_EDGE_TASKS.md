@@ -579,12 +579,14 @@ This file is the concise task view. Detailed implementation status lives in
 	     generated `oren_bytes_from_hex`, `oren_bytes_len`,
 		     `oren_bytes_get_u8`, u16/u32/u64 endian reads, signed i16/i32/i64
 		     endian reads, u8 plus wider unsigned/signed endian writes,
+		     runtime-varying slice-copy via `oren_u8_buf_from_bytes_slice`,
 		     `oren_bytes_to_hex`,
 	     `oren_u8_buf_from_bytes_slice`, `oren_string_from_bytes_slice`,
 	     `oren_bytes_pack`, and
 	     `oren_bytes_unpack` helpers. `make verify-native-ir-llvm-bytes-runtime`
-	     proves linked hex -> bytes -> list -> mutated bytes -> hex plus
-	     bytes/string slice execution parity under forced GC-at-safepoint, with
+		     proves linked hex -> bytes -> list -> mutated bytes -> hex plus
+		     computed-offset bytes/string slice execution parity under forced
+		     GC-at-safepoint, with
 	     byte helper emitters split out of the core lowerer for source-line
 	     headroom.
 

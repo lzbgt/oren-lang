@@ -175,7 +175,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-endian-get-helpers,bytes-signed-endian-get-helpers,bytes-u64-endian-get-helpers,bytes-set-u8-helper,bytes-endian-set-helpers,bytes-signed-endian-set-helpers,bytes-u64-endian-set-helpers,bytes-to-hex-helper,bytes-slice-helper,bytes-string-slice-helper,bytes-pack-helper,bytes-unpack-helper,bytes-runtime-registration,bytes-safepoint-roots,forced-gc-at-bytes-safepoint,bytes-list-string-roundtrip\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-endian-get-helpers,bytes-signed-endian-get-helpers,bytes-u64-endian-get-helpers,bytes-set-u8-helper,bytes-endian-set-helpers,bytes-signed-endian-set-helpers,bytes-u64-endian-set-helpers,bytes-runtime-varying-copy,bytes-to-hex-helper,bytes-slice-helper,bytes-string-slice-helper,bytes-pack-helper,bytes-unpack-helper,bytes-runtime-registration,bytes-safepoint-roots,forced-gc-at-bytes-safepoint,bytes-list-string-roundtrip\n'
 } >"$summary"
 
 echo "OK: native IR LLVM bytes runtime parity passed; summary: $summary"

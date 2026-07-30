@@ -376,4 +376,12 @@ after it has round-trip/parity evidence. Until then:
     setters, matching the C runtime's mask/sign-return contracts and byte
     order. The focused bytes runtime gate proves representative unsigned,
     signed, and 64-bit writes by round-tripping through `oren_bytes_to_hex`.
-48. Add copy helpers, runtime-varying inputs, maps, and runtime-shaped records.
+48. Done: add runtime-varying bytes copy coverage without expanding the runtime
+    helper surface. The focused bytes fixture now computes copy offsets and
+    lengths through descriptor helper results, then routes the copy through the
+    existing `oren_u8_buf_from_bytes_slice` descriptor helper. A direct
+    `oren_bytes_copy` runtime helper was intentionally not kept because it
+    broadened native-oracle rebuild/codegen cost without adding a distinct ABI
+    contract.
+49. Add maps, runtime-shaped records, and broader runtime-varying descriptor
+    inputs.

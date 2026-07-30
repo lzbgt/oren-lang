@@ -5169,15 +5169,17 @@ make docs-site
 						  `oren_bytes_from_hex`, `oren_bytes_len`, `oren_bytes_get_u8`,
 							  u16/u32/u64 endian reads, signed i16/i32/i64 endian reads,
 							  u8 plus wider unsigned/signed endian writes,
-							  `oren_bytes_to_hex`,
+							  runtime-varying slice-copy via
+							  `oren_u8_buf_from_bytes_slice`, `oren_bytes_to_hex`,
 						  `oren_u8_buf_from_bytes_slice`, `oren_string_from_bytes_slice`,
 						  `oren_bytes_pack`, and `oren_bytes_unpack` helpers
 						  allocate/register bytes, string, and list descriptors,
 						  route proven bytes locals through
 						  `oren_llvm_runtime_roots_push_bytes`, and pass `make
 						  verify-native-ir-llvm-bytes-runtime` with a hex -> bytes ->
-						  list -> mutated bytes -> hex plus bytes/string slice roundtrip
-						  under forced GC-at-safepoint. LLVM-native byte helper emitters
+							  list -> mutated bytes -> hex plus computed-offset
+							  bytes/string slice roundtrip under forced
+							  GC-at-safepoint. LLVM-native byte helper emitters
 						  now live in `scripts/native_ir_llvm_bytes_helpers.py`, keeping
 						  the core lowerer below the source-line guardrail.
 
