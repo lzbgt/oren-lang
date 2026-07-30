@@ -219,6 +219,12 @@ after it has round-trip/parity evidence. Until then:
     code to `i32`, calls libc `exit`, and `make
     verify-native-ir-llvm-exit-runtime` compares the LLVM-linked process exit
     status against the native backend oracle.
-22. Replace remaining generic `oren_*` helper calls with real runtime-helper
-    semantics and symbol mapping; keep x64/ARM64 as the oracle until LLVM can
-    run those parity programs without test-only helper bodies.
+22. Done: replace the token-id generic helper dispatcher with deterministic
+    named helper symbols for unresolved `oren_*` runtime helpers. The LLVM
+    lowerer now emits declarations and calls such as
+    `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)`, preserving the
+    explicit native-IR argument count while giving future runtime linking a
+    stable per-helper symbol surface.
+23. Implement real runtime bodies for named `oren_*` helper symbols; keep
+    x64/ARM64 as the oracle until LLVM can run those parity programs without
+    unresolved or test-only helper bodies.

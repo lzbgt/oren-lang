@@ -528,7 +528,11 @@ This file is the concise task view. Detailed implementation status lives in
      parity through that generated LLVM IR instead of a test-only helper shim.
      The `exit` helper now lowers to generated `oren_llvm_helper_exit` plus libc
      `exit`, and `make verify-native-ir-llvm-exit-runtime` compares process
-     exit status against the native backend oracle.
+     exit status against the native backend oracle. Remaining unresolved
+     `oren_*` helper calls now lower to deterministic named symbols such as
+     `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)` instead of the
+     previous token-id dispatcher, giving future runtime linking a stable
+     per-helper symbol surface.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

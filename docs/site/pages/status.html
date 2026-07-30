@@ -6057,6 +6057,11 @@ make docs-site</code></pre>
 <p>  <code>oren_llvm_helper_exit</code> proof: it builds a native oracle and LLVM object for</p>
 <p>  <code>tests/fixtures/native_ir_llvm_exit_main.oren</code>, links the LLVM object into a</p>
 <p>  tiny harness, and requires both executables to terminate with exit code 42.</p>
+<p>  Remaining unresolved <code>oren_*</code> helper calls now lower to deterministic named</p>
+<p>  wrapper symbols such as</p>
+<p>  <code>oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)</code> instead of the</p>
+<p>  previous token-id dispatcher, so future runtime-helper linking has a stable</p>
+<p>  per-helper ABI surface without changing the x64/ARM64 oracle backends.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

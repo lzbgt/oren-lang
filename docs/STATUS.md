@@ -5095,6 +5095,11 @@ make docs-site
   `oren_llvm_helper_exit` proof: it builds a native oracle and LLVM object for
   `tests/fixtures/native_ir_llvm_exit_main.oren`, links the LLVM object into a
   tiny harness, and requires both executables to terminate with exit code 42.
+  Remaining unresolved `oren_*` helper calls now lower to deterministic named
+  wrapper symbols such as
+  `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)` instead of the
+  previous token-id dispatcher, so future runtime-helper linking has a stable
+  per-helper ABI surface without changing the x64/ARM64 oracle backends.
 
 ## Documentation Guardrail
 

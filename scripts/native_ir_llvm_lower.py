@@ -33,6 +33,19 @@ def llvm_name(prefix, raw, seq):
     return safe.replace(".", "_").replace("-", "_")
 
 
+def llvm_symbol_suffix(raw):
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", raw or "")
+    if not safe:
+        safe = "anon"
+    if not re.match(r"[A-Za-z_]", safe[0]):
+        safe = "_" + safe
+    return safe
+
+
+def llvm_helper_symbol(name):
+    return "oren_llvm_helper_" + llvm_symbol_suffix(name)
+
+
 def token_id(table, token):
     if token not in table:
         table[token] = len(table) + 1
@@ -76,6 +89,15 @@ def collect_slots(fn):
                     seen.add(name)
                     slots.append(name)
     return slots
+
+
+def collect_generic_helpers(fn):
+    helpers = set()
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] == "runtime_helper_call" and op["name"] not in ("print", "exit"):
+                helpers.add(op["name"])
+    return sorted(helpers)
 
 
 def validate_ir(ir):
@@ -191,9 +213,9 @@ class FunctionLowerer:
                 helper_call = f"{dst} = call i64 @oren_llvm_helper_exit(i64 {code})"
                 self.write_inst(f"{helper_call} ; helper exit safepoint={op['safepoint']}")
                 return
-            helper_id = token_id(self.token_table, "helper:" + op["name"])
+            helper_symbol = llvm_helper_symbol(op["name"])
             helper_call = (
-                f"{dst} = call i64 @oren_llvm_runtime_helper(i64 {helper_id}, "
+                f"{dst} = call i64 @{helper_symbol}("
                 f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                 f"i64 {helper_args[2]}, i64 {helper_args[3]})"
             )
@@ -346,7 +368,8 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare void @oren_llvm_opaque_index_set(i64, i64, i64)\n")
         out.write("declare void @oren_llvm_opaque_stmt(i64)\n")
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
-        out.write("declare i64 @oren_llvm_runtime_helper(i64, i64, i64, i64, i64, i64)\n")
+        for helper in collect_generic_helpers(main):
+            out.write(f"declare i64 @{llvm_helper_symbol(helper)}(i64, i64, i64, i64, i64)\n")
         out.write("declare i32 @puts(i8*)\n\n")
         out.write("declare void @exit(i32)\n\n")
         slots, values, token_table = lower_function(main, out)
