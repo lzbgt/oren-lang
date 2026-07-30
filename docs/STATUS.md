@@ -5053,9 +5053,12 @@ make docs-site
   `verify-native-ir-parity` now checks linked function-surface parity plus
   required operation kinds, closed branch/jump targets, helper-call mirrors,
   ABI-specific clobbers, call-depth mode, and tagged safepoint root records for
-  the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS.
-  LLVM object emission remains gated on explicit full LLVM toolchain
-  availability and an opt-in backend path.
+  the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS. The
+  `verify-native-ir-llvm-object` gate now validates native IR and writes
+  `build/native_ir/llvm_object/manifest.txt`, skipping clearly when the full
+  LLVM toolchain is absent and failing fast when `NATIVE_IR_REQUIRE_LLVM=1`.
+  Semantic LLVM lowering remains gated on backend-neutral type/layout records,
+  explicit full LLVM toolchain availability, and an opt-in backend path.
 
 ## Documentation Guardrail
 

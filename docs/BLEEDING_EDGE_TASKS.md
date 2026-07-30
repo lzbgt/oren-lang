@@ -506,7 +506,10 @@ This file is the concise task view. Detailed implementation status lives in
      plus required operation kinds, closed branch/jump targets, helper-call
      mirrors, ABI-specific clobbers, call-depth mode, and tagged safepoint root
      records for the initial fixture set across x64 Linux, x64 Windows, and
-     ARM64 macOS.
+     ARM64 macOS. `make verify-native-ir-llvm-object` now validates native IR
+     and writes `build/native_ir/llvm_object/manifest.txt`, skipping clearly
+     when the full LLVM toolchain is absent and failing fast when
+     `NATIVE_IR_REQUIRE_LLVM=1`.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

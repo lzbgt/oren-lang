@@ -6015,9 +6015,12 @@ make docs-site</code></pre>
 <p>  <code>verify-native-ir-parity</code> now checks linked function-surface parity plus</p>
 <p>  required operation kinds, closed branch/jump targets, helper-call mirrors,</p>
 <p>  ABI-specific clobbers, call-depth mode, and tagged safepoint root records for</p>
-<p>  the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS.</p>
-<p>  LLVM object emission remains gated on explicit full LLVM toolchain</p>
-<p>  availability and an opt-in backend path.</p>
+<p>  the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS. The</p>
+<p>  <code>verify-native-ir-llvm-object</code> gate now validates native IR and writes</p>
+<p>  <code>build/native_ir/llvm_object/manifest.txt</code>, skipping clearly when the full</p>
+<p>  LLVM toolchain is absent and failing fast when <code>NATIVE_IR_REQUIRE_LLVM=1</code>.</p>
+<p>  Semantic LLVM lowering remains gated on backend-neutral type/layout records,</p>
+<p>  explicit full LLVM toolchain availability, and an opt-in backend path.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

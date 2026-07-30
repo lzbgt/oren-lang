@@ -828,7 +828,10 @@
 <p>     plus required operation kinds, closed branch/jump targets, helper-call</p>
 <p>     mirrors, ABI-specific clobbers, call-depth mode, and tagged safepoint root</p>
 <p>     records for the initial fixture set across x64 Linux, x64 Windows, and</p>
-<p>     ARM64 macOS.</p>
+<p>     ARM64 macOS. <code>make verify-native-ir-llvm-object</code> now validates native IR</p>
+<p>     and writes <code>build/native_ir/llvm_object/manifest.txt</code>, skipping clearly</p>
+<p>     when the full LLVM toolchain is absent and failing fast when</p>
+<p>     <code>NATIVE_IR_REQUIRE_LLVM=1</code>.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

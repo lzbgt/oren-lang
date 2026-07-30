@@ -103,6 +103,11 @@ Initial gates:
   availability without assuming they exist. It writes
   `build/native_ir/toolchain.txt` and only requires a complete LLVM toolchain
   when `NATIVE_IR_REQUIRE_LLVM=1`.
+- `make verify-native-ir-llvm-object` validates the native-IR input and records
+  a deterministic object-emission manifest under
+  `build/native_ir/llvm_object/`. On hosts without full LLVM it reports
+  `status=skipped`; with `NATIVE_IR_REQUIRE_LLVM=1` it fails fast instead of
+  silently accepting a missing `llvm-config`/`llc`.
 
 Graduation gates:
 
@@ -143,6 +148,9 @@ after it has round-trip/parity evidence. Until then:
 8. Done: add explicit runtime-helper ABI and safepoint/root records for
    runtime builtin calls (`print`, `exit`, and `oren_*`) before emitting LLVM
    object code.
-9. Add opt-in LLVM object-emission scaffolding only after the full LLVM
-   toolchain is present or `NATIVE_IR_REQUIRE_LLVM=1` is intentionally enabled
-   on a host with `llvm-config`/`llc`.
+9. Done: add opt-in LLVM object-emission scaffolding. The gate validates
+   native IR, writes an emission manifest, skips clearly on this host because
+   `llvm-config`/`llc` are absent, and fails fast when
+   `NATIVE_IR_REQUIRE_LLVM=1`.
+10. Add backend-neutral type/layout records for values, helper arguments, and
+    returns before attempting semantic LLVM IR lowering beyond the probe object.
