@@ -521,7 +521,10 @@ This file is the concise task view. Detailed implementation status lives in
      verify-native-ir-llvm-smoke` is the fast iteration gate with two integrated
      object-emission fixtures. `make verify-native-ir-llvm-runtime` now proves
      linked execution for a semantic-subset CFG/arithmetic fixture against the
-     native backend oracle on host ARM64 macOS.
+     native backend oracle on host ARM64 macOS. Runtime-helper calls now forward
+     `argc` plus four argument slots, and
+     `make verify-native-ir-llvm-helper-runtime` proves linked helper invocation
+     and print output parity through a small helper shim.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

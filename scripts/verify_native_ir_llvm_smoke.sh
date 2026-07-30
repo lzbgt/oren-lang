@@ -14,6 +14,7 @@ hello_log="$log_dir/native_ir_llvm_smoke_hello.log"
 arith_log="$log_dir/native_ir_llvm_smoke_arith.log"
 reject_log="$log_dir/native_ir_llvm_smoke_test_reject.log"
 runtime_log="$log_dir/native_ir_llvm_smoke_runtime.log"
+helper_runtime_log="$log_dir/native_ir_llvm_smoke_helper_runtime.log"
 summary="$out_dir/summary.txt"
 
 start="$(date +%s)"
@@ -41,6 +42,7 @@ fi
 grep -Fq "compile-only" "$reject_log"
 
 ./scripts/verify_native_ir_llvm_runtime.sh "$compiler" >"$runtime_log" 2>&1
+./scripts/verify_native_ir_llvm_helper_runtime.sh "$compiler" >"$helper_runtime_log" 2>&1
 
 end="$(date +%s)"
 {
@@ -50,7 +52,8 @@ end="$(date +%s)"
   printf 'hello_object=%s\n' "$out_dir/hello_x64_linux.o"
   printf 'arith_object=%s\n' "$out_dir/div_mod_arm64_macos.o"
   printf 'runtime_summary=build/native_ir/llvm_runtime/summary.txt\n'
-  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute\n'
+  printf 'helper_runtime_summary=build/native_ir/llvm_helper_runtime/summary.txt\n'
+  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,helper-link,helper-execute\n'
 } >"$summary"
 
 echo "OK: native IR LLVM smoke passed; summary: $summary"

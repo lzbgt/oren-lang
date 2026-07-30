@@ -202,6 +202,12 @@ after it has round-trip/parity evidence. Until then:
     relocatable object into a tiny C harness, and runs it on host ARM64 macOS.
     The fixture stays inside the current semantic subset and proves CFG, local
     slots, comparisons, and arithmetic execute after LLVM object linking.
-19. Add real runtime-helper linking/execution parity for helper-bearing programs;
-    keep x64/ARM64 as the oracle until the LLVM path can run those parity
-    programs without opaque test shims.
+19. Done: add helper-bearing LLVM linked-execution parity. The lowerer now
+    forwards runtime-helper `argc` plus four argument slots into
+    `oren_llvm_runtime_helper`, and `make verify-native-ir-llvm-helper-runtime`
+    builds `tests/fixtures/x64_print_main.oren` with the native backend as
+    oracle, builds the LLVM object, links it against a tiny helper shim, and
+    proves helper invocation plus printed output on host ARM64 macOS.
+20. Replace helper shims with real runtime-helper semantics and symbol mapping
+    for helper-bearing programs; keep x64/ARM64 as the oracle until LLVM can run
+    those parity programs without test-only helper bodies.

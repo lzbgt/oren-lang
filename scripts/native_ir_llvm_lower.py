@@ -167,11 +167,16 @@ class FunctionLowerer:
             callee_id = token_id(self.token_table, "call:" + op["callee"])
             self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_call(i64 {callee_id}, i64 {len(op['args'])})")
         elif kind == "runtime_helper_call":
-            for arg in op["args"]:
-                self.value_ref(arg)
+            helper_args = [self.value_ref(arg) for arg in op["args"]]
+            while len(helper_args) < 4:
+                helper_args.append("0")
             dst = self.result_var(op["result"]) if op.get("result") is not None else self.scratch_var("helper")
             helper_id = token_id(self.token_table, "helper:" + op["name"])
-            helper_call = f"{dst} = call i64 @oren_llvm_runtime_helper(i64 {helper_id}, i64 {len(op['args'])})"
+            helper_call = (
+                f"{dst} = call i64 @oren_llvm_runtime_helper(i64 {helper_id}, "
+                f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+            )
             self.write_inst(f"{helper_call} ; helper {op['name']} safepoint={op['safepoint']}")
         elif kind == "array":
             for elem in op["elements"]:
@@ -273,7 +278,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare void @oren_llvm_opaque_index_set(i64, i64, i64)\n")
         out.write("declare void @oren_llvm_opaque_stmt(i64)\n")
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
-        out.write("declare i64 @oren_llvm_runtime_helper(i64, i64)\n\n")
+        out.write("declare i64 @oren_llvm_runtime_helper(i64, i64, i64, i64, i64, i64)\n\n")
         return lower_function(main, out)
 
 

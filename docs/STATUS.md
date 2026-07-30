@@ -5084,7 +5084,11 @@ make docs-site
   broad runtime suites. `make verify-native-ir-llvm-runtime` now adds the first
   linked execution parity proof: a semantic-subset fixture is built with native
   backend as oracle, then built with `--backend llvm-native`, linked into a tiny
-  C harness, and executed on host ARM64 macOS.
+  C harness, and executed on host ARM64 macOS. Runtime-helper calls now lower
+  with `argc` plus four argument slots, and
+  `make verify-native-ir-llvm-helper-runtime` links a helper-bearing print
+  fixture against a tiny helper shim to prove helper invocation and output
+  parity before replacing shims with real runtime helper bodies.
 
 ## Documentation Guardrail
 
