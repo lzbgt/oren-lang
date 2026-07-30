@@ -52,10 +52,11 @@ grep -Fq "; helper oren_string_char_at_unchecked" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_byte_at_unchecked" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_char_at" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_char_at_unchecked" "$object.ll"
-grep -Fq "%oren_llvm_string = type { i64, i8* }" "$object.ll"
+grep -Fq "%oren_llvm_string = type { i64, i8*, i64 }" "$object.ll"
 grep -Fq "zext i8 %byte to i64" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_string_slice" "$object.ll"
-grep -Fq "call i8* @malloc" "$object.ll"
+grep -Fq "define i64 @oren_llvm_runtime_alloc_string" "$object.ll"
+grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 grep -Fq "c\"d\\00\"" "$object.ll"
 grep -Fq "c\"f\\00\"" "$object.ll"
 if grep -Fq "@oren_llvm_runtime_helper" "$object.ll"; then
@@ -91,7 +92,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,allocator-backed-char-access,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,runtime-owned-char-access,string-owner-metadata,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string access runtime parity passed; summary: $summary"

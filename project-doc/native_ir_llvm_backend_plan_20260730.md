@@ -251,14 +251,18 @@ after it has round-trip/parity evidence. Until then:
     arguments that flow through locals without guessing across reassignment or
     branch merges.
 28. Done: replace LLVM string-token switch helpers with descriptor handles.
-    String constants now lower to `%oren_llvm_string { len, data }` descriptors,
-    `print`/`len`/`eq`/`byte_at` load descriptor fields directly, `eq` uses
-    byte-length plus `memcmp`, and `slice`/known-string `+` allocate new
-    descriptor-backed strings with `malloc` plus `memcpy`. The existing slice
-    runtime gate now compares an allocator-backed slice against an
+    String constants lower to descriptor globals, `print`/`len`/`eq`/`byte_at`
+    load descriptor fields directly, `eq` uses byte-length plus `memcmp`, and
+    `slice`/known-string `+` allocate descriptor-backed strings. The existing
+    slice runtime gate compares an allocator-backed slice against an
     allocator-backed concat result, proving true runtime helper arguments without
     adding another broad test.
-29. Replace the temporary libc allocation surface with Oren runtime-owned string
-    allocation/GC ownership metadata, then expand the same descriptor ABI to
-    non-constant program input and broader runtime helpers while keeping x64/ARM64
-    as the oracle.
+29. Done: add the LLVM string runtime allocation seam and ownership metadata.
+    `%oren_llvm_string` is now `{ len, data, owner_kind }`; static descriptors
+    use `owner_kind=0`, heap strings use `owner_kind=1`, and `slice`/concat call
+    generated `oren_llvm_runtime_alloc_string(len)` instead of embedding direct
+    descriptor allocation logic in each helper.
+30. Replace the generated allocator's temporary libc backing with Oren
+    runtime-owned allocation/GC registration, then expand the same descriptor ABI
+    to non-constant program input and broader runtime helpers while keeping
+    x64/ARM64 as the oracle.

@@ -6063,16 +6063,17 @@ make docs-site</code></pre>
 <p>  <code>oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)</code> instead of the</p>
 <p>  previous token-id dispatcher, so future runtime-helper linking has a stable</p>
 <p>  per-helper ABI surface without changing the x64/ARM64 oracle backends.</p>
-<p>  LLVM string values now use <code>%oren_llvm_string { len, data }</code> descriptor</p>
-<p>  handles instead of token-switch helper tables. <code>print</code>, <code>oren_string_len</code>,</p>
-<p>  <code>oren_string_eq</code>, unchecked byte access, and checked/unchecked char access load</p>
-<p>  descriptor fields directly; equality checks length plus <code>memcmp</code>; and</p>
-<p>  <code>oren_string_slice</code> plus known-string <code>+</code> allocate descriptor-backed dynamic</p>
-<p>  strings with <code>malloc</code> plus <code>memcpy</code>. `make</p>
-<p>  verify-native-ir-llvm-string-slice-runtime` now compares an allocator-backed</p>
-<p>  slice against an allocator-backed concat result, while the existing fast smoke</p>
-<p>  keeps this proof inside the targeted LLVM integration gate instead of adding</p>
-<p>  another broad test sweep.</p>
+<p>  LLVM string values now use <code>%oren_llvm_string { len, data, owner_kind }</code></p>
+<p>  descriptor handles instead of token-switch helper tables. <code>print</code>,</p>
+<p>  <code>oren_string_len</code>, <code>oren_string_eq</code>, unchecked byte access, and</p>
+<p>  checked/unchecked char access load descriptor fields directly; equality checks</p>
+<p>  length plus <code>memcmp</code>; static descriptors carry <code>owner_kind=0</code>; and</p>
+<p>  <code>oren_string_slice</code> plus known-string <code>+</code> call generated</p>
+<p>  <code>oren_llvm_runtime_alloc_string(len)</code> to create heap descriptors with</p>
+<p>  <code>owner_kind=1</code>. <code>make verify-native-ir-llvm-string-slice-runtime</code> now compares</p>
+<p>  a runtime-owned slice against a runtime-owned concat result, while the existing</p>
+<p>  fast smoke keeps this proof inside the targeted LLVM integration gate instead</p>
+<p>  of adding another broad test sweep.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

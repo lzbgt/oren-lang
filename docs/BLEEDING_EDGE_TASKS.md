@@ -533,14 +533,15 @@ This file is the concise task view. Detailed implementation status lives in
      `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)` instead of the
      previous token-id dispatcher, giving future runtime linking a stable
      per-helper symbol surface. LLVM string values now use `%oren_llvm_string {
-     len, data }` descriptor handles instead of token-switch helper tables.
-     `print`, `oren_string_len`, `oren_string_eq`, unchecked byte access, and
-     checked/unchecked char access load descriptor fields directly; equality
-     checks length plus `memcmp`; and `oren_string_slice` plus known-string `+`
-     allocate descriptor-backed dynamic strings with `malloc` plus `memcpy`. The
-     existing slice runtime gate compares an allocator-backed slice against an
-     allocator-backed concat result, so fast LLVM smoke covers true runtime
-     helper arguments without adding another broad test sweep.
+     len, data, owner_kind }` descriptor handles instead of token-switch helper
+     tables. `print`, `oren_string_len`, `oren_string_eq`, unchecked byte access,
+     and checked/unchecked char access load descriptor fields directly; equality
+     checks length plus `memcmp`; static descriptors carry `owner_kind=0`; and
+     `oren_string_slice` plus known-string `+` call generated
+     `oren_llvm_runtime_alloc_string(len)` to create heap descriptors with
+     `owner_kind=1`. The existing slice runtime gate compares a runtime-owned
+     slice against a runtime-owned concat result, so fast LLVM smoke covers true
+     runtime helper arguments without adding another broad test sweep.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

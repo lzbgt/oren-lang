@@ -5101,16 +5101,17 @@ make docs-site
   `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)` instead of the
   previous token-id dispatcher, so future runtime-helper linking has a stable
   per-helper ABI surface without changing the x64/ARM64 oracle backends.
-  LLVM string values now use `%oren_llvm_string { len, data }` descriptor
-  handles instead of token-switch helper tables. `print`, `oren_string_len`,
-  `oren_string_eq`, unchecked byte access, and checked/unchecked char access load
-  descriptor fields directly; equality checks length plus `memcmp`; and
-  `oren_string_slice` plus known-string `+` allocate descriptor-backed dynamic
-  strings with `malloc` plus `memcpy`. `make
-  verify-native-ir-llvm-string-slice-runtime` now compares an allocator-backed
-  slice against an allocator-backed concat result, while the existing fast smoke
-  keeps this proof inside the targeted LLVM integration gate instead of adding
-  another broad test sweep.
+  LLVM string values now use `%oren_llvm_string { len, data, owner_kind }`
+  descriptor handles instead of token-switch helper tables. `print`,
+  `oren_string_len`, `oren_string_eq`, unchecked byte access, and
+  checked/unchecked char access load descriptor fields directly; equality checks
+  length plus `memcmp`; static descriptors carry `owner_kind=0`; and
+  `oren_string_slice` plus known-string `+` call generated
+  `oren_llvm_runtime_alloc_string(len)` to create heap descriptors with
+  `owner_kind=1`. `make verify-native-ir-llvm-string-slice-runtime` now compares
+  a runtime-owned slice against a runtime-owned concat result, while the existing
+  fast smoke keeps this proof inside the targeted LLVM integration gate instead
+  of adding another broad test sweep.
 
 ## Documentation Guardrail
 

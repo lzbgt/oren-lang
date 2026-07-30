@@ -428,7 +428,8 @@ def emit_string_globals(out, token_table):
         out.write(
             f"@oren_llvm_string_desc_{tid} = private constant %oren_llvm_string {{ "
             f"i64 {length - 1}, i8* getelementptr inbounds "
-            f"([{length} x i8], [{length} x i8]* @oren_llvm_string_bytes_{tid}, i64 0, i64 0) }}, align 8\n"
+            f"([{length} x i8], [{length} x i8]* @oren_llvm_string_bytes_{tid}, i64 0, i64 0), "
+            "i64 0 }, align 8\n"
         )
 
 
@@ -459,20 +460,25 @@ def emit_exit_helper(out):
     out.write("}\n")
 
 
-def emit_string_descriptor_alloc(out, data_ptr, length, prefix):
-    out.write(f"  %{prefix}_raw_desc = call i8* @malloc(i64 16)\n")
-    out.write(f"  %{prefix}_desc = bitcast i8* %{prefix}_raw_desc to %oren_llvm_string*\n")
-    out.write(
-        f"  %{prefix}_lenp = getelementptr inbounds %oren_llvm_string, "
-        f"%oren_llvm_string* %{prefix}_desc, i32 0, i32 0\n"
-    )
-    out.write(f"  store i64 {length}, i64* %{prefix}_lenp, align 8\n")
-    out.write(
-        f"  %{prefix}_datap = getelementptr inbounds %oren_llvm_string, "
-        f"%oren_llvm_string* %{prefix}_desc, i32 0, i32 1\n"
-    )
-    out.write(f"  store i8* {data_ptr}, i8** %{prefix}_datap, align 8\n")
-    out.write(f"  %{prefix}_ret = ptrtoint %oren_llvm_string* %{prefix}_desc to i64\n")
+def emit_string_runtime_alloc(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_runtime_alloc_string(i64 %len) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %alloc_len = add i64 %len, 1\n")
+    out.write("  %bytes = call i8* @malloc(i64 %alloc_len)\n")
+    out.write("  %nul_p = getelementptr inbounds i8, i8* %bytes, i64 %len\n")
+    out.write("  store i8 0, i8* %nul_p, align 1\n")
+    out.write("  %raw_desc = call i8* @malloc(i64 24)\n")
+    out.write("  %desc = bitcast i8* %raw_desc to %oren_llvm_string*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %desc, i32 0, i32 0\n")
+    out.write("  store i64 %len, i64* %lenp, align 8\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %desc, i32 0, i32 1\n")
+    out.write("  store i8* %bytes, i8** %datap, align 8\n")
+    out.write("  %ownerp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %desc, i32 0, i32 2\n")
+    out.write("  store i64 1, i64* %ownerp, align 8\n")
+    out.write("  %ret = ptrtoint %oren_llvm_string* %desc to i64\n")
+    out.write("  ret i64 %ret\n")
+    out.write("}\n")
 
 
 def emit_string_slice_helper(out):
@@ -498,13 +504,12 @@ def emit_string_slice_helper(out):
     out.write("  %datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 1\n")
     out.write("  %src_data = load i8*, i8** %datap, align 8\n")
     out.write("  %slice_len = sub i64 %arg2, %arg1\n")
-    out.write("  %alloc_len = add i64 %slice_len, 1\n")
-    out.write("  %bytes = call i8* @malloc(i64 %alloc_len)\n")
+    out.write("  %slice_ret = call i64 @oren_llvm_runtime_alloc_string(i64 %slice_len)\n")
+    out.write("  %slice_desc = inttoptr i64 %slice_ret to %oren_llvm_string*\n")
+    out.write("  %slice_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %slice_desc, i32 0, i32 1\n")
+    out.write("  %bytes = load i8*, i8** %slice_datap, align 8\n")
     out.write("  %src_start = getelementptr inbounds i8, i8* %src_data, i64 %arg1\n")
     out.write("  call i8* @memcpy(i8* %bytes, i8* %src_start, i64 %slice_len)\n")
-    out.write("  %nul_p = getelementptr inbounds i8, i8* %bytes, i64 %slice_len\n")
-    out.write("  store i8 0, i8* %nul_p, align 1\n")
-    emit_string_descriptor_alloc(out, "%bytes", "%slice_len", "slice")
     out.write("  ret i64 %slice_ret\n")
     out.write("invalid:\n")
     out.write("  ret i64 0\n")
@@ -534,14 +539,13 @@ def emit_string_concat_helper(out):
     out.write("  %a_data = load i8*, i8** %a_datap, align 8\n")
     out.write("  %b_data = load i8*, i8** %b_datap, align 8\n")
     out.write("  %out_len = add i64 %a_len, %b_len\n")
-    out.write("  %alloc_len = add i64 %out_len, 1\n")
-    out.write("  %bytes = call i8* @malloc(i64 %alloc_len)\n")
+    out.write("  %concat_ret = call i64 @oren_llvm_runtime_alloc_string(i64 %out_len)\n")
+    out.write("  %concat_desc = inttoptr i64 %concat_ret to %oren_llvm_string*\n")
+    out.write("  %concat_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %concat_desc, i32 0, i32 1\n")
+    out.write("  %bytes = load i8*, i8** %concat_datap, align 8\n")
     out.write("  call i8* @memcpy(i8* %bytes, i8* %a_data, i64 %a_len)\n")
     out.write("  %b_dst = getelementptr inbounds i8, i8* %bytes, i64 %a_len\n")
     out.write("  call i8* @memcpy(i8* %b_dst, i8* %b_data, i64 %b_len)\n")
-    out.write("  %nul_p = getelementptr inbounds i8, i8* %bytes, i64 %out_len\n")
-    out.write("  store i8 0, i8* %nul_p, align 1\n")
-    emit_string_descriptor_alloc(out, "%bytes", "%out_len", "concat")
     out.write("  ret i64 %concat_ret\n")
     out.write("invalid:\n")
     out.write("  ret i64 0\n")
@@ -667,7 +671,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
         out.write(f"target triple = \"{target_triple(ir['target'])}\"\n\n")
-        out.write("%oren_llvm_string = type { i64, i8* }\n\n")
+        out.write("%oren_llvm_string = type { i64, i8*, i64 }\n\n")
         out.write("@oren_native_ir_schema = private unnamed_addr constant ")
         out.write(f"[{len(schema) + 1} x i8] c\"{schema_literal}\\00\", align 1\n\n")
         out.write("declare i64 @oren_llvm_opaque_call(i64, i64)\n")
@@ -687,6 +691,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare void @exit(i32)\n\n")
         slots, values, token_table = lower_function(main, out)
         emit_string_globals(out, token_table)
+        emit_string_runtime_alloc(out)
         emit_string_slice_helper(out)
         emit_string_concat_helper(out)
         emit_string_byte_at_helpers(out)

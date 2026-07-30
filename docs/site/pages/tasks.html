@@ -855,14 +855,15 @@
 <p>     <code>oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)</code> instead of the</p>
 <p>     previous token-id dispatcher, giving future runtime linking a stable</p>
 <p>     per-helper symbol surface. LLVM string values now use `%oren_llvm_string {</p>
-<p>     len, data }` descriptor handles instead of token-switch helper tables.</p>
-<p>     <code>print</code>, <code>oren_string_len</code>, <code>oren_string_eq</code>, unchecked byte access, and</p>
-<p>     checked/unchecked char access load descriptor fields directly; equality</p>
-<p>     checks length plus <code>memcmp</code>; and <code>oren_string_slice</code> plus known-string <code>+</code></p>
-<p>     allocate descriptor-backed dynamic strings with <code>malloc</code> plus <code>memcpy</code>. The</p>
-<p>     existing slice runtime gate compares an allocator-backed slice against an</p>
-<p>     allocator-backed concat result, so fast LLVM smoke covers true runtime</p>
-<p>     helper arguments without adding another broad test sweep.</p>
+<p>     len, data, owner_kind }` descriptor handles instead of token-switch helper</p>
+<p>     tables. <code>print</code>, <code>oren_string_len</code>, <code>oren_string_eq</code>, unchecked byte access,</p>
+<p>     and checked/unchecked char access load descriptor fields directly; equality</p>
+<p>     checks length plus <code>memcmp</code>; static descriptors carry <code>owner_kind=0</code>; and</p>
+<p>     <code>oren_string_slice</code> plus known-string <code>+</code> call generated</p>
+<p>     <code>oren_llvm_runtime_alloc_string(len)</code> to create heap descriptors with</p>
+<p>     <code>owner_kind=1</code>. The existing slice runtime gate compares a runtime-owned</p>
+<p>     slice against a runtime-owned concat result, so fast LLVM smoke covers true</p>
+<p>     runtime helper arguments without adding another broad test sweep.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
