@@ -1,0 +1,12 @@
+// Native IR LLVM string equality smoke:
+// - proves generated named oren_string_eq helper over string-token constants
+
+fn main() {
+    if oren_string_eq("abc", "abc") == false {
+        return 1
+    }
+    if oren_string_eq("abc", "abd") {
+        return 2
+    }
+    return 0
+}

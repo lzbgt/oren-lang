@@ -93,7 +93,7 @@ def collect_slots(fn):
 
 def collect_generic_helpers(fn):
     helpers = set()
-    generated_helpers = {"print", "exit", "oren_string_len"}
+    generated_helpers = {"print", "exit", "oren_string_len", "oren_string_eq"}
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] not in generated_helpers:
@@ -222,6 +222,14 @@ class FunctionLowerer:
                 )
                 self.write_inst(f"{helper_call} ; helper oren_string_len safepoint={op['safepoint']}")
                 return
+            if op["name"] == "oren_string_eq":
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_oren_string_eq("
+                    f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                    f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+                )
+                self.write_inst(f"{helper_call} ; helper oren_string_eq safepoint={op['safepoint']}")
+                return
             helper_symbol = llvm_helper_symbol(op["name"])
             helper_call = (
                 f"{dst} = call i64 @{helper_symbol}("
@@ -309,12 +317,17 @@ def lower_function(fn, out):
     return FunctionLowerer(fn, out).lower()
 
 
-def emit_print_helper(out, token_table):
+def collect_string_tokens(token_table):
     string_tokens = []
     for token, tid in token_table.items():
         if token.startswith("string:"):
             string_tokens.append((tid, token[len("string:") :]))
     string_tokens.sort()
+    return string_tokens
+
+
+def emit_print_helper(out, token_table):
+    string_tokens = collect_string_tokens(token_table)
     if not string_tokens:
         return
 
@@ -358,11 +371,10 @@ def emit_exit_helper(out):
 
 
 def emit_string_len_helper(out, token_table):
-    string_tokens = []
-    for token, tid in token_table.items():
-        if token.startswith("string:"):
-            string_tokens.append((tid, len(token[len("string:") :].encode("utf-8"))))
-    string_tokens.sort()
+    string_tokens = [
+        (tid, len(value.encode("utf-8")))
+        for tid, value in collect_string_tokens(token_table)
+    ]
 
     out.write("\n")
     out.write(
@@ -381,6 +393,33 @@ def emit_string_len_helper(out, token_table):
     for tid, length in string_tokens:
         out.write(f"tok_{tid}:\n")
         out.write(f"  ret i64 {length}\n")
+    out.write("unknown:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
+def emit_string_eq_helper(out, token_table):
+    string_tokens = collect_string_tokens(token_table)
+
+    out.write("\n")
+    out.write(
+        "define i64 @oren_llvm_helper_oren_string_eq("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+    )
+    out.write("entry:\n")
+    if not string_tokens:
+        out.write("  ret i64 0\n")
+        out.write("}\n")
+        return
+    out.write("  switch i64 %arg0, label %unknown [\n")
+    for tid, _value in string_tokens:
+        out.write(f"    i64 {tid}, label %tok_{tid}\n")
+    out.write("  ]\n")
+    for tid, _value in string_tokens:
+        out.write(f"tok_{tid}:\n")
+        out.write(f"  %eq_{tid} = icmp eq i64 %arg1, {tid}\n")
+        out.write(f"  %ret_{tid} = zext i1 %eq_{tid} to i64\n")
+        out.write(f"  ret i64 %ret_{tid}\n")
     out.write("unknown:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
@@ -414,6 +453,7 @@ def emit_module(ir_path, out_path, ir, main):
         emit_print_helper(out, token_table)
         emit_exit_helper(out)
         emit_string_len_helper(out, token_table)
+        emit_string_eq_helper(out, token_table)
         return slots, values
 
 

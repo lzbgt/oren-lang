@@ -230,6 +230,11 @@ after it has round-trip/parity evidence. Until then:
     over native-IR string-token IDs, returns UTF-8 byte lengths for constant
     strings, and `make verify-native-ir-llvm-string-runtime` proves linked
     execution parity against the native backend oracle.
-24. Implement more named `oren_*` helper bodies, starting with string
-    equality/slice-style helpers; keep x64/ARM64 as the oracle until LLVM can run
-    those parity programs without unresolved or test-only helper bodies.
+24. Done: add constant-token string equality semantics. `oren_string_eq` lowers
+    to generated `oren_llvm_helper_oren_string_eq`, rejects unknown/non-string
+    tokens, compares known token IDs for equality, and `make
+    verify-native-ir-llvm-string-eq-runtime` proves equal and unequal string
+    branches execute against the native backend oracle.
+25. Implement string materialization helpers next, starting with slice-style
+    helpers; keep x64/ARM64 as the oracle until LLVM can run those parity
+    programs without unresolved or test-only helper bodies.

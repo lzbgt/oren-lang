@@ -5103,7 +5103,10 @@ make docs-site
   `make verify-native-ir-llvm-string-runtime` now proves the first generated
   named `oren_*` helper body: `oren_llvm_helper_oren_string_len` switches over
   string-token constants, returns UTF-8 byte lengths, links, and executes
-  against the native backend oracle.
+  against the native backend oracle. `make
+  verify-native-ir-llvm-string-eq-runtime` adds generated
+  `oren_llvm_helper_oren_string_eq` semantics for equal and unequal constant
+  string-token branches against the native backend oracle.
 
 ## Documentation Guardrail
 

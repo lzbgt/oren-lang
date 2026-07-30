@@ -858,7 +858,9 @@
 <p>     now proves the first generated named <code>oren_*</code> helper body:</p>
 <p>     <code>oren_llvm_helper_oren_string_len</code> switches over string-token constants,</p>
 <p>     returns UTF-8 byte lengths, links, and executes against the native backend</p>
-<p>     oracle.</p>
+<p>     oracle. <code>make verify-native-ir-llvm-string-eq-runtime</code> adds generated</p>
+<p>     <code>oren_llvm_helper_oren_string_eq</code> semantics for equal and unequal constant</p>
+<p>     string-token branches against the native backend oracle.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
