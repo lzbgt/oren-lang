@@ -6144,16 +6144,19 @@ make docs-site</code></pre>
 <p>								  GC-at-safepoint. LLVM-native byte helper emitters</p>
 <p>							  now live in <code>scripts/native_ir_llvm_bytes_helpers.py</code>, keeping</p>
 <p>							  the core lowerer below the source-line guardrail.</p>
-<p>							  LLVM-native now also has</p>
-<p>							  `%oren_llvm_map { len, keys, values, key_kinds,</p>
-<p>							  owner_kind, capacity }` descriptor handles for empty hash</p>
-<p>							  literals, descriptor-backed exact keys, semantic string</p>
-<p>							  descriptor keys using length plus <code>memcmp</code>, and proven</p>
-<p>							  <code>oren_map_len</code> lowering. The C runtime registers map</p>
-<p>							  descriptors plus key/value/key-kind storage and roots</p>
-<p>							  proven map locals across safepoints; `make</p>
-<p>							  verify-native-ir-llvm-map-runtime` proves linked execution</p>
-<p>							  parity and forced GC-at-safepoint for that surface. The</p>
+<p>								  LLVM-native now also has</p>
+<p>								  `%oren_llvm_map { len, keys, values, key_kinds,</p>
+<p>								  owner_kind, capacity }` descriptor handles for empty and</p>
+<p>								  non-empty hash literals; non-empty literal pairs become explicit</p>
+<p>								  native-IR <code>index_set</code> map writes. Descriptor-backed exact keys,</p>
+<p>								  semantic string descriptor keys using length plus <code>memcmp</code>, and</p>
+<p>								  proven <code>oren_map_len</code> lowering are mapped to generated helpers.</p>
+<p>								  The C runtime registers map</p>
+<p>								  descriptors plus key/value/key-kind storage and roots</p>
+<p>								  proven map locals across safepoints; `make</p>
+<p>								  verify-native-ir-llvm-map-runtime` proves linked execution</p>
+<p>								  parity, hash-literal pair IR shape, and forced</p>
+<p>								  GC-at-safepoint for that surface. The</p>
 <p>							  lowerer now carries map descriptor provenance through</p>
 <p>							  constant-index list reads and known-key map reads, so nested</p>
 <p>							  map descriptors stored in lists or maps can be read after</p>

@@ -589,13 +589,15 @@ This file is the concise task view. Detailed implementation status lives in
 			     GC-at-safepoint, with
 		     byte helper emitters split out of the core lowerer for source-line
 		     headroom.
-		     LLVM-native now also lowers empty hash literals into
+		     LLVM-native now also lowers empty and non-empty hash literals into
 		     `%oren_llvm_map { len, keys, values, key_kinds, owner_kind,
-		     capacity }` descriptors, maps descriptor-backed exact keys and
-		     semantic string descriptor keys to generated get/set helpers, lowers
-		     proven `oren_map_len`, and roots proven map locals across safepoints
-		     through the real C runtime. `make verify-native-ir-llvm-map-runtime`
-		     proves linked execution parity, key-kind sidecar metadata, string-key
+		     capacity }` descriptors; non-empty literal pairs become explicit
+		     native-IR `index_set` map writes. LLVM-native maps descriptor-backed
+		     exact keys and semantic string descriptor keys to generated get/set
+		     helpers, lowers proven `oren_map_len`, and roots proven map locals
+		     across safepoints through the real C runtime. `make
+		     verify-native-ir-llvm-map-runtime` proves linked execution parity,
+		     hash-literal pair IR shape, key-kind sidecar metadata, string-key
 		     semantic lookup through length plus `memcmp`, and forced
 		     GC-at-safepoint. The lowerer now propagates map descriptor facts
 		     through constant-index list reads and known-key map reads, proving

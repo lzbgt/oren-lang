@@ -242,6 +242,22 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
         oren_list_push(ops, native_ir.op_array(dst_arr, elements))
         return dst_arr
     }
+    if t == "Hash" {
+        var dst_hash = _native_ir_new_tmp_typed(ctx, "tagged")
+        oren_list_push(ops, native_ir.op_opaque_expr(dst_hash, "Hash", []))
+        var pairs = expr["pairs"]
+        var pair_count = 0
+        if pairs != nil { pair_count = oren_list_len(pairs) }
+        var pi = 0
+        while pi < pair_count {
+            var pair = pairs[pi]
+            var key = _native_ir_lower_expr(ctx, ops, pair["key"])
+            var value_h = _native_ir_lower_expr(ctx, ops, pair["value"])
+            oren_list_push(ops, native_ir.op_index_set(dst_hash, key, value_h))
+            pi = pi + 1
+        }
+        return dst_hash
+    }
     var opaque_inputs = []
     var dst_opq = _native_ir_new_tmp_typed(ctx, "tagged")
     oren_list_push(ops, native_ir.op_opaque_expr(dst_opq, t, opaque_inputs))

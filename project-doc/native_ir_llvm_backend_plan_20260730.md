@@ -402,4 +402,9 @@ after it has round-trip/parity evidence. Until then:
     fixture stores a map in a list and another map as a map value, forces
     safepoint GC while only the parent container is rooted, then reads nested map
     contents without opaque fallback.
-52. Add runtime-shaped records and broader runtime-varying descriptor inputs.
+52. Done: lower non-empty hash literals into explicit native-IR map writes.
+    `Hash` expressions now emit a map allocation record plus one `index_set` per
+    literal pair, preserving pair key/value lowering order and exposing the same
+    backend-visible map mutation surface as statement-level writes. The focused
+    map runtime gate asserts this JSON IR shape and linked LLVM execution parity.
+53. Add broader runtime-varying descriptor inputs and record-shaped values.

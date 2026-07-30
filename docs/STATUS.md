@@ -5182,16 +5182,19 @@ make docs-site
 								  GC-at-safepoint. LLVM-native byte helper emitters
 							  now live in `scripts/native_ir_llvm_bytes_helpers.py`, keeping
 							  the core lowerer below the source-line guardrail.
-							  LLVM-native now also has
-							  `%oren_llvm_map { len, keys, values, key_kinds,
-							  owner_kind, capacity }` descriptor handles for empty hash
-							  literals, descriptor-backed exact keys, semantic string
-							  descriptor keys using length plus `memcmp`, and proven
-							  `oren_map_len` lowering. The C runtime registers map
-							  descriptors plus key/value/key-kind storage and roots
-							  proven map locals across safepoints; `make
-							  verify-native-ir-llvm-map-runtime` proves linked execution
-							  parity and forced GC-at-safepoint for that surface. The
+								  LLVM-native now also has
+								  `%oren_llvm_map { len, keys, values, key_kinds,
+								  owner_kind, capacity }` descriptor handles for empty and
+								  non-empty hash literals; non-empty literal pairs become explicit
+								  native-IR `index_set` map writes. Descriptor-backed exact keys,
+								  semantic string descriptor keys using length plus `memcmp`, and
+								  proven `oren_map_len` lowering are mapped to generated helpers.
+								  The C runtime registers map
+								  descriptors plus key/value/key-kind storage and roots
+								  proven map locals across safepoints; `make
+								  verify-native-ir-llvm-map-runtime` proves linked execution
+								  parity, hash-literal pair IR shape, and forced
+								  GC-at-safepoint for that surface. The
 							  lowerer now carries map descriptor provenance through
 							  constant-index list reads and known-key map reads, so nested
 							  map descriptors stored in lists or maps can be read after

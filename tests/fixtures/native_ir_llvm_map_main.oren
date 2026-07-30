@@ -1,9 +1,17 @@
 // Native IR LLVM map descriptor smoke:
-// - proves empty Hash literals lower into runtime-owned map descriptors
+// - proves empty and non-empty Hash literals lower into runtime-owned map descriptors
 // - proves semantic descriptor-backed string-key set/get and map length
 // - proves nested map descriptors survive helper safepoints and forced GC
 
 fn main() {
+    var literal = {"first": 31, "second": 37}
+    if oren_map_len(literal) != 2 { return 20 }
+    if literal["first"] != 31 { return 21 }
+    if literal["second"] != 37 { return 22 }
+    literal["first"] = 41
+    if oren_map_len(literal) != 2 { return 23 }
+    if literal["first"] != 41 { return 24 }
+
     var m = {}
     m["alpha"] = 7
     m["beta"] = 11

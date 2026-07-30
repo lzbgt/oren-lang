@@ -45,7 +45,43 @@ fi
 
 "$compiler" build "$src" --backend llvm-native --platform arm64-macos --no-cache -o "$object" >"$llvm_build_log" 2>&1
 test -s "$object"
+test -s "$object.native_ir.json"
 test -s "$object.ll"
+python3 - "$object.native_ir.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    ir = json.load(f)
+
+main = next((fn for fn in ir.get("functions", []) if fn.get("name") == "main"), None)
+if main is None:
+    raise SystemExit("missing main in native IR")
+
+found_literal_pairs = False
+for block in main.get("blocks", []):
+    ops = block.get("ops", [])
+    for i, op in enumerate(ops):
+        if op.get("kind") != "opaque_expr" or op.get("expr_type") != "Hash":
+            continue
+        result = op.get("result")
+        writes = 0
+        for next_op in ops[i + 1:]:
+            if next_op.get("kind") == "opaque_expr" and next_op.get("expr_type") == "Hash":
+                break
+            if next_op.get("kind") == "index_set" and next_op.get("container") == result:
+                writes += 1
+            if next_op.get("kind") == "local_set" and next_op.get("value") == result:
+                break
+        if writes >= 2:
+            found_literal_pairs = True
+            break
+    if found_literal_pairs:
+        break
+
+if not found_literal_pairs:
+    raise SystemExit("expected non-empty Hash literal pairs to lower into index_set ops")
+PY
 grep -Fq "%oren_llvm_map = type { i64, i64*, i64*, i64*, i64, i64 }" "$object.ll"
 grep -Fq "define i64 @oren_llvm_runtime_alloc_map" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_map_find" "$object.ll"
@@ -122,7 +158,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,non-empty-hash-literal-lowering,hash-literal-index-set-ir,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM map runtime parity passed; summary: $summary"
