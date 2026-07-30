@@ -549,7 +549,9 @@ This file is the concise task view. Detailed implementation status lives in
      runtime gate links `lib/runtime.c` plus `lib/runtime_buf.c` and compares a
      runtime-hook-backed slice against a runtime-hook-backed concat result, so
      fast LLVM smoke covers true runtime helper arguments without adding another
-     broad test sweep.
+     broad test sweep. The descriptor-backed helper family now also covers
+     `oren_string_slice_unchecked` and `oren_string_char_code_at` through the
+     existing focused slice/access runtime gates under forced GC-at-safepoint.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

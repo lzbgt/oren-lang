@@ -52,14 +52,17 @@ GENERATED_HELPERS = {
     "oren_string_len",
     "oren_string_eq",
     "oren_string_slice",
+    "oren_string_slice_unchecked",
     "oren_string_byte_at",
     "oren_string_byte_at_unchecked",
     "oren_string_char_at",
     "oren_string_char_at_unchecked",
+    "oren_string_char_code_at",
 }
 
 STRING_DESCRIPTOR_HELPERS = {
     "oren_string_slice",
+    "oren_string_slice_unchecked",
     "oren_string_char_at",
     "oren_string_char_at_unchecked",
 }
@@ -142,6 +145,8 @@ def collect_generated_helpers(fn):
                 if op["left"] in descriptors and op["right"] in descriptors:
                     helpers.add("oren_string_concat")
     if "oren_string_char_at" in helpers or "oren_string_char_at_unchecked" in helpers:
+        helpers.add("oren_string_slice")
+    if "oren_string_slice_unchecked" in helpers:
         helpers.add("oren_string_slice")
     return helpers
 
@@ -297,15 +302,16 @@ class FunctionLowerer:
                 )
                 self.emit_helper_call(op, helper_call, "oren_string_eq", root_values)
                 return
-            if op["name"] == "oren_string_slice":
+            if op["name"] in ("oren_string_slice", "oren_string_slice_unchecked"):
+                helper_symbol = llvm_helper_symbol(op["name"])
                 helper_call = (
-                    f"{dst} = call i64 @oren_llvm_helper_oren_string_slice("
+                    f"{dst} = call i64 @{helper_symbol}("
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
-                self.emit_helper_call(op, helper_call, "oren_string_slice", root_values)
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
-            if op["name"] in ("oren_string_byte_at", "oren_string_byte_at_unchecked"):
+            if op["name"] in ("oren_string_byte_at", "oren_string_byte_at_unchecked", "oren_string_char_code_at"):
                 helper_symbol = llvm_helper_symbol(op["name"])
                 helper_call = (
                     f"{dst} = call i64 @{helper_symbol}("
@@ -604,6 +610,21 @@ def emit_string_slice_helper(out):
     out.write("}\n")
 
 
+def emit_string_slice_unchecked_helper(out):
+    out.write("\n")
+    out.write(
+        "define i64 @oren_llvm_helper_oren_string_slice_unchecked("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+    )
+    out.write("entry:\n")
+    out.write(
+        "  %ret = call i64 @oren_llvm_helper_oren_string_slice("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3)\n"
+    )
+    out.write("  ret i64 %ret\n")
+    out.write("}\n")
+
+
 def emit_string_concat_helper(out):
     out.write("\n")
     out.write(
@@ -672,6 +693,7 @@ def emit_string_byte_at_helper(out, symbol):
 def emit_string_byte_at_helpers(out):
     emit_string_byte_at_helper(out, "oren_llvm_helper_oren_string_byte_at")
     emit_string_byte_at_helper(out, "oren_llvm_helper_oren_string_byte_at_unchecked")
+    emit_string_byte_at_helper(out, "oren_llvm_helper_oren_string_char_code_at")
 
 
 def emit_string_char_at_helper(out, symbol):
@@ -796,9 +818,15 @@ def emit_module(ir_path, out_path, ir, main):
             emit_string_runtime_alloc(out)
         if "oren_string_slice" in helpers_to_emit:
             emit_string_slice_helper(out)
+        if "oren_string_slice_unchecked" in helpers_to_emit:
+            emit_string_slice_unchecked_helper(out)
         if "oren_string_concat" in helpers_to_emit:
             emit_string_concat_helper(out)
-        if "oren_string_byte_at" in helpers_to_emit or "oren_string_byte_at_unchecked" in helpers_to_emit:
+        if (
+            "oren_string_byte_at" in helpers_to_emit
+            or "oren_string_byte_at_unchecked" in helpers_to_emit
+            or "oren_string_char_code_at" in helpers_to_emit
+        ):
             emit_string_byte_at_helpers(out)
         if "oren_string_char_at" in helpers_to_emit or "oren_string_char_at_unchecked" in helpers_to_emit:
             emit_string_char_at_helpers(out)

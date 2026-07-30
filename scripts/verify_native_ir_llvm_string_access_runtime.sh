@@ -47,9 +47,11 @@ fi
 test -s "$object"
 test -s "$object.ll"
 grep -Fq "; helper oren_string_byte_at_unchecked" "$object.ll"
+grep -Fq "; helper oren_string_char_code_at" "$object.ll"
 grep -Fq "; helper oren_string_char_at" "$object.ll"
 grep -Fq "; helper oren_string_char_at_unchecked" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_byte_at_unchecked" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_string_char_code_at" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_char_at" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_char_at_unchecked" "$object.ll"
 grep -Fq "%oren_llvm_string = type { i64, i8*, i64 }" "$object.ll"
@@ -128,7 +130,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,runtime-hook-backed-char-access,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,forced-gc-at-generated-helper-safepoint,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-code-at-helper,named-oren-string-char-at-helper,descriptor-byte-access,descriptor-char-code-access,runtime-hook-backed-char-access,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,forced-gc-at-generated-helper-safepoint,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string access runtime parity passed; summary: $summary"

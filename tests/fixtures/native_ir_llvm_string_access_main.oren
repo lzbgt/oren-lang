@@ -23,5 +23,9 @@ fn main() {
     if oren_string_eq(c1, "f") == false {
         return 4
     }
+    var cc = oren_string_char_code_at(source, i3)
+    if cc != 100 {
+        return 5
+    }
     return 0
 }

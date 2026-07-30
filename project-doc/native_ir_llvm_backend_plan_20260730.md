@@ -290,5 +290,12 @@ after it has round-trip/parity evidence. Until then:
     operands are proven descriptors, not only when both are compile-time string
     literals. The slice runtime fixture now checks `slice_result + suffix`,
     exercising a heap descriptor input under forced GC-at-safepoint.
-35. Expand descriptor ABI input coverage beyond conservative local dataflow and
-    add broader runtime helpers while keeping x64/ARM64 as the oracle.
+35. Done: add adjacent descriptor-backed string helper coverage without another
+    broad gate. `oren_string_slice_unchecked` now lowers to a named generated
+    helper that reuses the descriptor-backed slice implementation, and
+    `oren_string_char_code_at` lowers through the descriptor byte-access body;
+    the existing slice/access runtime parity gates prove both under real runtime
+    allocation hooks, safepoint root handling, and forced GC-at-safepoint.
+36. Expand descriptor ABI input coverage beyond conservative local dataflow for
+    runtime-varying values and broader non-string helpers while keeping
+    x64/ARM64 as the oracle.

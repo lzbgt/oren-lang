@@ -5130,9 +5130,14 @@ make docs-site
 	  assert forced collection counts, root-stack reset, and output parity. The
 	  LLVM lowerer now tracks proven descriptor values through string constants,
 	  string helper results, single-assignment locals, and concat results, so
-	  `+` lowers to `oren_llvm_helper_oren_string_concat` for non-constant
-	  descriptor inputs such as `slice_result + suffix` instead of only
-	  two-literal concatenations.
+		  `+` lowers to `oren_llvm_helper_oren_string_concat` for non-constant
+		  descriptor inputs such as `slice_result + suffix` instead of only
+		  two-literal concatenations. The same descriptor helper family now covers
+		  `oren_string_slice_unchecked` and `oren_string_char_code_at`: unchecked
+		  slice reuses the generated descriptor slice body, char-code access reuses
+		  descriptor byte loads, and the existing focused slice/access runtime gates
+		  prove both under real runtime allocation hooks, safepoint roots, and
+		  forced GC-at-safepoint.
 
 ## Documentation Guardrail
 

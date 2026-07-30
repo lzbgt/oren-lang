@@ -47,8 +47,10 @@ fi
 test -s "$object"
 test -s "$object.ll"
 grep -Fq "; helper oren_string_slice" "$object.ll"
+grep -Fq "; helper oren_string_slice_unchecked" "$object.ll"
 grep -Fq "; helper oren_string_concat" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_slice" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_string_slice_unchecked" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_concat" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_len" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_eq" "$object.ll"
@@ -72,6 +74,7 @@ grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 grep -Fq "call i8* @memcpy" "$object.ll"
 grep -Fq "bcd" "$object.ll"
 grep -Fq "bcde" "$object.ll"
+grep -Fq "cd" "$object.ll"
 if grep -Fq "@malloc" "$object.ll"; then
   echo "ERROR: LLVM string slice runtime IR embedded libc malloc instead of runtime allocation hooks" >&2
   exit 1
@@ -161,7 +164,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-slice-helper,named-oren-string-concat-helper,runtime-hook-backed-slice-materialization,runtime-hook-backed-dynamic-concat-materialization,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,forced-gc-at-generated-helper-safepoint,llvm-descriptor-gc-root-mark,string-len-compose,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-slice-helper,named-oren-string-slice-unchecked-helper,named-oren-string-concat-helper,runtime-hook-backed-slice-materialization,runtime-hook-backed-unchecked-slice-materialization,runtime-hook-backed-dynamic-concat-materialization,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,forced-gc-at-generated-helper-safepoint,llvm-descriptor-gc-root-mark,string-len-compose,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string slice runtime parity passed; summary: $summary"
