@@ -6001,9 +6001,12 @@ make docs-site</code></pre>
 </ul>
 <p>  of a direct backend replacement. <code>project-doc/native_ir_llvm_backend_plan_20260730.md</code></p>
 <p>  defines the v0 native IR boundary, required safepoint/GC-root/runtime-helper</p>
-<p>  ABI records, opt-in LLVM backend path, toolchain-detection requirement, and</p>
-<p>  parity gates while keeping the current x64/ARM64 emitters as correctness</p>
-<p>  oracles.</p>
+<p>  ABI records, opt-in LLVM backend path, and parity gates while keeping the</p>
+<p>  current x64/ARM64 emitters as correctness oracles. The</p>
+<p>  <code>verify-native-ir-toolchain</code> make target now writes</p>
+<p>  <code>build/native_ir/toolchain.txt</code> with local <code>clang</code>, <code>llvm-config</code>, and <code>llc</code></p>
+<p>  availability; this host currently has Apple <code>clang</code> but no full LLVM tools on</p>
+<p>  <code>PATH</code>.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

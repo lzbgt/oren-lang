@@ -91,8 +91,10 @@ Initial gates:
 - Cross-backend parity for a small fixture set: hello, integer arithmetic,
   direct function calls, string concat, list length/get, panic path, and one
   runtime helper call.
-- Toolchain detection gate that reports `clang`, `llvm-config`, and `llc`
-  availability without assuming they exist.
+- `make verify-native-ir-toolchain` reports `clang`, `llvm-config`, and `llc`
+  availability without assuming they exist. It writes
+  `build/native_ir/toolchain.txt` and only requires a complete LLVM toolchain
+  when `NATIVE_IR_REQUIRE_LLVM=1`.
 
 Graduation gates:
 
@@ -117,8 +119,9 @@ after it has round-trip/parity evidence. Until then:
 
 ## Immediate Next Work
 
-1. Add a `NATIVE-IR-LLVM` tracked task.
-2. Add a toolchain-detection probe that records available LLVM tools.
+1. Done: add a `NATIVE-IR-LLVM` tracked task.
+2. Done: add `make verify-native-ir-toolchain`, a detect-only LLVM toolchain
+   probe that records local `clang`, `llvm-config`, and `llc` availability.
 3. Add a native-IR v0 schema/validator module with no production backend switch.
 4. Add a native-IR dump command for `examples/hello.oren`.
 5. Add parity fixtures before emitting LLVM object code.

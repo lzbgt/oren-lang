@@ -495,6 +495,9 @@ This file is the concise task view. Detailed implementation status lives in
      current native emitters as correctness oracles, and introduce LLVM only as
      an opt-in backend after native-IR validator/dump and parity fixtures exist.
      The durable design note is `project-doc/native_ir_llvm_backend_plan_20260730.md`.
+     `make verify-native-ir-toolchain` now writes `build/native_ir/toolchain.txt`
+     with local `clang`, `llvm-config`, and `llc` availability so backend work
+     does not depend on implicit host assumptions.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

@@ -5039,9 +5039,12 @@ make docs-site
 - Native LLVM enablement is now tracked as a native-IR-first migration instead
   of a direct backend replacement. `project-doc/native_ir_llvm_backend_plan_20260730.md`
   defines the v0 native IR boundary, required safepoint/GC-root/runtime-helper
-  ABI records, opt-in LLVM backend path, toolchain-detection requirement, and
-  parity gates while keeping the current x64/ARM64 emitters as correctness
-  oracles.
+  ABI records, opt-in LLVM backend path, and parity gates while keeping the
+  current x64/ARM64 emitters as correctness oracles. The
+  `verify-native-ir-toolchain` make target now writes
+  `build/native_ir/toolchain.txt` with local `clang`, `llvm-config`, and `llc`
+  availability; this host currently has Apple `clang` but no full LLVM tools on
+  `PATH`.
 
 ## Documentation Guardrail
 
