@@ -413,4 +413,9 @@ after it has round-trip/parity evidence. Until then:
     get/set lower to string-key map `index_get`/`index_set`. The focused map
     runtime gate proves dynamic string/map field values, member update, forced
     GC rooting, and rejects opaque constructor/member fallback in the JSON IR.
-54. Add broader runtime-varying descriptor inputs and record/member provenance.
+54. Done: prove record/member descriptor provenance across helper safepoints.
+    The map runtime fixture now reads a dynamic string and a map descriptor back
+    through `record.name` / `record.payload`, forces GC-capable helper
+    safepoints before later use, and the verifier requires generated LLVM roots
+    for those member-derived locals.
+55. Add broader runtime-varying descriptor inputs beyond known constant keys.

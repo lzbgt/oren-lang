@@ -921,7 +921,8 @@
 <p>		     <code>oren_map_len</code>, and roots proven map locals across safepoints through</p>
 <p>		     the real C runtime. <code>make verify-native-ir-llvm-map-runtime</code> proves</p>
 <p>		     linked execution parity, hash-literal pair IR shape, struct/member IR</p>
-<p>		     shape, key-kind sidecar metadata, string-key semantic lookup through</p>
+<p>		     shape, member-derived string/map roots across helper safepoints,</p>
+<p>		     key-kind sidecar metadata, string-key semantic lookup through</p>
 <p>		     length plus <code>memcmp</code>, and forced</p>
 <p>		     GC-at-safepoint. The lowerer now propagates map descriptor facts</p>
 <p>		     through constant-index list reads and known-key map reads, proving</p>

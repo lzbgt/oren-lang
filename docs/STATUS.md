@@ -5191,11 +5191,12 @@ make docs-site
 								  string-key map operations. Descriptor-backed exact keys,
 								  semantic string descriptor keys using length plus `memcmp`, and
 								  proven `oren_map_len` lowering are mapped to generated helpers.
-								  The C runtime registers map
+									  The C runtime registers map
 								  descriptors plus key/value/key-kind storage and roots
 								  proven map locals across safepoints; `make
 								  verify-native-ir-llvm-map-runtime` proves linked execution
-								  parity, hash-literal pair IR shape, struct/member IR shape, and forced
+								  parity, hash-literal pair IR shape, struct/member IR shape,
+								  member-derived string/map roots across helper safepoints, and forced
 								  GC-at-safepoint for that surface. The
 							  lowerer now carries map descriptor provenance through
 							  constant-index list reads and known-key map reads, so nested

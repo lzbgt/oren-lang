@@ -599,7 +599,8 @@ This file is the concise task view. Detailed implementation status lives in
 		     `oren_map_len`, and roots proven map locals across safepoints through
 		     the real C runtime. `make verify-native-ir-llvm-map-runtime` proves
 		     linked execution parity, hash-literal pair IR shape, struct/member IR
-		     shape, key-kind sidecar metadata, string-key semantic lookup through
+		     shape, member-derived string/map roots across helper safepoints,
+		     key-kind sidecar metadata, string-key semantic lookup through
 		     length plus `memcmp`, and forced
 		     GC-at-safepoint. The lowerer now propagates map descriptor facts
 		     through constant-index list reads and known-key map reads, proving
