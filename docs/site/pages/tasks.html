@@ -878,14 +878,16 @@
 <p>     and lowered safepoints push proven descriptor locals as roots, so a value</p>
 <p>     selected by <code>if</code> can be concatenated and sliced after forced GC without</p>
 <p>     reverting to opaque or numeric lowering. LLVM-native also has the first</p>
-<p>     container descriptor layout: array literals become `%oren_llvm_list { len,</p>
-<p>     data, owner_kind }`, descriptor-backed index reads use</p>
-<p>     <code>oren_llvm_helper_oren_list_get</code>, and `make</p>
-<p>     verify-native-ir-llvm-list-runtime` proves linked execution parity without</p>
-<p>     opaque array/index call fallbacks. The same gate now covers descriptor-backed</p>
-<p>     index mutation through <code>oren_llvm_helper_oren_list_set</code>, forced-GC</p>
-<p>     safepoints with proven list locals rooted via</p>
-<p>     <code>oren_llvm_runtime_roots_push_list</code>, and root reset after helper calls.</p>
+<p>     container descriptor layout: array literals and optimized integer-list</p>
+<p>     construction become <code>%oren_llvm_list { len, data, owner_kind, capacity }</code>;</p>
+<p>     descriptor-backed index reads/writes use generated get/set helpers; proven</p>
+<p>     <code>oren_list*_push</code>, <code>oren_list*_len</code>, and <code>oren_list*_get</code> helper calls</p>
+<p>     normalize to descriptor helpers; and <code>make verify-native-ir-llvm-list-runtime</code></p>
+<p>     proves linked execution parity without opaque array/index/list-int helper</p>
+<p>     fallbacks. The same gate covers push growth from initial capacity,</p>
+<p>     descriptor-backed mutation through an alias, forced-GC safepoints with</p>
+<p>     proven list locals rooted via <code>oren_llvm_runtime_roots_push_list</code>, and root</p>
+<p>     reset after helper calls.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

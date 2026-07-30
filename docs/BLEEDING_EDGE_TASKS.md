@@ -556,14 +556,16 @@ This file is the concise task view. Detailed implementation status lives in
      and lowered safepoints push proven descriptor locals as roots, so a value
      selected by `if` can be concatenated and sliced after forced GC without
      reverting to opaque or numeric lowering. LLVM-native also has the first
-     container descriptor layout: array literals become `%oren_llvm_list { len,
-     data, owner_kind }`, descriptor-backed index reads use
-     `oren_llvm_helper_oren_list_get`, and `make
-     verify-native-ir-llvm-list-runtime` proves linked execution parity without
-     opaque array/index call fallbacks. The same gate now covers descriptor-backed
-     index mutation through `oren_llvm_helper_oren_list_set`, forced-GC
-     safepoints with proven list locals rooted via
-     `oren_llvm_runtime_roots_push_list`, and root reset after helper calls.
+     container descriptor layout: array literals and optimized integer-list
+     construction become `%oren_llvm_list { len, data, owner_kind, capacity }`;
+     descriptor-backed index reads/writes use generated get/set helpers; proven
+     `oren_list*_push`, `oren_list*_len`, and `oren_list*_get` helper calls
+     normalize to descriptor helpers; and `make verify-native-ir-llvm-list-runtime`
+     proves linked execution parity without opaque array/index/list-int helper
+     fallbacks. The same gate covers push growth from initial capacity,
+     descriptor-backed mutation through an alias, forced-GC safepoints with
+     proven list locals rooted via `oren_llvm_runtime_roots_push_list`, and root
+     reset after helper calls.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

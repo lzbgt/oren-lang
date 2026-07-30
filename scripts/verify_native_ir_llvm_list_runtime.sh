@@ -46,15 +46,22 @@ fi
 "$compiler" build "$src" --backend llvm-native --platform arm64-macos --no-cache -o "$object" >"$llvm_build_log" 2>&1
 test -s "$object"
 test -s "$object.ll"
-grep -Fq "%oren_llvm_list = type { i64, i64*, i64 }" "$object.ll"
+grep -Fq "%oren_llvm_list = type { i64, i64*, i64, i64 }" "$object.ll"
 grep -Fq "define i64 @oren_llvm_runtime_alloc_list" "$object.ll"
+grep -Fq "define i64 @oren_llvm_runtime_alloc_list_with_capacity" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_list_len" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_list_get" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_list_push" "$object.ll"
 grep -Fq "define void @oren_llvm_helper_oren_list_set" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_roots_push_list(i64)" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_register_list(i64, i64*, i64)" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_register_list" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_roots_push_list" "$object.ll"
 grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
+grep -Fq "store i64 %cap, i64* %capp, align 8" "$object.ll"
+grep -Fq "call i64 @oren_llvm_runtime_alloc_list_with_capacity(i64 0" "$object.ll"
+grep -Fq "call i64 @oren_llvm_helper_oren_list_len" "$object.ll"
+grep -Fq "call i64 @oren_llvm_helper_oren_list_push" "$object.ll"
 list_get_count="$(grep -F "call i64 @oren_llvm_helper_oren_list_get" "$object.ll" | wc -l | tr -d ' ')"
 if [ "$list_get_count" -lt 4 ]; then
   echo "ERROR: expected descriptor-backed list get calls" >&2
@@ -65,6 +72,12 @@ if grep -Fq "call i64 @oren_llvm_opaque_array" "$object.ll" ||
    grep -Fq "call i64 @oren_llvm_opaque_index_get" "$object.ll" ||
    grep -Fq "call void @oren_llvm_opaque_index_set" "$object.ll"; then
   echo "ERROR: list runtime IR fell back to opaque array/index calls" >&2
+  exit 1
+fi
+if grep -Fq "@oren_llvm_helper_oren_list_int_push" "$object.ll" ||
+   grep -Fq "@oren_llvm_helper_oren_list_int_len" "$object.ll" ||
+   grep -Fq "@oren_llvm_helper_oren_list_int_get" "$object.ll"; then
+  echo "ERROR: descriptor-backed list-int helpers were not normalized to list descriptor helpers" >&2
   exit 1
 fi
 
@@ -121,7 +134,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-list-descriptor-layout,array-literal-allocation,list-index-get-helper,list-index-set-helper,list-local-descriptor-propagation,list-runtime-registration,list-safepoint-roots,forced-gc-at-list-safepoint\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-list-descriptor-layout,array-literal-allocation,list-index-get-helper,list-index-set-helper,list-push-growth-helper,list-len-helper,list-local-descriptor-propagation,list-runtime-registration,list-safepoint-roots,forced-gc-at-list-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM list runtime parity passed; summary: $summary"

@@ -316,6 +316,14 @@ after it has round-trip/parity evidence. Until then:
     verify-native-ir-llvm-list-runtime` now forces GC between list allocation
     and later reads, verifies mutation through an alias, and rejects opaque
     array/index get/set fallbacks for this subset.
-39. Extend list descriptors to push/growth and broader runtime-varying helper
-    arguments, then expand descriptor ABI support to additional non-string
-    helpers.
+39. Done: extend list descriptors to push/growth and broader runtime-varying
+    helper arguments. `%oren_llvm_list` now carries `{ len, data, owner_kind,
+    capacity }`; array literals allocate with `len=capacity`, optimized
+    `oren_new_list_int(capacity)` allocates with `len=0`, and proven list
+    `oren_list_int_push*`/`oren_list_push*`, `oren_list_int_len*`/`oren_list_len*`,
+    and `oren_list_int_get*`/`oren_list_get*` calls normalize to descriptor
+    push/length/get helpers. `make verify-native-ir-llvm-list-runtime` proves
+    empty-list growth through repeated push, length reads, indexed reads, alias
+    mutation, and forced-GC list rooting.
+40. Expand descriptor ABI support to additional non-string helpers and nested
+    descriptor values beyond the current conservative string/list subset.

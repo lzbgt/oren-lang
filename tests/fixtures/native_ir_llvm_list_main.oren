@@ -2,6 +2,7 @@
 // - proves array literals lower to descriptor-backed lists
 // - proves indexed reads use the generated list get helper
 // - proves descriptor-backed mutation and list roots survive helper safepoints
+// - proves descriptor-backed push growth and list length helpers
 
 fn main() {
     var xs = [3, 4, 5]
@@ -19,5 +20,13 @@ fn main() {
     dyn = "released"
     if oren_string_len("trigger") != 7 { return 6 }
     if oren_string_eq(words[0], "abcd") != true { return 7 }
+
+    var grown = [10]
+    oren_list_push(grown, 11)
+    oren_list_push(grown, 12)
+    oren_list_push(grown, 13)
+    oren_list_push(grown, 14)
+    if oren_list_len(grown) != 5 { return 8 }
+    if grown[4] != 14 { return 9 }
     return 0
 }

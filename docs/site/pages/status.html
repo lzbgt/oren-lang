@@ -6103,18 +6103,19 @@ make docs-site</code></pre>
 <p>			  slice reuses the generated descriptor slice body, char-code access reuses</p>
 <p>			  descriptor byte loads, and the existing focused slice/access runtime gates</p>
 <p>			  prove both under real runtime allocation hooks, safepoint roots, and</p>
-<p>			  forced GC-at-safepoint. LLVM-native now has the first container layout</p>
-<p>			  record as well: array literals lower to `%oren_llvm_list { len, data,</p>
-<p>			  owner_kind }<code>, descriptor-backed </code>index_get` lowers through</p>
-<p>			  <code>oren_llvm_helper_oren_list_get</code>, and the C runtime validates registered</p>
-<p>			  list descriptor metadata. <code>make verify-native-ir-llvm-list-runtime</code></p>
-<p>			  proves linked execution parity against the native backend oracle and</p>
-<p>			  rejects opaque array/index call fallbacks for this subset. The same</p>
-<p>			  focused gate now also proves descriptor-backed <code>index_set</code> through</p>
-<p>			  <code>oren_llvm_helper_oren_list_set</code>, pushes proven list locals as helper</p>
-<p>			  safepoint roots via <code>oren_llvm_runtime_roots_push_list</code>, forces GC</p>
-<p>			  between list allocation and later reads, and verifies root-stack reset</p>
-<p>			  after helper calls.</p>
+<p>				  forced GC-at-safepoint. LLVM-native now has a container layout record</p>
+<p>				  as well: array literals and optimized integer-list construction lower</p>
+<p>				  to <code>%oren_llvm_list { len, data, owner_kind, capacity }</code>,</p>
+<p>				  descriptor-backed reads/writes use generated get/set helpers, and</p>
+<p>				  proven <code>oren_list*_push</code>, <code>oren_list*_len</code>, and <code>oren_list*_get</code></p>
+<p>				  helper calls normalize to descriptor helpers. The C runtime validates</p>
+<p>				  registered list descriptor metadata and roots proven list locals as</p>
+<p>				  helper safepoint roots via <code>oren_llvm_runtime_roots_push_list</code>. `make</p>
+<p>				  verify-native-ir-llvm-list-runtime` proves linked execution parity</p>
+<p>				  against the native backend oracle, rejects opaque</p>
+<p>				  array/index/list-int helper fallbacks for this subset, proves push</p>
+<p>				  growth from initial capacity, forces GC between list allocation and</p>
+<p>				  later reads, and verifies root-stack reset after helper calls.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

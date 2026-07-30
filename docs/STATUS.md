@@ -5141,18 +5141,19 @@ make docs-site
 			  slice reuses the generated descriptor slice body, char-code access reuses
 			  descriptor byte loads, and the existing focused slice/access runtime gates
 			  prove both under real runtime allocation hooks, safepoint roots, and
-			  forced GC-at-safepoint. LLVM-native now has the first container layout
-			  record as well: array literals lower to `%oren_llvm_list { len, data,
-			  owner_kind }`, descriptor-backed `index_get` lowers through
-			  `oren_llvm_helper_oren_list_get`, and the C runtime validates registered
-			  list descriptor metadata. `make verify-native-ir-llvm-list-runtime`
-			  proves linked execution parity against the native backend oracle and
-			  rejects opaque array/index call fallbacks for this subset. The same
-			  focused gate now also proves descriptor-backed `index_set` through
-			  `oren_llvm_helper_oren_list_set`, pushes proven list locals as helper
-			  safepoint roots via `oren_llvm_runtime_roots_push_list`, forces GC
-			  between list allocation and later reads, and verifies root-stack reset
-			  after helper calls.
+				  forced GC-at-safepoint. LLVM-native now has a container layout record
+				  as well: array literals and optimized integer-list construction lower
+				  to `%oren_llvm_list { len, data, owner_kind, capacity }`,
+				  descriptor-backed reads/writes use generated get/set helpers, and
+				  proven `oren_list*_push`, `oren_list*_len`, and `oren_list*_get`
+				  helper calls normalize to descriptor helpers. The C runtime validates
+				  registered list descriptor metadata and roots proven list locals as
+				  helper safepoint roots via `oren_llvm_runtime_roots_push_list`. `make
+				  verify-native-ir-llvm-list-runtime` proves linked execution parity
+				  against the native backend oracle, rejects opaque
+				  array/index/list-int helper fallbacks for this subset, proves push
+				  growth from initial capacity, forces GC between list allocation and
+				  later reads, and verifies root-stack reset after helper calls.
 
 ## Documentation Guardrail
 

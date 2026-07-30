@@ -8,6 +8,7 @@ typedef struct OrenLlvmList {
     int64_t len;
     int64_t* data;
     int64_t owner_kind;
+    int64_t capacity;
 } OrenLlvmList;
 
 static int64_t g_llvm_runtime_alloc_calls = 0;
@@ -65,7 +66,7 @@ static OrenAllocNode* oren_llvm_runtime_find_list_desc_locked(int64_t desc_handl
                 cur->freed == 0 &&
                 cur->kind == OREN_ALLOC_STRUCT) {
                 OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
-                if (desc->owner_kind == 1 && desc->data != NULL && desc->len >= 0) {
+                if (desc->owner_kind == 1 && desc->data != NULL && desc->len >= 0 && desc->capacity >= desc->len) {
                     return cur;
                 }
                 return NULL;
@@ -76,7 +77,7 @@ static OrenAllocNode* oren_llvm_runtime_find_list_desc_locked(int64_t desc_handl
     OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
     if (!n || n->freed != 0 || n->kind != OREN_ALLOC_STRUCT) return NULL;
     OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
-    if (desc->owner_kind != 1 || desc->data == NULL || desc->len < 0) return NULL;
+    if (desc->owner_kind != 1 || desc->data == NULL || desc->len < 0 || desc->capacity < desc->len) return NULL;
     return n;
 }
 
@@ -273,7 +274,7 @@ void oren_llvm_runtime_register_list(int64_t desc_handle, int64_t* data, int64_t
     }
 
     OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
-    if (desc->len != len || desc->data != data || desc->owner_kind != 1) {
+    if (desc->len != len || desc->data != data || desc->owner_kind != 1 || desc->capacity < len) {
         oren_panic("llvm runtime list register: descriptor metadata mismatch");
         return;
     }
