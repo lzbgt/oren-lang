@@ -864,6 +864,10 @@
 <p>     verify-native-ir-llvm-string-slice-runtime` now proves generated</p>
 <p>     <code>oren_llvm_helper_oren_string_slice</code> constant-token materialization,</p>
 <p>     including composition through generated string equality and length helpers.</p>
+<p>     <code>make verify-native-ir-llvm-string-access-runtime</code> adds generated unchecked</p>
+<p>     byte access plus checked/unchecked char access helpers for constant string</p>
+<p>     tokens, proving raw byte values and one-character token results against the</p>
+<p>     native backend oracle.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

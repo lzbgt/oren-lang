@@ -5109,7 +5109,11 @@ make docs-site
   string-token branches against the native backend oracle. `make
   verify-native-ir-llvm-string-slice-runtime` now proves generated
   `oren_llvm_helper_oren_string_slice` constant-token materialization, including
-  composition through generated string equality and length helpers.
+  composition through generated string equality and length helpers. `make
+  verify-native-ir-llvm-string-access-runtime` adds generated unchecked byte
+  access plus checked/unchecked char access helpers for constant string tokens,
+  proving raw byte values and one-character token results against the native
+  backend oracle.
 
 ## Documentation Guardrail
 

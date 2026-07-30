@@ -241,7 +241,13 @@ after it has round-trip/parity evidence. Until then:
     verify-native-ir-llvm-string-slice-runtime` proves the result composes with
     generated `oren_string_eq` and `oren_string_len` helpers against the native
     backend oracle.
-26. Extend string helper coverage beyond constant tokens, including byte/char
-    access and allocator-backed dynamic string materialization; keep x64/ARM64
-    as the oracle until LLVM can run those parity programs without unresolved or
-    test-only helper bodies.
+26. Done: add constant-token byte and char access helpers. The lowerer emits
+    generated `oren_llvm_helper_oren_string_byte_at_unchecked`,
+    `oren_llvm_helper_oren_string_char_at`, and
+    `oren_llvm_helper_oren_string_char_at_unchecked` switch bodies; `make
+    verify-native-ir-llvm-string-access-runtime` proves unchecked byte values and
+    checked/unchecked char-token results compose with generated string equality.
+27. Extend string helper coverage beyond constant tokens, including
+    allocator-backed dynamic string materialization and non-constant helper
+    arguments; keep x64/ARM64 as the oracle until LLVM can run those parity
+    programs without unresolved or test-only helper bodies.

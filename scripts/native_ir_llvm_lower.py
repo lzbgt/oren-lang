@@ -93,7 +93,17 @@ def collect_slots(fn):
 
 def collect_generic_helpers(fn):
     helpers = set()
-    generated_helpers = {"print", "exit", "oren_string_len", "oren_string_eq", "oren_string_slice"}
+    generated_helpers = {
+        "print",
+        "exit",
+        "oren_string_len",
+        "oren_string_eq",
+        "oren_string_slice",
+        "oren_string_byte_at",
+        "oren_string_byte_at_unchecked",
+        "oren_string_char_at",
+        "oren_string_char_at_unchecked",
+    }
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] not in generated_helpers:
@@ -238,6 +248,24 @@ class FunctionLowerer:
                 )
                 self.write_inst(f"{helper_call} ; helper oren_string_slice safepoint={op['safepoint']}")
                 return
+            if op["name"] in ("oren_string_byte_at", "oren_string_byte_at_unchecked"):
+                helper_symbol = llvm_helper_symbol(op["name"])
+                helper_call = (
+                    f"{dst} = call i64 @{helper_symbol}("
+                    f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                    f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+                )
+                self.write_inst(f"{helper_call} ; helper {op['name']} safepoint={op['safepoint']}")
+                return
+            if op["name"] in ("oren_string_char_at", "oren_string_char_at_unchecked"):
+                helper_symbol = llvm_helper_symbol(op["name"])
+                helper_call = (
+                    f"{dst} = call i64 @{helper_symbol}("
+                    f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
+                    f"i64 {helper_args[2]}, i64 {helper_args[3]})"
+                )
+                self.write_inst(f"{helper_call} ; helper {op['name']} safepoint={op['safepoint']}")
+                return
             helper_symbol = llvm_helper_symbol(op["name"])
             helper_call = (
                 f"{dst} = call i64 @{helper_symbol}("
@@ -377,6 +405,69 @@ def collect_const_string_slices(fn, token_table):
     return sorted(slices)
 
 
+def collect_const_string_byte_accesses(fn, token_table, helper_names):
+    consts = collect_const_values(fn)
+    accesses = []
+    seen = set()
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] != "runtime_helper_call" or op["name"] not in helper_names:
+                continue
+            if len(op["args"]) < 2:
+                continue
+            source = consts.get(op["args"][0])
+            index = consts.get(op["args"][1])
+            if source is None or index is None:
+                continue
+            if source[0] != "string" or index[0] != "int":
+                continue
+            try:
+                index_i = int(index[1])
+            except Exception:
+                continue
+            data = source[1].encode("utf-8")
+            if index_i < 0 or index_i >= len(data):
+                continue
+            source_tid = token_id(token_table, f"string:{source[1]}")
+            key = (source_tid, index_i, data[index_i])
+            if key not in seen:
+                seen.add(key)
+                accesses.append(key)
+    return sorted(accesses)
+
+
+def collect_const_string_char_accesses(fn, token_table, helper_names):
+    consts = collect_const_values(fn)
+    accesses = []
+    seen = set()
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] != "runtime_helper_call" or op["name"] not in helper_names:
+                continue
+            if len(op["args"]) < 2:
+                continue
+            source = consts.get(op["args"][0])
+            index = consts.get(op["args"][1])
+            if source is None or index is None:
+                continue
+            if source[0] != "string" or index[0] != "int":
+                continue
+            try:
+                index_i = int(index[1])
+            except Exception:
+                continue
+            value = source[1]
+            if index_i < 0 or index_i >= len(value):
+                continue
+            source_tid = token_id(token_table, f"string:{value}")
+            result_tid = token_id(token_table, f"string:{value[index_i]}")
+            key = (source_tid, index_i, result_tid)
+            if key not in seen:
+                seen.add(key)
+                accesses.append(key)
+    return sorted(accesses)
+
+
 def emit_print_helper(out, token_table):
     string_tokens = collect_string_tokens(token_table)
     if not string_tokens:
@@ -421,6 +512,40 @@ def emit_exit_helper(out):
     out.write("}\n")
 
 
+def emit_index_switch_helper(out, symbol, accesses):
+    out.write("\n")
+    out.write(
+        f"define i64 @{symbol}("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+    )
+    out.write("entry:\n")
+    if not accesses:
+        out.write("  ret i64 0\n")
+        out.write("}\n")
+        return
+
+    by_source = {}
+    for source_tid, index_i, result in accesses:
+        by_source.setdefault(source_tid, []).append((index_i, result))
+
+    out.write("  switch i64 %arg0, label %unknown [\n")
+    for source_tid in sorted(by_source):
+        out.write(f"    i64 {source_tid}, label %src_{source_tid}\n")
+    out.write("  ]\n")
+    for source_tid, indexes in sorted(by_source.items()):
+        out.write(f"src_{source_tid}:\n")
+        out.write("  switch i64 %arg1, label %unknown [\n")
+        for index_i, _result in sorted(indexes):
+            out.write(f"    i64 {index_i}, label %src_{source_tid}_idx_{index_i}\n")
+        out.write("  ]\n")
+        for index_i, result in sorted(indexes):
+            out.write(f"src_{source_tid}_idx_{index_i}:\n")
+            out.write(f"  ret i64 {result}\n")
+    out.write("unknown:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
 def emit_string_slice_helper(out, fn, token_table):
     slices = collect_const_string_slices(fn, token_table)
 
@@ -461,6 +586,26 @@ def emit_string_slice_helper(out, fn, token_table):
     out.write("unknown:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
+
+
+def emit_string_byte_at_helpers(out, fn, token_table):
+    byte_accesses = collect_const_string_byte_accesses(
+        fn,
+        token_table,
+        {"oren_string_byte_at", "oren_string_byte_at_unchecked"},
+    )
+    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_byte_at", byte_accesses)
+    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_byte_at_unchecked", byte_accesses)
+
+
+def emit_string_char_at_helpers(out, fn, token_table):
+    char_accesses = collect_const_string_char_accesses(
+        fn,
+        token_table,
+        {"oren_string_char_at", "oren_string_char_at_unchecked"},
+    )
+    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_char_at", char_accesses)
+    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_char_at_unchecked", char_accesses)
 
 
 def emit_string_len_helper(out, token_table):
@@ -544,6 +689,8 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare void @exit(i32)\n\n")
         slots, values, token_table = lower_function(main, out)
         emit_string_slice_helper(out, main, token_table)
+        emit_string_byte_at_helpers(out, main, token_table)
+        emit_string_char_at_helpers(out, main, token_table)
         emit_print_helper(out, token_table)
         emit_exit_helper(out)
         emit_string_len_helper(out, token_table)
