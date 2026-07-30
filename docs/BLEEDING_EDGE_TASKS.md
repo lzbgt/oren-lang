@@ -501,7 +501,9 @@ This file is the concise task view. Detailed implementation status lives in
      and `make verify-native-ir-validator` now provide the first structural
      schema gate without changing production x64/ARM64 emitters. `oren dump
      native-ir` plus `make verify-native-ir-dump` now emit and validate a
-     linked-program skeleton for `examples/hello.oren`.
+     linked-program skeleton for `examples/hello.oren`, and
+     `make verify-native-ir-parity` now checks linked function-surface parity
+     for the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

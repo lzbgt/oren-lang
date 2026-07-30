@@ -5049,8 +5049,10 @@ make docs-site
   function/block/terminator closure, duplicate functions, unknown branch targets,
   and safepoint/helper root metadata without changing production native emitters.
   `oren dump native-ir` plus `verify-native-ir-dump` now produce and verify a
-  validated linked-program skeleton for `examples/hello.oren`; real operation
-  lowering and parity fixtures remain before LLVM object emission.
+  validated linked-program skeleton for `examples/hello.oren`; `verify-native-ir-parity`
+  now checks linked function-surface parity for the initial fixture set across
+  x64 Linux, x64 Windows, and ARM64 macOS. Real operation lowering remains before
+  LLVM object emission.
 
 ## Documentation Guardrail
 

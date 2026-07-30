@@ -94,7 +94,9 @@ Initial gates:
   platform ABI mismatch.
 - Cross-backend parity for a small fixture set: hello, integer arithmetic,
   direct function calls, string concat, list length/get, panic path, and one
-  runtime helper call.
+  runtime helper call. `make verify-native-ir-parity` now checks that the
+  native-IR skeleton preserves the exact linked function surface for that
+  fixture set across `x64-linux`, `x64-windows`, and `arm64-macos`.
 - `make verify-native-ir-toolchain` reports `clang`, `llvm-config`, and `llc`
   availability without assuming they exist. It writes
   `build/native_ir/toolchain.txt` and only requires a complete LLVM toolchain
@@ -130,4 +132,5 @@ after it has round-trip/parity evidence. Until then:
    module with no production backend switch.
 4. Done: add `oren dump native-ir` plus `make verify-native-ir-dump` for
    `examples/hello.oren`.
-5. Add parity fixtures before emitting LLVM object code.
+5. Done: add linked-surface parity fixtures before emitting LLVM object code.
+6. Lower real native-IR operations for the parity fixture set.
