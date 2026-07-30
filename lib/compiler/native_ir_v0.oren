@@ -1,0 +1,346 @@
+// Native IR v0 schema and structural validator.
+//
+// This module is deliberately backend-neutral. It defines the minimum durable
+// record shape that a future native-IR dumper and optional LLVM backend can
+// share without changing current x64/ARM64 production emitters.
+
+var NATIVE_IR_V0_SCHEMA = "native_ir_v0"
+
+fn schema_version() { return NATIVE_IR_V0_SCHEMA }
+
+fn target(arch, os, abi) {
+    return {"arch": arch, "os": os, "abi": abi}
+}
+
+fn module(target_desc) {
+    return {
+        "schema": NATIVE_IR_V0_SCHEMA,
+        "target": target_desc,
+        "functions": [],
+        "data": [],
+        "globals": [],
+        "imports": [],
+        "exports": []
+    }
+}
+
+fn function(name, arity, frame_slots, blocks) {
+    return {
+        "name": name,
+        "arity": arity,
+        "frame_slots": frame_slots,
+        "blocks": blocks,
+        "roots": [],
+        "helper_calls": [],
+        "source": nil
+    }
+}
+
+fn block(label, ops, terminator) {
+    return {"label": label, "ops": ops, "terminator": terminator}
+}
+
+fn term_return(value) { return {"kind": "return", "value": value} }
+fn term_jump(target_label) { return {"kind": "jump", "target": target_label} }
+fn term_branch(cond, true_label, false_label) {
+    return {"kind": "branch", "cond": cond, "true": true_label, "false": false_label}
+}
+fn term_panic(reason) { return {"kind": "panic", "reason": reason} }
+fn term_unreachable() { return {"kind": "unreachable"} }
+
+fn root(local_id, kind) { return {"local": local_id, "kind": kind} }
+
+fn runtime_helper_call(name, args, result, clobbers, safepoint, roots, call_depth) {
+    return {
+        "kind": "runtime_helper_call",
+        "name": name,
+        "args": args,
+        "result": result,
+        "clobbers": clobbers,
+        "safepoint": safepoint,
+        "roots": roots,
+        "call_depth": call_depth
+    }
+}
+
+fn validate_module(ir) {
+    var errors = []
+    _validate_module_into(ir, errors)
+    return {"ok": oren_list_len(errors) == 0, "errors": errors}
+}
+
+fn _add_error(errors, msg) {
+    oren_list_push(errors, "native_ir_v0: " + msg)
+}
+
+fn _is_nonempty_string(v) {
+    return v != nil && oren_is_string(v) == true && oren_string_len(v) > 0
+}
+
+fn _is_int(v) { return oren_type_tag(v) == 1 }
+
+fn _list_has_string(xs, val) {
+    if xs == nil || oren_is_list(xs) != true { return false }
+    var n = oren_list_len(xs)
+    var i = 0
+    while i < n {
+        if xs[i] == val { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _valid_call_depth(mode) {
+    if mode == nil { return true }
+    return mode == "none" || mode == "enter_exit"
+}
+
+fn _validate_target(t, errors) {
+    if t == nil || oren_is_map(t) != true {
+        _add_error(errors, "target must be map")
+        return nil
+    }
+    var arch = t["arch"]
+    var os = t["os"]
+    var abi = t["abi"]
+    if _is_nonempty_string(arch) != true { _add_error(errors, "target.arch must be non-empty string") }
+    if _is_nonempty_string(os) != true { _add_error(errors, "target.os must be non-empty string") }
+    if _is_nonempty_string(abi) != true { _add_error(errors, "target.abi must be non-empty string") }
+    if _is_nonempty_string(arch) != true || _is_nonempty_string(os) != true || _is_nonempty_string(abi) != true { return nil }
+
+    if arch == "x64" {
+        if os == "windows" {
+            if abi != "win64" { _add_error(errors, "x64-windows requires win64 ABI") }
+        } else {
+            if abi != "sysv" { _add_error(errors, "x64 non-windows requires sysv ABI") }
+        }
+        return nil
+    }
+    if arch == "arm64" {
+        if abi != "aapcs" { _add_error(errors, "arm64 requires aapcs ABI") }
+        return nil
+    }
+    _add_error(errors, "unsupported target arch " + arch)
+}
+
+fn _validate_name_list(xs, field, errors) {
+    if xs == nil { return nil }
+    if oren_is_list(xs) != true {
+        _add_error(errors, field + " must be list when present")
+        return nil
+    }
+    var n = oren_list_len(xs)
+    var i = 0
+    while i < n {
+        if _is_nonempty_string(xs[i]) != true { _add_error(errors, field + " entries must be non-empty strings") }
+        i = i + 1
+    }
+}
+
+fn _validate_roots(roots, owner, required, errors) {
+    if roots == nil {
+        if required == true { _add_error(errors, owner + " safepoint missing roots") }
+        return nil
+    }
+    if oren_is_list(roots) != true {
+        _add_error(errors, owner + " roots must be list")
+        return nil
+    }
+    var n = oren_list_len(roots)
+    if required == true && n == 0 { _add_error(errors, owner + " safepoint roots must be non-empty") }
+    var i = 0
+    while i < n {
+        var r = roots[i]
+        if r == nil || oren_is_map(r) != true {
+            _add_error(errors, owner + " root must be map")
+        } else {
+            if _is_nonempty_string(r["local"]) != true { _add_error(errors, owner + " root.local must be non-empty string") }
+            if _is_nonempty_string(r["kind"]) != true { _add_error(errors, owner + " root.kind must be non-empty string") }
+        }
+        i = i + 1
+    }
+}
+
+fn _validate_helper_call(call, owner, errors) {
+    if call == nil || oren_is_map(call) != true {
+        _add_error(errors, owner + " helper call must be map")
+        return nil
+    }
+    if _is_nonempty_string(call["name"]) != true { _add_error(errors, owner + " helper name must be non-empty string") }
+    if call["args"] == nil || oren_is_list(call["args"]) != true { _add_error(errors, owner + " helper args must be list") }
+    _validate_name_list(call["clobbers"], owner + " helper clobbers", errors)
+    if call["result"] != nil && _is_nonempty_string(call["result"]) != true {
+        _add_error(errors, owner + " helper result must be string or nil")
+    }
+    if call["safepoint"] != nil && call["safepoint"] != true && call["safepoint"] != false {
+        _add_error(errors, owner + " helper safepoint must be bool")
+    }
+    if _valid_call_depth(call["call_depth"]) != true { _add_error(errors, owner + " helper call_depth invalid") }
+    _validate_roots(call["roots"], owner + " helper", call["safepoint"] == true, errors)
+}
+
+fn _validate_op(op, fn_name, block_label, index, errors) {
+    var owner = "function " + fn_name + " block " + block_label + " op " + oren_int_to_string(index)
+    if op == nil || oren_is_map(op) != true {
+        _add_error(errors, owner + " must be map")
+        return nil
+    }
+    var kind = op["kind"]
+    if _is_nonempty_string(kind) != true {
+        _add_error(errors, owner + " kind must be non-empty string")
+        return nil
+    }
+    if kind == "runtime_helper_call" {
+        _validate_helper_call(op, owner, errors)
+        return nil
+    }
+    if op["safepoint"] == true { _validate_roots(op["roots"], owner, true, errors) }
+}
+
+fn _validate_terminator(term, fn_name, block_label, labels, errors) {
+    var owner = "function " + fn_name + " block " + block_label + " terminator"
+    if term == nil || oren_is_map(term) != true {
+        _add_error(errors, owner + " must be map")
+        return nil
+    }
+    var kind = term["kind"]
+    if _is_nonempty_string(kind) != true {
+        _add_error(errors, owner + " kind must be non-empty string")
+        return nil
+    }
+    if kind == "return" || kind == "panic" || kind == "unreachable" { return nil }
+    if kind == "jump" {
+        var target_label = term["target"]
+        if _is_nonempty_string(target_label) != true { _add_error(errors, owner + " jump target must be non-empty string") }
+        else if _list_has_string(labels, target_label) != true { _add_error(errors, owner + " jump target unknown: " + target_label) }
+        return nil
+    }
+    if kind == "branch" {
+        var t = term["true"]
+        var f = term["false"]
+        if _is_nonempty_string(term["cond"]) != true { _add_error(errors, owner + " branch cond must be non-empty string") }
+        if _is_nonempty_string(t) != true { _add_error(errors, owner + " branch true target must be non-empty string") }
+        else if _list_has_string(labels, t) != true { _add_error(errors, owner + " branch true target unknown: " + t) }
+        if _is_nonempty_string(f) != true { _add_error(errors, owner + " branch false target must be non-empty string") }
+        else if _list_has_string(labels, f) != true { _add_error(errors, owner + " branch false target unknown: " + f) }
+        return nil
+    }
+    _add_error(errors, owner + " kind unsupported: " + kind)
+}
+
+fn _collect_block_labels(fn_rec, fn_name, errors) {
+    var labels = []
+    var blocks = fn_rec["blocks"]
+    if blocks == nil || oren_is_list(blocks) != true {
+        _add_error(errors, "function " + fn_name + " blocks must be non-empty list")
+        return labels
+    }
+    var n = oren_list_len(blocks)
+    if n == 0 { _add_error(errors, "function " + fn_name + " blocks must be non-empty list") }
+    var i = 0
+    while i < n {
+        var b = blocks[i]
+        if b == nil || oren_is_map(b) != true {
+            _add_error(errors, "function " + fn_name + " block must be map")
+        } else {
+            var label = b["label"]
+            if _is_nonempty_string(label) != true {
+                _add_error(errors, "function " + fn_name + " block label must be non-empty string")
+            } else if _list_has_string(labels, label) == true {
+                _add_error(errors, "function " + fn_name + " duplicate block label " + label)
+            } else {
+                oren_list_push(labels, label)
+            }
+        }
+        i = i + 1
+    }
+    return labels
+}
+
+fn _validate_function(fn_rec, seen, errors) {
+    if fn_rec == nil || oren_is_map(fn_rec) != true {
+        _add_error(errors, "function must be map")
+        return nil
+    }
+    var name = fn_rec["name"]
+    if _is_nonempty_string(name) != true {
+        _add_error(errors, "function name must be non-empty string")
+        name = "<invalid>"
+    } else if seen[name] == true {
+        _add_error(errors, "duplicate function " + name)
+    } else {
+        seen[name] = true
+    }
+    if _is_int(fn_rec["arity"]) != true || fn_rec["arity"] < 0 { _add_error(errors, "function " + name + " arity must be non-negative int") }
+    if _is_int(fn_rec["frame_slots"]) != true || fn_rec["frame_slots"] < 0 { _add_error(errors, "function " + name + " frame_slots must be non-negative int") }
+
+    _validate_roots(fn_rec["roots"], "function " + name, false, errors)
+    var helper_calls = fn_rec["helper_calls"]
+    if helper_calls != nil {
+        if oren_is_list(helper_calls) != true {
+            _add_error(errors, "function " + name + " helper_calls must be list")
+        } else {
+            var hn = oren_list_len(helper_calls)
+            var hi = 0
+            while hi < hn {
+                _validate_helper_call(helper_calls[hi], "function " + name + " helper " + oren_int_to_string(hi), errors)
+                hi = hi + 1
+            }
+        }
+    }
+
+    var labels = _collect_block_labels(fn_rec, name, errors)
+    var blocks = fn_rec["blocks"]
+    if blocks == nil || oren_is_list(blocks) != true { return nil }
+    var n = oren_list_len(blocks)
+    var i = 0
+    while i < n {
+        var b = blocks[i]
+        if b == nil || oren_is_map(b) != true { i = i + 1; continue }
+        var label = b["label"]
+        if _is_nonempty_string(label) != true { label = "<invalid>" }
+        var ops = b["ops"]
+        if ops == nil { ops = [] }
+        if oren_is_list(ops) != true {
+            _add_error(errors, "function " + name + " block " + label + " ops must be list")
+        } else {
+            var on = oren_list_len(ops)
+            var oi = 0
+            while oi < on {
+                _validate_op(ops[oi], name, label, oi, errors)
+                oi = oi + 1
+            }
+        }
+        _validate_terminator(b["terminator"], name, label, labels, errors)
+        i = i + 1
+    }
+}
+
+fn _validate_module_into(ir, errors) {
+    if ir == nil || oren_is_map(ir) != true {
+        _add_error(errors, "module must be map")
+        return nil
+    }
+    if ir["schema"] != NATIVE_IR_V0_SCHEMA {
+        _add_error(errors, "schema must be " + NATIVE_IR_V0_SCHEMA)
+    }
+    _validate_target(ir["target"], errors)
+    _validate_name_list(ir["imports"], "imports", errors)
+    _validate_name_list(ir["exports"], "exports", errors)
+    if ir["data"] != nil && oren_is_list(ir["data"]) != true { _add_error(errors, "data must be list") }
+    if ir["globals"] != nil && oren_is_list(ir["globals"]) != true { _add_error(errors, "globals must be list") }
+
+    var fns = ir["functions"]
+    if fns == nil || oren_is_list(fns) != true {
+        _add_error(errors, "functions must be non-empty list")
+        return nil
+    }
+    var n = oren_list_len(fns)
+    if n == 0 { _add_error(errors, "functions must be non-empty list") }
+    var seen = {}
+    var i = 0
+    while i < n {
+        _validate_function(fns[i], seen, errors)
+        i = i + 1
+    }
+}

@@ -497,7 +497,9 @@ This file is the concise task view. Detailed implementation status lives in
      The durable design note is `project-doc/native_ir_llvm_backend_plan_20260730.md`.
      `make verify-native-ir-toolchain` now writes `build/native_ir/toolchain.txt`
      with local `clang`, `llvm-config`, and `llc` availability so backend work
-     does not depend on implicit host assumptions.
+     does not depend on implicit host assumptions. `lib/compiler/native_ir_v0.oren`
+     and `make verify-native-ir-validator` now provide the first structural
+     schema gate without changing production x64/ARM64 emitters.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

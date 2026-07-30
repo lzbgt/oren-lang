@@ -1,0 +1,84 @@
+import nir "../../lib/compiler/native_ir_v0.oren"
+
+fn fail(code, msg) {
+    print("native_ir_validator_v0 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(v, code, msg) {
+    if v == true { return nil }
+    fail(code, msg)
+}
+
+fn assert_false(v, code, msg) {
+    if v == false { return nil }
+    fail(code, msg)
+}
+
+fn valid_ir() {
+    var ir = nir.module(nir.target("x64", "linux", "sysv"))
+    ir["imports"] = ["oren_add"]
+    ir["exports"] = ["main"]
+
+    var roots = [nir.root("acc", "tagged")]
+    var helper = nir.runtime_helper_call("oren_add", ["acc", "one"], "acc", ["rax", "rcx"], true, roots, "enter_exit")
+    var entry = nir.block("entry", [helper], nir.term_branch("cond0", "ret", "slow"))
+    var ret = nir.block("ret", [], nir.term_return("acc"))
+    var slow = nir.block("slow", [], nir.term_panic("slow path"))
+    var fn0 = nir.function("main", 0, 2, [entry, ret, slow])
+    fn0["roots"] = roots
+    fn0["helper_calls"] = [helper]
+    oren_list_push(ir["functions"], fn0)
+    return ir
+}
+
+fn assert_valid() {
+    var res = nir.validate_module(valid_ir())
+    assert_true(res["ok"], 10, "valid IR rejected")
+    assert_true(oren_list_len(res["errors"]) == 0, 11, "valid IR returned errors")
+}
+
+fn assert_bad_abi() {
+    var ir = valid_ir()
+    ir["target"] = nir.target("x64", "windows", "sysv")
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 20, "bad ABI accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 21, "bad ABI missing error")
+}
+
+fn assert_missing_safepoint_roots() {
+    var ir = valid_ir()
+    var fn0 = ir["functions"][0]
+    fn0["helper_calls"][0]["roots"] = []
+    fn0["blocks"][0]["ops"][0]["roots"] = []
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 30, "safepoint without roots accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 31, "safepoint missing error")
+}
+
+fn assert_unknown_branch_target() {
+    var ir = valid_ir()
+    ir["functions"][0]["blocks"][0]["terminator"] = nir.term_branch("cond0", "ret", "missing")
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 40, "unknown branch target accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 41, "unknown target missing error")
+}
+
+fn assert_duplicate_function() {
+    var ir = valid_ir()
+    oren_list_push(ir["functions"], ir["functions"][0])
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 50, "duplicate function accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 51, "duplicate function missing error")
+}
+
+fn main() {
+    if nir.schema_version() != "native_ir_v0" { fail(1, "schema version") }
+    assert_valid()
+    assert_bad_abi()
+    assert_missing_safepoint_roots()
+    assert_unknown_branch_target()
+    assert_duplicate_function()
+    print("native_ir_validator_v0 OK")
+    return 0
+}

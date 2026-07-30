@@ -5044,7 +5044,10 @@ make docs-site
   `verify-native-ir-toolchain` make target now writes
   `build/native_ir/toolchain.txt` with local `clang`, `llvm-config`, and `llc`
   availability; this host currently has Apple `clang` but no full LLVM tools on
-  `PATH`.
+  `PATH`. The first implementation gate, `verify-native-ir-validator`, validates
+  `lib/compiler/native_ir_v0.oren` schema records for target ABI consistency,
+  function/block/terminator closure, duplicate functions, unknown branch targets,
+  and safepoint/helper root metadata without changing production native emitters.
 
 ## Documentation Guardrail
 

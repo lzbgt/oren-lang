@@ -6006,7 +6006,10 @@ make docs-site</code></pre>
 <p>  <code>verify-native-ir-toolchain</code> make target now writes</p>
 <p>  <code>build/native_ir/toolchain.txt</code> with local <code>clang</code>, <code>llvm-config</code>, and <code>llc</code></p>
 <p>  availability; this host currently has Apple <code>clang</code> but no full LLVM tools on</p>
-<p>  <code>PATH</code>.</p>
+<p>  <code>PATH</code>. The first implementation gate, <code>verify-native-ir-validator</code>, validates</p>
+<p>  <code>lib/compiler/native_ir_v0.oren</code> schema records for target ABI consistency,</p>
+<p>  function/block/terminator closure, duplicate functions, unknown branch targets,</p>
+<p>  and safepoint/helper root metadata without changing production native emitters.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
