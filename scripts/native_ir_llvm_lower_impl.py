@@ -18,6 +18,7 @@ from native_ir_llvm_bytes_helpers import (
     emit_bytes_pack_helper,
     emit_bytes_runtime_alloc,
     emit_bytes_set_u8_helper,
+    emit_bytes_set_width_helper,
     emit_bytes_to_hex_helper,
     emit_bytes_unpack_helper,
     emit_hex_digit_helper,
@@ -94,6 +95,18 @@ GENERATED_HELPERS = {
     "oren_bytes_get_i64_be",
     "oren_bytes_get_i64_le",
     "oren_bytes_set_u8",
+    "oren_bytes_set_u16_be",
+    "oren_bytes_set_u16_le",
+    "oren_bytes_set_i16_be",
+    "oren_bytes_set_i16_le",
+    "oren_bytes_set_u32_be",
+    "oren_bytes_set_u32_le",
+    "oren_bytes_set_i32_be",
+    "oren_bytes_set_i32_le",
+    "oren_bytes_set_u64_be",
+    "oren_bytes_set_u64_le",
+    "oren_bytes_set_i64_be",
+    "oren_bytes_set_i64_le",
     "oren_bytes_to_hex",
     "oren_string_from_bytes_slice",
     "oren_u8_buf_from_bytes_slice",
@@ -175,6 +188,21 @@ BYTES_GET_U64_HELPERS = {
 
 BYTES_SET_U8_HELPERS = {
     "oren_bytes_set_u8",
+}
+
+BYTES_SET_ENDIAN_HELPERS = {
+    "oren_bytes_set_u16_be",
+    "oren_bytes_set_u16_le",
+    "oren_bytes_set_i16_be",
+    "oren_bytes_set_i16_le",
+    "oren_bytes_set_u32_be",
+    "oren_bytes_set_u32_le",
+    "oren_bytes_set_i32_be",
+    "oren_bytes_set_i32_le",
+    "oren_bytes_set_u64_be",
+    "oren_bytes_set_u64_le",
+    "oren_bytes_set_i64_be",
+    "oren_bytes_set_i64_le",
 }
 
 BYTES_TO_STRING_HELPERS = {
@@ -263,6 +291,7 @@ def collect_generic_helpers(fn):
                 | BYTES_GET_I32_HELPERS
                 | BYTES_GET_U64_HELPERS
                 | BYTES_SET_U8_HELPERS
+                | BYTES_SET_ENDIAN_HELPERS
                 | BYTES_TO_STRING_HELPERS
                 | BYTES_TO_BYTES_HELPERS
                 | BYTES_TO_LIST_HELPERS
@@ -341,6 +370,7 @@ def collect_generated_helpers(fn):
                     | BYTES_GET_I32_HELPERS
                     | BYTES_GET_U64_HELPERS
                     | BYTES_SET_U8_HELPERS
+                    | BYTES_SET_ENDIAN_HELPERS
                 ):
                     if op.get("args") and op["args"][0] in bytes_values:
                         helpers.add(op["name"])
@@ -654,6 +684,13 @@ class FunctionLowerer:
             if op["name"] in BYTES_SET_U8_HELPERS and len(op["args"]) > 2 and op["args"][0] in self.bytes_values:
                 helper_call = (
                     f"{dst} = call i64 @oren_llvm_helper_oren_bytes_set_u8("
+                    f"i64 {helper_args[0]}, i64 {helper_args[1]}, i64 {helper_args[2]})"
+                )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in BYTES_SET_ENDIAN_HELPERS and len(op["args"]) > 2 and op["args"][0] in self.bytes_values:
+                helper_call = (
+                    f"{dst} = call i64 @oren_llvm_helper_{op['name']}("
                     f"i64 {helper_args[0]}, i64 {helper_args[1]}, i64 {helper_args[2]})"
                 )
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
@@ -1693,6 +1730,30 @@ def emit_module(ir_path, out_path, ir, main):
             emit_bytes_get_u64_helper(out, "oren_bytes_get_i64_le", True)
         if "oren_bytes_set_u8" in helpers_to_emit:
             emit_bytes_set_u8_helper(out)
+        if "oren_bytes_set_u16_be" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_u16_be", 2, False, False)
+        if "oren_bytes_set_u16_le" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_u16_le", 2, True, False)
+        if "oren_bytes_set_i16_be" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_i16_be", 2, False, True)
+        if "oren_bytes_set_i16_le" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_i16_le", 2, True, True)
+        if "oren_bytes_set_u32_be" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_u32_be", 4, False, False)
+        if "oren_bytes_set_u32_le" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_u32_le", 4, True, False)
+        if "oren_bytes_set_i32_be" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_i32_be", 4, False, True)
+        if "oren_bytes_set_i32_le" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_i32_le", 4, True, True)
+        if "oren_bytes_set_u64_be" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_u64_be", 8, False, False)
+        if "oren_bytes_set_u64_le" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_u64_le", 8, True, False)
+        if "oren_bytes_set_i64_be" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_i64_be", 8, False, False)
+        if "oren_bytes_set_i64_le" in helpers_to_emit:
+            emit_bytes_set_width_helper(out, "oren_bytes_set_i64_le", 8, True, False)
         if "oren_bytes_to_hex" in helpers_to_emit:
             emit_hex_digit_helper(out)
             emit_bytes_to_hex_helper(out)

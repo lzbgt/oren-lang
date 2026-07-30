@@ -6129,8 +6129,9 @@ make docs-site</code></pre>
 <p>					  has <code>%oren_llvm_bytes { len, data, owner_kind }</code> descriptor handles</p>
 <p>						  backed by runtime-owned <code>OREN_ALLOC_RAW</code> storage. Generated</p>
 <p>						  <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>, <code>oren_bytes_get_u8</code>,</p>
-<p>						  u16/u32/u64 endian reads, signed i16/i32/i64 endian reads,</p>
-<p>						  <code>oren_bytes_set_u8</code>, <code>oren_bytes_to_hex</code>,</p>
+<p>							  u16/u32/u64 endian reads, signed i16/i32/i64 endian reads,</p>
+<p>							  u8 plus wider unsigned/signed endian writes,</p>
+<p>							  <code>oren_bytes_to_hex</code>,</p>
 <p>						  <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_string_from_bytes_slice</code>,</p>
 <p>						  <code>oren_bytes_pack</code>, and <code>oren_bytes_unpack</code> helpers</p>
 <p>						  allocate/register bytes, string, and list descriptors,</p>

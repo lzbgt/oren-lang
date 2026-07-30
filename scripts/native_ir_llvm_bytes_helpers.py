@@ -483,6 +483,55 @@ def emit_bytes_set_u8_helper(out):
     out.write("}\n")
 
 
+def emit_bytes_set_width_helper(out, name, width, little_endian, signed_return):
+    shifts = list(range(0, width * 8, 8)) if little_endian else list(range((width - 1) * 8, -1, -8))
+    mask = (1 << (width * 8)) - 1
+    out.write("\n")
+    out.write(f"define i64 @oren_llvm_helper_{name}(i64 %bytes_handle, i64 %idx, i64 %value) nounwind {{\n")
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %bytes_handle, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %bytes = inttoptr i64 %bytes_handle to %oren_llvm_bytes*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write(f"  %max_idx = sub i64 %len, {width}\n")
+    out.write("  %idx_nonneg = icmp sge i64 %idx, 0\n")
+    out.write("  %idx_in = icmp sle i64 %idx, %max_idx\n")
+    out.write("  %ok = and i1 %idx_nonneg, %idx_in\n")
+    out.write("  br i1 %ok, label %write, label %invalid\n")
+    out.write("write:\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_bytes, %oren_llvm_bytes* %bytes, i32 0, i32 1\n")
+    out.write("  %data = load i8*, i8** %datap, align 8\n")
+    if width < 8:
+        out.write(f"  %masked = and i64 %value, {mask}\n")
+        value_name = "masked"
+    else:
+        value_name = "value"
+    for idx, shift in enumerate(shifts):
+        out.write(f"  %shift{idx} = lshr i64 %{value_name}, {shift}\n")
+        out.write(f"  %byte{idx} = trunc i64 %shift{idx} to i8\n")
+        out.write(f"  %idx{idx} = add i64 %idx, {idx}\n")
+        out.write(f"  %ptr{idx} = getelementptr inbounds i8, i8* %data, i64 %idx{idx}\n")
+        out.write(f"  store i8 %byte{idx}, i8* %ptr{idx}, align 1\n")
+    if signed_return and width == 2:
+        out.write("  %ret_neg = icmp sge i64 %masked, 32768\n")
+        out.write("  %ret_signed = sub i64 %masked, 65536\n")
+        out.write("  %ret = select i1 %ret_neg, i64 %ret_signed, i64 %masked\n")
+    elif signed_return and width == 4:
+        out.write("  %ret_neg = icmp sge i64 %masked, 2147483648\n")
+        out.write("  %ret_signed = sub i64 %masked, 4294967296\n")
+        out.write("  %ret = select i1 %ret_neg, i64 %ret_signed, i64 %masked\n")
+    elif width < 8:
+        out.write("  %ret = add i64 %masked, 0\n")
+    else:
+        out.write("  %ret = add i64 %value, 0\n")
+    out.write("  ret i64 %ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
 def emit_u8_buf_from_bytes_slice_helper(out):
     out.write("\n")
     out.write(

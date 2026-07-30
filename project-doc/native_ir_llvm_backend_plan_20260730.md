@@ -371,5 +371,9 @@ after it has round-trip/parity evidence. Until then:
     the byte helper module owns all LLVM-native bytes helper bodies, and
     `make verify-native-ir-llvm-bytes-runtime` proves signed 16/32 plus
     u64/i64 endian reads against the native backend oracle.
-47. Add copy helpers, wider endian writes, runtime-varying inputs, maps, and
-    runtime-shaped records.
+47. Done: add wider endian write helpers. LLVM-native now lowers proven
+    `%oren_llvm_bytes` descriptor calls for u16/i16/u32/i32/u64/i64 endian
+    setters, matching the C runtime's mask/sign-return contracts and byte
+    order. The focused bytes runtime gate proves representative unsigned,
+    signed, and 64-bit writes by round-tripping through `oren_bytes_to_hex`.
+48. Add copy helpers, runtime-varying inputs, maps, and runtime-shaped records.

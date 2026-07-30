@@ -2,7 +2,7 @@
 // - proves hex strings lower into runtime-owned bytes descriptors
 // - proves descriptor-backed length and byte access helpers
 // - proves bytes-to-hex, bytes-unpack, and bytes-pack materialization
-// - proves unsigned/signed endian reads, byte mutation, and bytes/string slice helpers
+// - proves unsigned/signed endian reads and writes plus bytes/string slice helpers
 // - proves bytes roots survive helper safepoints and forced GC
 
 fn main() {
@@ -43,5 +43,21 @@ fn main() {
     if oren_bytes_get_u64_le(wide, 0) != 578437695752307201 { return 25 }
     if oren_bytes_get_i64_be(oren_bytes_from_hex("fffffffffffffffe"), 0) != -2 { return 26 }
     if oren_bytes_get_i64_le(oren_bytes_from_hex("feffffffffffffff"), 0) != -2 { return 27 }
+
+    var w16 = oren_bytes_from_hex("00000000")
+    if oren_bytes_set_u16_be(w16, 0, 4660) != 4660 { return 28 }
+    if oren_bytes_set_i16_le(w16, 2, -2) != -2 { return 29 }
+    if oren_string_eq(oren_bytes_to_hex(w16), "1234feff") != true { return 30 }
+
+    var w32 = oren_bytes_from_hex("0000000000000000")
+    if oren_bytes_set_u32_be(w32, 0, 16909060) != 16909060 { return 31 }
+    if oren_bytes_set_i32_le(w32, 4, -2) != -2 { return 32 }
+    if oren_string_eq(oren_bytes_to_hex(w32), "01020304feffffff") != true { return 33 }
+
+    var w64 = oren_bytes_from_hex("0000000000000000")
+    if oren_bytes_set_u64_le(w64, 0, 72623859790382856) != 72623859790382856 { return 34 }
+    if oren_string_eq(oren_bytes_to_hex(w64), "0807060504030201") != true { return 35 }
+    if oren_bytes_set_i64_be(w64, 0, -2) != -2 { return 36 }
+    if oren_string_eq(oren_bytes_to_hex(w64), "fffffffffffffffe") != true { return 37 }
     return 0
 }

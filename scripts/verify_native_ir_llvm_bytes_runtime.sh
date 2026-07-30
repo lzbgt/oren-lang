@@ -65,6 +65,12 @@ grep -Fq "define i64 @oren_llvm_helper_oren_bytes_get_u64_le" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_get_i64_be" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_get_i64_le" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_u8" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_u16_be" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_i16_le" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_u32_be" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_i32_le" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_u64_le" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_set_i64_be" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_to_hex" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_u8_buf_from_bytes_slice" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_from_bytes_slice" "$object.ll"
@@ -96,6 +102,12 @@ if grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_len(i64, i64, i64, i64, i6
    grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_get_i64_be(i64, i64, i64, i64, i64)" "$object.ll" ||
    grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_get_i64_le(i64, i64, i64, i64, i64)" "$object.ll" ||
    grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_u8(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_u16_be(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_i16_le(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_u32_be(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_i32_le(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_u64_le(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_set_i64_be(i64, i64, i64, i64, i64)" "$object.ll" ||
    grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_to_hex(i64, i64, i64, i64, i64)" "$object.ll" ||
    grep -Fq "declare i64 @oren_llvm_helper_oren_u8_buf_from_bytes_slice(i64, i64, i64, i64, i64)" "$object.ll" ||
    grep -Fq "declare i64 @oren_llvm_helper_oren_string_from_bytes_slice(i64, i64, i64, i64, i64)" "$object.ll" ||
@@ -163,7 +175,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-endian-get-helpers,bytes-signed-endian-get-helpers,bytes-u64-endian-get-helpers,bytes-set-u8-helper,bytes-to-hex-helper,bytes-slice-helper,bytes-string-slice-helper,bytes-pack-helper,bytes-unpack-helper,bytes-runtime-registration,bytes-safepoint-roots,forced-gc-at-bytes-safepoint,bytes-list-string-roundtrip\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-endian-get-helpers,bytes-signed-endian-get-helpers,bytes-u64-endian-get-helpers,bytes-set-u8-helper,bytes-endian-set-helpers,bytes-signed-endian-set-helpers,bytes-u64-endian-set-helpers,bytes-to-hex-helper,bytes-slice-helper,bytes-string-slice-helper,bytes-pack-helper,bytes-unpack-helper,bytes-runtime-registration,bytes-safepoint-roots,forced-gc-at-bytes-safepoint,bytes-list-string-roundtrip\n'
 } >"$summary"
 
 echo "OK: native IR LLVM bytes runtime parity passed; summary: $summary"
