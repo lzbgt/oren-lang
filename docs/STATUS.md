@@ -5196,10 +5196,11 @@ make docs-site
 								  proven map locals across safepoints; `make
 								  verify-native-ir-llvm-map-runtime` proves linked execution
 								  parity, hash-literal pair IR shape, struct/member IR shape,
-								  member-derived string/map roots across helper safepoints, and forced
+								  member-derived string/map roots, slice-derived semantic
+								  string-key map roots across helper safepoints, and forced
 								  GC-at-safepoint for that surface. The
-							  lowerer now carries map descriptor provenance through
-							  constant-index list reads and known-key map reads, so nested
+								  lowerer now carries map descriptor provenance through
+								  constant-index list reads and known or constant-derived-key map reads, so nested
 							  map descriptors stored in lists or maps can be read after
 							  forced GC without opaque fallback.
 

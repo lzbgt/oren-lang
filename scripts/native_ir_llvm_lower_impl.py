@@ -30,6 +30,7 @@ from native_ir_llvm_descriptor_helpers import (
     apply_list_element_fact,
     apply_map_element_fact,
     const_key_value,
+    derived_const_value,
     intersect_origin_envs,
 )
 from native_ir_llvm_map_helpers import (
@@ -974,6 +975,14 @@ def collect_const_values(fn):
                     if local_consts.get(op["name"]) != value:
                         local_consts[op["name"]] = value
                         changed = True
+                    old_value = consts.get(op["result"])
+                    if old_value != value:
+                        consts[op["result"]] = value
+                        changed = True
+                else:
+                    value = derived_const_value(consts, op)
+                    if value is None:
+                        continue
                     old_value = consts.get(op["result"])
                     if old_value != value:
                         consts[op["result"]] = value

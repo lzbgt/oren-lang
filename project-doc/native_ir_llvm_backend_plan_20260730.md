@@ -418,4 +418,11 @@ after it has round-trip/parity evidence. Until then:
     through `record.name` / `record.payload`, forces GC-capable helper
     safepoints before later use, and the verifier requires generated LLVM roots
     for those member-derived locals.
-55. Add broader runtime-varying descriptor inputs beyond known constant keys.
+55. Done: broaden map descriptor provenance to constant-derived semantic string
+    keys. The lowerer now derives conservative string constants from ASCII
+    string concat and valid ASCII `oren_string_slice`/`slice_unchecked` helper
+    calls, so a dynamic descriptor key such as `oren_string_slice("zalphaq", 1,
+    6)` can retrieve a known map descriptor value, survive a forced-GC
+    safepoint as a map root, and continue through generated map helpers.
+56. Add broader descriptor inputs beyond known/derived keys to unknown runtime
+    keys and values.

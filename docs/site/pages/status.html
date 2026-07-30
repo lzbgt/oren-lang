@@ -6158,10 +6158,11 @@ make docs-site</code></pre>
 <p>								  proven map locals across safepoints; `make</p>
 <p>								  verify-native-ir-llvm-map-runtime` proves linked execution</p>
 <p>								  parity, hash-literal pair IR shape, struct/member IR shape,</p>
-<p>								  member-derived string/map roots across helper safepoints, and forced</p>
+<p>								  member-derived string/map roots, slice-derived semantic</p>
+<p>								  string-key map roots across helper safepoints, and forced</p>
 <p>								  GC-at-safepoint for that surface. The</p>
-<p>							  lowerer now carries map descriptor provenance through</p>
-<p>							  constant-index list reads and known-key map reads, so nested</p>
+<p>								  lowerer now carries map descriptor provenance through</p>
+<p>								  constant-index list reads and known or constant-derived-key map reads, so nested</p>
 <p>							  map descriptors stored in lists or maps can be read after</p>
 <p>							  forced GC without opaque fallback.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>

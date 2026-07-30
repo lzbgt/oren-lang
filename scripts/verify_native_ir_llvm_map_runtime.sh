@@ -127,6 +127,7 @@ grep -Fq "call void @oren_llvm_runtime_roots_push_map" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_roots_push_list" "$object.ll"
 grep -Fq "safepoint root record_name" "$object.ll"
 grep -Fq "safepoint root map literal_payload" "$object.ll"
+grep -Fq "safepoint root map dynamic_payload" "$object.ll"
 grep -Fq "safepoint root map swapped_payload" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_map_len" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_map_get" "$object.ll"
@@ -188,7 +189,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,non-empty-hash-literal-lowering,hash-literal-index-set-ir,struct-constructor-record-map,member-access-index-get-ir,member-set-index-set-ir,member-string-root-provenance,member-map-root-provenance,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,non-empty-hash-literal-lowering,hash-literal-index-set-ir,struct-constructor-record-map,member-access-index-get-ir,member-set-index-set-ir,member-string-root-provenance,member-map-root-provenance,semantic-string-key-map-provenance,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM map runtime parity passed; summary: $summary"

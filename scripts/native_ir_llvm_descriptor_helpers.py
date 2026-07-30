@@ -21,6 +21,38 @@ def const_key_value(consts, value):
     return None
 
 
+def derived_const_value(consts, op):
+    kind = op.get("kind")
+    result = op.get("result")
+    if result is None:
+        return None
+    if kind == "binary" and op.get("op") == "+":
+        left = consts.get(op.get("left"))
+        right = consts.get(op.get("right"))
+        if left and right and left[0] == "string" and right[0] == "string":
+            return "string", f"{left[1]}{right[1]}"
+        return None
+    if kind != "runtime_helper_call":
+        return None
+    name = op.get("name")
+    args = op.get("args", [])
+    if name not in ("oren_string_slice", "oren_string_slice_unchecked") or len(args) < 3:
+        return None
+    source = consts.get(args[0])
+    start = const_int_value(consts, args[1])
+    end = const_int_value(consts, args[2])
+    if not source or source[0] != "string" or start is None or end is None:
+        return None
+    raw = source[1]
+    try:
+        raw.encode("ascii")
+    except UnicodeEncodeError:
+        return None
+    if start < 0 or end < start or end > len(raw):
+        return None
+    return "string", raw[start:end]
+
+
 def intersect_origin_envs(envs):
     if not envs:
         return {}

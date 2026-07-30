@@ -36,6 +36,10 @@ fn main() {
     var alpha2 = oren_string_slice("zalphaq", 1, 6)
     if oren_string_eq(alpha2, "alpha") != true { return 7 }
     if m[alpha2] != 13 { return 8 }
+    m[alpha2] = literal
+    var dynamic_payload = m[alpha2]
+    if oren_string_len("gc") != 2 { return 31 }
+    if dynamic_payload["first"] != 41 { return 32 }
     m[alpha2] = 17
     if oren_map_len(m) != 2 { return 9 }
     if m["alpha"] != 17 { return 10 }
