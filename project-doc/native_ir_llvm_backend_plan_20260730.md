@@ -296,6 +296,12 @@ after it has round-trip/parity evidence. Until then:
     `oren_string_char_code_at` lowers through the descriptor byte-access body;
     the existing slice/access runtime parity gates prove both under real runtime
     allocation hooks, safepoint root handling, and forced GC-at-safepoint.
-36. Expand descriptor ABI input coverage beyond conservative local dataflow for
-    runtime-varying values and broader non-string helpers while keeping
-    x64/ARM64 as the oracle.
+36. Done: extend descriptor ABI input coverage beyond single-assignment local
+    dataflow. The LLVM lowerer now runs a conservative native-IR CFG must
+    analysis for descriptor locals, intersects predecessor facts at joins, uses
+    those facts for descriptor concat selection, and pushes currently proven
+    descriptor locals as safepoint roots. The slice runtime fixture now proves
+    `picked + suffix` after an `if` join under forced GC-at-safepoint.
+37. Expand native-IR/LLVM descriptor ABI support to runtime-varying non-string
+    helpers and the first container/list layout records while keeping x64/ARM64
+    as the oracle.

@@ -874,6 +874,10 @@
 <p>     broad test sweep. The descriptor-backed helper family now also covers</p>
 <p>     <code>oren_string_slice_unchecked</code> and <code>oren_string_char_code_at</code> through the</p>
 <p>     existing focused slice/access runtime gates under forced GC-at-safepoint.</p>
+<p>     Descriptor facts now use a conservative CFG must-analysis at block joins,</p>
+<p>     and lowered safepoints push proven descriptor locals as roots, so a value</p>
+<p>     selected by <code>if</code> can be concatenated and sliced after forced GC without</p>
+<p>     reverting to opaque or numeric lowering.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

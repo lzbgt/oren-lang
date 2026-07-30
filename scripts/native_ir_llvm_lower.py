@@ -180,7 +180,8 @@ class FunctionLowerer:
         self.value_vars = {}
         self.token_table = {}
         self.const_values = collect_const_values(fn)
-        self.descriptor_values = collect_descriptor_values(fn)
+        self.descriptor_values, self.descriptor_block_in = collect_descriptor_analysis(fn)
+        self.current_descriptor_locals = set()
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
         self.slot_vars = {name: f"%slot{idx}" for idx, name in enumerate(self.slots)}
@@ -212,10 +213,20 @@ class FunctionLowerer:
 
     def emit_helper_call(self, op, helper_call, helper_name, root_values):
         mark = None
-        if op.get("safepoint") and root_values:
+        roots = []
+        seen_roots = set()
+        for root_value in root_values:
+            if root_value not in seen_roots:
+                roots.append(root_value)
+                seen_roots.add(root_value)
+        for local_name in sorted(self.current_descriptor_locals):
+            if local_name not in seen_roots:
+                roots.append(local_name)
+                seen_roots.add(local_name)
+        if op.get("safepoint") and roots:
             mark = self.scratch_var("root_mark")
             self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
-            for root_value in root_values:
+            for root_value in roots:
                 root_ref = self.value_ref(root_value)
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_string(i64 {root_ref}) ; safepoint root {root_value}"
@@ -233,6 +244,7 @@ class FunctionLowerer:
         self.out.write("define i64 @oren_native_ir_main_probe() nounwind {\n")
         for bidx, block in enumerate(self.fn["blocks"]):
             self.out.write(f"{label_names[block['label']]}:\n")
+            self.current_descriptor_locals = set(self.descriptor_block_in.get(block["label"], set()))
             if bidx == 0:
                 for name in self.slots:
                     self.write_inst(f"{self.slot_vars[name]} = alloca i64, align 8 ; local {name}")
@@ -261,6 +273,10 @@ class FunctionLowerer:
             name = op["name"]
             assert name in self.slot_vars, (self.fn["name"], op, self.slots)
             self.write_inst(f"store i64 {self.value_ref(op['value'])}, i64* {self.slot_vars[name]}, align 8")
+            if op["value"] in self.descriptor_values:
+                self.current_descriptor_locals.add(name)
+            else:
+                self.current_descriptor_locals.discard(name)
         elif kind == "binary":
             self.lower_binary(op)
         elif kind == "unary":
@@ -471,39 +487,78 @@ def collect_const_values(fn):
 
 
 def collect_descriptor_values(fn):
-    descriptors = set()
-    local_assigns = {}
-    for block in fn["blocks"]:
-        for op in block["ops"]:
-            if op["kind"] == "local_set":
-                local_assigns.setdefault(op["name"], []).append(op["value"])
+    descriptors, _ = collect_descriptor_analysis(fn)
+    return descriptors
 
+
+def collect_descriptor_analysis(fn):
+    blocks = fn["blocks"]
+    labels = [block["label"] for block in blocks]
+    all_slots = set(collect_slots(fn))
+    preds = {label: [] for label in labels}
+    for block in blocks:
+        for target in term_successors(block["terminator"]):
+            if target in preds:
+                preds[target].append(block["label"])
+
+    out_env = {label: set(all_slots) for label in labels}
+    in_env = {label: set() for label in labels}
+    final_descriptors = set()
     changed = True
     while changed:
         changed = False
-        for block in fn["blocks"]:
+        descriptors = set()
+        next_out = {}
+        next_in = {}
+        for idx, block in enumerate(blocks):
+            label = block["label"]
+            if idx == 0 or not preds[label]:
+                local_desc = set()
+            else:
+                incoming = [out_env[pred] for pred in preds[label]]
+                local_desc = set.intersection(*incoming) if incoming else set()
+            next_in[label] = set(local_desc)
+
             for op in block["ops"]:
                 result = op.get("result")
-                if op["kind"] == "const" and op.get("value_kind") == "string" and result not in descriptors:
+                kind = op["kind"]
+                if kind == "const" and op.get("value_kind") == "string":
                     descriptors.add(result)
-                    changed = True
-                elif op["kind"] == "runtime_helper_call" and op.get("name") in STRING_DESCRIPTOR_HELPERS:
-                    if result is not None and result not in descriptors:
+                elif kind == "runtime_helper_call" and op.get("name") in STRING_DESCRIPTOR_HELPERS:
+                    if result is not None:
                         descriptors.add(result)
-                        changed = True
-                elif op["kind"] == "binary" and op.get("op") == "+":
-                    if op["left"] in descriptors and op["right"] in descriptors and result not in descriptors:
+                elif kind == "binary" and op.get("op") == "+":
+                    if op["left"] in descriptors and op["right"] in descriptors:
                         descriptors.add(result)
-                        changed = True
-                elif op["kind"] == "local_get":
-                    assignments = local_assigns.get(op["name"], [])
-                    if len(assignments) != 1:
-                        continue
-                    assigned_value = assignments[0]
-                    if assigned_value in descriptors and result not in descriptors:
+                elif kind == "local_get":
+                    if op["name"] in local_desc:
                         descriptors.add(result)
-                        changed = True
-    return descriptors
+                elif kind == "local_set":
+                    if op["value"] in descriptors:
+                        local_desc.add(op["name"])
+                    else:
+                        local_desc.discard(op["name"])
+            next_out[label] = local_desc
+
+        if next_out != out_env:
+            out_env = next_out
+            changed = True
+        if next_in != in_env:
+            in_env = next_in
+            changed = True
+        if descriptors != final_descriptors:
+            final_descriptors = descriptors
+            changed = True
+    return final_descriptors, in_env
+
+
+def term_successors(term):
+    kind = term["kind"]
+    if kind == "jump":
+        return [term["target"]]
+    if kind == "branch":
+        return [term["true"], term["false"]]
+    return []
 
 
 def emit_string_globals(out, token_table):

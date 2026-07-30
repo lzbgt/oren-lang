@@ -552,6 +552,10 @@ This file is the concise task view. Detailed implementation status lives in
      broad test sweep. The descriptor-backed helper family now also covers
      `oren_string_slice_unchecked` and `oren_string_char_code_at` through the
      existing focused slice/access runtime gates under forced GC-at-safepoint.
+     Descriptor facts now use a conservative CFG must-analysis at block joins,
+     and lowered safepoints push proven descriptor locals as roots, so a value
+     selected by `if` can be concatenated and sliced after forced GC without
+     reverting to opaque or numeric lowering.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

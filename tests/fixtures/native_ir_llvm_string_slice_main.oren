@@ -28,5 +28,19 @@ fn main() {
     if oren_string_len(unchecked) != 2 {
         return 6
     }
+    var picked = ""
+    if oren_string_len(source) == 6 {
+        picked = s
+    } else {
+        picked = suffix
+    }
+    var joined_after_branch = picked + suffix
+    if oren_string_eq(joined_after_branch, "bcde") == false {
+        return 7
+    }
+    var branch_slice = oren_string_slice(joined_after_branch, 1, 3)
+    if oren_string_eq(branch_slice, "cd") == false {
+        return 8
+    }
     return 0
 }

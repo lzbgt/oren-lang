@@ -5128,11 +5128,15 @@ make docs-site
 	  `oren_llvm_runtime_safepoint_poll()` while roots are pushed; the slice and
 	  access runtime gates now run with `OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1` and
 	  assert forced collection counts, root-stack reset, and output parity. The
-	  LLVM lowerer now tracks proven descriptor values through string constants,
-	  string helper results, single-assignment locals, and concat results, so
-		  `+` lowers to `oren_llvm_helper_oren_string_concat` for non-constant
-		  descriptor inputs such as `slice_result + suffix` instead of only
-		  two-literal concatenations. The same descriptor helper family now covers
+		  LLVM lowerer now tracks proven descriptor values through string constants,
+		  string helper results, concat results, and a conservative CFG must-analysis
+		  for descriptor locals. That analysis intersects predecessor facts at joins,
+		  so `+` lowers to `oren_llvm_helper_oren_string_concat` for non-constant
+		  descriptor inputs such as `slice_result + suffix` and `picked + suffix`
+		  after an `if` join instead of only two-literal concatenations. The same
+		  descriptor-local facts are now pushed as safepoint roots, preventing
+		  forced GC-at-safepoint from reclaiming a live descriptor stored in a local
+		  before later use. The descriptor helper family also covers
 		  `oren_string_slice_unchecked` and `oren_string_char_code_at`: unchecked
 		  slice reuses the generated descriptor slice body, char-code access reuses
 		  descriptor byte loads, and the existing focused slice/access runtime gates

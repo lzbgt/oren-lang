@@ -6090,11 +6090,15 @@ make docs-site</code></pre>
 <p>	  <code>oren_llvm_runtime_safepoint_poll()</code> while roots are pushed; the slice and</p>
 <p>	  access runtime gates now run with <code>OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1</code> and</p>
 <p>	  assert forced collection counts, root-stack reset, and output parity. The</p>
-<p>	  LLVM lowerer now tracks proven descriptor values through string constants,</p>
-<p>	  string helper results, single-assignment locals, and concat results, so</p>
-<p>		  <code>+</code> lowers to <code>oren_llvm_helper_oren_string_concat</code> for non-constant</p>
-<p>		  descriptor inputs such as <code>slice_result + suffix</code> instead of only</p>
-<p>		  two-literal concatenations. The same descriptor helper family now covers</p>
+<p>		  LLVM lowerer now tracks proven descriptor values through string constants,</p>
+<p>		  string helper results, concat results, and a conservative CFG must-analysis</p>
+<p>		  for descriptor locals. That analysis intersects predecessor facts at joins,</p>
+<p>		  so <code>+</code> lowers to <code>oren_llvm_helper_oren_string_concat</code> for non-constant</p>
+<p>		  descriptor inputs such as <code>slice_result + suffix</code> and <code>picked + suffix</code></p>
+<p>		  after an <code>if</code> join instead of only two-literal concatenations. The same</p>
+<p>		  descriptor-local facts are now pushed as safepoint roots, preventing</p>
+<p>		  forced GC-at-safepoint from reclaiming a live descriptor stored in a local</p>
+<p>		  before later use. The descriptor helper family also covers</p>
 <p>		  <code>oren_string_slice_unchecked</code> and <code>oren_string_char_code_at</code>: unchecked</p>
 <p>		  slice reuses the generated descriptor slice body, char-code access reuses</p>
 <p>		  descriptor byte loads, and the existing focused slice/access runtime gates</p>
