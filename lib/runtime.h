@@ -149,11 +149,13 @@ void* oren_llvm_runtime_alloc_bytes(int64_t byte_count, int64_t alloc_kind);
 void oren_llvm_runtime_register_string(int64_t desc_handle, char* data, int64_t len);
 int64_t oren_llvm_runtime_roots_mark(void);
 void oren_llvm_runtime_roots_push_string(int64_t desc_handle);
+void oren_llvm_runtime_safepoint_poll(void);
 void oren_llvm_runtime_roots_reset(int64_t mark);
 int64_t oren_llvm_runtime_alloc_calls(void);
 int64_t oren_llvm_runtime_registered_strings(void);
 int64_t oren_llvm_runtime_root_depth(void);
 int64_t oren_llvm_runtime_root_pushes(void);
+int64_t oren_llvm_runtime_safepoint_collections(void);
 
 // List utilities.
 // - `oren_list_reserve_raw` is an internal fast path that operates on raw list pointers.

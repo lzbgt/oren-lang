@@ -7,9 +7,18 @@ typedef struct OrenLlvmString {
 static int64_t g_llvm_runtime_alloc_calls = 0;
 static int64_t g_llvm_runtime_registered_strings = 0;
 static int64_t g_llvm_runtime_root_pushes = 0;
+static int64_t g_llvm_runtime_safepoint_collections = 0;
 static OrenLlvmString** g_llvm_runtime_roots = NULL;
 static size_t g_llvm_runtime_roots_len = 0;
 static size_t g_llvm_runtime_roots_cap = 0;
+
+static int oren_llvm_runtime_force_gc_cached(void) {
+    static int cached = -1;
+    if (cached >= 0) return cached;
+    const char* env = getenv("OREN_LLVM_FORCE_GC_AT_SAFEPOINT");
+    cached = (env != NULL && env[0] != '\0' && strcmp(env, "0") != 0) ? 1 : 0;
+    return cached;
+}
 
 static OrenAllocNode* oren_llvm_runtime_find_string_desc_locked(int64_t desc_handle) {
     if (desc_handle == 0) return NULL;
@@ -74,6 +83,12 @@ void oren_llvm_runtime_roots_reset(int64_t mark) {
         g_llvm_runtime_roots_len = m;
     }
     pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+void oren_llvm_runtime_safepoint_poll(void) {
+    if (!oren_llvm_runtime_force_gc_cached()) return;
+    g_llvm_runtime_safepoint_collections++;
+    oren_gc_collect();
 }
 
 static void oren_llvm_runtime_mark_roots(void) {
@@ -155,4 +170,8 @@ int64_t oren_llvm_runtime_root_pushes(void) {
     int64_t n = g_llvm_runtime_root_pushes;
     pthread_mutex_unlock(&g_alloc_mutex);
     return n;
+}
+
+int64_t oren_llvm_runtime_safepoint_collections(void) {
+    return g_llvm_runtime_safepoint_collections;
 }

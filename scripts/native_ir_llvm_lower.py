@@ -222,6 +222,7 @@ class FunctionLowerer:
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_string(i64 {root_ref}) ; safepoint root {root_value}"
                 )
+            self.write_inst("call void @oren_llvm_runtime_safepoint_poll() ; forced GC safepoint poll")
         self.write_inst(f"{helper_call} ; helper {helper_name} safepoint={op.get('safepoint', False)}")
         if mark is not None:
             self.write_inst(f"call void @oren_llvm_runtime_roots_reset(i64 {mark}) ; safepoint roots reset")
@@ -749,6 +750,7 @@ def emit_module(ir_path, out_path, ir, main):
         if function_needs_root_hooks(main):
             out.write("declare i64 @oren_llvm_runtime_roots_mark()\n")
             out.write("declare void @oren_llvm_runtime_roots_push_string(i64)\n")
+            out.write("declare void @oren_llvm_runtime_safepoint_poll()\n")
             out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:
             out.write("declare i32 @puts(i8*)\n")

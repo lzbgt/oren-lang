@@ -60,11 +60,13 @@ grep -Fq "declare i8* @oren_llvm_runtime_alloc_bytes(i64, i64)" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_register_string(i64, i8*, i64)" "$object.ll"
 grep -Fq "declare i64 @oren_llvm_runtime_roots_mark()" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_roots_push_string(i64)" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_safepoint_poll()" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_roots_reset(i64)" "$object.ll"
 grep -Fq "call i8* @oren_llvm_runtime_alloc_bytes" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_register_string" "$object.ll"
 grep -Fq "call i64 @oren_llvm_runtime_roots_mark" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_roots_push_string" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_safepoint_poll" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_roots_reset" "$object.ll"
 grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 grep -Fq "call i8* @memcpy" "$object.ll"
@@ -98,6 +100,7 @@ extern void oren_llvm_runtime_roots_push_string(int64_t desc_handle);
 extern void oren_llvm_runtime_roots_reset(int64_t mark);
 extern int64_t oren_llvm_runtime_root_depth(void);
 extern int64_t oren_llvm_runtime_root_pushes(void);
+extern int64_t oren_llvm_runtime_safepoint_collections(void);
 extern void oren_gc_collect(void);
 
 int main(void) {
@@ -116,6 +119,10 @@ int main(void) {
     }
     if (oren_llvm_runtime_root_pushes() < 2) {
         fprintf(stderr, "expected safepoint descriptor roots to be pushed\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_safepoint_collections() < 1) {
+        fprintf(stderr, "expected forced GC-at-safepoint collections\n");
         return 1;
     }
     char* bytes = (char*)oren_llvm_runtime_alloc_bytes(4, 1);
@@ -142,7 +149,7 @@ int main(void) {
 C
 
 "$clang_path" "$harness" "$object" lib/runtime.c lib/runtime_buf.c -Ilib -pthread -o "$llvm_bin" >"$link_log" 2>&1
-"$llvm_bin" >"$llvm_run_log" 2>&1
+OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1 "$llvm_bin" >"$llvm_run_log" 2>&1
 
 end="$(date +%s)"
 {
@@ -153,7 +160,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-slice-helper,named-oren-string-concat-helper,runtime-hook-backed-slice-materialization,runtime-hook-backed-concat-materialization,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,llvm-descriptor-gc-root-mark,string-len-compose,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-slice-helper,named-oren-string-concat-helper,runtime-hook-backed-slice-materialization,runtime-hook-backed-concat-materialization,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,forced-gc-at-generated-helper-safepoint,llvm-descriptor-gc-root-mark,string-len-compose,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string slice runtime parity passed; summary: $summary"

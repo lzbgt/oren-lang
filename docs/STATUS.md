@@ -5124,7 +5124,10 @@ make docs-site
 	  `oren_llvm_runtime_roots_reset` calls. The real C runtime owns the v0
 	  descriptor-root stack, marks descriptor/data allocations during GC, and the
 	  focused slice runtime gate forces one GC while a LLVM descriptor root is
-	  active.
+	  active. Lowered helper sites also call
+	  `oren_llvm_runtime_safepoint_poll()` while roots are pushed; the slice and
+	  access runtime gates now run with `OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1` and
+	  assert forced collection counts, root-stack reset, and output parity.
 
 ## Documentation Guardrail
 

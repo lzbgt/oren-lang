@@ -68,7 +68,7 @@ end="$(date +%s)"
   printf 'string_eq_runtime_summary=build/native_ir/llvm_string_eq_runtime/summary.txt\n'
   printf 'string_slice_runtime_summary=build/native_ir/llvm_string_slice_runtime/summary.txt\n'
   printf 'string_access_runtime_summary=build/native_ir/llvm_string_access_runtime/summary.txt\n'
-  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,named-exit-helper,named-oren-string-len-helper,named-oren-string-eq-helper,named-oren-string-slice-helper,named-oren-string-access-helpers,helper-execute,exit-status,string-helper-execute,string-eq-helper-execute,string-slice-helper-execute,string-access-helper-execute\n'
+  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,named-exit-helper,named-oren-string-len-helper,named-oren-string-eq-helper,named-oren-string-slice-helper,named-oren-string-access-helpers,helper-execute,exit-status,string-helper-execute,string-eq-helper-execute,string-slice-helper-execute,string-access-helper-execute,forced-gc-at-generated-helper-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM smoke passed; summary: $summary"

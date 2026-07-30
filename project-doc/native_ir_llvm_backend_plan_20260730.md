@@ -278,6 +278,10 @@ after it has round-trip/parity evidence. Until then:
     `oren_llvm_runtime_roots_reset`; the C runtime keeps a v0 descriptor-root
     stack, marks live descriptor/data allocations during GC, and treats
     non-descriptor tagged immediates as no-op roots.
-33. Add forced GC-at-safepoint parity for generated helper calls, then expand the
-    same descriptor ABI to non-constant program input and broader runtime helpers
-    while keeping x64/ARM64 as the oracle.
+33. Done: add forced GC-at-safepoint parity for generated helper calls.
+    Lowered helper sites call `oren_llvm_runtime_safepoint_poll()` while
+    descriptor roots are active; focused string slice/access runtime gates run
+    with `OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1` and assert the forced collection
+    counter, root-stack reset, and output parity.
+34. Expand the descriptor ABI to non-constant program input and broader runtime
+    helpers while keeping x64/ARM64 as the oracle.

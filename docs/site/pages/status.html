@@ -6086,7 +6086,10 @@ make docs-site</code></pre>
 <p>	  <code>oren_llvm_runtime_roots_reset</code> calls. The real C runtime owns the v0</p>
 <p>	  descriptor-root stack, marks descriptor/data allocations during GC, and the</p>
 <p>	  focused slice runtime gate forces one GC while a LLVM descriptor root is</p>
-<p>	  active.</p>
+<p>	  active. Lowered helper sites also call</p>
+<p>	  <code>oren_llvm_runtime_safepoint_poll()</code> while roots are pushed; the slice and</p>
+<p>	  access runtime gates now run with <code>OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1</code> and</p>
+<p>	  assert forced collection counts, root-stack reset, and output parity.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
