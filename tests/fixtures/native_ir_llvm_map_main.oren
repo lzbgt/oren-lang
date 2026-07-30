@@ -1,6 +1,6 @@
 // Native IR LLVM map descriptor smoke:
 // - proves empty Hash literals lower into runtime-owned map descriptors
-// - proves descriptor-backed string-key set/get and map length
+// - proves semantic descriptor-backed string-key set/get and map length
 // - proves map roots survive helper safepoints and forced GC
 
 fn main() {
@@ -14,5 +14,11 @@ fn main() {
     if oren_map_len(m) != 2 { return 4 }
     if m["alpha"] != 13 { return 5 }
     if m["beta"] != 11 { return 6 }
+    var alpha2 = oren_string_slice("zalphaq", 1, 6)
+    if oren_string_eq(alpha2, "alpha") != true { return 7 }
+    if m[alpha2] != 13 { return 8 }
+    m[alpha2] = 17
+    if oren_map_len(m) != 2 { return 9 }
+    if m["alpha"] != 17 { return 10 }
     return 0
 }

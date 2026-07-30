@@ -21,6 +21,7 @@ typedef struct OrenLlvmMap {
     int64_t len;
     int64_t* keys;
     int64_t* values;
+    int64_t* key_kinds;
     int64_t owner_kind;
     int64_t capacity;
 } OrenLlvmMap;
@@ -190,10 +191,12 @@ static OrenAllocNode* oren_llvm_runtime_find_map_desc_locked(int64_t desc_handle
                 if (desc->owner_kind == 1 &&
                     desc->keys != NULL &&
                     desc->values != NULL &&
+                    desc->key_kinds != NULL &&
                     desc->len >= 0 &&
                     desc->capacity >= desc->len &&
                     oren_llvm_runtime_node_is_live_kind_locked(desc->keys, OREN_ALLOC_STRUCT, 0) &&
-                    oren_llvm_runtime_node_is_live_kind_locked(desc->values, OREN_ALLOC_STRUCT, 0)) {
+                    oren_llvm_runtime_node_is_live_kind_locked(desc->values, OREN_ALLOC_STRUCT, 0) &&
+                    oren_llvm_runtime_node_is_live_kind_locked(desc->key_kinds, OREN_ALLOC_STRUCT, 0)) {
                     return cur;
                 }
                 return NULL;
@@ -207,10 +210,12 @@ static OrenAllocNode* oren_llvm_runtime_find_map_desc_locked(int64_t desc_handle
     if (desc->owner_kind != 1 ||
         desc->keys == NULL ||
         desc->values == NULL ||
+        desc->key_kinds == NULL ||
         desc->len < 0 ||
         desc->capacity < desc->len ||
         !oren_llvm_runtime_node_is_live_kind_locked(desc->keys, OREN_ALLOC_STRUCT, 0) ||
-        !oren_llvm_runtime_node_is_live_kind_locked(desc->values, OREN_ALLOC_STRUCT, 0)) return NULL;
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->values, OREN_ALLOC_STRUCT, 0) ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->key_kinds, OREN_ALLOC_STRUCT, 0)) return NULL;
     return n;
 }
 
@@ -259,10 +264,12 @@ static OrenAllocNode* oren_llvm_runtime_find_map_desc_for_mark_locked(int64_t de
     if (desc->owner_kind != 1 ||
         desc->keys == NULL ||
         desc->values == NULL ||
+        desc->key_kinds == NULL ||
         desc->len < 0 ||
         desc->capacity < desc->len ||
         !oren_llvm_runtime_node_is_live_kind_locked(desc->keys, OREN_ALLOC_STRUCT, 1) ||
-        !oren_llvm_runtime_node_is_live_kind_locked(desc->values, OREN_ALLOC_STRUCT, 1)) return NULL;
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->values, OREN_ALLOC_STRUCT, 1) ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->key_kinds, OREN_ALLOC_STRUCT, 1)) return NULL;
     return n;
 }
 
@@ -381,8 +388,16 @@ static void oren_llvm_runtime_mark_map_desc_rec_locked(OrenLlvmMap* desc, int de
             vn->freed = -1;
         }
     }
+    if (desc->key_kinds) {
+        OrenAllocNode* kn = oren_find_node(desc->key_kinds);
+        if (kn && kn->freed == 0 && kn->kind == OREN_ALLOC_STRUCT) {
+            kn->freed = -1;
+        }
+    }
     for (int64_t j = 0; j < desc->len; j++) {
-        oren_llvm_runtime_mark_descriptor_handle_locked(desc->keys[j], depth);
+        if (desc->key_kinds[j] != 0) {
+            oren_llvm_runtime_mark_descriptor_handle_locked(desc->keys[j], depth);
+        }
         oren_llvm_runtime_mark_descriptor_handle_locked(desc->values[j], depth);
     }
 }
@@ -642,15 +657,22 @@ void oren_llvm_runtime_register_bytes(int64_t desc_handle, uint8_t* data, int64_
     g_llvm_runtime_registered_bytes++;
 }
 
-void oren_llvm_runtime_register_map(int64_t desc_handle, int64_t* keys, int64_t* values, int64_t len, int64_t capacity) {
-    if (desc_handle == 0 || keys == NULL || values == NULL || len < 0 || capacity < len) {
+void oren_llvm_runtime_register_map(
+    int64_t desc_handle,
+    int64_t* keys,
+    int64_t* values,
+    int64_t* key_kinds,
+    int64_t len,
+    int64_t capacity
+) {
+    if (desc_handle == 0 || keys == NULL || values == NULL || key_kinds == NULL || len < 0 || capacity < len) {
         oren_panic("llvm runtime map register: invalid allocation");
         return;
     }
 
     OrenLlvmMap* desc = (OrenLlvmMap*)(uintptr_t)desc_handle;
     if (desc->len != len || desc->keys != keys || desc->values != values ||
-        desc->owner_kind != 1 || desc->capacity != capacity) {
+        desc->key_kinds != key_kinds || desc->owner_kind != 1 || desc->capacity != capacity) {
         oren_panic("llvm runtime map register: descriptor metadata mismatch");
         return;
     }

@@ -5182,15 +5182,16 @@ make docs-site
 								  GC-at-safepoint. LLVM-native byte helper emitters
 							  now live in `scripts/native_ir_llvm_bytes_helpers.py`, keeping
 							  the core lowerer below the source-line guardrail.
-							  LLVM-native now also has a v0
-							  `%oren_llvm_map { len, keys, values, owner_kind, capacity }`
-							  descriptor ABI for empty hash literals,
-							  descriptor-backed `index_set`/`index_get` with exact i64
-							  keys, and proven `oren_map_len` lowering. The C runtime
-							  registers map descriptors plus key/value storage and roots
+							  LLVM-native now also has
+							  `%oren_llvm_map { len, keys, values, key_kinds,
+							  owner_kind, capacity }` descriptor handles for empty hash
+							  literals, descriptor-backed exact keys, semantic string
+							  descriptor keys using length plus `memcmp`, and proven
+							  `oren_map_len` lowering. The C runtime registers map
+							  descriptors plus key/value/key-kind storage and roots
 							  proven map locals across safepoints; `make
 							  verify-native-ir-llvm-map-runtime` proves linked execution
-							  parity and forced GC-at-safepoint for that v0 surface.
+							  parity and forced GC-at-safepoint for that surface.
 
 ## Documentation Guardrail
 

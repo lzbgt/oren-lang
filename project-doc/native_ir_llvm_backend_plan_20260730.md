@@ -383,15 +383,18 @@ after it has round-trip/parity evidence. Until then:
     `oren_bytes_copy` runtime helper was intentionally not kept because it
     broadened native-oracle rebuild/codegen cost without adding a distinct ABI
     contract.
-49. Done: add the first map descriptor ABI slice. Empty hash literals now lower
-    to `%oren_llvm_map { len, keys, values, owner_kind, capacity }` descriptors,
-    descriptor-backed `index_set`/`index_get` mutate and read exact i64 keys, and
-    proven `oren_map_len` calls lower to a generated helper instead of the generic
-    dispatcher. The real C runtime registers map descriptors plus key/value
-    storage, roots proven map locals across safepoints, and the focused map gate
-    proves linked execution parity plus forced GC-at-safepoint. This v0 key
-    surface is intentionally exact descriptor/key identity; semantic string key
-    equality is a separate contract.
-50. Broaden map key semantics beyond exact descriptor identity, add nested map
-    descriptor provenance/rooting through lists/maps, then expand runtime-shaped
-    records and broader runtime-varying descriptor inputs.
+49. Done: add the first map descriptor ABI slice. Empty hash literals lower to
+    map descriptors, descriptor-backed `index_set`/`index_get` mutate/read exact
+    i64 keys, and proven `oren_map_len` calls lower to a generated helper instead
+    of the generic dispatcher. The real C runtime registers map descriptors plus
+    key/value storage, roots proven map locals across safepoints, and the focused
+    map gate proves linked execution parity plus forced GC-at-safepoint.
+50. Done: broaden map key semantics beyond exact descriptor identity for string
+    keys. `%oren_llvm_map { len, keys, values, key_kinds, owner_kind, capacity }`
+    now carries a key-kind sidecar, so generated string-key find/get/set helpers
+    can safely compare descriptor-backed strings by length plus `memcmp` without
+    treating integer keys as pointers. The map runtime fixture proves a sliced
+    dynamic `"alpha"` descriptor reads and replaces an existing literal
+    `"alpha"` key while preserving map length.
+51. Add nested map descriptor provenance/rooting through lists/maps, then expand
+    runtime-shaped records and broader runtime-varying descriptor inputs.

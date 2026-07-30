@@ -28,10 +28,14 @@ from native_ir_llvm_bytes_helpers import (
 )
 from native_ir_llvm_map_helpers import (
     emit_map_find_helper,
+    emit_map_find_string_helper,
     emit_map_get_helper,
+    emit_map_get_string_helper,
     emit_map_len_helper,
     emit_map_runtime_alloc,
     emit_map_set_helper,
+    emit_map_set_string_helper,
+    emit_map_store_new_helper,
 )
 
 
@@ -830,7 +834,10 @@ class FunctionLowerer:
             if op["container"] in self.list_values:
                 self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_list_get(i64 {container}, i64 {index})")
             elif op["container"] in self.map_values:
-                self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_map_get(i64 {container}, i64 {index})")
+                if op["index"] in self.descriptor_values:
+                    self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_map_get_string(i64 {container}, i64 {index})")
+                else:
+                    self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_map_get(i64 {container}, i64 {index})")
             else:
                 self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_index_get(i64 {container}, i64 {index})")
         elif kind == "index_set":
@@ -840,7 +847,10 @@ class FunctionLowerer:
             if op["container"] in self.list_values:
                 self.write_inst(f"call void @oren_llvm_helper_oren_list_set(i64 {container}, i64 {index}, i64 {value})")
             elif op["container"] in self.map_values:
-                self.write_inst(f"call void @oren_llvm_helper_oren_map_set(i64 {container}, i64 {index}, i64 {value})")
+                if op["index"] in self.descriptor_values:
+                    self.write_inst(f"call void @oren_llvm_helper_oren_map_set_string(i64 {container}, i64 {index}, i64 {value})")
+                else:
+                    self.write_inst(f"call void @oren_llvm_helper_oren_map_set(i64 {container}, i64 {index}, i64 {value})")
             else:
                 self.write_inst(f"call void @oren_llvm_opaque_index_set(i64 {container}, i64 {index}, i64 {value})")
         elif kind == "expr_result":
@@ -1748,7 +1758,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("%oren_llvm_string = type { i64, i8*, i64 }\n")
         out.write("%oren_llvm_list = type { i64, i64*, i64, i64 }\n\n")
         out.write("%oren_llvm_bytes = type { i64, i8*, i64 }\n\n")
-        out.write("%oren_llvm_map = type { i64, i64*, i64*, i64, i64 }\n\n")
+        out.write("%oren_llvm_map = type { i64, i64*, i64*, i64*, i64, i64 }\n\n")
         out.write("@oren_native_ir_schema = private unnamed_addr constant ")
         out.write(f"[{len(schema) + 1} x i8] c\"{schema_literal}\\00\", align 1\n\n")
         out.write("declare i64 @oren_llvm_opaque_call(i64, i64)\n")
@@ -1782,8 +1792,8 @@ def emit_module(ir_path, out_path, ir, main):
         if needs_bytes_alloc:
             out.write("declare void @oren_llvm_runtime_register_bytes(i64, i8*, i64)\n")
         if needs_map_alloc:
-            out.write("declare void @oren_llvm_runtime_register_map(i64, i64*, i64*, i64, i64)\n")
-        if "oren_string_eq" in helpers_to_emit:
+            out.write("declare void @oren_llvm_runtime_register_map(i64, i64*, i64*, i64*, i64, i64)\n")
+        if "oren_string_eq" in helpers_to_emit or needs_map_alloc:
             out.write("declare i32 @memcmp(i8*, i8*, i64)\n")
         if "exit" in helpers_to_emit:
             out.write("declare void @exit(i32)\n")
@@ -1801,9 +1811,13 @@ def emit_module(ir_path, out_path, ir, main):
         if needs_map_alloc:
             emit_map_runtime_alloc(out)
             emit_map_find_helper(out)
+            emit_map_find_string_helper(out)
             emit_map_len_helper(out)
             emit_map_get_helper(out)
+            emit_map_get_string_helper(out)
+            emit_map_store_new_helper(out)
             emit_map_set_helper(out)
+            emit_map_set_string_helper(out)
         if needs_bytes_alloc:
             emit_bytes_runtime_alloc(out)
             emit_hex_nibble_helper(out)
