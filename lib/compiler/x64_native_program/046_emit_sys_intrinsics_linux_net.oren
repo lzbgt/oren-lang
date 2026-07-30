@@ -10,19 +10,19 @@ fn _x64_linux_epoll_create1_state(ctx, locals, args) {
     if oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base32); return nil }
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base32); return nil }
-    return {"base": base32, "flags": tmp_flags}
+    return [base32, tmp_flags]
 }
 
 fn _x64_linux_epoll_create1_capsule_pre(ctx, st, capsule) {
     if !capsule { return nil }
-    _intr_load_x64(ctx, 7, st["flags"])
+    _intr_load_x64(ctx, 7, st[1])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_pre")
-    _emit_mov_mrbp_r64(ctx, 0 - st["flags"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
     return nil
 }
 
 fn _x64_linux_epoll_create1_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["flags"])
+    _intr_load_x64(ctx, 7, st[1])
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_create1()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -44,7 +44,7 @@ fn _emit_intrinsic_sys_linux_epoll_create1_x64(ctx, expr, locals, args, capsule)
     _x64_linux_epoll_create1_capsule_pre(ctx, st, capsule)
     _x64_linux_epoll_create1_syscall(ctx, st)
     _x64_linux_epoll_create1_capsule_post(ctx, capsule)
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -62,14 +62,14 @@ fn _x64_linux_epoll_ctl_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[2], a2)
     _intr_eval_spill_x64(ctx, locals, args[3], a3)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base33); return nil }
-    return {"base": base33, "epfd": a0, "op": a1, "fd": a2, "event": a3}
+    return [base33, a0, a1, a2, a3]
 }
 
 fn _x64_linux_epoll_ctl_load_capsule_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["epfd"])
-    _intr_load_x64(ctx, 6, st["op"])
-    _intr_load_x64(ctx, 2, st["fd"])
-    _intr_load_x64(ctx, 1, st["event"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 1, st[4])
     return nil
 }
 
@@ -82,10 +82,10 @@ fn _x64_linux_epoll_ctl_emit_pre(ctx, st, capsule) {
 }
 
 fn _x64_linux_epoll_ctl_emit_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["epfd"])
-    _intr_load_x64(ctx, 6, st["op"])
-    _intr_load_x64(ctx, 2, st["fd"])
-    _intr_load_x64(ctx, 10, st["event"]) // arg4
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 10, st[4]) // arg4
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_ctl()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -100,7 +100,7 @@ fn _emit_intrinsic_sys_linux_epoll_ctl_x64(ctx, expr, locals, args, capsule) {
     _x64_linux_epoll_ctl_emit_pre(ctx, st, capsule)
     _x64_linux_epoll_ctl_emit_syscall(ctx, st)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -117,27 +117,27 @@ fn _x64_linux_epoll_pwait_state(ctx, locals) {
         _intr_tmp_pop(ctx, base34)
         return nil
     }
-    return {"base": base34, "epfd": b0, "events": b1, "maxevents": b2, "timeout": b3, "sigmask": b4, "sigsetsize": b5}
+    return [base34, b0, b1, b2, b3, b4, b5]
 }
 
 fn _x64_linux_epoll_pwait_eval_args(ctx, locals, args, st) {
-    _intr_eval_spill_x64(ctx, locals, args[0], st["epfd"])
-    _intr_eval_spill_x64(ctx, locals, args[1], st["events"])
-    _intr_eval_spill_x64(ctx, locals, args[2], st["maxevents"])
-    _intr_eval_spill_x64(ctx, locals, args[3], st["timeout"])
-    _intr_eval_spill_x64(ctx, locals, args[4], st["sigmask"])
-    _intr_eval_spill_x64(ctx, locals, args[5], st["sigsetsize"])
+    _intr_eval_spill_x64(ctx, locals, args[0], st[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], st[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], st[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], st[4])
+    _intr_eval_spill_x64(ctx, locals, args[4], st[5])
+    _intr_eval_spill_x64(ctx, locals, args[5], st[6])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     return true
 }
 
 fn _x64_linux_epoll_pwait_load_capsule_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["epfd"])
-    _intr_load_x64(ctx, 6, st["events"])
-    _intr_load_x64(ctx, 2, st["maxevents"])
-    _intr_load_x64(ctx, 1, st["timeout"])
-    _intr_load_x64(ctx, 8, st["sigmask"])
-    _intr_load_x64(ctx, 9, st["sigsetsize"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 1, st[4])
+    _intr_load_x64(ctx, 8, st[5])
+    _intr_load_x64(ctx, 9, st[6])
     return nil
 }
 
@@ -150,12 +150,12 @@ fn _x64_linux_epoll_pwait_emit_pre(ctx, st, capsule) {
 }
 
 fn _x64_linux_epoll_pwait_emit_syscall(ctx, st) {
-    _intr_load_x64(ctx, 7, st["epfd"])
-    _intr_load_x64(ctx, 6, st["events"])
-    _intr_load_x64(ctx, 2, st["maxevents"])
-    _intr_load_x64(ctx, 10, st["timeout"]) // timeout_ms
-    _intr_load_x64(ctx, 8, st["sigmask"])  // sigmask_ptr
-    _intr_load_x64(ctx, 9, st["sigsetsize"])  // sigsetsize
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 10, st[4]) // timeout_ms
+    _intr_load_x64(ctx, 8, st[5])  // sigmask_ptr
+    _intr_load_x64(ctx, 9, st[6])  // sigsetsize
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_epoll_pwait()))
     bytes_extend(ctx["code"], core.insn_syscall())
     return nil
@@ -167,12 +167,12 @@ fn _emit_intrinsic_sys_linux_epoll_pwait_x64(ctx, expr, locals, args, capsule) {
 
     var st = _x64_linux_epoll_pwait_state(ctx, locals)
     if st == nil { return true }
-    if _x64_linux_epoll_pwait_eval_args(ctx, locals, args, st) != true { _intr_tmp_pop(ctx, st["base"]); return true }
+    if _x64_linux_epoll_pwait_eval_args(ctx, locals, args, st) != true { _intr_tmp_pop(ctx, st[0]); return true }
 
     _x64_linux_epoll_pwait_emit_pre(ctx, st, capsule)
     _x64_linux_epoll_pwait_emit_syscall(ctx, st)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -193,12 +193,12 @@ fn _x64_linux_net_fd2_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base28); return nil }
-    return {"base": base28, "fd": tmp_fd, "arg": tmp_arg}
+    return [base28, tmp_fd, tmp_arg]
 }
 
 fn _x64_linux_net_fd2_load(ctx, st) {
-    _intr_load_x64(ctx, 7, st["fd"])
-    _intr_load_x64(ctx, 6, st["arg"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
     return nil
 }
 
@@ -228,8 +228,8 @@ fn _x64_linux_net_fd2_emit_syscall(ctx, nm, st) {
 fn _x64_linux_net_fd2_emit_post(ctx, nm, st, capsule) {
     if !capsule || nm != "sys_listen" { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
-    _intr_load_x64(ctx, 6, st["fd"])
-    _intr_load_x64(ctx, 2, st["arg"])
+    _intr_load_x64(ctx, 6, st[1])
+    _intr_load_x64(ctx, 2, st[2])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
     return nil
 }
@@ -245,7 +245,7 @@ fn _emit_intrinsic_sys_linux_net_fd2_x64(ctx, nm, expr, locals, args, capsule) {
     _x64_linux_net_fd2_emit_syscall(ctx, nm, st)
     _x64_linux_net_fd2_emit_post(ctx, nm, st, capsule)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -261,13 +261,13 @@ fn _x64_linux_net_accept_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base29); return nil }
-    return {"base": base29, "fd": tmp_fd, "addr": tmp_addr, "lenp": tmp_lenp}
+    return [base29, tmp_fd, tmp_addr, tmp_lenp]
 }
 
 fn _x64_linux_net_accept_load_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["fd"])
-    _intr_load_x64(ctx, 6, st["addr"])
-    _intr_load_x64(ctx, 2, st["lenp"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
     return nil
 }
 
@@ -288,9 +288,9 @@ fn _x64_linux_net_accept_emit_syscall(ctx, st) {
 fn _x64_linux_net_accept_emit_post(ctx, st, capsule) {
     if !capsule { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = newfd
-    _intr_load_x64(ctx, 6, st["fd"])
-    _intr_load_x64(ctx, 2, st["addr"])
-    _intr_load_x64(ctx, 1, st["lenp"])
+    _intr_load_x64(ctx, 6, st[1])
+    _intr_load_x64(ctx, 2, st[2])
+    _intr_load_x64(ctx, 1, st[3])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
     return nil
 }
@@ -306,7 +306,7 @@ fn _emit_intrinsic_sys_linux_net_accept_x64(ctx, nm, expr, locals, args, capsule
     _x64_linux_net_accept_emit_syscall(ctx, st)
     _x64_linux_net_accept_emit_post(ctx, st, capsule)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return true
 }
 
@@ -327,22 +327,15 @@ fn _x64_linux_net_sockopt_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[4], tmp_lenp)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base30); return nil }
 
-    return {
-        "base": base30,
-        "fd": tmp_fd,
-        "level": tmp_level,
-        "opt": tmp_opt,
-        "val": tmp_val,
-        "lenp": tmp_lenp
-    }
+    return [base30, tmp_fd, tmp_level, tmp_opt, tmp_val, tmp_lenp]
 }
 
 fn _x64_linux_net_sockopt_load_capsule_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["fd"])
-    _intr_load_x64(ctx, 6, st["level"])
-    _intr_load_x64(ctx, 2, st["opt"])
-    _intr_load_x64(ctx, 1, st["val"]) // rcx = optval
-    _intr_load_x64(ctx, 8, st["lenp"]) // r8 = optlen/optlen_ptr
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 1, st[4]) // rcx = optval
+    _intr_load_x64(ctx, 8, st[5]) // r8 = optlen/optlen_ptr
     return nil
 }
 
@@ -358,11 +351,11 @@ fn _x64_linux_net_sockopt_emit_pre(ctx, nm, st, capsule) {
 }
 
 fn _x64_linux_net_sockopt_load_syscall_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["fd"])
-    _intr_load_x64(ctx, 6, st["level"])
-    _intr_load_x64(ctx, 2, st["opt"])
-    _intr_load_x64(ctx, 10, st["val"]) // r10 = optval
-    _intr_load_x64(ctx, 8, st["lenp"]) // r8 = optlen/optlen_ptr
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 10, st[4]) // r10 = optval
+    _intr_load_x64(ctx, 8, st[5]) // r8 = optlen/optlen_ptr
     return nil
 }
 
@@ -387,7 +380,7 @@ fn _emit_intrinsic_sys_linux_net_sockopt_x64(ctx, nm, expr, locals, args, capsul
     _x64_linux_net_sockopt_emit_pre(ctx, nm, state, capsule)
     _x64_linux_net_sockopt_emit_syscall(ctx, nm, state)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -399,10 +392,10 @@ fn _x64_linux_net_msg_state(ctx, locals, args) {
     var slots = _x64_linux_net_msg_alloc_slots(ctx, locals)
     if slots == nil { return nil }
     if _x64_linux_net_msg_spill_args(ctx, locals, args, slots) != true {
-        _intr_tmp_pop(ctx, slots["base"])
+        _intr_tmp_pop(ctx, slots[0])
         return nil
     }
-    return _x64_linux_net_msg_pack_state(slots)
+    return slots
 }
 
 fn _x64_linux_net_msg_alloc_slots(ctx, locals) {
@@ -415,39 +408,27 @@ fn _x64_linux_net_msg_alloc_slots(ctx, locals) {
     var o4 = _intr_tmp_off(ctx, locals, base31 + 4)
     var o5 = _intr_tmp_off(ctx, locals, base31 + 5)
     if oren_type_tag(o0) == 0 || oren_type_tag(o1) == 0 || oren_type_tag(o2) == 0 || oren_type_tag(o3) == 0 || oren_type_tag(o4) == 0 || oren_type_tag(o5) == 0 { _intr_tmp_pop(ctx, base31); return nil }
-    return {"base": base31, "fd": o0, "buf": o1, "len": o2, "flags": o3, "addr": o4, "addrlen": o5}
+    return [base31, o0, o1, o2, o3, o4, o5]
 }
 
 fn _x64_linux_net_msg_spill_args(ctx, locals, args, slots) {
-    _intr_eval_spill_x64(ctx, locals, args[0], slots["fd"])
-    _intr_eval_spill_x64(ctx, locals, args[1], slots["buf"])
-    _intr_eval_spill_x64(ctx, locals, args[2], slots["len"])
-    _intr_eval_spill_x64(ctx, locals, args[3], slots["flags"])
-    _intr_eval_spill_x64(ctx, locals, args[4], slots["addr"])
-    _intr_eval_spill_x64(ctx, locals, args[5], slots["addrlen"])
+    _intr_eval_spill_x64(ctx, locals, args[0], slots[1])
+    _intr_eval_spill_x64(ctx, locals, args[1], slots[2])
+    _intr_eval_spill_x64(ctx, locals, args[2], slots[3])
+    _intr_eval_spill_x64(ctx, locals, args[3], slots[4])
+    _intr_eval_spill_x64(ctx, locals, args[4], slots[5])
+    _intr_eval_spill_x64(ctx, locals, args[5], slots[6])
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
     return true
 }
 
-fn _x64_linux_net_msg_pack_state(slots) {
-    return {
-        "base": slots["base"],
-        "fd": slots["fd"],
-        "buf": slots["buf"],
-        "len": slots["len"],
-        "flags": slots["flags"],
-        "addr": slots["addr"],
-        "addrlen": slots["addrlen"]
-    }
-}
-
 fn _x64_linux_net_msg_load_capsule_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["fd"])
-    _intr_load_x64(ctx, 6, st["buf"])
-    _intr_load_x64(ctx, 2, st["len"])
-    _intr_load_x64(ctx, 1, st["flags"]) // rcx=flags
-    _intr_load_x64(ctx, 8, st["addr"])
-    _intr_load_x64(ctx, 9, st["addrlen"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 1, st[4]) // rcx=flags
+    _intr_load_x64(ctx, 8, st[5])
+    _intr_load_x64(ctx, 9, st[6])
     return nil
 }
 
@@ -463,12 +444,12 @@ fn _x64_linux_net_msg_emit_pre(ctx, nm, st, capsule) {
 }
 
 fn _x64_linux_net_msg_load_syscall_args(ctx, st) {
-    _intr_load_x64(ctx, 7, st["fd"])
-    _intr_load_x64(ctx, 6, st["buf"])
-    _intr_load_x64(ctx, 2, st["len"])
-    _intr_load_x64(ctx, 10, st["flags"]) // r10=flags
-    _intr_load_x64(ctx, 8, st["addr"])
-    _intr_load_x64(ctx, 9, st["addrlen"])
+    _intr_load_x64(ctx, 7, st[1])
+    _intr_load_x64(ctx, 6, st[2])
+    _intr_load_x64(ctx, 2, st[3])
+    _intr_load_x64(ctx, 10, st[4]) // r10=flags
+    _intr_load_x64(ctx, 8, st[5])
+    _intr_load_x64(ctx, 9, st[6])
     return nil
 }
 
@@ -493,7 +474,7 @@ fn _emit_intrinsic_sys_linux_net_msg_x64(ctx, nm, expr, locals, args, capsule) {
     _x64_linux_net_msg_emit_pre(ctx, nm, state, capsule)
     _x64_linux_net_msg_emit_syscall(ctx, nm, state)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -509,13 +490,13 @@ fn _x64_linux_net_socket_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_proto)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base26); return nil }
-    return {"base": base26, "domain": tmp_dom, "type": tmp_type, "proto": tmp_proto}
+    return [base26, tmp_dom, tmp_type, tmp_proto]
 }
 
 fn _x64_linux_net_socket_load_args(ctx, state) {
-    _intr_load_x64(ctx, 7, state["domain"])
-    _intr_load_x64(ctx, 6, state["type"])
-    _intr_load_x64(ctx, 2, state["proto"])
+    _intr_load_x64(ctx, 7, state[1])
+    _intr_load_x64(ctx, 6, state[2])
+    _intr_load_x64(ctx, 2, state[3])
     return nil
 }
 
@@ -536,9 +517,9 @@ fn _x64_linux_net_socket_emit_syscall(ctx, state) {
 fn _x64_linux_net_socket_emit_post(ctx, state, capsule) {
     if !capsule { return nil }
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rdi = fd
-    _intr_load_x64(ctx, 6, state["domain"])
-    _intr_load_x64(ctx, 2, state["type"])
-    _intr_load_x64(ctx, 1, state["proto"])
+    _intr_load_x64(ctx, 6, state[1])
+    _intr_load_x64(ctx, 2, state[2])
+    _intr_load_x64(ctx, 1, state[3])
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
     return nil
 }
@@ -553,7 +534,7 @@ fn _emit_intrinsic_sys_linux_net_socket_x64(ctx, nm, expr, locals, args, capsule
     _x64_linux_net_socket_emit_pre(ctx, state, capsule)
     _x64_linux_net_socket_emit_syscall(ctx, state)
     _x64_linux_net_socket_emit_post(ctx, state, capsule)
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 
@@ -574,20 +555,15 @@ fn _x64_linux_net_addr3_state(ctx, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base27); return nil }
 
-    return {
-        "base": base27,
-        "fd": tmp_fd,
-        "addr": tmp_addr,
-        "len": tmp_len
-    }
+    return [base27, tmp_fd, tmp_addr, tmp_len]
 }
 
 fn _x64_linux_net_addr3_emit_pre(ctx, nm, state, capsule) {
     if !capsule { return nil }
 
-    _intr_load_x64(ctx, 7, state["fd"])
-    _intr_load_x64(ctx, 6, state["addr"])
-    _intr_load_x64(ctx, 2, state["len"])
+    _intr_load_x64(ctx, 7, state[1])
+    _intr_load_x64(ctx, 6, state[2])
+    _intr_load_x64(ctx, 2, state[3])
     if nm == "sys_connect" {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
     } else if nm == "sys_bind" {
@@ -601,9 +577,9 @@ fn _x64_linux_net_addr3_emit_pre(ctx, nm, state, capsule) {
 }
 
 fn _x64_linux_net_addr3_emit_syscall(ctx, nm, state) {
-    _intr_load_x64(ctx, 7, state["fd"])
-    _intr_load_x64(ctx, 6, state["addr"])
-    _intr_load_x64(ctx, 2, state["len"])
+    _intr_load_x64(ctx, 7, state[1])
+    _intr_load_x64(ctx, 6, state[2])
+    _intr_load_x64(ctx, 2, state[3])
     if nm == "sys_connect" {
         bytes_extend(ctx["code"], core.insn_mov_r32_imm32(0, labi.linux_sys_connect()))
     } else if nm == "sys_bind" {
@@ -622,9 +598,9 @@ fn _x64_linux_net_addr3_emit_post(ctx, nm, state, capsule) {
     if nm != "sys_connect" && nm != "sys_bind" { return nil }
 
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(7, 0)) // rc
-    _intr_load_x64(ctx, 6, state["fd"])
-    _intr_load_x64(ctx, 2, state["addr"])
-    _intr_load_x64(ctx, 1, state["len"])
+    _intr_load_x64(ctx, 6, state[1])
+    _intr_load_x64(ctx, 2, state[2])
+    _intr_load_x64(ctx, 1, state[3])
     if nm == "sys_connect" {
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
     } else {
@@ -645,7 +621,7 @@ fn _emit_intrinsic_sys_linux_net_addr3_x64(ctx, nm, expr, locals, args, capsule)
     _x64_linux_net_addr3_emit_syscall(ctx, nm, state)
     _x64_linux_net_addr3_emit_post(ctx, nm, state, capsule)
 
-    _intr_tmp_pop(ctx, state["base"])
+    _intr_tmp_pop(ctx, state[0])
     return true
 }
 

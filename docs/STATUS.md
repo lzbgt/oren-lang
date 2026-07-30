@@ -277,7 +277,9 @@ surfaces, but the following blockers remain:
   lowering, Linux pipe success widening, Linux thread clone setup/syscall, and
   Windows QPC frequency labels/body/finish into focused helpers. Windows x64
   nanosleep, wait-on-address, gettimeofday, QPC frequency, open, and getentropy
-  helpers now use compact positional spill/label/cache records. Windows x64
+  helpers now use compact positional spill/label/cache records. Linux x64
+  epoll, socket/address, fd2, accept, sockopt, and sendto/recvfrom network
+  syscall helper records now use positional spill state too. Windows x64
   filesystem syscall helpers now use positional path-normalization, stat/fstat
   label, unlink/rmdir, rename, and mkdir/chmod spill/capsule records instead of
   transient keyed maps. Windows x64 network and IOCP syscall helpers now use
@@ -760,7 +762,7 @@ surfaces, but the following blockers remain:
 | --- | --- | --- |
 | C | Portable bootstrap path through host C toolchain. | Useful baseline, not a stabilized external ABI promise. |
 | Native arm64 macOS | Most mature native path; broadest profile and fixture history. | Rolling Tier-1 intent. |
-| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, and syscall-tail helpers; Windows x64 thread/filesystem/network/IOCP syscalls now use positional helper records including FS path/stat label records and overlapped WSA/IOCP result records; x64 list/int length/get/set/push, index-get/index-set, tracking, fast LIST/LIST_INT dot prep/label, push-while, get-sum, LCG, lambda-env, native allocation-kind, and call-expression helper records have moved off transient keyed maps. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
+| Native x64 Linux/Windows | Active bring-up with compile/runtime gates. Arch host moved to `bruce@192.168.0.102`; x64 stage2 self-host builds and `oren_stage2 test examples/hello.oren --backend bytecode --platform x64-linux --no-cache` now pass there after routing call-depth hooks through serialized x64 `call_rel32` rtobj fixups and bumping the x64 rtobj backend signature to `x64_v0_36`. Linux x64 syscall scratch states now use compact positional lists across stat/path, read/write fd-buffer setup, getrandom, futex wait, fd-control/dup/ioctl, syscall-tail helpers, and epoll/socket network helpers; Windows x64 thread/filesystem/network/IOCP syscalls now use positional helper records including FS path/stat label records and overlapped WSA/IOCP result records; x64 list/int length/get/set/push, index-get/index-set, tracking, fast LIST/LIST_INT dot prep/label, push-while, get-sum, LCG, lambda-env, native allocation-kind, and call-expression helper records have moved off transient keyed maps. | Not fully mature; keep using the Arch host for x64 runtime smokes while continuing x64 codegen bring-up. |
 | Bytecode / AVM | Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces. | Experimental for production embedding. |
 
 ## AVM SDK Readiness

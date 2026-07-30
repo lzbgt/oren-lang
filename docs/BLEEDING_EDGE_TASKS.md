@@ -472,7 +472,8 @@ This file is the concise task view. Detailed implementation status lives in
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
      open state setup, compact Linux syscall scratch-state wrappers through
-     syscall-tail helpers, positional Windows thread syscall helper records,
+     syscall-tail helpers plus Linux epoll/socket network helpers, positional
+     Windows thread syscall helper records,
      positional Windows core time/wait/open/RNG syscall records, positional
      Windows FS path/stat label records, and positional Windows filesystem,
      network, and IOCP syscall spill/label/result records.
