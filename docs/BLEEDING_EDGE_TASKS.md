@@ -582,13 +582,21 @@ This file is the concise task view. Detailed implementation status lives in
 		     runtime-varying slice-copy via `oren_u8_buf_from_bytes_slice`,
 		     `oren_bytes_to_hex`,
 	     `oren_u8_buf_from_bytes_slice`, `oren_string_from_bytes_slice`,
-	     `oren_bytes_pack`, and
-	     `oren_bytes_unpack` helpers. `make verify-native-ir-llvm-bytes-runtime`
-		     proves linked hex -> bytes -> list -> mutated bytes -> hex plus
-		     computed-offset bytes/string slice execution parity under forced
-		     GC-at-safepoint, with
-	     byte helper emitters split out of the core lowerer for source-line
-	     headroom.
+		     `oren_bytes_pack`, and
+		     `oren_bytes_unpack` helpers. `make verify-native-ir-llvm-bytes-runtime`
+			     proves linked hex -> bytes -> list -> mutated bytes -> hex plus
+			     computed-offset bytes/string slice execution parity under forced
+			     GC-at-safepoint, with
+		     byte helper emitters split out of the core lowerer for source-line
+		     headroom.
+		     LLVM-native now also lowers empty hash literals into
+		     `%oren_llvm_map { len, keys, values, owner_kind, capacity }`
+		     descriptors, maps exact-key descriptor-backed `index_set`/`index_get`
+		     plus proven `oren_map_len` to generated helpers, and roots proven map
+		     locals across safepoints through the real C runtime. `make
+		     verify-native-ir-llvm-map-runtime` proves linked execution parity and
+		     forced GC-at-safepoint for that v0 map surface; semantic string-key
+		     equality and nested map provenance remain follow-up work.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

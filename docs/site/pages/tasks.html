@@ -904,13 +904,21 @@
 <p>		     runtime-varying slice-copy via <code>oren_u8_buf_from_bytes_slice</code>,</p>
 <p>		     <code>oren_bytes_to_hex</code>,</p>
 <p>	     <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_string_from_bytes_slice</code>,</p>
-<p>	     <code>oren_bytes_pack</code>, and</p>
-<p>	     <code>oren_bytes_unpack</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
-<p>		     proves linked hex -&gt; bytes -&gt; list -&gt; mutated bytes -&gt; hex plus</p>
-<p>		     computed-offset bytes/string slice execution parity under forced</p>
-<p>		     GC-at-safepoint, with</p>
-<p>	     byte helper emitters split out of the core lowerer for source-line</p>
-<p>	     headroom.</p>
+<p>		     <code>oren_bytes_pack</code>, and</p>
+<p>		     <code>oren_bytes_unpack</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
+<p>			     proves linked hex -&gt; bytes -&gt; list -&gt; mutated bytes -&gt; hex plus</p>
+<p>			     computed-offset bytes/string slice execution parity under forced</p>
+<p>			     GC-at-safepoint, with</p>
+<p>		     byte helper emitters split out of the core lowerer for source-line</p>
+<p>		     headroom.</p>
+<p>		     LLVM-native now also lowers empty hash literals into</p>
+<p>		     <code>%oren_llvm_map { len, keys, values, owner_kind, capacity }</code></p>
+<p>		     descriptors, maps exact-key descriptor-backed <code>index_set</code>/<code>index_get</code></p>
+<p>		     plus proven <code>oren_map_len</code> to generated helpers, and roots proven map</p>
+<p>		     locals across safepoints through the real C runtime. `make</p>
+<p>		     verify-native-ir-llvm-map-runtime` proves linked execution parity and</p>
+<p>		     forced GC-at-safepoint for that v0 map surface; semantic string-key</p>
+<p>		     equality and nested map provenance remain follow-up work.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

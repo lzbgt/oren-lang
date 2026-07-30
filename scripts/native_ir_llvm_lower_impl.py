@@ -26,6 +26,13 @@ from native_ir_llvm_bytes_helpers import (
     emit_string_from_bytes_slice_helper,
     emit_u8_buf_from_bytes_slice_helper,
 )
+from native_ir_llvm_map_helpers import (
+    emit_map_find_helper,
+    emit_map_get_helper,
+    emit_map_len_helper,
+    emit_map_runtime_alloc,
+    emit_map_set_helper,
+)
 
 
 def load_ir(path):
@@ -112,6 +119,7 @@ GENERATED_HELPERS = {
     "oren_u8_buf_from_bytes_slice",
     "oren_bytes_pack",
     "oren_bytes_unpack",
+    "oren_map_len",
 }
 
 STRING_DESCRIPTOR_HELPERS = {
@@ -145,6 +153,10 @@ LIST_PUSH_HELPERS = {
     "oren_list_int_push_unchecked",
     "oren_list_push",
     "oren_list_push_unchecked",
+}
+
+MAP_LEN_HELPERS = {
+    "oren_map_len",
 }
 
 BYTES_DESCRIPTOR_HELPERS = {
@@ -273,6 +285,7 @@ def collect_generic_helpers(fn):
     descriptors = collect_descriptor_values(fn)
     list_values = collect_list_descriptor_values(fn)
     bytes_values = collect_bytes_descriptor_values(fn)
+    map_values = collect_map_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] != "runtime_helper_call":
@@ -281,6 +294,9 @@ def collect_generic_helpers(fn):
                 continue
             if op["name"] in (LIST_LEN_HELPERS | LIST_GET_HELPERS | LIST_PUSH_HELPERS):
                 if op.get("args") and op["args"][0] in list_values:
+                    continue
+            if op["name"] in MAP_LEN_HELPERS:
+                if op.get("args") and op["args"][0] in map_values:
                     continue
             if op["name"] in (
                 BYTES_LEN_HELPERS
@@ -319,6 +335,7 @@ def function_needs_root_hooks(fn):
     descriptors = collect_descriptor_values(fn)
     list_values = collect_list_descriptor_values(fn)
     bytes_values = collect_bytes_descriptor_values(fn)
+    map_values = collect_map_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and op.get("roots"):
@@ -326,6 +343,8 @@ def function_needs_root_hooks(fn):
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and list_values:
                 return True
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and bytes_values:
+                return True
+            if op["kind"] == "runtime_helper_call" and op.get("safepoint") and map_values:
                 return True
             if op["kind"] == "binary" and op["op"] == "+":
                 if op["left"] in descriptors and op["right"] in descriptors:
@@ -353,11 +372,16 @@ def function_needs_bytes_type(fn):
     return bool(collect_bytes_descriptor_values(fn))
 
 
+def function_needs_map_alloc(fn):
+    return bool(collect_map_descriptor_values(fn))
+
+
 def collect_generated_helpers(fn):
     helpers = set()
     descriptors = collect_descriptor_values(fn)
     list_values = collect_list_descriptor_values(fn)
     bytes_values = collect_bytes_descriptor_values(fn)
+    map_values = collect_map_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] in GENERATED_HELPERS:
@@ -382,6 +406,9 @@ def collect_generated_helpers(fn):
                         helpers.add(op["name"])
                 elif op["name"] in BYTES_DESCRIPTOR_HELPERS:
                     if op.get("args") and op["args"][0] in descriptors:
+                        helpers.add(op["name"])
+                elif op["name"] in MAP_LEN_HELPERS:
+                    if op.get("args") and op["args"][0] in map_values:
                         helpers.add(op["name"])
                 else:
                     helpers.add(op["name"])
@@ -427,9 +454,11 @@ class FunctionLowerer:
         self.descriptor_values, self.descriptor_block_in = collect_descriptor_analysis(fn)
         self.list_values, self.list_block_in = collect_list_descriptor_analysis(fn)
         self.bytes_values, self.bytes_block_in = collect_bytes_descriptor_analysis(fn)
+        self.map_values, self.map_block_in = collect_map_descriptor_analysis(fn)
         self.current_descriptor_locals = set()
         self.current_list_locals = set()
         self.current_bytes_locals = set()
+        self.current_map_locals = set()
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
         self.slot_vars = {name: f"%slot{idx}" for idx, name in enumerate(self.slots)}
@@ -464,9 +493,11 @@ class FunctionLowerer:
         string_roots = []
         list_roots = []
         bytes_roots = []
+        map_roots = []
         seen_string_roots = set()
         seen_list_roots = set()
         seen_bytes_roots = set()
+        seen_map_roots = set()
         for root_value in root_values:
             if root_value in self.descriptor_values and root_value not in seen_string_roots:
                 string_roots.append(root_value)
@@ -477,6 +508,9 @@ class FunctionLowerer:
             elif root_value in self.bytes_values and root_value not in seen_bytes_roots:
                 bytes_roots.append(root_value)
                 seen_bytes_roots.add(root_value)
+            elif root_value in self.map_values and root_value not in seen_map_roots:
+                map_roots.append(root_value)
+                seen_map_roots.add(root_value)
         for local_name in sorted(self.current_descriptor_locals):
             if local_name not in seen_string_roots:
                 string_roots.append(local_name)
@@ -489,7 +523,11 @@ class FunctionLowerer:
             if local_name not in seen_bytes_roots:
                 bytes_roots.append(local_name)
                 seen_bytes_roots.add(local_name)
-        if op.get("safepoint") and (string_roots or list_roots or bytes_roots):
+        for local_name in sorted(self.current_map_locals):
+            if local_name not in seen_map_roots:
+                map_roots.append(local_name)
+                seen_map_roots.add(local_name)
+        if op.get("safepoint") and (string_roots or list_roots or bytes_roots or map_roots):
             mark = self.scratch_var("root_mark")
             self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
             for root_value in string_roots:
@@ -507,6 +545,11 @@ class FunctionLowerer:
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_bytes(i64 {root_ref}) ; safepoint root bytes {root_value}"
                 )
+            for root_value in map_roots:
+                root_ref = self.value_ref(root_value)
+                self.write_inst(
+                    f"call void @oren_llvm_runtime_roots_push_map(i64 {root_ref}) ; safepoint root map {root_value}"
+                )
             self.write_inst("call void @oren_llvm_runtime_safepoint_poll() ; forced GC safepoint poll")
         self.write_inst(f"{helper_call} ; helper {helper_name} safepoint={op.get('safepoint', False)}")
         if mark is not None:
@@ -523,6 +566,7 @@ class FunctionLowerer:
             self.current_descriptor_locals = set(self.descriptor_block_in.get(block["label"], set()))
             self.current_list_locals = set(self.list_block_in.get(block["label"], set()))
             self.current_bytes_locals = set(self.bytes_block_in.get(block["label"], set()))
+            self.current_map_locals = set(self.map_block_in.get(block["label"], set()))
             if bidx == 0:
                 for name in self.slots:
                     self.write_inst(f"{self.slot_vars[name]} = alloca i64, align 8 ; local {name}")
@@ -563,6 +607,10 @@ class FunctionLowerer:
                 self.current_bytes_locals.add(name)
             else:
                 self.current_bytes_locals.discard(name)
+            if op["value"] in self.map_values:
+                self.current_map_locals.add(name)
+            else:
+                self.current_map_locals.discard(name)
         elif kind == "binary":
             self.lower_binary(op)
         elif kind == "unary":
@@ -625,6 +673,10 @@ class FunctionLowerer:
                     f"{dst} = call i64 @oren_llvm_helper_oren_list_push("
                     f"i64 {helper_args[0]}, i64 {helper_args[1]})"
                 )
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
+                return
+            if op["name"] in MAP_LEN_HELPERS and len(op["args"]) > 0 and op["args"][0] in self.map_values:
+                helper_call = f"{dst} = call i64 @oren_llvm_helper_oren_map_len(i64 {helper_args[0]})"
                 self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
             if op["name"] == "oren_bytes_from_hex" and len(op["args"]) > 0 and op["args"][0] in self.descriptor_values:
@@ -777,6 +829,8 @@ class FunctionLowerer:
             index = self.value_ref(op["index"])
             if op["container"] in self.list_values:
                 self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_list_get(i64 {container}, i64 {index})")
+            elif op["container"] in self.map_values:
+                self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_map_get(i64 {container}, i64 {index})")
             else:
                 self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_index_get(i64 {container}, i64 {index})")
         elif kind == "index_set":
@@ -785,6 +839,8 @@ class FunctionLowerer:
             value = self.value_ref(op["value"])
             if op["container"] in self.list_values:
                 self.write_inst(f"call void @oren_llvm_helper_oren_list_set(i64 {container}, i64 {index}, i64 {value})")
+            elif op["container"] in self.map_values:
+                self.write_inst(f"call void @oren_llvm_helper_oren_map_set(i64 {container}, i64 {index}, i64 {value})")
             else:
                 self.write_inst(f"call void @oren_llvm_opaque_index_set(i64 {container}, i64 {index}, i64 {value})")
         elif kind == "expr_result":
@@ -794,6 +850,9 @@ class FunctionLowerer:
             self.write_inst(f"call void @oren_llvm_opaque_stmt(i64 {stmt_id})")
         elif kind == "opaque_expr":
             dst = self.result_var(op["result"])
+            if op.get("expr_type") == "Hash":
+                self.write_inst(f"{dst} = call i64 @oren_llvm_runtime_alloc_map(i64 0) ; empty map")
+                return
             expr_id = token_id(self.token_table, "expr:" + op["expr_type"])
             self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_expr(i64 {expr_id})")
         else:
@@ -922,18 +981,28 @@ def collect_bytes_descriptor_values(fn):
 
 
 def collect_descriptor_analysis(fn):
-    string_values, string_in, _, _, _, _ = collect_descriptor_facts(fn)
+    string_values, string_in, _, _, _, _, _, _ = collect_descriptor_facts(fn)
     return string_values, string_in
 
 
 def collect_list_descriptor_analysis(fn):
-    _, _, list_values, list_in, _, _ = collect_descriptor_facts(fn)
+    _, _, list_values, list_in, _, _, _, _ = collect_descriptor_facts(fn)
     return list_values, list_in
 
 
 def collect_bytes_descriptor_analysis(fn):
-    _, _, _, _, bytes_values, bytes_in = collect_descriptor_facts(fn)
+    _, _, _, _, bytes_values, bytes_in, _, _ = collect_descriptor_facts(fn)
     return bytes_values, bytes_in
+
+
+def collect_map_descriptor_analysis(fn):
+    _, _, _, _, _, _, map_values, map_in = collect_descriptor_facts(fn)
+    return map_values, map_in
+
+
+def collect_map_descriptor_values(fn):
+    values, _ = collect_map_descriptor_analysis(fn)
+    return values
 
 
 def const_int_value(consts, value):
@@ -974,29 +1043,35 @@ def collect_descriptor_facts(fn):
     out_string_env = {label: set(all_slots) for label in labels}
     out_list_env = {label: set(all_slots) for label in labels}
     out_bytes_env = {label: set(all_slots) for label in labels}
+    out_map_env = {label: set(all_slots) for label in labels}
     out_origin_env = {label: {} for label in labels}
     string_in_env = {label: set() for label in labels}
     list_in_env = {label: set() for label in labels}
     bytes_in_env = {label: set() for label in labels}
+    map_in_env = {label: set() for label in labels}
     final_strings = set()
     final_lists = set()
     final_bytes = set()
+    final_maps = set()
     changed = True
     while changed:
         changed = False
         strings = set()
         lists = set()
         bytes_values = set()
+        maps = set()
         value_list_origin = {}
         origin_elements = {}
         mutated_origins = set()
         next_string_out = {}
         next_list_out = {}
         next_bytes_out = {}
+        next_map_out = {}
         next_origin_out = {}
         next_string_in = {}
         next_list_in = {}
         next_bytes_in = {}
+        next_map_in = {}
         for idx, block in enumerate(blocks):
             label = block["label"]
             if idx == 0 or not preds[label]:
@@ -1007,19 +1082,24 @@ def collect_descriptor_facts(fn):
                 incoming_strings = [out_string_env[pred] for pred in preds[label]]
                 incoming_lists = [out_list_env[pred] for pred in preds[label]]
                 incoming_bytes = [out_bytes_env[pred] for pred in preds[label]]
+                incoming_maps = [out_map_env[pred] for pred in preds[label]]
                 incoming_origins = [out_origin_env[pred] for pred in preds[label]]
                 local_strings = set.intersection(*incoming_strings) if incoming_strings else set()
                 local_lists = set.intersection(*incoming_lists) if incoming_lists else set()
                 local_bytes = set.intersection(*incoming_bytes) if incoming_bytes else set()
+                local_maps = set.intersection(*incoming_maps) if incoming_maps else set()
                 local_origins = intersect_origin_envs(incoming_origins)
                 next_bytes_in[label] = set(local_bytes)
+                next_map_in[label] = set(local_maps)
                 next_string_in[label] = set(local_strings)
                 next_list_in[label] = set(local_lists)
             if idx == 0 or not preds[label]:
                 local_bytes = set()
+                local_maps = set()
             next_string_in[label] = set(local_strings)
             next_list_in[label] = set(local_lists)
             next_bytes_in[label] = set(local_bytes)
+            next_map_in[label] = set(local_maps)
 
             for op in block["ops"]:
                 result = op.get("result")
@@ -1034,6 +1114,8 @@ def collect_descriptor_facts(fn):
                         lists.add(result)
                         value_list_origin[result] = result
                         origin_elements[result] = {}
+                elif kind == "runtime_helper_call" and op.get("name") in MAP_LEN_HELPERS:
+                    pass
                 elif kind == "runtime_helper_call" and op.get("name") in BYTES_TO_LIST_HELPERS:
                     if result is not None and op.get("args") and op["args"][0] in bytes_values:
                         lists.add(result)
@@ -1085,6 +1167,9 @@ def collect_descriptor_facts(fn):
                         if elem in strings or elem in lists or elem in bytes_values:
                             elems[elem_idx] = elem
                     origin_elements[result] = elems
+                elif kind == "opaque_expr" and op.get("expr_type") == "Hash":
+                    if result is not None:
+                        maps.add(result)
                 elif kind == "index_get":
                     apply_list_element_fact(
                         op["container"],
@@ -1113,6 +1198,8 @@ def collect_descriptor_facts(fn):
                             value_list_origin[result] = origin
                     if op["name"] in local_bytes:
                         bytes_values.add(result)
+                    if op["name"] in local_maps:
+                        maps.add(result)
                 elif kind == "local_set":
                     if op["value"] in strings:
                         local_strings.add(op["name"])
@@ -1132,9 +1219,14 @@ def collect_descriptor_facts(fn):
                         local_bytes.add(op["name"])
                     else:
                         local_bytes.discard(op["name"])
+                    if op["value"] in maps:
+                        local_maps.add(op["name"])
+                    else:
+                        local_maps.discard(op["name"])
             next_string_out[label] = local_strings
             next_list_out[label] = local_lists
             next_bytes_out[label] = local_bytes
+            next_map_out[label] = local_maps
             next_origin_out[label] = local_origins
 
         if next_string_out != out_string_env:
@@ -1145,6 +1237,9 @@ def collect_descriptor_facts(fn):
             changed = True
         if next_bytes_out != out_bytes_env:
             out_bytes_env = next_bytes_out
+            changed = True
+        if next_map_out != out_map_env:
+            out_map_env = next_map_out
             changed = True
         if next_origin_out != out_origin_env:
             out_origin_env = next_origin_out
@@ -1158,6 +1253,9 @@ def collect_descriptor_facts(fn):
         if next_bytes_in != bytes_in_env:
             bytes_in_env = next_bytes_in
             changed = True
+        if next_map_in != map_in_env:
+            map_in_env = next_map_in
+            changed = True
         if strings != final_strings:
             final_strings = strings
             changed = True
@@ -1167,7 +1265,10 @@ def collect_descriptor_facts(fn):
         if bytes_values != final_bytes:
             final_bytes = bytes_values
             changed = True
-    return final_strings, string_in_env, final_lists, list_in_env, final_bytes, bytes_in_env
+        if maps != final_maps:
+            final_maps = maps
+            changed = True
+    return final_strings, string_in_env, final_lists, list_in_env, final_bytes, bytes_in_env, final_maps, map_in_env
 
 
 def apply_list_element_fact(
@@ -1632,8 +1733,14 @@ def emit_module(ir_path, out_path, ir, main):
     )
     needs_list_alloc = function_needs_list_alloc(main)
     needs_bytes_alloc = function_needs_bytes_alloc(main)
-    needs_alloc_bytes = needs_string_alloc or needs_list_alloc or needs_bytes_alloc
-    needs_memcpy = needs_string_alloc or needs_list_alloc or bool(BYTES_TO_BYTES_HELPERS & helpers_to_emit)
+    needs_map_alloc = function_needs_map_alloc(main)
+    needs_alloc_bytes = needs_string_alloc or needs_list_alloc or needs_bytes_alloc or needs_map_alloc
+    needs_memcpy = (
+        needs_string_alloc
+        or needs_list_alloc
+        or needs_map_alloc
+        or bool(BYTES_TO_BYTES_HELPERS & helpers_to_emit)
+    )
     with open(out_path, "w", encoding="utf-8") as out:
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
@@ -1641,6 +1748,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("%oren_llvm_string = type { i64, i8*, i64 }\n")
         out.write("%oren_llvm_list = type { i64, i64*, i64, i64 }\n\n")
         out.write("%oren_llvm_bytes = type { i64, i8*, i64 }\n\n")
+        out.write("%oren_llvm_map = type { i64, i64*, i64*, i64, i64 }\n\n")
         out.write("@oren_native_ir_schema = private unnamed_addr constant ")
         out.write(f"[{len(schema) + 1} x i8] c\"{schema_literal}\\00\", align 1\n\n")
         out.write("declare i64 @oren_llvm_opaque_call(i64, i64)\n")
@@ -1658,6 +1766,7 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare void @oren_llvm_runtime_roots_push_string(i64)\n")
             out.write("declare void @oren_llvm_runtime_roots_push_list(i64)\n")
             out.write("declare void @oren_llvm_runtime_roots_push_bytes(i64)\n")
+            out.write("declare void @oren_llvm_runtime_roots_push_map(i64)\n")
             out.write("declare void @oren_llvm_runtime_safepoint_poll()\n")
             out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:
@@ -1672,6 +1781,8 @@ def emit_module(ir_path, out_path, ir, main):
             out.write("declare void @oren_llvm_runtime_register_list(i64, i64*, i64)\n")
         if needs_bytes_alloc:
             out.write("declare void @oren_llvm_runtime_register_bytes(i64, i8*, i64)\n")
+        if needs_map_alloc:
+            out.write("declare void @oren_llvm_runtime_register_map(i64, i64*, i64*, i64, i64)\n")
         if "oren_string_eq" in helpers_to_emit:
             out.write("declare i32 @memcmp(i8*, i8*, i64)\n")
         if "exit" in helpers_to_emit:
@@ -1687,6 +1798,12 @@ def emit_module(ir_path, out_path, ir, main):
             emit_list_get_helper(out)
             emit_list_push_helper(out)
             emit_list_set_helper(out)
+        if needs_map_alloc:
+            emit_map_runtime_alloc(out)
+            emit_map_find_helper(out)
+            emit_map_len_helper(out)
+            emit_map_get_helper(out)
+            emit_map_set_helper(out)
         if needs_bytes_alloc:
             emit_bytes_runtime_alloc(out)
             emit_hex_nibble_helper(out)

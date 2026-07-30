@@ -5172,16 +5172,25 @@ make docs-site
 							  runtime-varying slice-copy via
 							  `oren_u8_buf_from_bytes_slice`, `oren_bytes_to_hex`,
 						  `oren_u8_buf_from_bytes_slice`, `oren_string_from_bytes_slice`,
-						  `oren_bytes_pack`, and `oren_bytes_unpack` helpers
-						  allocate/register bytes, string, and list descriptors,
-						  route proven bytes locals through
-						  `oren_llvm_runtime_roots_push_bytes`, and pass `make
-						  verify-native-ir-llvm-bytes-runtime` with a hex -> bytes ->
-							  list -> mutated bytes -> hex plus computed-offset
-							  bytes/string slice roundtrip under forced
-							  GC-at-safepoint. LLVM-native byte helper emitters
-						  now live in `scripts/native_ir_llvm_bytes_helpers.py`, keeping
-						  the core lowerer below the source-line guardrail.
+							  `oren_bytes_pack`, and `oren_bytes_unpack` helpers
+							  allocate/register bytes, string, and list descriptors,
+							  route proven bytes locals through
+							  `oren_llvm_runtime_roots_push_bytes`, and pass `make
+							  verify-native-ir-llvm-bytes-runtime` with a hex -> bytes ->
+								  list -> mutated bytes -> hex plus computed-offset
+								  bytes/string slice roundtrip under forced
+								  GC-at-safepoint. LLVM-native byte helper emitters
+							  now live in `scripts/native_ir_llvm_bytes_helpers.py`, keeping
+							  the core lowerer below the source-line guardrail.
+							  LLVM-native now also has a v0
+							  `%oren_llvm_map { len, keys, values, owner_kind, capacity }`
+							  descriptor ABI for empty hash literals,
+							  descriptor-backed `index_set`/`index_get` with exact i64
+							  keys, and proven `oren_map_len` lowering. The C runtime
+							  registers map descriptors plus key/value storage and roots
+							  proven map locals across safepoints; `make
+							  verify-native-ir-llvm-map-runtime` proves linked execution
+							  parity and forced GC-at-safepoint for that v0 surface.
 
 ## Documentation Guardrail
 

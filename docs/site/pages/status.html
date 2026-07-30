@@ -6134,16 +6134,25 @@ make docs-site</code></pre>
 <p>							  runtime-varying slice-copy via</p>
 <p>							  <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_bytes_to_hex</code>,</p>
 <p>						  <code>oren_u8_buf_from_bytes_slice</code>, <code>oren_string_from_bytes_slice</code>,</p>
-<p>						  <code>oren_bytes_pack</code>, and <code>oren_bytes_unpack</code> helpers</p>
-<p>						  allocate/register bytes, string, and list descriptors,</p>
-<p>						  route proven bytes locals through</p>
-<p>						  <code>oren_llvm_runtime_roots_push_bytes</code>, and pass `make</p>
-<p>						  verify-native-ir-llvm-bytes-runtime` with a hex -&gt; bytes -&gt;</p>
-<p>							  list -&gt; mutated bytes -&gt; hex plus computed-offset</p>
-<p>							  bytes/string slice roundtrip under forced</p>
-<p>							  GC-at-safepoint. LLVM-native byte helper emitters</p>
-<p>						  now live in <code>scripts/native_ir_llvm_bytes_helpers.py</code>, keeping</p>
-<p>						  the core lowerer below the source-line guardrail.</p>
+<p>							  <code>oren_bytes_pack</code>, and <code>oren_bytes_unpack</code> helpers</p>
+<p>							  allocate/register bytes, string, and list descriptors,</p>
+<p>							  route proven bytes locals through</p>
+<p>							  <code>oren_llvm_runtime_roots_push_bytes</code>, and pass `make</p>
+<p>							  verify-native-ir-llvm-bytes-runtime` with a hex -&gt; bytes -&gt;</p>
+<p>								  list -&gt; mutated bytes -&gt; hex plus computed-offset</p>
+<p>								  bytes/string slice roundtrip under forced</p>
+<p>								  GC-at-safepoint. LLVM-native byte helper emitters</p>
+<p>							  now live in <code>scripts/native_ir_llvm_bytes_helpers.py</code>, keeping</p>
+<p>							  the core lowerer below the source-line guardrail.</p>
+<p>							  LLVM-native now also has a v0</p>
+<p>							  <code>%oren_llvm_map { len, keys, values, owner_kind, capacity }</code></p>
+<p>							  descriptor ABI for empty hash literals,</p>
+<p>							  descriptor-backed <code>index_set</code>/<code>index_get</code> with exact i64</p>
+<p>							  keys, and proven <code>oren_map_len</code> lowering. The C runtime</p>
+<p>							  registers map descriptors plus key/value storage and roots</p>
+<p>							  proven map locals across safepoints; `make</p>
+<p>							  verify-native-ir-llvm-map-runtime` proves linked execution</p>
+<p>							  parity and forced GC-at-safepoint for that v0 surface.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
