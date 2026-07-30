@@ -58,6 +58,12 @@ GENERATED_HELPERS = {
     "oren_string_char_at_unchecked",
 }
 
+STRING_DESCRIPTOR_HELPERS = {
+    "oren_string_slice",
+    "oren_string_char_at",
+    "oren_string_char_at_unchecked",
+}
+
 
 def token_id(table, token):
     if token not in table:
@@ -114,40 +120,26 @@ def collect_generic_helpers(fn):
 
 
 def function_needs_root_hooks(fn):
-    consts = collect_const_values(fn)
+    descriptors = collect_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and op.get("roots"):
                 return True
             if op["kind"] == "binary" and op["op"] == "+":
-                left_const = consts.get(op["left"])
-                right_const = consts.get(op["right"])
-                if (
-                    left_const is not None
-                    and right_const is not None
-                    and left_const[0] == "string"
-                    and right_const[0] == "string"
-                ):
+                if op["left"] in descriptors and op["right"] in descriptors:
                     return True
     return False
 
 
 def collect_generated_helpers(fn):
     helpers = set()
-    consts = collect_const_values(fn)
+    descriptors = collect_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op["name"] in GENERATED_HELPERS:
                 helpers.add(op["name"])
             elif op["kind"] == "binary" and op["op"] == "+":
-                left_const = consts.get(op["left"])
-                right_const = consts.get(op["right"])
-                if (
-                    left_const is not None
-                    and right_const is not None
-                    and left_const[0] == "string"
-                    and right_const[0] == "string"
-                ):
+                if op["left"] in descriptors and op["right"] in descriptors:
                     helpers.add("oren_string_concat")
     if "oren_string_char_at" in helpers or "oren_string_char_at_unchecked" in helpers:
         helpers.add("oren_string_slice")
@@ -183,6 +175,7 @@ class FunctionLowerer:
         self.value_vars = {}
         self.token_table = {}
         self.const_values = collect_const_values(fn)
+        self.descriptor_values = collect_descriptor_values(fn)
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
         self.slot_vars = {name: f"%slot{idx}" for idx, name in enumerate(self.slots)}
@@ -370,9 +363,7 @@ class FunctionLowerer:
         right = self.value_ref(op["right"])
         bop = op["op"]
         if bop == "+":
-            left_const = self.const_values.get(op["left"])
-            right_const = self.const_values.get(op["right"])
-            if left_const is not None and right_const is not None and left_const[0] == "string" and right_const[0] == "string":
+            if op["left"] in self.descriptor_values and op["right"] in self.descriptor_values:
                 helper_call = (
                     f"{dst} = call i64 @oren_llvm_helper_oren_string_concat("
                     f"i64 2, i64 {left}, i64 {right}, i64 0, i64 0)"
@@ -471,6 +462,42 @@ def collect_const_values(fn):
                         consts[op["result"]] = value
                         changed = True
     return consts
+
+
+def collect_descriptor_values(fn):
+    descriptors = set()
+    local_assigns = {}
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] == "local_set":
+                local_assigns.setdefault(op["name"], []).append(op["value"])
+
+    changed = True
+    while changed:
+        changed = False
+        for block in fn["blocks"]:
+            for op in block["ops"]:
+                result = op.get("result")
+                if op["kind"] == "const" and op.get("value_kind") == "string" and result not in descriptors:
+                    descriptors.add(result)
+                    changed = True
+                elif op["kind"] == "runtime_helper_call" and op.get("name") in STRING_DESCRIPTOR_HELPERS:
+                    if result is not None and result not in descriptors:
+                        descriptors.add(result)
+                        changed = True
+                elif op["kind"] == "binary" and op.get("op") == "+":
+                    if op["left"] in descriptors and op["right"] in descriptors and result not in descriptors:
+                        descriptors.add(result)
+                        changed = True
+                elif op["kind"] == "local_get":
+                    assignments = local_assigns.get(op["name"], [])
+                    if len(assignments) != 1:
+                        continue
+                    assigned_value = assignments[0]
+                    if assigned_value in descriptors and result not in descriptors:
+                        descriptors.add(result)
+                        changed = True
+    return descriptors
 
 
 def emit_string_globals(out, token_table):

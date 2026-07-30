@@ -1,19 +1,25 @@
 // Native IR LLVM string slice smoke:
-// - proves generated oren_string_slice materialization composes with len and eq
+// - proves generated oren_string_slice materialization composes with dynamic concat, len, and eq
 
 fn main() {
     var source = "abcdef"
     var start = 1
     var end = 4
     var s = oren_string_slice(source, start, end)
-    var left = "b"
-    var right = "cd"
-    var expected = left + right
+    var expected = "bcd"
     if oren_string_eq(s, expected) == false {
         return 1
     }
     if oren_string_len(s) != 3 {
         return 2
+    }
+    var suffix = "e"
+    var joined = s + suffix
+    if oren_string_eq(joined, "bcde") == false {
+        return 3
+    }
+    if oren_string_len(joined) != 4 {
+        return 4
     }
     return 0
 }

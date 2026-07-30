@@ -5127,7 +5127,12 @@ make docs-site
 	  active. Lowered helper sites also call
 	  `oren_llvm_runtime_safepoint_poll()` while roots are pushed; the slice and
 	  access runtime gates now run with `OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1` and
-	  assert forced collection counts, root-stack reset, and output parity.
+	  assert forced collection counts, root-stack reset, and output parity. The
+	  LLVM lowerer now tracks proven descriptor values through string constants,
+	  string helper results, single-assignment locals, and concat results, so
+	  `+` lowers to `oren_llvm_helper_oren_string_concat` for non-constant
+	  descriptor inputs such as `slice_result + suffix` instead of only
+	  two-literal concatenations.
 
 ## Documentation Guardrail
 

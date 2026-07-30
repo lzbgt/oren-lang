@@ -283,5 +283,12 @@ after it has round-trip/parity evidence. Until then:
     descriptor roots are active; focused string slice/access runtime gates run
     with `OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1` and assert the forced collection
     counter, root-stack reset, and output parity.
-34. Expand the descriptor ABI to non-constant program input and broader runtime
-    helpers while keeping x64/ARM64 as the oracle.
+34. Done: extend descriptor-aware lowering to non-constant string concat inputs.
+    The LLVM lowerer now tracks proven descriptor values through string
+    constants, string helper results, single-assignment locals, and concat
+    results; `+` lowers to `oren_llvm_helper_oren_string_concat` whenever both
+    operands are proven descriptors, not only when both are compile-time string
+    literals. The slice runtime fixture now checks `slice_result + suffix`,
+    exercising a heap descriptor input under forced GC-at-safepoint.
+35. Expand descriptor ABI input coverage beyond conservative local dataflow and
+    add broader runtime helpers while keeping x64/ARM64 as the oracle.
