@@ -5114,11 +5114,17 @@ make docs-site
   surface in `lib/runtime/070_llvm_native_hooks.inc`. The hooks register string
   bytes as GC-tracked string storage and descriptors as tracked runtime structs,
   and they validate `{ len, data, owner_kind=1 }` metadata at registration time.
-  `make verify-native-ir-llvm-string-slice-runtime` now links `lib/runtime.c`
-  plus `lib/runtime_buf.c` and compares a runtime-hook-backed slice against a
-  runtime-hook-backed concat result, while the existing fast smoke keeps this
-  proof inside the targeted LLVM integration gate instead of adding another
-  broad test sweep.
+	  `make verify-native-ir-llvm-string-slice-runtime` now links `lib/runtime.c`
+	  plus `lib/runtime_buf.c` and compares a runtime-hook-backed slice against a
+	  runtime-hook-backed concat result, while the existing fast smoke keeps this
+	  proof inside the targeted LLVM integration gate instead of adding another
+	  broad test sweep. LLVM-native now also lowers native-IR safepoint helper
+	  root records into `oren_llvm_runtime_roots_mark`,
+	  `oren_llvm_runtime_roots_push_string`, and
+	  `oren_llvm_runtime_roots_reset` calls. The real C runtime owns the v0
+	  descriptor-root stack, marks descriptor/data allocations during GC, and the
+	  focused slice runtime gate forces one GC while a LLVM descriptor root is
+	  active.
 
 ## Documentation Guardrail
 

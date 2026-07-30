@@ -71,7 +71,7 @@ int main(void) {
 }
 C
 
-"$clang_path" "$harness" "$object" -o "$llvm_bin" >"$link_log" 2>&1
+"$clang_path" "$harness" "$object" lib/runtime.c lib/runtime_buf.c -Ilib -pthread -o "$llvm_bin" >"$link_log" 2>&1
 "$llvm_bin" >"$llvm_run_log" 2>&1
 grep -Fq "x64 hello" "$llvm_run_log"
 
@@ -84,7 +84,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-print-helper,string-descriptor-global,static-owner-metadata,puts-output\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-print-helper,string-descriptor-global,static-owner-metadata,puts-output\n'
 } >"$summary"
 
 echo "OK: native IR LLVM helper runtime parity passed; summary: $summary"

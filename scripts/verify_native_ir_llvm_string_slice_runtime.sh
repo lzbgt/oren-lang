@@ -58,8 +58,14 @@ grep -Fq "define i64 @oren_llvm_runtime_alloc_string" "$object.ll"
 grep -Fq "call i64 @oren_llvm_runtime_alloc_string" "$object.ll"
 grep -Fq "declare i8* @oren_llvm_runtime_alloc_bytes(i64, i64)" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_register_string(i64, i8*, i64)" "$object.ll"
+grep -Fq "declare i64 @oren_llvm_runtime_roots_mark()" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_roots_push_string(i64)" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_roots_reset(i64)" "$object.ll"
 grep -Fq "call i8* @oren_llvm_runtime_alloc_bytes" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_register_string" "$object.ll"
+grep -Fq "call i64 @oren_llvm_runtime_roots_mark" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_roots_push_string" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_roots_reset" "$object.ll"
 grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 grep -Fq "call i8* @memcpy" "$object.ll"
 grep -Fq "bcd" "$object.ll"
@@ -75,9 +81,24 @@ fi
 cat >"$harness" <<'C'
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    int64_t len;
+    char* data;
+    int64_t owner_kind;
+} OrenLlvmStringProbe;
 
 extern int64_t oren_native_ir_main_probe(void);
+extern void* oren_llvm_runtime_alloc_bytes(int64_t byte_count, int64_t alloc_kind);
+extern void oren_llvm_runtime_register_string(int64_t desc_handle, char* data, int64_t len);
 extern int64_t oren_llvm_runtime_registered_strings(void);
+extern int64_t oren_llvm_runtime_roots_mark(void);
+extern void oren_llvm_runtime_roots_push_string(int64_t desc_handle);
+extern void oren_llvm_runtime_roots_reset(int64_t mark);
+extern int64_t oren_llvm_runtime_root_depth(void);
+extern int64_t oren_llvm_runtime_root_pushes(void);
+extern void oren_gc_collect(void);
 
 int main(void) {
     int64_t rc = oren_native_ir_main_probe();
@@ -87,6 +108,33 @@ int main(void) {
     }
     if (oren_llvm_runtime_registered_strings() < 2) {
         fprintf(stderr, "expected slice and concat runtime string registrations\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_root_depth() != 0) {
+        fprintf(stderr, "LLVM runtime root stack was not reset\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_root_pushes() < 2) {
+        fprintf(stderr, "expected safepoint descriptor roots to be pushed\n");
+        return 1;
+    }
+    char* bytes = (char*)oren_llvm_runtime_alloc_bytes(4, 1);
+    memcpy(bytes, "abc", 4);
+    OrenLlvmStringProbe* desc = (OrenLlvmStringProbe*)oren_llvm_runtime_alloc_bytes((int64_t)sizeof(OrenLlvmStringProbe), 2);
+    desc->len = 3;
+    desc->data = bytes;
+    desc->owner_kind = 1;
+    oren_llvm_runtime_register_string((int64_t)(uintptr_t)desc, bytes, 3);
+    int64_t mark = oren_llvm_runtime_roots_mark();
+    oren_llvm_runtime_roots_push_string((int64_t)(uintptr_t)desc);
+    oren_gc_collect();
+    if (desc->data[0] != 'a' || desc->data[1] != 'b' || desc->data[2] != 'c') {
+        fprintf(stderr, "rooted LLVM string descriptor did not survive GC\n");
+        return 1;
+    }
+    oren_llvm_runtime_roots_reset(mark);
+    if (oren_llvm_runtime_root_depth() != 0) {
+        fprintf(stderr, "manual LLVM runtime root stack was not reset\n");
         return 1;
     }
     return 0;
@@ -105,7 +153,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-slice-helper,named-oren-string-concat-helper,runtime-hook-backed-slice-materialization,runtime-hook-backed-concat-materialization,string-owner-metadata,string-runtime-registration,string-len-compose,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,named-oren-string-slice-helper,named-oren-string-concat-helper,runtime-hook-backed-slice-materialization,runtime-hook-backed-concat-materialization,string-owner-metadata,string-runtime-registration,safepoint-root-push-reset,llvm-descriptor-gc-root-mark,string-len-compose,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string slice runtime parity passed; summary: $summary"

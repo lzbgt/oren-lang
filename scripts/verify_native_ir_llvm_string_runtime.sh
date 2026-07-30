@@ -74,7 +74,7 @@ int main(void) {
 }
 C
 
-"$clang_path" "$harness" "$object" -o "$llvm_bin" >"$link_log" 2>&1
+"$clang_path" "$harness" "$object" lib/runtime.c lib/runtime_buf.c -Ilib -pthread -o "$llvm_bin" >"$link_log" 2>&1
 "$llvm_bin" >"$llvm_run_log" 2>&1
 
 end="$(date +%s)"

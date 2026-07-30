@@ -113,6 +113,25 @@ def collect_generic_helpers(fn):
     return sorted(helpers)
 
 
+def function_needs_root_hooks(fn):
+    consts = collect_const_values(fn)
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] == "runtime_helper_call" and op.get("safepoint") and op.get("roots"):
+                return True
+            if op["kind"] == "binary" and op["op"] == "+":
+                left_const = consts.get(op["left"])
+                right_const = consts.get(op["right"])
+                if (
+                    left_const is not None
+                    and right_const is not None
+                    and left_const[0] == "string"
+                    and right_const[0] == "string"
+                ):
+                    return True
+    return False
+
+
 def collect_generated_helpers(fn):
     helpers = set()
     consts = collect_const_values(fn)
@@ -193,6 +212,20 @@ class FunctionLowerer:
     def write_inst(self, inst):
         self.out.write(f"  {inst}\n")
 
+    def emit_helper_call(self, op, helper_call, helper_name, root_values):
+        mark = None
+        if op.get("safepoint") and root_values:
+            mark = self.scratch_var("root_mark")
+            self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
+            for root_value in root_values:
+                root_ref = self.value_ref(root_value)
+                self.write_inst(
+                    f"call void @oren_llvm_runtime_roots_push_string(i64 {root_ref}) ; safepoint root {root_value}"
+                )
+        self.write_inst(f"{helper_call} ; helper {helper_name} safepoint={op.get('safepoint', False)}")
+        if mark is not None:
+            self.write_inst(f"call void @oren_llvm_runtime_roots_reset(i64 {mark}) ; safepoint roots reset")
+
     def lower(self):
         label_names = {
             block["label"]: llvm_name("bb", block["label"], idx)
@@ -244,14 +277,15 @@ class FunctionLowerer:
             while len(helper_args) < 4:
                 helper_args.append("0")
             dst = self.result_var(op["result"]) if op.get("result") is not None else self.scratch_var("helper")
+            root_values = [r["local"] for r in op.get("roots", []) if r.get("local")]
             if op["name"] == "print":
                 helper_call = f"{dst} = call i64 @oren_llvm_helper_print(i64 {helper_args[0]})"
-                self.write_inst(f"{helper_call} ; helper print safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, "print", root_values)
                 return
             if op["name"] == "exit":
                 code = helper_args[0] if len(op["args"]) > 0 else "0"
                 helper_call = f"{dst} = call i64 @oren_llvm_helper_exit(i64 {code})"
-                self.write_inst(f"{helper_call} ; helper exit safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, "exit", root_values)
                 return
             if op["name"] == "oren_string_len":
                 helper_call = (
@@ -259,7 +293,7 @@ class FunctionLowerer:
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
-                self.write_inst(f"{helper_call} ; helper oren_string_len safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, "oren_string_len", root_values)
                 return
             if op["name"] == "oren_string_eq":
                 helper_call = (
@@ -267,7 +301,7 @@ class FunctionLowerer:
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
-                self.write_inst(f"{helper_call} ; helper oren_string_eq safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, "oren_string_eq", root_values)
                 return
             if op["name"] == "oren_string_slice":
                 helper_call = (
@@ -275,7 +309,7 @@ class FunctionLowerer:
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
-                self.write_inst(f"{helper_call} ; helper oren_string_slice safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, "oren_string_slice", root_values)
                 return
             if op["name"] in ("oren_string_byte_at", "oren_string_byte_at_unchecked"):
                 helper_symbol = llvm_helper_symbol(op["name"])
@@ -284,7 +318,7 @@ class FunctionLowerer:
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
-                self.write_inst(f"{helper_call} ; helper {op['name']} safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
             if op["name"] in ("oren_string_char_at", "oren_string_char_at_unchecked"):
                 helper_symbol = llvm_helper_symbol(op["name"])
@@ -293,7 +327,7 @@ class FunctionLowerer:
                     f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                     f"i64 {helper_args[2]}, i64 {helper_args[3]})"
                 )
-                self.write_inst(f"{helper_call} ; helper {op['name']} safepoint={op['safepoint']}")
+                self.emit_helper_call(op, helper_call, op["name"], root_values)
                 return
             helper_symbol = llvm_helper_symbol(op["name"])
             helper_call = (
@@ -301,7 +335,7 @@ class FunctionLowerer:
                 f"i64 {len(op['args'])}, i64 {helper_args[0]}, i64 {helper_args[1]}, "
                 f"i64 {helper_args[2]}, i64 {helper_args[3]})"
             )
-            self.write_inst(f"{helper_call} ; helper {op['name']} safepoint={op['safepoint']}")
+            self.emit_helper_call(op, helper_call, op["name"], root_values)
         elif kind == "array":
             for elem in op["elements"]:
                 self.value_ref(elem)
@@ -338,10 +372,11 @@ class FunctionLowerer:
             left_const = self.const_values.get(op["left"])
             right_const = self.const_values.get(op["right"])
             if left_const is not None and right_const is not None and left_const[0] == "string" and right_const[0] == "string":
-                self.write_inst(
+                helper_call = (
                     f"{dst} = call i64 @oren_llvm_helper_oren_string_concat("
-                    f"i64 2, i64 {left}, i64 {right}, i64 0, i64 0) ; helper oren_string_concat"
+                    f"i64 2, i64 {left}, i64 {right}, i64 0, i64 0)"
                 )
+                self.emit_helper_call({"safepoint": True}, helper_call, "oren_string_concat", [op["left"], op["right"]])
                 return
             self.write_inst(f"{dst} = add i64 {left}, {right}")
         elif bop == "-":
@@ -711,6 +746,10 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
         for helper in collect_generic_helpers(main):
             out.write(f"declare i64 @{llvm_helper_symbol(helper)}(i64, i64, i64, i64, i64)\n")
+        if function_needs_root_hooks(main):
+            out.write("declare i64 @oren_llvm_runtime_roots_mark()\n")
+            out.write("declare void @oren_llvm_runtime_roots_push_string(i64)\n")
+            out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:
             out.write("declare i32 @puts(i8*)\n")
         if needs_string_alloc:

@@ -272,7 +272,12 @@ after it has round-trip/parity evidence. Until then:
     tracked runtime structs, and validates `{ len, data, owner_kind=1 }`
     metadata. The focused LLVM string runtime probes now link `lib/runtime.c`
     plus `lib/runtime_buf.c` instead of a harness-only shim.
-32. Extend LLVM-native root/safepoint metadata so descriptor handles remain live
-    across runtime calls and GC, then expand the same descriptor ABI to
-    non-constant program input and broader runtime helpers while keeping x64/ARM64
-    as the oracle.
+32. Done: lower native-IR helper root metadata into LLVM/runtime root hooks.
+    Safepoint helper calls now emit `oren_llvm_runtime_roots_mark`,
+    `oren_llvm_runtime_roots_push_string`, and
+    `oren_llvm_runtime_roots_reset`; the C runtime keeps a v0 descriptor-root
+    stack, marks live descriptor/data allocations during GC, and treats
+    non-descriptor tagged immediates as no-op roots.
+33. Add forced GC-at-safepoint parity for generated helper calls, then expand the
+    same descriptor ABI to non-constant program input and broader runtime helpers
+    while keeping x64/ARM64 as the oracle.

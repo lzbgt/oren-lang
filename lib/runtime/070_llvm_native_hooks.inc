@@ -6,6 +6,94 @@ typedef struct OrenLlvmString {
 
 static int64_t g_llvm_runtime_alloc_calls = 0;
 static int64_t g_llvm_runtime_registered_strings = 0;
+static int64_t g_llvm_runtime_root_pushes = 0;
+static OrenLlvmString** g_llvm_runtime_roots = NULL;
+static size_t g_llvm_runtime_roots_len = 0;
+static size_t g_llvm_runtime_roots_cap = 0;
+
+static OrenAllocNode* oren_llvm_runtime_find_string_desc_locked(int64_t desc_handle) {
+    if (desc_handle == 0) return NULL;
+    OrenThreadState* st = oren_thread_state();
+    if (st) {
+        OrenAllocNode* cur = st->local_allocs;
+        while (cur) {
+            if (cur->ptr == (void*)(uintptr_t)desc_handle &&
+                cur->freed == 0 &&
+                cur->kind == OREN_ALLOC_STRUCT) {
+                OrenLlvmString* desc = (OrenLlvmString*)(uintptr_t)desc_handle;
+                if (desc->owner_kind == 1 && desc->data != NULL && desc->len >= 0) {
+                    return cur;
+                }
+                return NULL;
+            }
+            cur = cur->next;
+        }
+    }
+    OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
+    if (!n || n->freed != 0 || n->kind != OREN_ALLOC_STRUCT) return NULL;
+    OrenLlvmString* desc = (OrenLlvmString*)(uintptr_t)desc_handle;
+    if (desc->owner_kind != 1 || desc->data == NULL || desc->len < 0) return NULL;
+    return n;
+}
+
+int64_t oren_llvm_runtime_roots_mark(void) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    int64_t mark = (int64_t)g_llvm_runtime_roots_len;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return mark;
+}
+
+void oren_llvm_runtime_roots_push_string(int64_t desc_handle) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_llvm_runtime_find_string_desc_locked(desc_handle);
+    if (!n) {
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    if (g_llvm_runtime_roots_len == g_llvm_runtime_roots_cap) {
+        size_t next_cap = g_llvm_runtime_roots_cap == 0 ? 16u : g_llvm_runtime_roots_cap * 2u;
+        OrenLlvmString** next_roots = (OrenLlvmString**)realloc(g_llvm_runtime_roots, next_cap * sizeof(OrenLlvmString*));
+        if (!next_roots) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            oren_panic("llvm runtime roots: grow failed");
+            return;
+        }
+        g_llvm_runtime_roots = next_roots;
+        g_llvm_runtime_roots_cap = next_cap;
+    }
+    g_llvm_runtime_roots[g_llvm_runtime_roots_len++] = (OrenLlvmString*)n->ptr;
+    g_llvm_runtime_root_pushes++;
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+void oren_llvm_runtime_roots_reset(int64_t mark) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    if (mark < 0) mark = 0;
+    size_t m = (size_t)mark;
+    if (m < g_llvm_runtime_roots_len) {
+        g_llvm_runtime_roots_len = m;
+    }
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+static void oren_llvm_runtime_mark_roots(void) {
+#ifndef OREN_NO_GC
+    for (size_t i = 0; i < g_llvm_runtime_roots_len; i++) {
+        OrenLlvmString* desc = g_llvm_runtime_roots[i];
+        if (!desc) continue;
+        OrenAllocNode* dn = oren_find_node(desc);
+        if (dn && dn->freed == 0 && dn->kind == OREN_ALLOC_STRUCT) {
+            dn->freed = -1;
+        }
+        if (desc->data) {
+            OrenAllocNode* bn = oren_find_node(desc->data);
+            if (bn && bn->freed == 0 && bn->kind == OREN_ALLOC_STRING) {
+                bn->freed = -1;
+            }
+        }
+    }
+#endif
+}
 
 void* oren_llvm_runtime_alloc_bytes(int64_t byte_count, int64_t alloc_kind) {
     if (byte_count < 0) {
@@ -53,4 +141,18 @@ int64_t oren_llvm_runtime_alloc_calls(void) {
 
 int64_t oren_llvm_runtime_registered_strings(void) {
     return g_llvm_runtime_registered_strings;
+}
+
+int64_t oren_llvm_runtime_root_depth(void) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    int64_t n = (int64_t)g_llvm_runtime_roots_len;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return n;
+}
+
+int64_t oren_llvm_runtime_root_pushes(void) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    int64_t n = g_llvm_runtime_root_pushes;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return n;
 }
