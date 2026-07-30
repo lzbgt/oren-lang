@@ -6010,6 +6010,9 @@ make docs-site</code></pre>
 <p>  <code>lib/compiler/native_ir_v0.oren</code> schema records for target ABI consistency,</p>
 <p>  function/block/terminator closure, duplicate functions, unknown branch targets,</p>
 <p>  and safepoint/helper root metadata without changing production native emitters.</p>
+<p>  <code>oren dump native-ir</code> plus <code>verify-native-ir-dump</code> now produce and verify a</p>
+<p>  validated linked-program skeleton for <code>examples/hello.oren</code>; real operation</p>
+<p>  lowering and parity fixtures remain before LLVM object emission.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

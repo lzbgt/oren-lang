@@ -450,9 +450,47 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
         _trace_introspection_phase(trace_intro_g, "dump-graph write", t0g)
         return nil
     }
+    if kind == "native-ir" {
+        if dbg_flow != nil { print("DEBUG_FLOW dump native-ir start") }
+        var trace_intro_ni = _trace_introspection_enabled()
+        var t0ni = 0
+        if trace_intro_ni == true { t0ni = oren_time_now_ns() }
+        var rrni = expand_includes_file_result(path, [])
+        if rrni["ok"] != true {
+            var emsgni = "Failed to read file: " + path
+            var msgni = rrni["err"]
+            if msgni != nil { emsgni = emsgni + " (" + msgni + ")" }
+            emit_diag("compile", 2, emsgni)
+            print("Failed to read file: " + path)
+            if msgni != nil { print(msgni) }
+            oren_exit(2)
+        }
+        var srcni = rrni["src"]
+        _trace_introspection_phase(trace_intro_ni, "dump-native-ir read", t0ni)
+        var progni = _parse_introspection_program_or_die(path, srcni, strict, allow, strict_ident, ident_allow)
+        _trace_introspection_phase(trace_intro_ni, "dump-native-ir parse", t0ni)
+        var cfg_debugni = true
+        var v_ndni = oren_env("OREN_NATIVE_NO_DEBUG")
+        if v_ndni != nil && v_ndni != "" && v_ndni != "0" && v_ndni != "false" { cfg_debugni = false }
+        var backend0ni = opts["backend"]
+        if backend0ni == nil { backend0ni = "native" }
+        var linkedni = link_program(path, progni, {"target": target, "arch": arch, "backend": backend0ni, "debug": cfg_debugni, "keep_all_top_level_functions": true})
+        _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-native-ir", linkedni)
+        _trace_introspection_phase(trace_intro_ni, "dump-native-ir link", t0ni)
+        var irni = dump.native_ir_from_linked(linkedni, path, arch, target)
+        var jsni = dump.native_ir_json(irni)
+        _trace_introspection_phase(trace_intro_ni, "dump-native-ir summary", t0ni)
+        var rcni = dump.write_or_print(outp, jsni)
+        if rcni != 0 {
+            emit_diag("compile", 2, "Failed to write dump output: " + outp)
+            oren_exit(rcni)
+        }
+        _trace_introspection_phase(trace_intro_ni, "dump-native-ir write", t0ni)
+        return nil
+    }
 
-    emit_diag("compile", 2, "Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
-    print("Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
+    emit_diag("compile", 2, "Unknown dump kind: " + kind + " (expected: tokens|linked|graph|native-ir)")
+    print("Unknown dump kind: " + kind + " (expected: tokens|linked|graph|native-ir)")
     oren_exit(2)
 }
 

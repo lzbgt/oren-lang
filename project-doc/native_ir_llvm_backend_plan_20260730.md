@@ -85,7 +85,9 @@ the existing native emitters for the selected fixture tier.
 
 Initial gates:
 
-- Native IR dump smoke for `examples/hello.oren`.
+- `make verify-native-ir-dump` runs `oren dump native-ir examples/hello.oren`
+  and checks the JSON schema, x64-linux target ABI, validator status, linked
+  function names, and `main` entry block skeleton.
 - `make verify-native-ir-validator` runs the v0 structural validator fixture
   across bytecode and native backends, covering unterminated blocks, duplicate
   functions, unknown branch targets, missing safepoint root records, and
@@ -126,5 +128,6 @@ after it has round-trip/parity evidence. Until then:
    probe that records local `clang`, `llvm-config`, and `llc` availability.
 3. Done: add `lib/compiler/native_ir_v0.oren`, a native-IR v0 schema/validator
    module with no production backend switch.
-4. Add a native-IR dump command for `examples/hello.oren`.
+4. Done: add `oren dump native-ir` plus `make verify-native-ir-dump` for
+   `examples/hello.oren`.
 5. Add parity fixtures before emitting LLVM object code.

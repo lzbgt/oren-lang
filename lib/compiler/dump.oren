@@ -2,6 +2,7 @@ import lexer "lexer.oren"
 import parser "parser.oren"
 import analysis "analysis.oren"
 import metadata "metadata.oren"
+import native_ir "native_ir_v0.oren"
 
 fn json_string(s) { return "\"" + metadata.escape_json_string(s) + "\"" }
 
@@ -34,6 +35,206 @@ fn join_with(parts, sep) {
         i = i + 1
     }
     return oren_string_join(out)
+}
+
+fn _target_abi_for(arch, target_os) {
+    if arch == "x64" {
+        if target_os == "windows" { return "win64" }
+        return "sysv"
+    }
+    if arch == "arm64" { return "aapcs" }
+    return "unknown"
+}
+
+fn _native_ir_function_from_entry(entry) {
+    var name = entry["name"]
+    var func = entry["func"]
+    var params = nil
+    if func != nil { params = func["params"] }
+    var arity = 0
+    if params != nil { arity = oren_list_len(params) }
+    var blk = native_ir.block("entry", [], native_ir.term_return(nil))
+    return native_ir.function(name, arity, arity, [blk])
+}
+
+fn native_ir_from_linked(linked, entry_path, arch, target_os) {
+    var ir = native_ir.module(native_ir.target(arch, target_os, _target_abi_for(arch, target_os)))
+    if linked == nil { return ir }
+    var ss = linked["statements"]
+    if ss == nil { return ir }
+    // Keep std/imported/generated functions too: native backends compile the linked
+    // program, not just the entry file.
+    var ss_len = oren_list_len(ss)
+    var i = 0
+    while i < ss_len {
+        var s = ss[i]
+        if s == nil { i = i + 1; continue }
+        var entry = analysis.top_level_function_surface_entry(s)
+        if entry != nil {
+            oren_list_push(ir["functions"], _native_ir_function_from_entry(entry))
+        }
+        i = i + 1
+    }
+    return ir
+}
+
+fn _json_string_array_plain(xs) {
+    if xs == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(xs)
+    var i = 0
+    while i < n {
+        oren_list_push(parts, json_string(xs[i]))
+        i = i + 1
+    }
+    return "[" + join_with(parts, ", ") + "]"
+}
+
+fn _native_ir_target_json(t) {
+    if t == nil { return "null" }
+    return "{ " + json_kv_str("arch", t["arch"]) + ", " + json_kv_str("os", t["os"]) + ", " + json_kv_str("abi", t["abi"]) + " }"
+}
+
+fn _native_ir_root_json(r) {
+    if r == nil { return "null" }
+    return "{ " + json_kv_str("local", r["local"]) + ", " + json_kv_str("kind", r["kind"]) + " }"
+}
+
+fn _native_ir_roots_json(roots) {
+    if roots == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(roots)
+    var i = 0
+    while i < n {
+        oren_list_push(parts, _native_ir_root_json(roots[i]))
+        i = i + 1
+    }
+    return "[" + join_with(parts, ", ") + "]"
+}
+
+fn _native_ir_term_json(term) {
+    if term == nil { return "null" }
+    var kind = term["kind"]
+    var out = "{ " + json_kv_str("kind", kind)
+    if kind == "return" {
+        out = out + ", " + json_kv_str("value", term["value"])
+    } else if kind == "jump" {
+        out = out + ", " + json_kv_str("target", term["target"])
+    } else if kind == "branch" {
+        out = out + ", " + json_kv_str("cond", term["cond"])
+        out = out + ", " + json_kv_str("true", term["true"])
+        out = out + ", " + json_kv_str("false", term["false"])
+    } else if kind == "panic" {
+        out = out + ", " + json_kv_str("reason", term["reason"])
+    }
+    out = out + " }"
+    return out
+}
+
+fn _native_ir_helper_json(call) {
+    if call == nil { return "null" }
+    var out = "{ "
+    out = out + json_kv_str("kind", call["kind"]) + ", "
+    out = out + json_kv_str("name", call["name"]) + ", "
+    out = out + "\"args\": " + _json_string_array_plain(call["args"]) + ", "
+    out = out + json_kv_str("result", call["result"]) + ", "
+    out = out + "\"clobbers\": " + _json_string_array_plain(call["clobbers"]) + ", "
+    out = out + json_kv_bool("safepoint", call["safepoint"]) + ", "
+    out = out + "\"roots\": " + _native_ir_roots_json(call["roots"]) + ", "
+    out = out + json_kv_str("call_depth", call["call_depth"])
+    out = out + " }"
+    return out
+}
+
+fn _native_ir_ops_json(ops) {
+    if ops == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(ops)
+    var i = 0
+    while i < n {
+        var op = ops[i]
+        if op != nil && op["kind"] == "runtime_helper_call" { oren_list_push(parts, _native_ir_helper_json(op)) }
+        else { oren_list_push(parts, "{}") }
+        i = i + 1
+    }
+    return "[" + join_with(parts, ", ") + "]"
+}
+
+fn _native_ir_block_json(block) {
+    if block == nil { return "null" }
+    var out = "      {\n"
+    out = out + "        " + json_kv_str("label", block["label"]) + ",\n"
+    out = out + "        \"ops\": " + _native_ir_ops_json(block["ops"]) + ",\n"
+    out = out + "        \"terminator\": " + _native_ir_term_json(block["terminator"]) + "\n"
+    out = out + "      }"
+    return out
+}
+
+fn _native_ir_blocks_json(blocks) {
+    if blocks == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(blocks)
+    var i = 0
+    while i < n {
+        oren_list_push(parts, _native_ir_block_json(blocks[i]))
+        i = i + 1
+    }
+    return "[\n" + join_with(parts, ",\n") + "\n    ]"
+}
+
+fn _native_ir_helpers_json(calls) {
+    if calls == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(calls)
+    var i = 0
+    while i < n {
+        oren_list_push(parts, _native_ir_helper_json(calls[i]))
+        i = i + 1
+    }
+    return "[" + join_with(parts, ", ") + "]"
+}
+
+fn _native_ir_function_json(fn0) {
+    if fn0 == nil { return "null" }
+    var out = "    {\n"
+    out = out + "      " + json_kv_str("name", fn0["name"]) + ",\n"
+    out = out + "      " + json_kv_int("arity", fn0["arity"]) + ",\n"
+    out = out + "      " + json_kv_int("frame_slots", fn0["frame_slots"]) + ",\n"
+    out = out + "      \"roots\": " + _native_ir_roots_json(fn0["roots"]) + ",\n"
+    out = out + "      \"helper_calls\": " + _native_ir_helpers_json(fn0["helper_calls"]) + ",\n"
+    out = out + "      \"blocks\": " + _native_ir_blocks_json(fn0["blocks"]) + "\n"
+    out = out + "    }"
+    return out
+}
+
+fn native_ir_json(ir) {
+    if ir == nil { return "{}\n" }
+    var validation = native_ir.validate_module(ir)
+    var fparts = []
+    var fns = ir["functions"]
+    var fns_len = 0
+    if fns != nil { fns_len = oren_list_len(fns) }
+    var i = 0
+    while i < fns_len {
+        oren_list_push(fparts, _native_ir_function_json(fns[i]))
+        i = i + 1
+    }
+    var out = "{\n"
+    out = out + "  " + json_kv_str("schema", ir["schema"]) + ",\n"
+    out = out + "  \"target\": " + _native_ir_target_json(ir["target"]) + ",\n"
+    out = out + "  \"imports\": " + _json_string_array_plain(ir["imports"]) + ",\n"
+    out = out + "  \"exports\": " + _json_string_array_plain(ir["exports"]) + ",\n"
+    out = out + "  \"data\": [],\n"
+    out = out + "  \"globals\": [],\n"
+    out = out + "  \"functions\": [\n"
+    out = out + join_with(fparts, ",\n")
+    out = out + "\n  ],\n"
+    out = out + "  \"validation\": { "
+    out = out + json_kv_bool("ok", validation["ok"]) + ", "
+    out = out + "\"errors\": " + _json_string_array_plain(validation["errors"])
+    out = out + " }\n"
+    out = out + "}\n"
+    return out
 }
 
 fn write_or_print(out_path, content) {

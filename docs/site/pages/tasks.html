@@ -821,7 +821,9 @@
 <p>     with local <code>clang</code>, <code>llvm-config</code>, and <code>llc</code> availability so backend work</p>
 <p>     does not depend on implicit host assumptions. <code>lib/compiler/native_ir_v0.oren</code></p>
 <p>     and <code>make verify-native-ir-validator</code> now provide the first structural</p>
-<p>     schema gate without changing production x64/ARM64 emitters.</p>
+<p>     schema gate without changing production x64/ARM64 emitters. `oren dump</p>
+<p>     native-ir<code> plus </code>make verify-native-ir-dump` now emit and validate a</p>
+<p>     linked-program skeleton for <code>examples/hello.oren</code>.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

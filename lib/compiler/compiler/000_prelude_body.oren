@@ -100,7 +100,7 @@ fn cli_spec() {
     argparse.cmd_option_env(clean, "--cache-dir", nil, "string", "", "Build cache directory to remove", "OREN_CACHE_DIR")
 
     var dumpcmd = argparse.add_command(p, "dump", "Dump compiler internals for troubleshooting (JSON)")
-    argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked|graph")
+    argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked|graph|native-ir")
     argparse.cmd_positional(dumpcmd, "file.oren", true, "Input source file")
     argparse.cmd_option(dumpcmd, "--out", "-o", "string", "", "Output path (default: stdout)")
     argparse.cmd_option(dumpcmd, "--target", nil, "string", "auto", "Target OS for lowering: macos|linux|windows|auto (legacy; prefer --platform)")

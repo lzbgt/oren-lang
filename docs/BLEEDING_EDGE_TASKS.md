@@ -499,7 +499,9 @@ This file is the concise task view. Detailed implementation status lives in
      with local `clang`, `llvm-config`, and `llc` availability so backend work
      does not depend on implicit host assumptions. `lib/compiler/native_ir_v0.oren`
      and `make verify-native-ir-validator` now provide the first structural
-     schema gate without changing production x64/ARM64 emitters.
+     schema gate without changing production x64/ARM64 emitters. `oren dump
+     native-ir` plus `make verify-native-ir-dump` now emit and validate a
+     linked-program skeleton for `examples/hello.oren`.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop
