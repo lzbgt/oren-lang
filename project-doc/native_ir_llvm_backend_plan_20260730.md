@@ -152,5 +152,11 @@ after it has round-trip/parity evidence. Until then:
    native IR, writes an emission manifest, skips clearly on this host because
    `llvm-config`/`llc` are absent, and fails fast when
    `NATIVE_IR_REQUIRE_LLVM=1`.
-10. Add backend-neutral type/layout records for values, helper arguments, and
-    returns before attempting semantic LLVM IR lowering beyond the probe object.
+10. Done: add backend-neutral type/layout records for values, helper arguments,
+    and returns before attempting semantic LLVM IR lowering beyond the probe
+    object. The v0 schema now carries `tagged`/`void` layouts, function
+    return/value-type records, and runtime-helper arg/result type records; dump,
+    parity, validator, and LLVM-object gates validate that surface.
+11. Add semantic LLVM IR lowering for the typed const/CFG/helper subset behind
+    the existing full-toolchain gate, keeping current x64/ARM64 emitters as the
+    oracle until object emission can pass parity.

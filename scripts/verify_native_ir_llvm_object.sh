@@ -49,11 +49,20 @@ with open(path, "r", encoding="utf-8") as fh:
 assert ir["schema"] == "native_ir_v0", ir.get("schema")
 assert ir["validation"]["ok"] is True, ir["validation"]
 assert ir["validation"]["errors"] == [], ir["validation"]
+type_map = {t["id"]: t for t in ir["types"]}
+assert type_map["tagged"]["bits"] == 64 and type_map["tagged"]["align"] == 8, type_map
+assert type_map["void"]["kind"] == "void", type_map
 assert len(ir["functions"]) > 0, ir
 main = next((fn for fn in ir["functions"] if fn["name"] == "main"), None)
 assert main is not None, [fn["name"] for fn in ir["functions"][:20]]
+assert main["return_type"] == "tagged", main
+value_types = {vt["value"]: vt["type"] for vt in main["value_types"]}
+assert value_types and all(t == "tagged" for t in value_types.values()), main["value_types"]
 helper_ops = [op for block in main["blocks"] for op in block["ops"] if op["kind"] == "runtime_helper_call"]
-print(f"native_ir_validated=1 platform={platform} functions={len(ir['functions'])} main_helpers={len(helper_ops)}")
+for op in helper_ops:
+    assert op["arg_types"] == ["tagged"] * len(op["args"]), op
+    assert op["result_type"] == "tagged", op
+print(f"native_ir_validated=1 platform={platform} functions={len(ir['functions'])} main_helpers={len(helper_ops)} types={len(type_map)}")
 PY
 
 {
@@ -62,6 +71,7 @@ PY
   printf 'source=%s\n' "$src"
   printf 'platform=%s\n' "$platform"
   printf 'native_ir=%s\n' "$native_ir_json"
+  printf 'type_layout=tagged:64:8,void:0:1\n'
   printf 'toolchain_report=%s\n' "$toolchain_report"
   printf 'llvm_ready=%s\n' "$llvm_ready"
 } >"$manifest"

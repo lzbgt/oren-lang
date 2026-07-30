@@ -30,6 +30,9 @@ assert ir["schema"] == "native_ir_v0", ir.get("schema")
 assert ir["target"] == {"arch": "x64", "os": "linux", "abi": "sysv"}, ir["target"]
 assert ir["validation"]["ok"] is True, ir["validation"]
 assert ir["validation"]["errors"] == [], ir["validation"]
+types = {t["id"]: t for t in ir["types"]}
+assert types["tagged"] == {"id": "tagged", "kind": "oren_value", "bits": 64, "align": 8, "abi_class": "integer"}, types
+assert types["void"]["kind"] == "void", types
 
 funcs = ir["functions"]
 names = [fn["name"] for fn in funcs]
@@ -40,6 +43,9 @@ assert len(names) == len(set(names)), "duplicate function names in native IR dum
 main = next(fn for fn in funcs if fn["name"] == "main")
 assert main["arity"] == 0, main
 assert main["frame_slots"] == 0, main
+assert main["return_type"] == "tagged", main
+value_types = {vt["value"]: vt["type"] for vt in main["value_types"]}
+assert value_types and all(t == "tagged" for t in value_types.values()), main["value_types"]
 assert len(main["blocks"]) > 1, main["blocks"]
 entry = main["blocks"][0]
 assert entry["label"] == "entry", entry
@@ -65,6 +71,10 @@ assert {"print", "exit"}.issubset(helper_names), helper_ops
 for op in helper_ops:
     assert op["safepoint"] is True, op
     assert op["call_depth"] == "enter_exit", op
+    assert op["arg_types"] == ["tagged"] * len(op["args"]), op
+    assert op["result_type"] == "tagged", op
+    if op["result"] is not None:
+        assert value_types[op["result"]] == "tagged", (op, value_types)
     assert isinstance(op["clobbers"], list) and len(op["clobbers"]) > 0, op
     assert isinstance(op["roots"], list), op
     for root in op["roots"]:

@@ -12,10 +12,22 @@ fn target(arch, os, abi) {
     return {"arch": arch, "os": os, "abi": abi}
 }
 
+fn type_layout(id, kind, bits, align, abi_class) {
+    return {"id": id, "kind": kind, "bits": bits, "align": align, "abi_class": abi_class}
+}
+
+fn default_types() {
+    return [
+        type_layout("tagged", "oren_value", 64, 8, "integer"),
+        type_layout("void", "void", 0, 1, "none")
+    ]
+}
+
 fn module(target_desc) {
     return {
         "schema": NATIVE_IR_V0_SCHEMA,
         "target": target_desc,
+        "types": default_types(),
         "functions": [],
         "data": [],
         "globals": [],
@@ -29,6 +41,8 @@ fn function(name, arity, frame_slots, blocks) {
         "name": name,
         "arity": arity,
         "frame_slots": frame_slots,
+        "return_type": "tagged",
+        "value_types": [],
         "blocks": blocks,
         "roots": [],
         "helper_calls": [],
@@ -50,12 +64,32 @@ fn term_unreachable() { return {"kind": "unreachable"} }
 
 fn root(local_id, kind) { return {"local": local_id, "kind": kind} }
 
+fn value_type(value, type_id) { return {"value": value, "type": type_id} }
+
+fn _repeat_type_for_args(args, type_id) {
+    var out = []
+    if args == nil { return out }
+    var n = oren_list_len(args)
+    var i = 0
+    while i < n {
+        oren_list_push(out, type_id)
+        i = i + 1
+    }
+    return out
+}
+
 fn runtime_helper_call(name, args, result, clobbers, safepoint, roots, call_depth) {
+    return runtime_helper_call_typed(name, args, result, _repeat_type_for_args(args, "tagged"), "tagged", clobbers, safepoint, roots, call_depth)
+}
+
+fn runtime_helper_call_typed(name, args, result, arg_types, result_type, clobbers, safepoint, roots, call_depth) {
     return {
         "kind": "runtime_helper_call",
         "name": name,
         "args": args,
         "result": result,
+        "arg_types": arg_types,
+        "result_type": result_type,
         "clobbers": clobbers,
         "safepoint": safepoint,
         "roots": roots,
@@ -161,6 +195,82 @@ fn _validate_name_list(xs, field, errors) {
     }
 }
 
+fn _validate_type_layouts(types, errors) {
+    var ids = []
+    if types == nil || oren_is_list(types) != true {
+        _add_error(errors, "types must be non-empty list")
+        return ids
+    }
+    var n = oren_list_len(types)
+    if n == 0 { _add_error(errors, "types must be non-empty list") }
+    var i = 0
+    while i < n {
+        var t = types[i]
+        if t == nil || oren_is_map(t) != true {
+            _add_error(errors, "type layout must be map")
+        } else {
+            var id = t["id"]
+            var label = "<invalid>"
+            if _is_nonempty_string(id) == true { label = id }
+            if _is_nonempty_string(id) != true {
+                _add_error(errors, "type id must be non-empty string")
+            } else if _list_has_string(ids, id) == true {
+                _add_error(errors, "duplicate type id " + id)
+            } else {
+                oren_list_push(ids, id)
+            }
+            if _is_nonempty_string(t["kind"]) != true { _add_error(errors, "type " + label + " kind must be non-empty string") }
+            if _is_int(t["bits"]) != true || t["bits"] < 0 { _add_error(errors, "type " + label + " bits must be non-negative int") }
+            if _is_int(t["align"]) != true || t["align"] <= 0 { _add_error(errors, "type " + label + " align must be positive int") }
+            if _is_nonempty_string(t["abi_class"]) != true { _add_error(errors, "type " + label + " abi_class must be non-empty string") }
+        }
+        i = i + 1
+    }
+    return ids
+}
+
+fn _validate_type_ref(type_ids, type_id, owner, errors) {
+    if _is_nonempty_string(type_id) != true {
+        _add_error(errors, owner + " type must be non-empty string")
+        return nil
+    }
+    if _list_has_string(type_ids, type_id) != true {
+        _add_error(errors, owner + " unknown type " + type_id)
+    }
+}
+
+fn _validate_type_ref_list(xs, owner, type_ids, errors) {
+    if xs == nil || oren_is_list(xs) != true {
+        _add_error(errors, owner + " must be list")
+        return nil
+    }
+    var n = oren_list_len(xs)
+    var i = 0
+    while i < n {
+        _validate_type_ref(type_ids, xs[i], owner + " entry", errors)
+        i = i + 1
+    }
+}
+
+fn _validate_value_types(value_types, owner, type_ids, errors) {
+    if value_types == nil || oren_is_list(value_types) != true {
+        _add_error(errors, owner + " value_types must be list")
+        return nil
+    }
+    var n = oren_list_len(value_types)
+    var i = 0
+    while i < n {
+        var vt = value_types[i]
+        if vt == nil || oren_is_map(vt) != true {
+            _add_error(errors, owner + " value_type must be map")
+        } else {
+            if _is_nonempty_string(vt["value"]) != true { _add_error(errors, owner + " value_type.value must be non-empty string") }
+            _validate_type_ref(type_ids, vt["type"], owner + " value_type", errors)
+        }
+        i = i + 1
+    }
+}
+
 fn _validate_roots(roots, owner, required, errors) {
     if roots == nil {
         if required == true { _add_error(errors, owner + " safepoint missing roots") }
@@ -184,17 +294,27 @@ fn _validate_roots(roots, owner, required, errors) {
     }
 }
 
-fn _validate_helper_call(call, owner, errors) {
+fn _validate_helper_call(call, owner, type_ids, errors) {
     if call == nil || oren_is_map(call) != true {
         _add_error(errors, owner + " helper call must be map")
         return nil
     }
     if _is_nonempty_string(call["name"]) != true { _add_error(errors, owner + " helper name must be non-empty string") }
-    if call["args"] == nil || oren_is_list(call["args"]) != true { _add_error(errors, owner + " helper args must be list") }
+    var args = call["args"]
+    if args == nil || oren_is_list(args) != true {
+        _add_error(errors, owner + " helper args must be list")
+    } else {
+        var arg_types = call["arg_types"]
+        _validate_type_ref_list(arg_types, owner + " helper arg_types", type_ids, errors)
+        if arg_types != nil && oren_is_list(arg_types) == true && oren_list_len(arg_types) != oren_list_len(args) {
+            _add_error(errors, owner + " helper arg_types length must match args")
+        }
+    }
     _validate_name_list(call["clobbers"], owner + " helper clobbers", errors)
     if call["result"] != nil && _is_nonempty_string(call["result"]) != true {
         _add_error(errors, owner + " helper result must be string or nil")
     }
+    _validate_type_ref(type_ids, call["result_type"], owner + " helper result_type", errors)
     if call["safepoint"] != nil && call["safepoint"] != true && call["safepoint"] != false {
         _add_error(errors, owner + " helper safepoint must be bool")
     }
@@ -202,7 +322,7 @@ fn _validate_helper_call(call, owner, errors) {
     _validate_roots(call["roots"], owner + " helper", call["safepoint"] == true, errors)
 }
 
-fn _validate_op(op, fn_name, block_label, index, errors) {
+fn _validate_op(op, fn_name, block_label, index, type_ids, errors) {
     var owner = "function " + fn_name + " block " + block_label + " op " + oren_int_to_string(index)
     if op == nil || oren_is_map(op) != true {
         _add_error(errors, owner + " must be map")
@@ -214,7 +334,7 @@ fn _validate_op(op, fn_name, block_label, index, errors) {
         return nil
     }
     if kind == "runtime_helper_call" {
-        _validate_helper_call(op, owner, errors)
+        _validate_helper_call(op, owner, type_ids, errors)
         return nil
     }
     if kind == "const" {
@@ -349,7 +469,7 @@ fn _collect_block_labels(fn_rec, fn_name, errors) {
     return labels
 }
 
-fn _validate_function(fn_rec, seen, errors) {
+fn _validate_function(fn_rec, seen, type_ids, errors) {
     if fn_rec == nil || oren_is_map(fn_rec) != true {
         _add_error(errors, "function must be map")
         return nil
@@ -365,6 +485,8 @@ fn _validate_function(fn_rec, seen, errors) {
     }
     if _is_int(fn_rec["arity"]) != true || fn_rec["arity"] < 0 { _add_error(errors, "function " + name + " arity must be non-negative int") }
     if _is_int(fn_rec["frame_slots"]) != true || fn_rec["frame_slots"] < 0 { _add_error(errors, "function " + name + " frame_slots must be non-negative int") }
+    _validate_type_ref(type_ids, fn_rec["return_type"], "function " + name + " return_type", errors)
+    _validate_value_types(fn_rec["value_types"], "function " + name, type_ids, errors)
 
     _validate_roots(fn_rec["roots"], "function " + name, false, errors)
     var helper_calls = fn_rec["helper_calls"]
@@ -375,7 +497,7 @@ fn _validate_function(fn_rec, seen, errors) {
             var hn = oren_list_len(helper_calls)
             var hi = 0
             while hi < hn {
-                _validate_helper_call(helper_calls[hi], "function " + name + " helper " + oren_int_to_string(hi), errors)
+                _validate_helper_call(helper_calls[hi], "function " + name + " helper " + oren_int_to_string(hi), type_ids, errors)
                 hi = hi + 1
             }
         }
@@ -399,7 +521,7 @@ fn _validate_function(fn_rec, seen, errors) {
             var on = oren_list_len(ops)
             var oi = 0
             while oi < on {
-                _validate_op(ops[oi], name, label, oi, errors)
+                _validate_op(ops[oi], name, label, oi, type_ids, errors)
                 oi = oi + 1
             }
         }
@@ -417,6 +539,7 @@ fn _validate_module_into(ir, errors) {
         _add_error(errors, "schema must be " + NATIVE_IR_V0_SCHEMA)
     }
     _validate_target(ir["target"], errors)
+    var type_ids = _validate_type_layouts(ir["types"], errors)
     _validate_name_list(ir["imports"], "imports", errors)
     _validate_name_list(ir["exports"], "exports", errors)
     if ir["data"] != nil && oren_is_list(ir["data"]) != true { _add_error(errors, "data must be list") }
@@ -432,7 +555,7 @@ fn _validate_module_into(ir, errors) {
     var seen = {}
     var i = 0
     while i < n {
-        _validate_function(fns[i], seen, errors)
+        _validate_function(fns[i], seen, type_ids, errors)
         i = i + 1
     }
 }

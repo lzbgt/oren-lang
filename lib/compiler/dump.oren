@@ -52,6 +52,20 @@ fn _native_ir_new_tmp(ctx) {
     return "%t" + oren_int_to_string(n)
 }
 
+fn _native_ir_record_value_type(ctx, value, type_id) {
+    if value == nil { return nil }
+    var seen = ctx["value_type_seen"]
+    if seen[value] == true { return nil }
+    seen[value] = true
+    oren_list_push(ctx["value_types"], native_ir.value_type(value, type_id))
+}
+
+fn _native_ir_new_tmp_typed(ctx, type_id) {
+    var tmp = _native_ir_new_tmp(ctx)
+    _native_ir_record_value_type(ctx, tmp, type_id)
+    return tmp
+}
+
 fn _native_ir_new_label(ctx, prefix) {
     var n = ctx["next_label"]
     ctx["next_label"] = n + 1
@@ -80,6 +94,7 @@ fn _native_ir_helper_clobbers_for(abi) {
 
 fn _native_ir_push_root(ctx, roots, local_id) {
     if local_id == nil { return nil }
+    _native_ir_record_value_type(ctx, local_id, "tagged")
     var seen = ctx["root_seen"]
     if seen[local_id] == true { return nil }
     seen[local_id] = true
@@ -100,6 +115,19 @@ fn _native_ir_roots_for_args(ctx, args) {
     return roots
 }
 
+fn _native_ir_arg_types_for_values(ctx, args) {
+    var types = []
+    if args == nil { return types }
+    var n = oren_list_len(args)
+    var i = 0
+    while i < n {
+        _native_ir_record_value_type(ctx, args[i], "tagged")
+        oren_list_push(types, "tagged")
+        i = i + 1
+    }
+    return types
+}
+
 fn _native_ir_expr_name(expr) {
     if expr == nil { return nil }
     if expr["type"] == "Identifier" { return expr["value"] }
@@ -115,45 +143,45 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
     if expr == nil { return nil }
     var t = expr["type"]
     if t == "Integer" {
-        var dst_i = _native_ir_new_tmp(ctx)
+        var dst_i = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_const(dst_i, "int", expr["value"]))
         return dst_i
     }
     if t == "Float" {
-        var dst_f = _native_ir_new_tmp(ctx)
+        var dst_f = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_const(dst_f, "float", expr["value"]))
         return dst_f
     }
     if t == "String" {
-        var dst_s = _native_ir_new_tmp(ctx)
+        var dst_s = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_const(dst_s, "string", expr["value"]))
         return dst_s
     }
     if t == "Boolean" {
-        var dst_b = _native_ir_new_tmp(ctx)
+        var dst_b = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_const(dst_b, "bool", expr["value"]))
         return dst_b
     }
     if t == "Nil" {
-        var dst_nil = _native_ir_new_tmp(ctx)
+        var dst_nil = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_const(dst_nil, "nil", nil))
         return dst_nil
     }
     if t == "Identifier" {
-        var dst_id = _native_ir_new_tmp(ctx)
+        var dst_id = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_local_get(dst_id, expr["value"]))
         return dst_id
     }
     if t == "Infix" {
         var left = _native_ir_lower_expr(ctx, ops, expr["left"])
         var right = _native_ir_lower_expr(ctx, ops, expr["right"])
-        var dst_in = _native_ir_new_tmp(ctx)
+        var dst_in = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_binary(dst_in, expr["op"], left, right))
         return dst_in
     }
     if t == "Prefix" {
         var val = _native_ir_lower_expr(ctx, ops, expr["right"])
-        var dst_pre = _native_ir_new_tmp(ctx)
+        var dst_pre = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_unary(dst_pre, expr["op"], val))
         return dst_pre
     }
@@ -173,12 +201,14 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
             callee = _native_ir_lower_expr(ctx, ops, expr["fn"])
             callee_kind = "value"
         }
-        var dst_call = _native_ir_new_tmp(ctx)
+        var dst_call = _native_ir_new_tmp_typed(ctx, "tagged")
         if callee_kind == "direct" && _native_ir_is_runtime_helper_callee(callee) == true {
-            var helper = native_ir.runtime_helper_call(
+            var helper = native_ir.runtime_helper_call_typed(
                 callee,
                 args,
                 dst_call,
+                _native_ir_arg_types_for_values(ctx, args),
+                "tagged",
                 _native_ir_helper_clobbers_for(ctx["abi"]),
                 true,
                 _native_ir_roots_for_args(ctx, args),
@@ -194,7 +224,7 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
     if t == "Index" {
         var container = _native_ir_lower_expr(ctx, ops, expr["left"])
         var idx = _native_ir_lower_expr(ctx, ops, expr["index"])
-        var dst_idx = _native_ir_new_tmp(ctx)
+        var dst_idx = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_index_get(dst_idx, container, idx))
         return dst_idx
     }
@@ -208,12 +238,12 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
             oren_list_push(elements, _native_ir_lower_expr(ctx, ops, es[ei]))
             ei = ei + 1
         }
-        var dst_arr = _native_ir_new_tmp(ctx)
+        var dst_arr = _native_ir_new_tmp_typed(ctx, "tagged")
         oren_list_push(ops, native_ir.op_array(dst_arr, elements))
         return dst_arr
     }
     var opaque_inputs = []
-    var dst_opq = _native_ir_new_tmp(ctx)
+    var dst_opq = _native_ir_new_tmp_typed(ctx, "tagged")
     oren_list_push(ops, native_ir.op_opaque_expr(dst_opq, t, opaque_inputs))
     return dst_opq
 }
@@ -324,13 +354,19 @@ fn _native_ir_lower_stmt(ctx, ops, stmt) {
     if t == "Var" {
         var value = _native_ir_lower_expr(ctx, ops, stmt["value"])
         var name = _native_ir_stmt_name(stmt)
-        if name != nil && value != nil { oren_list_push(ops, native_ir.op_local_set(name, value)) }
+        if name != nil && value != nil {
+            _native_ir_record_value_type(ctx, name, "tagged")
+            oren_list_push(ops, native_ir.op_local_set(name, value))
+        }
         return nil
     }
     if t == "Assign" {
         var value_a = _native_ir_lower_expr(ctx, ops, stmt["value"])
         var name_a = _native_ir_stmt_name(stmt)
-        if name_a != nil && value_a != nil { oren_list_push(ops, native_ir.op_local_set(name_a, value_a)) }
+        if name_a != nil && value_a != nil {
+            _native_ir_record_value_type(ctx, name_a, "tagged")
+            oren_list_push(ops, native_ir.op_local_set(name_a, value_a))
+        }
         return nil
     }
     if t == "Set" {
@@ -377,7 +413,16 @@ fn _native_ir_function_from_entry(entry, abi) {
     if func != nil { params = func["params"] }
     var arity = 0
     if params != nil { arity = oren_list_len(params) }
-    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": [], "roots": [], "root_seen": {}, "helper_calls": [], "abi": abi}
+    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": [], "roots": [], "root_seen": {}, "helper_calls": [], "value_types": [], "value_type_seen": {}, "abi": abi}
+    if params != nil {
+        var pi = 0
+        var pn = oren_list_len(params)
+        while pi < pn {
+            var p = params[pi]
+            if p != nil && p["value"] != nil { _native_ir_record_value_type(ctx, p["value"], "tagged") }
+            pi = pi + 1
+        }
+    }
     if func != nil {
         var stmts = analysis.function_body_top_level_stmts(func)
         _native_ir_lower_sequence(ctx, "entry", stmts, nil)
@@ -387,6 +432,7 @@ fn _native_ir_function_from_entry(entry, abi) {
     var fn0 = native_ir.function(name, arity, arity, ctx["blocks"])
     fn0["roots"] = ctx["roots"]
     fn0["helper_calls"] = ctx["helper_calls"]
+    fn0["value_types"] = ctx["value_types"]
     return fn0
 }
 
@@ -438,6 +484,30 @@ fn _native_ir_target_json(t) {
     return "{ " + json_kv_str("arch", t["arch"]) + ", " + json_kv_str("os", t["os"]) + ", " + json_kv_str("abi", t["abi"]) + " }"
 }
 
+fn _native_ir_type_json(t) {
+    if t == nil { return "null" }
+    var out = "{ "
+    out = out + json_kv_str("id", t["id"]) + ", "
+    out = out + json_kv_str("kind", t["kind"]) + ", "
+    out = out + json_kv_int("bits", t["bits"]) + ", "
+    out = out + json_kv_int("align", t["align"]) + ", "
+    out = out + json_kv_str("abi_class", t["abi_class"])
+    out = out + " }"
+    return out
+}
+
+fn _native_ir_types_json(types) {
+    if types == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(types)
+    var i = 0
+    while i < n {
+        oren_list_push(parts, _native_ir_type_json(types[i]))
+        i = i + 1
+    }
+    return "[" + join_with(parts, ", ") + "]"
+}
+
 fn _native_ir_root_json(r) {
     if r == nil { return "null" }
     return "{ " + json_kv_str("local", r["local"]) + ", " + json_kv_str("kind", r["kind"]) + " }"
@@ -481,6 +551,8 @@ fn _native_ir_helper_json(call) {
     out = out + json_kv_str("name", call["name"]) + ", "
     out = out + "\"args\": " + _json_string_array_plain(call["args"]) + ", "
     out = out + json_kv_str("result", call["result"]) + ", "
+    out = out + "\"arg_types\": " + _json_string_array_plain(call["arg_types"]) + ", "
+    out = out + json_kv_str("result_type", call["result_type"]) + ", "
     out = out + "\"clobbers\": " + _json_string_array_plain(call["clobbers"]) + ", "
     out = out + json_kv_bool("safepoint", call["safepoint"]) + ", "
     out = out + "\"roots\": " + _native_ir_roots_json(call["roots"]) + ", "
@@ -589,12 +661,31 @@ fn _native_ir_helpers_json(calls) {
     return "[" + join_with(parts, ", ") + "]"
 }
 
+fn _native_ir_value_type_json(vt) {
+    if vt == nil { return "null" }
+    return "{ " + json_kv_str("value", vt["value"]) + ", " + json_kv_str("type", vt["type"]) + " }"
+}
+
+fn _native_ir_value_types_json(value_types) {
+    if value_types == nil { return "[]" }
+    var parts = []
+    var n = oren_list_len(value_types)
+    var i = 0
+    while i < n {
+        oren_list_push(parts, _native_ir_value_type_json(value_types[i]))
+        i = i + 1
+    }
+    return "[" + join_with(parts, ", ") + "]"
+}
+
 fn _native_ir_function_json(fn0) {
     if fn0 == nil { return "null" }
     var out = "    {\n"
     out = out + "      " + json_kv_str("name", fn0["name"]) + ",\n"
     out = out + "      " + json_kv_int("arity", fn0["arity"]) + ",\n"
     out = out + "      " + json_kv_int("frame_slots", fn0["frame_slots"]) + ",\n"
+    out = out + "      " + json_kv_str("return_type", fn0["return_type"]) + ",\n"
+    out = out + "      \"value_types\": " + _native_ir_value_types_json(fn0["value_types"]) + ",\n"
     out = out + "      \"roots\": " + _native_ir_roots_json(fn0["roots"]) + ",\n"
     out = out + "      \"helper_calls\": " + _native_ir_helpers_json(fn0["helper_calls"]) + ",\n"
     out = out + "      \"blocks\": " + _native_ir_blocks_json(fn0["blocks"]) + "\n"
@@ -617,6 +708,7 @@ fn native_ir_json(ir) {
     var out = "{\n"
     out = out + "  " + json_kv_str("schema", ir["schema"]) + ",\n"
     out = out + "  \"target\": " + _native_ir_target_json(ir["target"]) + ",\n"
+    out = out + "  \"types\": " + _native_ir_types_json(ir["types"]) + ",\n"
     out = out + "  \"imports\": " + _json_string_array_plain(ir["imports"]) + ",\n"
     out = out + "  \"exports\": " + _json_string_array_plain(ir["exports"]) + ",\n"
     out = out + "  \"data\": [],\n"

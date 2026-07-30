@@ -5052,13 +5052,15 @@ make docs-site
   validated source-operation and CFG records for `examples/hello.oren`;
   `verify-native-ir-parity` now checks linked function-surface parity plus
   required operation kinds, closed branch/jump targets, helper-call mirrors,
-  ABI-specific clobbers, call-depth mode, and tagged safepoint root records for
-  the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS. The
-  `verify-native-ir-llvm-object` gate now validates native IR and writes
+  ABI-specific clobbers, call-depth mode, tagged safepoint root records,
+  backend-neutral `tagged`/`void` type layouts, function return/value types, and
+  runtime-helper arg/result types for the initial fixture set across x64 Linux,
+  x64 Windows, and ARM64 macOS. The `verify-native-ir-llvm-object` gate now
+  validates native IR plus type metadata and writes
   `build/native_ir/llvm_object/manifest.txt`, skipping clearly when the full
   LLVM toolchain is absent and failing fast when `NATIVE_IR_REQUIRE_LLVM=1`.
-  Semantic LLVM lowering remains gated on backend-neutral type/layout records,
-  explicit full LLVM toolchain availability, and an opt-in backend path.
+  Semantic LLVM lowering remains gated on explicit full LLVM toolchain
+  availability and an opt-in backend path.
 
 ## Documentation Guardrail
 

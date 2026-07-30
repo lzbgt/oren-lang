@@ -21,7 +21,7 @@ fn valid_ir() {
     ir["exports"] = ["main"]
 
     var roots = [nir.root("acc", "tagged")]
-    var helper = nir.runtime_helper_call("oren_add", ["acc", "one"], "acc", ["rax", "rcx"], true, roots, "enter_exit")
+    var helper = nir.runtime_helper_call_typed("oren_add", ["acc", "one"], "acc", ["tagged", "tagged"], "tagged", ["rax", "rcx"], true, roots, "enter_exit")
     var ops = [
         nir.op_const("one", "int", "1"),
         nir.op_local_get("acc0", "acc"),
@@ -36,6 +36,13 @@ fn valid_ir() {
     var fn0 = nir.function("main", 0, 2, [entry, ret, slow])
     fn0["roots"] = roots
     fn0["helper_calls"] = [helper]
+    fn0["value_types"] = [
+        nir.value_type("one", "tagged"),
+        nir.value_type("acc", "tagged"),
+        nir.value_type("acc0", "tagged"),
+        nir.value_type("cond0", "tagged"),
+        nir.value_type("call0", "tagged")
+    ]
     oren_list_push(ir["functions"], fn0)
     return ir
 }
@@ -105,6 +112,23 @@ fn assert_bad_call_args() {
     assert_true(oren_list_len(res["errors"]) > 0, 71, "bad call args missing error")
 }
 
+fn assert_bad_type_ref() {
+    var ir = valid_ir()
+    ir["functions"][0]["value_types"][0]["type"] = "missing"
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 80, "bad value type accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 81, "bad value type missing error")
+}
+
+fn assert_bad_helper_arg_types() {
+    var ir = valid_ir()
+    ir["functions"][0]["helper_calls"][0]["arg_types"] = ["tagged"]
+    ir["functions"][0]["blocks"][0]["ops"][5]["arg_types"] = ["tagged"]
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 90, "bad helper arg_types accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 91, "bad helper arg_types missing error")
+}
+
 fn main() {
     if nir.schema_version() != "native_ir_v0" { fail(1, "schema version") }
     assert_valid()
@@ -115,6 +139,8 @@ fn main() {
     assert_duplicate_function()
     assert_bad_op_shape()
     assert_bad_call_args()
+    assert_bad_type_ref()
+    assert_bad_helper_arg_types()
     print("native_ir_validator_v0 OK")
     return 0
 }

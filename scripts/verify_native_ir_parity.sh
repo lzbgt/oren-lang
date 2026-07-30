@@ -77,16 +77,31 @@ def assert_cfg_closed(src, platform, fn):
             assert kind in {"return", "panic", "unreachable"}, (src, platform, fn["name"], block)
 
 
-def assert_helper_surface(src, platform, expected_target, fn):
+def assert_type_surface(src, platform, ir):
+    type_map = {t["id"]: t for t in ir["types"]}
+    assert type_map["tagged"]["kind"] == "oren_value", (src, platform, type_map)
+    assert type_map["tagged"]["bits"] == 64 and type_map["tagged"]["align"] == 8, (src, platform, type_map)
+    assert type_map["void"]["kind"] == "void", (src, platform, type_map)
+    return set(type_map)
+
+
+def assert_helper_surface(src, platform, expected_target, fn, type_ids):
     ops = [op for block in fn["blocks"] for op in block["ops"]]
     helper_ops = [op for op in ops if op["kind"] == "runtime_helper_call"]
     assert helper_ops == fn["helper_calls"], (src, platform, fn["name"], helper_ops, fn["helper_calls"])
+    assert fn["return_type"] in type_ids, (src, platform, fn)
+    value_types = {vt["value"]: vt["type"] for vt in fn["value_types"]}
+    assert all(t in type_ids for t in value_types.values()), (src, platform, fn["name"], value_types, type_ids)
     root_locals = {root["local"] for root in fn["roots"]}
     for root in fn["roots"]:
         assert root["kind"] == "tagged", (src, platform, fn["name"], root)
     for op in helper_ops:
         assert op["safepoint"] is True, (src, platform, fn["name"], op)
         assert op["call_depth"] == "enter_exit", (src, platform, fn["name"], op)
+        assert op["arg_types"] == ["tagged"] * len(op["args"]), (src, platform, fn["name"], op)
+        assert op["result_type"] == "tagged", (src, platform, fn["name"], op)
+        if op["result"] is not None:
+            assert value_types[op["result"]] == "tagged", (src, platform, fn["name"], op, value_types)
         assert isinstance(op["clobbers"], list) and len(op["clobbers"]) > 0, (src, platform, fn["name"], op)
         if expected_target["abi"] == "win64":
             assert "rcx" in op["clobbers"] and "rdi" not in op["clobbers"], (src, platform, fn["name"], op)
@@ -123,6 +138,7 @@ with open(log_path, "a", encoding="utf-8") as log:
             assert ir["target"] == expected_target, (src, platform, ir["target"], expected_target)
             assert ir["validation"]["ok"] is True, (src, platform, ir["validation"])
             assert ir["validation"]["errors"] == [], (src, platform, ir["validation"])
+            type_ids = assert_type_surface(src, platform, ir)
             assert linked_names == ir_names, (src, platform, linked_names, ir_names)
             assert len(ir_names) == len(set(ir_names)), (src, platform, "duplicate native IR function names")
 
@@ -134,7 +150,7 @@ with open(log_path, "a", encoding="utf-8") as log:
                 assert fn["frame_slots"] == fn["arity"], (src, platform, fn)
                 assert len(fn["blocks"]) >= 1, (src, platform, fn)
                 assert_cfg_closed(src, platform, fn)
-                assert_helper_surface(src, platform, expected_target, fn)
+                assert_helper_surface(src, platform, expected_target, fn, type_ids)
                 for block in fn["blocks"]:
                     assert isinstance(block["ops"], list), (src, platform, block)
 
