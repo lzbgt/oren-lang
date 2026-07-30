@@ -6146,16 +6146,18 @@ make docs-site</code></pre>
 <p>							  the core lowerer below the source-line guardrail.</p>
 <p>								  LLVM-native now also has</p>
 <p>								  `%oren_llvm_map { len, keys, values, key_kinds,</p>
-<p>								  owner_kind, capacity }` descriptor handles for empty and</p>
-<p>								  non-empty hash literals; non-empty literal pairs become explicit</p>
-<p>								  native-IR <code>index_set</code> map writes. Descriptor-backed exact keys,</p>
+<p>								  owner_kind, capacity }` descriptor handles for empty/non-empty</p>
+<p>								  hash literals and map-shaped struct constructor records;</p>
+<p>								  non-empty literal pairs and struct fields become explicit</p>
+<p>								  native-IR <code>index_set</code> map writes, and member get/set lowers to</p>
+<p>								  string-key map operations. Descriptor-backed exact keys,</p>
 <p>								  semantic string descriptor keys using length plus <code>memcmp</code>, and</p>
 <p>								  proven <code>oren_map_len</code> lowering are mapped to generated helpers.</p>
 <p>								  The C runtime registers map</p>
 <p>								  descriptors plus key/value/key-kind storage and roots</p>
 <p>								  proven map locals across safepoints; `make</p>
 <p>								  verify-native-ir-llvm-map-runtime` proves linked execution</p>
-<p>								  parity, hash-literal pair IR shape, and forced</p>
+<p>								  parity, hash-literal pair IR shape, struct/member IR shape, and forced</p>
 <p>								  GC-at-safepoint for that surface. The</p>
 <p>							  lowerer now carries map descriptor provenance through</p>
 <p>							  constant-index list reads and known-key map reads, so nested</p>

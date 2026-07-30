@@ -2,6 +2,9 @@
 // - proves empty and non-empty Hash literals lower into runtime-owned map descriptors
 // - proves semantic descriptor-backed string-key set/get and map length
 // - proves nested map descriptors survive helper safepoints and forced GC
+// - proves struct records lower through map-shaped constructor/member semantics
+
+struct RecordBox { name, payload }
 
 fn main() {
     var literal = {"first": 31, "second": 37}
@@ -11,6 +14,11 @@ fn main() {
     literal["first"] = 41
     if oren_map_len(literal) != 2 { return 23 }
     if literal["first"] != 41 { return 24 }
+    var dyn_name = oren_string_slice("xrecordy", 1, 7)
+    var box = RecordBox(dyn_name, literal)
+    if oren_string_eq(box.name, "record") != true { return 25 }
+    var literal_payload = box.payload
+    if literal_payload["second"] != 37 { return 26 }
 
     var m = {}
     m["alpha"] = 7
@@ -28,6 +36,9 @@ fn main() {
     m[alpha2] = 17
     if oren_map_len(m) != 2 { return 9 }
     if m["alpha"] != 17 { return 10 }
+    box.payload = m
+    var swapped_payload = box.payload
+    if swapped_payload["alpha"] != 17 { return 27 }
 
     var parent_list = [m]
     if oren_string_len("gc") != 2 { return 11 }

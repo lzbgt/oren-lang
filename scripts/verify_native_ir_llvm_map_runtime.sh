@@ -59,28 +59,55 @@ if main is None:
     raise SystemExit("missing main in native IR")
 
 found_literal_pairs = False
+found_record_constructor = False
+found_member_get = False
+found_member_set = False
 for block in main.get("blocks", []):
     ops = block.get("ops", [])
+    const_strings = {
+        op.get("result"): op.get("value")
+        for op in ops
+        if op.get("kind") == "const" and op.get("value_kind") == "string"
+    }
     for i, op in enumerate(ops):
+        if op.get("kind") == "opaque_expr" and op.get("expr_type") == "Member":
+            raise SystemExit("member access should lower into string-key index_get")
+        if op.get("kind") == "call" and op.get("callee") == "RecordBox":
+            raise SystemExit("record constructor should lower into map-shaped native IR")
         if op.get("kind") != "opaque_expr" or op.get("expr_type") != "Hash":
             continue
         result = op.get("result")
         writes = 0
+        has_type_tag = False
         for next_op in ops[i + 1:]:
             if next_op.get("kind") == "opaque_expr" and next_op.get("expr_type") == "Hash":
                 break
             if next_op.get("kind") == "index_set" and next_op.get("container") == result:
                 writes += 1
+                if const_strings.get(next_op.get("index")) == "__oren_type":
+                    has_type_tag = True
             if next_op.get("kind") == "local_set" and next_op.get("value") == result:
                 break
         if writes >= 2:
             found_literal_pairs = True
-            break
-    if found_literal_pairs:
+        if writes >= 3 and has_type_tag:
+            found_record_constructor = True
+    for op in ops:
+        if op.get("kind") == "index_get" and const_strings.get(op.get("index")) in ("name", "payload"):
+            found_member_get = True
+        if op.get("kind") == "index_set" and const_strings.get(op.get("index")) == "payload":
+            found_member_set = True
+    if found_literal_pairs and found_record_constructor and found_member_get and found_member_set:
         break
 
 if not found_literal_pairs:
     raise SystemExit("expected non-empty Hash literal pairs to lower into index_set ops")
+if not found_record_constructor:
+    raise SystemExit("expected record constructor to lower into a type-tagged Hash map")
+if not found_member_get:
+    raise SystemExit("expected record member access to lower into string-key index_get")
+if not found_member_set:
+    raise SystemExit("expected record member assignment to lower into string-key index_set")
 PY
 grep -Fq "%oren_llvm_map = type { i64, i64*, i64*, i64*, i64, i64 }" "$object.ll"
 grep -Fq "define i64 @oren_llvm_runtime_alloc_map" "$object.ll"
@@ -158,7 +185,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,non-empty-hash-literal-lowering,hash-literal-index-set-ir,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-map-descriptor-layout,empty-hash-allocation,non-empty-hash-literal-lowering,hash-literal-index-set-ir,struct-constructor-record-map,member-access-index-get-ir,member-set-index-set-ir,map-key-kind-sidecar,map-string-key-semantic-find,map-string-key-set-helper,map-string-key-get-helper,map-len-helper,map-runtime-registration,map-safepoint-roots,nested-list-map-provenance,nested-map-value-provenance,forced-gc-at-map-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM map runtime parity passed; summary: $summary"

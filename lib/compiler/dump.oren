@@ -66,6 +66,12 @@ fn _native_ir_new_tmp_typed(ctx, type_id) {
     return tmp
 }
 
+fn _native_ir_emit_string_const(ctx, ops, value) {
+    var dst = _native_ir_new_tmp_typed(ctx, "tagged")
+    oren_list_push(ops, native_ir.op_const(dst, "string", value))
+    return dst
+}
+
 fn _native_ir_new_label(ctx, prefix) {
     var n = ctx["next_label"]
     ctx["next_label"] = n + 1
@@ -139,6 +145,49 @@ fn _native_ir_expr_name(expr) {
     return nil
 }
 
+fn _native_ir_type_decl_name(type_decl) {
+    if type_decl == nil { return nil }
+    var name = type_decl["name"]
+    if name == nil { return nil }
+    if oren_is_string(name) == true { return name }
+    if name["type"] == "Identifier" { return name["value"] }
+    return nil
+}
+
+fn _native_ir_lower_type_ctor_call(ctx, ops, type_decl, args) {
+    var dst_record = _native_ir_new_tmp_typed(ctx, "tagged")
+    oren_list_push(ops, native_ir.op_opaque_expr(dst_record, "Hash", []))
+
+    var type_name = _native_ir_type_decl_name(type_decl)
+    var type_key = _native_ir_emit_string_const(ctx, ops, "__oren_type")
+    var type_value = _native_ir_emit_string_const(ctx, ops, type_name)
+    oren_list_push(ops, native_ir.op_index_set(dst_record, type_key, type_value))
+
+    var fields = type_decl["fields"]
+    var field_count = 0
+    if fields != nil { field_count = oren_list_len(fields) }
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+    var i = 0
+    while i < field_count {
+        var field = fields[i]
+        var field_name = nil
+        if field != nil && field["type"] == "Identifier" { field_name = field["value"] }
+        if field_name != nil {
+            var key = _native_ir_emit_string_const(ctx, ops, field_name)
+            var value = nil
+            if i < argc { value = args[i] }
+            if value == nil {
+                value = _native_ir_new_tmp_typed(ctx, "tagged")
+                oren_list_push(ops, native_ir.op_const(value, "nil", nil))
+            }
+            oren_list_push(ops, native_ir.op_index_set(dst_record, key, value))
+        }
+        i = i + 1
+    }
+    return dst_record
+}
+
 fn _native_ir_lower_expr(ctx, ops, expr) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -201,6 +250,9 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
             callee = _native_ir_lower_expr(ctx, ops, expr["fn"])
             callee_kind = "value"
         }
+        if callee_kind == "direct" && ctx["type_ctors"] != nil && ctx["type_ctors"][callee] != nil {
+            return _native_ir_lower_type_ctor_call(ctx, ops, ctx["type_ctors"][callee], args)
+        }
         var dst_call = _native_ir_new_tmp_typed(ctx, "tagged")
         if callee_kind == "direct" && _native_ir_is_runtime_helper_callee(callee) == true {
             var helper = native_ir.runtime_helper_call_typed(
@@ -220,6 +272,16 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
             oren_list_push(ops, native_ir.op_call(dst_call, callee, args, callee_kind))
         }
         return dst_call
+    }
+    if t == "Member" {
+        var prop = expr["prop"]
+        if prop != nil && prop["type"] == "Identifier" {
+            var member_container = _native_ir_lower_expr(ctx, ops, expr["left"])
+            var member_key = _native_ir_emit_string_const(ctx, ops, prop["value"])
+            var dst_member = _native_ir_new_tmp_typed(ctx, "tagged")
+            oren_list_push(ops, native_ir.op_index_get(dst_member, member_container, member_key))
+            return dst_member
+        }
     }
     if t == "Index" {
         var container = _native_ir_lower_expr(ctx, ops, expr["left"])
@@ -394,6 +456,16 @@ fn _native_ir_lower_stmt(ctx, ops, stmt) {
             oren_list_push(ops, native_ir.op_index_set(container, idx, value_s))
             return nil
         }
+        if left != nil && left["type"] == "Member" {
+            var prop = left["prop"]
+            if prop != nil && prop["type"] == "Identifier" {
+                var member_container = _native_ir_lower_expr(ctx, ops, left["left"])
+                var member_key = _native_ir_emit_string_const(ctx, ops, prop["value"])
+                var member_value = _native_ir_lower_expr(ctx, ops, stmt["value"])
+                oren_list_push(ops, native_ir.op_index_set(member_container, member_key, member_value))
+                return nil
+            }
+        }
         oren_list_push(ops, native_ir.op_opaque_stmt(t, []))
         return nil
     }
@@ -422,14 +494,14 @@ fn _native_ir_lower_stmt(ctx, ops, stmt) {
     return nil
 }
 
-fn _native_ir_function_from_entry(entry, abi) {
+fn _native_ir_function_from_entry(entry, abi, type_ctors) {
     var name = entry["name"]
     var func = entry["func"]
     var params = nil
     if func != nil { params = func["params"] }
     var arity = 0
     if params != nil { arity = oren_list_len(params) }
-    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": [], "roots": [], "root_seen": {}, "helper_calls": [], "value_types": [], "value_type_seen": {}, "abi": abi}
+    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": [], "roots": [], "root_seen": {}, "helper_calls": [], "value_types": [], "value_type_seen": {}, "abi": abi, "type_ctors": type_ctors}
     if params != nil {
         var pi = 0
         var pn = oren_list_len(params)
@@ -452,10 +524,29 @@ fn _native_ir_function_from_entry(entry, abi) {
     return fn0
 }
 
+fn _native_ir_collect_type_ctors(linked) {
+    var out = {}
+    if linked == nil { return out }
+    var ss = linked["statements"]
+    if ss == nil { return out }
+    var ss_len = oren_list_len(ss)
+    var i = 0
+    while i < ss_len {
+        var s = ss[i]
+        if s != nil && s["type"] == "Type" {
+            var name = _native_ir_type_decl_name(s)
+            if name != nil { out[name] = s }
+        }
+        i = i + 1
+    }
+    return out
+}
+
 fn native_ir_from_linked(linked, entry_path, arch, target_os) {
     var abi = _target_abi_for(arch, target_os)
     var ir = native_ir.module(native_ir.target(arch, target_os, abi))
     if linked == nil { return ir }
+    var type_ctors = _native_ir_collect_type_ctors(linked)
     var ss = linked["statements"]
     if ss == nil { return ir }
     // Keep std/imported/generated functions too: native backends compile the linked
@@ -467,7 +558,7 @@ fn native_ir_from_linked(linked, entry_path, arch, target_os) {
         if s == nil { i = i + 1; continue }
         var entry = analysis.top_level_function_surface_entry(s)
         if entry != nil {
-            oren_list_push(ir["functions"], _native_ir_function_from_entry(entry, abi))
+            oren_list_push(ir["functions"], _native_ir_function_from_entry(entry, abi, type_ctors))
         }
         i = i + 1
     }

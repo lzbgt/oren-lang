@@ -407,4 +407,10 @@ after it has round-trip/parity evidence. Until then:
     literal pair, preserving pair key/value lowering order and exposing the same
     backend-visible map mutation surface as statement-level writes. The focused
     map runtime gate asserts this JSON IR shape and linked LLVM execution parity.
-53. Add broader runtime-varying descriptor inputs and record-shaped values.
+53. Done: lower map-shaped struct records and member operations into native IR.
+    Struct constructor calls now lower inline to a type-tagged map descriptor
+    with `__oren_type` plus field-name `index_set` writes, and `record.field`
+    get/set lower to string-key map `index_get`/`index_set`. The focused map
+    runtime gate proves dynamic string/map field values, member update, forced
+    GC rooting, and rejects opaque constructor/member fallback in the JSON IR.
+54. Add broader runtime-varying descriptor inputs and record/member provenance.
