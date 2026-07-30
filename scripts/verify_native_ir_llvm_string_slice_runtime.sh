@@ -47,11 +47,15 @@ fi
 test -s "$object"
 test -s "$object.ll"
 grep -Fq "; helper oren_string_slice" "$object.ll"
+grep -Fq "; helper oren_string_concat" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_slice" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_string_concat" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_len" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_eq" "$object.ll"
-grep -Fq "switch i64 %arg1" "$object.ll"
-grep -Fq "switch i64 %arg2" "$object.ll"
+grep -Fq "%oren_llvm_string = type { i64, i8* }" "$object.ll"
+grep -Fq "@oren_llvm_string_desc_" "$object.ll"
+grep -Fq "call i8* @malloc" "$object.ll"
+grep -Fq "call i8* @memcpy" "$object.ll"
 grep -Fq "bcd" "$object.ll"
 if grep -Fq "@oren_llvm_runtime_helper" "$object.ll"; then
   echo "ERROR: stale generic LLVM runtime helper dispatcher appeared in string slice runtime IR" >&2
@@ -86,7 +90,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-slice-helper,slice-token-materialization,string-len-compose,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-slice-helper,named-oren-string-concat-helper,allocator-backed-slice-materialization,allocator-backed-concat-materialization,string-len-compose,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string slice runtime parity passed; summary: $summary"

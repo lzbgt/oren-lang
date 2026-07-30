@@ -48,8 +48,10 @@ test -s "$object"
 test -s "$object.ll"
 grep -Fq "; helper oren_string_eq" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_string_eq" "$object.ll"
-grep -Fq "switch i64 %arg0" "$object.ll"
-grep -Fq "icmp eq i64 %arg1" "$object.ll"
+grep -Fq "%oren_llvm_string = type { i64, i8* }" "$object.ll"
+grep -Fq "@oren_llvm_string_desc_" "$object.ll"
+grep -Fq "call i32 @memcmp" "$object.ll"
+grep -Fq "icmp eq i64 %a_len, %b_len" "$object.ll"
 if grep -Fq "@oren_llvm_runtime_helper" "$object.ll"; then
   echo "ERROR: stale generic LLVM runtime helper dispatcher appeared in string equality runtime IR" >&2
   exit 1
@@ -83,7 +85,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-eq-helper,string-token-equality,string-token-inequality\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-eq-helper,string-descriptor-equality,string-descriptor-inequality\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string equality runtime parity passed; summary: $summary"

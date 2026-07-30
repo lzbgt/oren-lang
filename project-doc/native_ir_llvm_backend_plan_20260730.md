@@ -210,7 +210,7 @@ after it has round-trip/parity evidence. Until then:
     proves helper invocation plus printed output on host ARM64 macOS.
 20. Done: replace the print helper shim with generated LLVM helper semantics
     for the constant-string print subset. The lowerer maps `print` helper calls
-    to `oren_llvm_helper_print`, emits string-token globals, and calls libc
+    to `oren_llvm_helper_print`, now emits descriptor-backed string globals, and calls libc
     `puts`; `make verify-native-ir-llvm-helper-runtime` now links only a tiny
     harness that invokes `oren_native_ir_main_probe`, so printed-output parity
     must come from generated LLVM IR.
@@ -226,21 +226,19 @@ after it has round-trip/parity evidence. Until then:
     explicit native-IR argument count while giving future runtime linking a
     stable per-helper symbol surface.
 23. Done: implement the first real named `oren_*` helper body. The lowerer maps
-    `oren_string_len` to generated `oren_llvm_helper_oren_string_len`, switches
-    over native-IR string-token IDs, returns UTF-8 byte lengths for constant
-    strings, and `make verify-native-ir-llvm-string-runtime` proves linked
-    execution parity against the native backend oracle.
-24. Done: add constant-token string equality semantics. `oren_string_eq` lowers
-    to generated `oren_llvm_helper_oren_string_eq`, rejects unknown/non-string
-    tokens, compares known token IDs for equality, and `make
+    `oren_string_len` to generated `oren_llvm_helper_oren_string_len`; it now
+    loads UTF-8 byte length from `%oren_llvm_string` descriptors, and `make
+    verify-native-ir-llvm-string-runtime` proves linked execution parity against
+    the native backend oracle.
+24. Done: add descriptor-backed string equality semantics. `oren_string_eq`
+    lowers to generated `oren_llvm_helper_oren_string_eq`, compares descriptor
+    lengths plus bytes with `memcmp`, and `make
     verify-native-ir-llvm-string-eq-runtime` proves equal and unequal string
     branches execute against the native backend oracle.
 25. Done: add constant-token string slice materialization. `oren_string_slice`
-    lowers to generated `oren_llvm_helper_oren_string_slice`, maps constant
-    source/start/end triples to synthesized string-token IDs, and `make
-    verify-native-ir-llvm-string-slice-runtime` proves the result composes with
-    generated `oren_string_eq` and `oren_string_len` helpers against the native
-    backend oracle.
+    originally lowered through synthesized string-token IDs, and `make
+    verify-native-ir-llvm-string-slice-runtime` proved composition through
+    generated equality/length helpers against the native backend oracle.
 26. Done: add constant-token byte and char access helpers. The lowerer emits
     generated `oren_llvm_helper_oren_string_byte_at_unchecked`,
     `oren_llvm_helper_oren_string_char_at`, and
@@ -252,7 +250,15 @@ after it has round-trip/parity evidence. Until then:
     assignment, so string slice/access helpers now support source/index/range
     arguments that flow through locals without guessing across reassignment or
     branch merges.
-28. Extend string helper coverage beyond constant tokens, including
-    allocator-backed dynamic string materialization and true runtime-varying
-    helper arguments; keep x64/ARM64 as the oracle until LLVM can run those
-    parity programs without unresolved or test-only helper bodies.
+28. Done: replace LLVM string-token switch helpers with descriptor handles.
+    String constants now lower to `%oren_llvm_string { len, data }` descriptors,
+    `print`/`len`/`eq`/`byte_at` load descriptor fields directly, `eq` uses
+    byte-length plus `memcmp`, and `slice`/known-string `+` allocate new
+    descriptor-backed strings with `malloc` plus `memcpy`. The existing slice
+    runtime gate now compares an allocator-backed slice against an
+    allocator-backed concat result, proving true runtime helper arguments without
+    adding another broad test.
+29. Replace the temporary libc allocation surface with Oren runtime-owned string
+    allocation/GC ownership metadata, then expand the same descriptor ABI to
+    non-constant program input and broader runtime helpers while keeping x64/ARM64
+    as the oracle.

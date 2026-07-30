@@ -49,7 +49,8 @@ test -s "$object"
 test -s "$object.ll"
 grep -Fq "; helper print" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_print" "$object.ll"
-grep -Fq "@oren_llvm_string_token_" "$object.ll"
+grep -Fq "%oren_llvm_string = type { i64, i8* }" "$object.ll"
+grep -Fq "@oren_llvm_string_desc_" "$object.ll"
 grep -Fq "call i32 @puts" "$object.ll"
 grep -Fq "x64 hello" "$object.ll"
 
@@ -82,7 +83,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-print-helper,string-token-global,puts-output\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-print-helper,string-descriptor-global,puts-output\n'
 } >"$summary"
 
 echo "OK: native IR LLVM helper runtime parity passed; summary: $summary"

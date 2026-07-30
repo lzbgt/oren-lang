@@ -139,6 +139,7 @@ class FunctionLowerer:
         self.out = out
         self.value_vars = {}
         self.token_table = {}
+        self.const_values = collect_const_values(fn)
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
         self.slot_vars = {name: f"%slot{idx}" for idx, name in enumerate(self.slots)}
@@ -190,6 +191,10 @@ class FunctionLowerer:
         kind = op["kind"]
         if kind == "const":
             dst = self.result_var(op["result"])
+            if op.get("value_kind") == "string":
+                tid = token_id(self.token_table, f"string:{op.get('value')}")
+                self.write_inst(f"{dst} = ptrtoint %oren_llvm_string* @oren_llvm_string_desc_{tid} to i64 ; const string")
+                return
             literal = const_i64(op, self.token_table)
             self.write_inst(f"{dst} = add i64 0, {literal} ; const {op['value_kind']}")
         elif kind == "local_get":
@@ -306,6 +311,14 @@ class FunctionLowerer:
         right = self.value_ref(op["right"])
         bop = op["op"]
         if bop == "+":
+            left_const = self.const_values.get(op["left"])
+            right_const = self.const_values.get(op["right"])
+            if left_const is not None and right_const is not None and left_const[0] == "string" and right_const[0] == "string":
+                self.write_inst(
+                    f"{dst} = call i64 @oren_llvm_helper_oren_string_concat("
+                    f"i64 2, i64 {left}, i64 {right}, i64 0, i64 0) ; helper oren_string_concat"
+                )
+                return
             self.write_inst(f"{dst} = add i64 {left}, {right}")
         elif bop == "-":
             self.write_inst(f"{dst} = sub i64 {left}, {right}")
@@ -400,104 +413,7 @@ def collect_const_values(fn):
     return consts
 
 
-def collect_const_string_slices(fn, token_table):
-    consts = collect_const_values(fn)
-    slices = []
-    seen = set()
-    for block in fn["blocks"]:
-        for op in block["ops"]:
-            if op["kind"] != "runtime_helper_call" or op["name"] != "oren_string_slice":
-                continue
-            if len(op["args"]) < 3:
-                continue
-            source = consts.get(op["args"][0])
-            start = consts.get(op["args"][1])
-            end = consts.get(op["args"][2])
-            if source is None or start is None or end is None:
-                continue
-            if source[0] != "string" or start[0] != "int" or end[0] != "int":
-                continue
-            try:
-                start_i = int(start[1])
-                end_i = int(end[1])
-            except Exception:
-                continue
-            value = source[1]
-            if start_i < 0 or end_i < start_i or end_i > len(value):
-                continue
-            source_tid = token_id(token_table, f"string:{value}")
-            result_tid = token_id(token_table, f"string:{value[start_i:end_i]}")
-            key = (source_tid, start_i, end_i, result_tid)
-            if key not in seen:
-                seen.add(key)
-                slices.append(key)
-    return sorted(slices)
-
-
-def collect_const_string_byte_accesses(fn, token_table, helper_names):
-    consts = collect_const_values(fn)
-    accesses = []
-    seen = set()
-    for block in fn["blocks"]:
-        for op in block["ops"]:
-            if op["kind"] != "runtime_helper_call" or op["name"] not in helper_names:
-                continue
-            if len(op["args"]) < 2:
-                continue
-            source = consts.get(op["args"][0])
-            index = consts.get(op["args"][1])
-            if source is None or index is None:
-                continue
-            if source[0] != "string" or index[0] != "int":
-                continue
-            try:
-                index_i = int(index[1])
-            except Exception:
-                continue
-            data = source[1].encode("utf-8")
-            if index_i < 0 or index_i >= len(data):
-                continue
-            source_tid = token_id(token_table, f"string:{source[1]}")
-            key = (source_tid, index_i, data[index_i])
-            if key not in seen:
-                seen.add(key)
-                accesses.append(key)
-    return sorted(accesses)
-
-
-def collect_const_string_char_accesses(fn, token_table, helper_names):
-    consts = collect_const_values(fn)
-    accesses = []
-    seen = set()
-    for block in fn["blocks"]:
-        for op in block["ops"]:
-            if op["kind"] != "runtime_helper_call" or op["name"] not in helper_names:
-                continue
-            if len(op["args"]) < 2:
-                continue
-            source = consts.get(op["args"][0])
-            index = consts.get(op["args"][1])
-            if source is None or index is None:
-                continue
-            if source[0] != "string" or index[0] != "int":
-                continue
-            try:
-                index_i = int(index[1])
-            except Exception:
-                continue
-            value = source[1]
-            if index_i < 0 or index_i >= len(value):
-                continue
-            source_tid = token_id(token_table, f"string:{value}")
-            result_tid = token_id(token_table, f"string:{value[index_i]}")
-            key = (source_tid, index_i, result_tid)
-            if key not in seen:
-                seen.add(key)
-                accesses.append(key)
-    return sorted(accesses)
-
-
-def emit_print_helper(out, token_table):
+def emit_string_globals(out, token_table):
     string_tokens = collect_string_tokens(token_table)
     if not string_tokens:
         return
@@ -506,26 +422,28 @@ def emit_print_helper(out, token_table):
     for tid, value in string_tokens:
         length, body = llvm_bytes_literal(value)
         out.write(
-            f"@oren_llvm_string_token_{tid} = private unnamed_addr "
+            f"@oren_llvm_string_bytes_{tid} = private unnamed_addr "
             f"constant [{length} x i8] c\"{body}\", align 1\n"
         )
+        out.write(
+            f"@oren_llvm_string_desc_{tid} = private constant %oren_llvm_string {{ "
+            f"i64 {length - 1}, i8* getelementptr inbounds "
+            f"([{length} x i8], [{length} x i8]* @oren_llvm_string_bytes_{tid}, i64 0, i64 0) }}, align 8\n"
+        )
 
+
+def emit_print_helper(out):
     out.write("\n")
     out.write("define i64 @oren_llvm_helper_print(i64 %token) nounwind {\n")
     out.write("entry:\n")
-    out.write("  switch i64 %token, label %unknown [\n")
-    for tid, _value in string_tokens:
-        out.write(f"    i64 {tid}, label %tok_{tid}\n")
-    out.write("  ]\n")
-    for tid, value in string_tokens:
-        length = len(value.encode("utf-8")) + 1
-        out.write(f"tok_{tid}:\n")
-        out.write(
-            f"  %p_{tid} = getelementptr inbounds [{length} x i8], "
-            f"[{length} x i8]* @oren_llvm_string_token_{tid}, i64 0, i64 0\n"
-        )
-        out.write(f"  call i32 @puts(i8* %p_{tid})\n")
-        out.write("  ret i64 0\n")
+    out.write("  %is_null = icmp eq i64 %token, 0\n")
+    out.write("  br i1 %is_null, label %unknown, label %load\n")
+    out.write("load:\n")
+    out.write("  %str = inttoptr i64 %token to %oren_llvm_string*\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %str, i32 0, i32 1\n")
+    out.write("  %data = load i8*, i8** %datap, align 8\n")
+    out.write("  call i32 @puts(i8* %data)\n")
+    out.write("  ret i64 0\n")
     out.write("unknown:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
@@ -541,153 +459,200 @@ def emit_exit_helper(out):
     out.write("}\n")
 
 
-def emit_index_switch_helper(out, symbol, accesses):
-    out.write("\n")
+def emit_string_descriptor_alloc(out, data_ptr, length, prefix):
+    out.write(f"  %{prefix}_raw_desc = call i8* @malloc(i64 16)\n")
+    out.write(f"  %{prefix}_desc = bitcast i8* %{prefix}_raw_desc to %oren_llvm_string*\n")
     out.write(
-        f"define i64 @{symbol}("
-        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+        f"  %{prefix}_lenp = getelementptr inbounds %oren_llvm_string, "
+        f"%oren_llvm_string* %{prefix}_desc, i32 0, i32 0\n"
     )
-    out.write("entry:\n")
-    if not accesses:
-        out.write("  ret i64 0\n")
-        out.write("}\n")
-        return
-
-    by_source = {}
-    for source_tid, index_i, result in accesses:
-        by_source.setdefault(source_tid, []).append((index_i, result))
-
-    out.write("  switch i64 %arg0, label %unknown [\n")
-    for source_tid in sorted(by_source):
-        out.write(f"    i64 {source_tid}, label %src_{source_tid}\n")
-    out.write("  ]\n")
-    for source_tid, indexes in sorted(by_source.items()):
-        out.write(f"src_{source_tid}:\n")
-        out.write("  switch i64 %arg1, label %unknown [\n")
-        for index_i, _result in sorted(indexes):
-            out.write(f"    i64 {index_i}, label %src_{source_tid}_idx_{index_i}\n")
-        out.write("  ]\n")
-        for index_i, result in sorted(indexes):
-            out.write(f"src_{source_tid}_idx_{index_i}:\n")
-            out.write(f"  ret i64 {result}\n")
-    out.write("unknown:\n")
-    out.write("  ret i64 0\n")
-    out.write("}\n")
+    out.write(f"  store i64 {length}, i64* %{prefix}_lenp, align 8\n")
+    out.write(
+        f"  %{prefix}_datap = getelementptr inbounds %oren_llvm_string, "
+        f"%oren_llvm_string* %{prefix}_desc, i32 0, i32 1\n"
+    )
+    out.write(f"  store i8* {data_ptr}, i8** %{prefix}_datap, align 8\n")
+    out.write(f"  %{prefix}_ret = ptrtoint %oren_llvm_string* %{prefix}_desc to i64\n")
 
 
-def emit_string_slice_helper(out, fn, token_table):
-    slices = collect_const_string_slices(fn, token_table)
-
+def emit_string_slice_helper(out):
     out.write("\n")
     out.write(
         "define i64 @oren_llvm_helper_oren_string_slice("
         "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
     )
     out.write("entry:\n")
-    if not slices:
-        out.write("  ret i64 0\n")
-        out.write("}\n")
-        return
-
-    by_source = {}
-    for source_tid, start_i, end_i, result_tid in slices:
-        by_source.setdefault(source_tid, {}).setdefault(start_i, []).append((end_i, result_tid))
-
-    out.write("  switch i64 %arg0, label %unknown [\n")
-    for source_tid in sorted(by_source):
-        out.write(f"    i64 {source_tid}, label %src_{source_tid}\n")
-    out.write("  ]\n")
-    for source_tid, starts in sorted(by_source.items()):
-        out.write(f"src_{source_tid}:\n")
-        out.write("  switch i64 %arg1, label %unknown [\n")
-        for start_i in sorted(starts):
-            out.write(f"    i64 {start_i}, label %src_{source_tid}_start_{start_i}\n")
-        out.write("  ]\n")
-        for start_i, ends in sorted(starts.items()):
-            out.write(f"src_{source_tid}_start_{start_i}:\n")
-            out.write("  switch i64 %arg2, label %unknown [\n")
-            for end_i, _result_tid in sorted(ends):
-                out.write(f"    i64 {end_i}, label %src_{source_tid}_slice_{start_i}_{end_i}\n")
-            out.write("  ]\n")
-            for end_i, result_tid in sorted(ends):
-                out.write(f"src_{source_tid}_slice_{start_i}_{end_i}:\n")
-                out.write(f"  ret i64 {result_tid}\n")
-    out.write("unknown:\n")
+    out.write("  %is_null = icmp eq i64 %arg0, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %src = inttoptr i64 %arg0 to %oren_llvm_string*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 0\n")
+    out.write("  %src_len = load i64, i64* %lenp, align 8\n")
+    out.write("  %start_nonneg = icmp sge i64 %arg1, 0\n")
+    out.write("  %end_ge_start = icmp sge i64 %arg2, %arg1\n")
+    out.write("  %end_le_len = icmp sle i64 %arg2, %src_len\n")
+    out.write("  %ok_a = and i1 %start_nonneg, %end_ge_start\n")
+    out.write("  %ok = and i1 %ok_a, %end_le_len\n")
+    out.write("  br i1 %ok, label %copy, label %invalid\n")
+    out.write("copy:\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %src, i32 0, i32 1\n")
+    out.write("  %src_data = load i8*, i8** %datap, align 8\n")
+    out.write("  %slice_len = sub i64 %arg2, %arg1\n")
+    out.write("  %alloc_len = add i64 %slice_len, 1\n")
+    out.write("  %bytes = call i8* @malloc(i64 %alloc_len)\n")
+    out.write("  %src_start = getelementptr inbounds i8, i8* %src_data, i64 %arg1\n")
+    out.write("  call i8* @memcpy(i8* %bytes, i8* %src_start, i64 %slice_len)\n")
+    out.write("  %nul_p = getelementptr inbounds i8, i8* %bytes, i64 %slice_len\n")
+    out.write("  store i8 0, i8* %nul_p, align 1\n")
+    emit_string_descriptor_alloc(out, "%bytes", "%slice_len", "slice")
+    out.write("  ret i64 %slice_ret\n")
+    out.write("invalid:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
 
 
-def emit_string_byte_at_helpers(out, fn, token_table):
-    byte_accesses = collect_const_string_byte_accesses(
-        fn,
-        token_table,
-        {"oren_string_byte_at", "oren_string_byte_at_unchecked"},
+def emit_string_concat_helper(out):
+    out.write("\n")
+    out.write(
+        "define i64 @oren_llvm_helper_oren_string_concat("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
     )
-    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_byte_at", byte_accesses)
-    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_byte_at_unchecked", byte_accesses)
+    out.write("entry:\n")
+    out.write("  %a_null = icmp eq i64 %arg0, 0\n")
+    out.write("  %b_null = icmp eq i64 %arg1, 0\n")
+    out.write("  %any_null = or i1 %a_null, %b_null\n")
+    out.write("  br i1 %any_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %a = inttoptr i64 %arg0 to %oren_llvm_string*\n")
+    out.write("  %b = inttoptr i64 %arg1 to %oren_llvm_string*\n")
+    out.write("  %a_lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %a, i32 0, i32 0\n")
+    out.write("  %b_lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %b, i32 0, i32 0\n")
+    out.write("  %a_len = load i64, i64* %a_lenp, align 8\n")
+    out.write("  %b_len = load i64, i64* %b_lenp, align 8\n")
+    out.write("  %a_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %a, i32 0, i32 1\n")
+    out.write("  %b_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %b, i32 0, i32 1\n")
+    out.write("  %a_data = load i8*, i8** %a_datap, align 8\n")
+    out.write("  %b_data = load i8*, i8** %b_datap, align 8\n")
+    out.write("  %out_len = add i64 %a_len, %b_len\n")
+    out.write("  %alloc_len = add i64 %out_len, 1\n")
+    out.write("  %bytes = call i8* @malloc(i64 %alloc_len)\n")
+    out.write("  call i8* @memcpy(i8* %bytes, i8* %a_data, i64 %a_len)\n")
+    out.write("  %b_dst = getelementptr inbounds i8, i8* %bytes, i64 %a_len\n")
+    out.write("  call i8* @memcpy(i8* %b_dst, i8* %b_data, i64 %b_len)\n")
+    out.write("  %nul_p = getelementptr inbounds i8, i8* %bytes, i64 %out_len\n")
+    out.write("  store i8 0, i8* %nul_p, align 1\n")
+    emit_string_descriptor_alloc(out, "%bytes", "%out_len", "concat")
+    out.write("  ret i64 %concat_ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
 
 
-def emit_string_char_at_helpers(out, fn, token_table):
-    char_accesses = collect_const_string_char_accesses(
-        fn,
-        token_table,
-        {"oren_string_char_at", "oren_string_char_at_unchecked"},
+def emit_string_byte_at_helper(out, symbol):
+    out.write("\n")
+    out.write(
+        f"define i64 @{symbol}("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
     )
-    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_char_at", char_accesses)
-    emit_index_switch_helper(out, "oren_llvm_helper_oren_string_char_at_unchecked", char_accesses)
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %arg0, 0\n")
+    out.write("  br i1 %is_null, label %invalid, label %load\n")
+    out.write("load:\n")
+    out.write("  %str = inttoptr i64 %arg0 to %oren_llvm_string*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %str, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write("  %idx_nonneg = icmp sge i64 %arg1, 0\n")
+    out.write("  %idx_lt_len = icmp slt i64 %arg1, %len\n")
+    out.write("  %ok = and i1 %idx_nonneg, %idx_lt_len\n")
+    out.write("  br i1 %ok, label %read, label %invalid\n")
+    out.write("read:\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %str, i32 0, i32 1\n")
+    out.write("  %data = load i8*, i8** %datap, align 8\n")
+    out.write("  %ptr = getelementptr inbounds i8, i8* %data, i64 %arg1\n")
+    out.write("  %byte = load i8, i8* %ptr, align 1\n")
+    out.write("  %ret = zext i8 %byte to i64\n")
+    out.write("  ret i64 %ret\n")
+    out.write("invalid:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
 
 
-def emit_string_len_helper(out, token_table):
-    string_tokens = [
-        (tid, len(value.encode("utf-8")))
-        for tid, value in collect_string_tokens(token_table)
-    ]
+def emit_string_byte_at_helpers(out):
+    emit_string_byte_at_helper(out, "oren_llvm_helper_oren_string_byte_at")
+    emit_string_byte_at_helper(out, "oren_llvm_helper_oren_string_byte_at_unchecked")
 
+
+def emit_string_char_at_helper(out, symbol):
+    out.write("\n")
+    out.write(
+        f"define i64 @{symbol}("
+        "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
+    )
+    out.write("entry:\n")
+    out.write("  %end = add i64 %arg1, 1\n")
+    out.write("  %ret = call i64 @oren_llvm_helper_oren_string_slice(i64 3, i64 %arg0, i64 %arg1, i64 %end, i64 0)\n")
+    out.write("  ret i64 %ret\n")
+    out.write("}\n")
+
+
+def emit_string_char_at_helpers(out):
+    emit_string_char_at_helper(out, "oren_llvm_helper_oren_string_char_at")
+    emit_string_char_at_helper(out, "oren_llvm_helper_oren_string_char_at_unchecked")
+
+
+def emit_string_len_helper(out):
     out.write("\n")
     out.write(
         "define i64 @oren_llvm_helper_oren_string_len("
         "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
     )
     out.write("entry:\n")
-    if not string_tokens:
-        out.write("  ret i64 0\n")
-        out.write("}\n")
-        return
-    out.write("  switch i64 %arg0, label %unknown [\n")
-    for tid, _length in string_tokens:
-        out.write(f"    i64 {tid}, label %tok_{tid}\n")
-    out.write("  ]\n")
-    for tid, length in string_tokens:
-        out.write(f"tok_{tid}:\n")
-        out.write(f"  ret i64 {length}\n")
+    out.write("  %is_null = icmp eq i64 %arg0, 0\n")
+    out.write("  br i1 %is_null, label %unknown, label %load\n")
+    out.write("load:\n")
+    out.write("  %str = inttoptr i64 %arg0 to %oren_llvm_string*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %str, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write("  ret i64 %len\n")
     out.write("unknown:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
 
 
-def emit_string_eq_helper(out, token_table):
-    string_tokens = collect_string_tokens(token_table)
-
+def emit_string_eq_helper(out):
     out.write("\n")
     out.write(
         "define i64 @oren_llvm_helper_oren_string_eq("
         "i64 %argc, i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) nounwind {\n"
     )
     out.write("entry:\n")
-    if not string_tokens:
-        out.write("  ret i64 0\n")
-        out.write("}\n")
-        return
-    out.write("  switch i64 %arg0, label %unknown [\n")
-    for tid, _value in string_tokens:
-        out.write(f"    i64 {tid}, label %tok_{tid}\n")
-    out.write("  ]\n")
-    for tid, _value in string_tokens:
-        out.write(f"tok_{tid}:\n")
-        out.write(f"  %eq_{tid} = icmp eq i64 %arg1, {tid}\n")
-        out.write(f"  %ret_{tid} = zext i1 %eq_{tid} to i64\n")
-        out.write(f"  ret i64 %ret_{tid}\n")
-    out.write("unknown:\n")
+    out.write("  %same_handle = icmp eq i64 %arg0, %arg1\n")
+    out.write("  br i1 %same_handle, label %true, label %nonnull\n")
+    out.write("nonnull:\n")
+    out.write("  %a_null = icmp eq i64 %arg0, 0\n")
+    out.write("  %b_null = icmp eq i64 %arg1, 0\n")
+    out.write("  %any_null = or i1 %a_null, %b_null\n")
+    out.write("  br i1 %any_null, label %false, label %load\n")
+    out.write("load:\n")
+    out.write("  %a = inttoptr i64 %arg0 to %oren_llvm_string*\n")
+    out.write("  %b = inttoptr i64 %arg1 to %oren_llvm_string*\n")
+    out.write("  %a_lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %a, i32 0, i32 0\n")
+    out.write("  %b_lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %b, i32 0, i32 0\n")
+    out.write("  %a_len = load i64, i64* %a_lenp, align 8\n")
+    out.write("  %b_len = load i64, i64* %b_lenp, align 8\n")
+    out.write("  %len_eq = icmp eq i64 %a_len, %b_len\n")
+    out.write("  br i1 %len_eq, label %cmp, label %false\n")
+    out.write("cmp:\n")
+    out.write("  %a_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %a, i32 0, i32 1\n")
+    out.write("  %b_datap = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %b, i32 0, i32 1\n")
+    out.write("  %a_data = load i8*, i8** %a_datap, align 8\n")
+    out.write("  %b_data = load i8*, i8** %b_datap, align 8\n")
+    out.write("  %cmp_rc = call i32 @memcmp(i8* %a_data, i8* %b_data, i64 %a_len)\n")
+    out.write("  %bytes_eq = icmp eq i32 %cmp_rc, 0\n")
+    out.write("  br i1 %bytes_eq, label %true, label %false\n")
+    out.write("true:\n")
+    out.write("  ret i64 1\n")
+    out.write("false:\n")
     out.write("  ret i64 0\n")
     out.write("}\n")
 
@@ -702,6 +667,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
         out.write(f"target triple = \"{target_triple(ir['target'])}\"\n\n")
+        out.write("%oren_llvm_string = type { i64, i8* }\n\n")
         out.write("@oren_native_ir_schema = private unnamed_addr constant ")
         out.write(f"[{len(schema) + 1} x i8] c\"{schema_literal}\\00\", align 1\n\n")
         out.write("declare i64 @oren_llvm_opaque_call(i64, i64)\n")
@@ -715,15 +681,20 @@ def emit_module(ir_path, out_path, ir, main):
         for helper in collect_generic_helpers(main):
             out.write(f"declare i64 @{llvm_helper_symbol(helper)}(i64, i64, i64, i64, i64)\n")
         out.write("declare i32 @puts(i8*)\n\n")
+        out.write("declare i8* @malloc(i64)\n")
+        out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
+        out.write("declare i32 @memcmp(i8*, i8*, i64)\n\n")
         out.write("declare void @exit(i32)\n\n")
         slots, values, token_table = lower_function(main, out)
-        emit_string_slice_helper(out, main, token_table)
-        emit_string_byte_at_helpers(out, main, token_table)
-        emit_string_char_at_helpers(out, main, token_table)
-        emit_print_helper(out, token_table)
+        emit_string_globals(out, token_table)
+        emit_string_slice_helper(out)
+        emit_string_concat_helper(out)
+        emit_string_byte_at_helpers(out)
+        emit_string_char_at_helpers(out)
+        emit_print_helper(out)
         emit_exit_helper(out)
-        emit_string_len_helper(out, token_table)
-        emit_string_eq_helper(out, token_table)
+        emit_string_len_helper(out)
+        emit_string_eq_helper(out)
         return slots, values
 
 

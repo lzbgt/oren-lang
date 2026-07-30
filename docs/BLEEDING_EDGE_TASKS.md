@@ -523,8 +523,8 @@ This file is the concise task view. Detailed implementation status lives in
      linked execution for a semantic-subset CFG/arithmetic fixture against the
      native backend oracle on host ARM64 macOS. Runtime-helper calls now forward
      `argc` plus four argument slots, and the `print` helper now lowers to a
-     generated `oren_llvm_helper_print` body with string-token globals plus libc
-     `puts`; `make verify-native-ir-llvm-helper-runtime` proves printed-output
+     generated `oren_llvm_helper_print` body with descriptor-backed string
+     globals plus libc `puts`; `make verify-native-ir-llvm-helper-runtime` proves printed-output
      parity through that generated LLVM IR instead of a test-only helper shim.
      The `exit` helper now lowers to generated `oren_llvm_helper_exit` plus libc
      `exit`, and `make verify-native-ir-llvm-exit-runtime` compares process
@@ -532,23 +532,15 @@ This file is the concise task view. Detailed implementation status lives in
      `oren_*` helper calls now lower to deterministic named symbols such as
      `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)` instead of the
      previous token-id dispatcher, giving future runtime linking a stable
-     per-helper symbol surface. `make verify-native-ir-llvm-string-runtime`
-     now proves the first generated named `oren_*` helper body:
-     `oren_llvm_helper_oren_string_len` switches over string-token constants,
-     returns UTF-8 byte lengths, links, and executes against the native backend
-     oracle. `make verify-native-ir-llvm-string-eq-runtime` adds generated
-     `oren_llvm_helper_oren_string_eq` semantics for equal and unequal constant
-     string-token branches against the native backend oracle. `make
-     verify-native-ir-llvm-string-slice-runtime` now proves generated
-     `oren_llvm_helper_oren_string_slice` constant-token materialization,
-     including composition through generated string equality and length helpers.
-     `make verify-native-ir-llvm-string-access-runtime` adds generated unchecked
-     byte access plus checked/unchecked char access helpers for constant string
-     tokens, proving raw byte values and one-character token results against the
-     native backend oracle. Generated string helper tables now use conservative
-     local-constant propagation, so the slice/access parity fixtures pass
-     source/index/range helper arguments through locals without treating
-     reassigned locals or branch-merged locals as constants.
+     per-helper symbol surface. LLVM string values now use `%oren_llvm_string {
+     len, data }` descriptor handles instead of token-switch helper tables.
+     `print`, `oren_string_len`, `oren_string_eq`, unchecked byte access, and
+     checked/unchecked char access load descriptor fields directly; equality
+     checks length plus `memcmp`; and `oren_string_slice` plus known-string `+`
+     allocate descriptor-backed dynamic strings with `malloc` plus `memcpy`. The
+     existing slice runtime gate compares an allocator-backed slice against an
+     allocator-backed concat result, so fast LLVM smoke covers true runtime
+     helper arguments without adding another broad test sweep.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop
