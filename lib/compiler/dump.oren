@@ -62,6 +62,44 @@ fn _native_ir_emit_block(ctx, label, ops, term) {
     oren_list_push(ctx["blocks"], native_ir.block(label, ops, term))
 }
 
+fn _native_ir_is_runtime_helper_callee(callee) {
+    if callee == nil { return false }
+    if callee == "print" || callee == "exit" { return true }
+    if metadata.str_starts_with(callee, "oren_") == true { return true }
+    return false
+}
+
+fn _native_ir_helper_clobbers_for(abi) {
+    if abi == "win64" { return ["rax", "rcx", "rdx", "r8", "r9", "r10", "r11"] }
+    if abi == "sysv" { return ["rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11"] }
+    if abi == "aapcs" {
+        return ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17"]
+    }
+    return []
+}
+
+fn _native_ir_push_root(ctx, roots, local_id) {
+    if local_id == nil { return nil }
+    var seen = ctx["root_seen"]
+    if seen[local_id] == true { return nil }
+    seen[local_id] = true
+    var root = native_ir.root(local_id, "tagged")
+    oren_list_push(ctx["roots"], root)
+    oren_list_push(roots, root)
+}
+
+fn _native_ir_roots_for_args(ctx, args) {
+    var roots = []
+    if args == nil { return roots }
+    var n = oren_list_len(args)
+    var i = 0
+    while i < n {
+        _native_ir_push_root(ctx, roots, args[i])
+        i = i + 1
+    }
+    return roots
+}
+
 fn _native_ir_expr_name(expr) {
     if expr == nil { return nil }
     if expr["type"] == "Identifier" { return expr["value"] }
@@ -136,7 +174,21 @@ fn _native_ir_lower_expr(ctx, ops, expr) {
             callee_kind = "value"
         }
         var dst_call = _native_ir_new_tmp(ctx)
-        oren_list_push(ops, native_ir.op_call(dst_call, callee, args, callee_kind))
+        if callee_kind == "direct" && _native_ir_is_runtime_helper_callee(callee) == true {
+            var helper = native_ir.runtime_helper_call(
+                callee,
+                args,
+                dst_call,
+                _native_ir_helper_clobbers_for(ctx["abi"]),
+                true,
+                _native_ir_roots_for_args(ctx, args),
+                "enter_exit"
+            )
+            oren_list_push(ops, helper)
+            oren_list_push(ctx["helper_calls"], helper)
+        } else {
+            oren_list_push(ops, native_ir.op_call(dst_call, callee, args, callee_kind))
+        }
         return dst_call
     }
     if t == "Index" {
@@ -318,25 +370,29 @@ fn _native_ir_lower_stmt(ctx, ops, stmt) {
     return nil
 }
 
-fn _native_ir_function_from_entry(entry) {
+fn _native_ir_function_from_entry(entry, abi) {
     var name = entry["name"]
     var func = entry["func"]
     var params = nil
     if func != nil { params = func["params"] }
     var arity = 0
     if params != nil { arity = oren_list_len(params) }
-    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": []}
+    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": [], "roots": [], "root_seen": {}, "helper_calls": [], "abi": abi}
     if func != nil {
         var stmts = analysis.function_body_top_level_stmts(func)
         _native_ir_lower_sequence(ctx, "entry", stmts, nil)
     } else {
         _native_ir_emit_block(ctx, "entry", [], native_ir.term_return(nil))
     }
-    return native_ir.function(name, arity, arity, ctx["blocks"])
+    var fn0 = native_ir.function(name, arity, arity, ctx["blocks"])
+    fn0["roots"] = ctx["roots"]
+    fn0["helper_calls"] = ctx["helper_calls"]
+    return fn0
 }
 
 fn native_ir_from_linked(linked, entry_path, arch, target_os) {
-    var ir = native_ir.module(native_ir.target(arch, target_os, _target_abi_for(arch, target_os)))
+    var abi = _target_abi_for(arch, target_os)
+    var ir = native_ir.module(native_ir.target(arch, target_os, abi))
     if linked == nil { return ir }
     var ss = linked["statements"]
     if ss == nil { return ir }
@@ -349,7 +405,7 @@ fn native_ir_from_linked(linked, entry_path, arch, target_os) {
         if s == nil { i = i + 1; continue }
         var entry = analysis.top_level_function_surface_entry(s)
         if entry != nil {
-            oren_list_push(ir["functions"], _native_ir_function_from_entry(entry))
+            oren_list_push(ir["functions"], _native_ir_function_from_entry(entry, abi))
         }
         i = i + 1
     }

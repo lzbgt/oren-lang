@@ -5051,10 +5051,11 @@ make docs-site
   `oren dump native-ir` plus `verify-native-ir-dump` now produce and verify
   validated source-operation and CFG records for `examples/hello.oren`;
   `verify-native-ir-parity` now checks linked function-surface parity plus
-  required operation kinds and closed branch/jump targets for the initial
-  fixture set across x64 Linux, x64 Windows, and ARM64 macOS. Explicit
-  runtime-helper ABI plus safepoint/root records remain before LLVM object
-  emission.
+  required operation kinds, closed branch/jump targets, helper-call mirrors,
+  ABI-specific clobbers, call-depth mode, and tagged safepoint root records for
+  the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS.
+  LLVM object emission remains gated on explicit full LLVM toolchain
+  availability and an opt-in backend path.
 
 ## Documentation Guardrail
 

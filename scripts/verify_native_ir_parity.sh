@@ -26,13 +26,13 @@ compiler = sys.argv[1]
 log_path = sys.argv[2]
 
 fixtures = [
-    ("hello", "examples/hello.oren", ["main", "STD_list_push"], ["array", "binary", "call", "index_get", "local_set"]),
+    ("hello", "examples/hello.oren", ["main", "STD_list_push"], ["array", "binary", "call", "index_get", "local_set", "runtime_helper_call"]),
     ("int_arith", "tests/fixtures/x64_div_mod_main.oren", ["main"], ["binary", "const"]),
     ("direct_call", "tests/fixtures/x64_nested_call_args_main.oren", ["main", "add2"], ["call"]),
     ("string_concat", "tests/fixtures/tier1_native_string_ops_main.oren", ["main", "_mk_hi"], ["binary", "call"]),
-    ("list_ops", "tests/fixtures/x64_list_ops_main.oren", ["main"], ["call", "const", "local_set"]),
+    ("list_ops", "tests/fixtures/x64_list_ops_main.oren", ["main"], ["const", "local_set", "runtime_helper_call"]),
     ("panic_div0", "tests/fixtures/x64_div0_main.oren", ["main"], ["binary", "const"]),
-    ("runtime_print", "tests/fixtures/x64_print_main.oren", ["main"], ["call", "const", "expr_result"]),
+    ("runtime_print", "tests/fixtures/x64_print_main.oren", ["main"], ["const", "expr_result", "runtime_helper_call"]),
 ]
 
 platforms = [
@@ -77,6 +77,29 @@ def assert_cfg_closed(src, platform, fn):
             assert kind in {"return", "panic", "unreachable"}, (src, platform, fn["name"], block)
 
 
+def assert_helper_surface(src, platform, expected_target, fn):
+    ops = [op for block in fn["blocks"] for op in block["ops"]]
+    helper_ops = [op for op in ops if op["kind"] == "runtime_helper_call"]
+    assert helper_ops == fn["helper_calls"], (src, platform, fn["name"], helper_ops, fn["helper_calls"])
+    root_locals = {root["local"] for root in fn["roots"]}
+    for root in fn["roots"]:
+        assert root["kind"] == "tagged", (src, platform, fn["name"], root)
+    for op in helper_ops:
+        assert op["safepoint"] is True, (src, platform, fn["name"], op)
+        assert op["call_depth"] == "enter_exit", (src, platform, fn["name"], op)
+        assert isinstance(op["clobbers"], list) and len(op["clobbers"]) > 0, (src, platform, fn["name"], op)
+        if expected_target["abi"] == "win64":
+            assert "rcx" in op["clobbers"] and "rdi" not in op["clobbers"], (src, platform, fn["name"], op)
+        elif expected_target["abi"] == "sysv":
+            assert "rdi" in op["clobbers"] and "rsi" in op["clobbers"], (src, platform, fn["name"], op)
+        elif expected_target["abi"] == "aapcs":
+            assert "x0" in op["clobbers"] and "x17" in op["clobbers"], (src, platform, fn["name"], op)
+        assert isinstance(op["roots"], list), (src, platform, fn["name"], op)
+        for root in op["roots"]:
+            assert root["kind"] == "tagged", (src, platform, fn["name"], op, root)
+            assert root["local"] in root_locals, (src, platform, fn["name"], op, root, fn["roots"])
+
+
 with open(log_path, "a", encoding="utf-8") as log:
     checked = 0
     for label, src, required_names, required_main_op_kinds in fixtures:
@@ -111,6 +134,7 @@ with open(log_path, "a", encoding="utf-8") as log:
                 assert fn["frame_slots"] == fn["arity"], (src, platform, fn)
                 assert len(fn["blocks"]) >= 1, (src, platform, fn)
                 assert_cfg_closed(src, platform, fn)
+                assert_helper_surface(src, platform, expected_target, fn)
                 for block in fn["blocks"]:
                     assert isinstance(block["ops"], list), (src, platform, block)
 
@@ -127,6 +151,12 @@ with open(log_path, "a", encoding="utf-8") as log:
             main_terms = {block["terminator"]["kind"] for block in main["blocks"]}
             if label in {"hello", "list_ops"}:
                 assert "branch" in main_terms and "jump" in main_terms, (src, platform, main["blocks"])
+            if label == "hello":
+                helper_names = {op["name"] for op in main_ops if op["kind"] == "runtime_helper_call"}
+                assert {"print", "exit"}.issubset(helper_names), (src, platform, helper_names, main_ops)
+            if label == "runtime_print":
+                helper_names = {op["name"] for op in main_ops if op["kind"] == "runtime_helper_call"}
+                assert "print" in helper_names, (src, platform, helper_names, main_ops)
 
             log.write(f"OK: {label} {platform} functions={len(ir_names)}\n")
             checked += 1

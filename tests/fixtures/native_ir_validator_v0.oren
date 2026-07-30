@@ -57,11 +57,20 @@ fn assert_bad_abi() {
 fn assert_missing_safepoint_roots() {
     var ir = valid_ir()
     var fn0 = ir["functions"][0]
-    fn0["helper_calls"][0]["roots"] = []
-    fn0["blocks"][0]["ops"][0]["roots"] = []
+    fn0["helper_calls"][0]["roots"] = nil
+    fn0["blocks"][0]["ops"][5]["roots"] = nil
     var res = nir.validate_module(ir)
     assert_false(res["ok"], 30, "safepoint without roots accepted")
     assert_true(oren_list_len(res["errors"]) > 0, 31, "safepoint missing error")
+}
+
+fn assert_empty_safepoint_roots_allowed() {
+    var ir = valid_ir()
+    var fn0 = ir["functions"][0]
+    fn0["helper_calls"][0]["roots"] = []
+    fn0["blocks"][0]["ops"][5]["roots"] = []
+    var res = nir.validate_module(ir)
+    assert_true(res["ok"], 35, "explicit empty safepoint roots rejected")
 }
 
 fn assert_unknown_branch_target() {
@@ -101,6 +110,7 @@ fn main() {
     assert_valid()
     assert_bad_abi()
     assert_missing_safepoint_roots()
+    assert_empty_safepoint_roots_allowed()
     assert_unknown_branch_target()
     assert_duplicate_function()
     assert_bad_op_shape()

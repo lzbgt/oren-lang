@@ -54,8 +54,22 @@ for block in main["blocks"]:
 ops = [op for block in main["blocks"] for op in block["ops"]]
 assert isinstance(ops, list) and len(ops) > 0, entry
 op_kinds = {op["kind"] for op in ops}
-for kind in ("array", "binary", "call", "const", "index_get", "local_set"):
+for kind in ("array", "binary", "call", "const", "index_get", "local_set", "runtime_helper_call"):
     assert kind in op_kinds, (kind, ops)
+helper_ops = [op for op in ops if op["kind"] == "runtime_helper_call"]
+assert helper_ops == main["helper_calls"], (helper_ops, main["helper_calls"])
+assert len(main["roots"]) > 0, main
+root_locals = {root["local"] for root in main["roots"]}
+helper_names = {op["name"] for op in helper_ops}
+assert {"print", "exit"}.issubset(helper_names), helper_ops
+for op in helper_ops:
+    assert op["safepoint"] is True, op
+    assert op["call_depth"] == "enter_exit", op
+    assert isinstance(op["clobbers"], list) and len(op["clobbers"]) > 0, op
+    assert isinstance(op["roots"], list), op
+    for root in op["roots"]:
+        assert root["kind"] == "tagged", root
+        assert root["local"] in root_locals, (root, main["roots"])
 for op in ops:
     if op["kind"] == "opaque_stmt":
         assert op["stmt_type"] not in {"If", "While"}, op

@@ -171,7 +171,6 @@ fn _validate_roots(roots, owner, required, errors) {
         return nil
     }
     var n = oren_list_len(roots)
-    if required == true && n == 0 { _add_error(errors, owner + " safepoint roots must be non-empty") }
     var i = 0
     while i < n {
         var r = roots[i]
