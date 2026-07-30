@@ -848,6 +848,9 @@
 <p>     generated <code>oren_llvm_helper_print</code> body with string-token globals plus libc</p>
 <p>     <code>puts</code>; <code>make verify-native-ir-llvm-helper-runtime</code> proves printed-output</p>
 <p>     parity through that generated LLVM IR instead of a test-only helper shim.</p>
+<p>     The <code>exit</code> helper now lowers to generated <code>oren_llvm_helper_exit</code> plus libc</p>
+<p>     <code>exit</code>, and <code>make verify-native-ir-llvm-exit-runtime</code> compares process</p>
+<p>     exit status against the native backend oracle.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

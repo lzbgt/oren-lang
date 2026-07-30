@@ -526,6 +526,9 @@ This file is the concise task view. Detailed implementation status lives in
      generated `oren_llvm_helper_print` body with string-token globals plus libc
      `puts`; `make verify-native-ir-llvm-helper-runtime` proves printed-output
      parity through that generated LLVM IR instead of a test-only helper shim.
+     The `exit` helper now lowers to generated `oren_llvm_helper_exit` plus libc
+     `exit`, and `make verify-native-ir-llvm-exit-runtime` compares process
+     exit status against the native backend oracle.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

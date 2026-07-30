@@ -5091,6 +5091,10 @@ make docs-site
   the lowerer now emits `oren_llvm_helper_print`, string-token globals, and a
   libc `puts` call, so printed-output parity for the constant-string print
   subset comes from generated LLVM IR instead of a test-only helper shim.
+  `make verify-native-ir-llvm-exit-runtime` now adds a generated
+  `oren_llvm_helper_exit` proof: it builds a native oracle and LLVM object for
+  `tests/fixtures/native_ir_llvm_exit_main.oren`, links the LLVM object into a
+  tiny harness, and requires both executables to terminate with exit code 42.
 
 ## Documentation Guardrail
 

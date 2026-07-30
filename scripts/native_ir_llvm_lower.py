@@ -186,6 +186,11 @@ class FunctionLowerer:
                 helper_call = f"{dst} = call i64 @oren_llvm_helper_print(i64 {helper_args[0]})"
                 self.write_inst(f"{helper_call} ; helper print safepoint={op['safepoint']}")
                 return
+            if op["name"] == "exit":
+                code = helper_args[0] if len(op["args"]) > 0 else "0"
+                helper_call = f"{dst} = call i64 @oren_llvm_helper_exit(i64 {code})"
+                self.write_inst(f"{helper_call} ; helper exit safepoint={op['safepoint']}")
+                return
             helper_id = token_id(self.token_table, "helper:" + op["name"])
             helper_call = (
                 f"{dst} = call i64 @oren_llvm_runtime_helper(i64 {helper_id}, "
@@ -311,6 +316,16 @@ def emit_print_helper(out, token_table):
     out.write("}\n")
 
 
+def emit_exit_helper(out):
+    out.write("\n")
+    out.write("define i64 @oren_llvm_helper_exit(i64 %code) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %code32 = trunc i64 %code to i32\n")
+    out.write("  call void @exit(i32 %code32)\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
 def emit_module(ir_path, out_path, ir, main):
     schema = ir["schema"].encode("utf-8")
     schema_literal = "".join(
@@ -333,8 +348,10 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
         out.write("declare i64 @oren_llvm_runtime_helper(i64, i64, i64, i64, i64, i64)\n")
         out.write("declare i32 @puts(i8*)\n\n")
+        out.write("declare void @exit(i32)\n\n")
         slots, values, token_table = lower_function(main, out)
         emit_print_helper(out, token_table)
+        emit_exit_helper(out)
         return slots, values
 
 

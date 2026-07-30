@@ -1,0 +1,8 @@
+// Native IR LLVM exit smoke:
+// - proves generated exit-helper process termination semantics
+
+fn main() {
+    var code = 40 + 2
+    exit(code)
+    return 0
+}

@@ -214,6 +214,11 @@ after it has round-trip/parity evidence. Until then:
     `puts`; `make verify-native-ir-llvm-helper-runtime` now links only a tiny
     harness that invokes `oren_native_ir_main_probe`, so printed-output parity
     must come from generated LLVM IR.
-21. Replace remaining generic helper calls with real runtime-helper semantics
-    and symbol mapping, starting with `exit`; keep x64/ARM64 as the oracle until
-    LLVM can run those parity programs without test-only helper bodies.
+21. Done: add generated LLVM `exit` helper semantics. The lowerer maps `exit`
+    helper calls to `oren_llvm_helper_exit`, truncates the current raw `i64`
+    code to `i32`, calls libc `exit`, and `make
+    verify-native-ir-llvm-exit-runtime` compares the LLVM-linked process exit
+    status against the native backend oracle.
+22. Replace remaining generic `oren_*` helper calls with real runtime-helper
+    semantics and symbol mapping; keep x64/ARM64 as the oracle until LLVM can
+    run those parity programs without test-only helper bodies.

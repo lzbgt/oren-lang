@@ -84,7 +84,12 @@ with open(log_path, "a", encoding="utf-8") as log:
             if expect_branch:
                 assert "br i1" in ll, (label, platform, "missing branch")
             if expect_helper:
-                assert "@oren_llvm_runtime_helper" in ll and "; helper " in ll, (label, platform, "missing helper marker")
+                assert "; helper " in ll, (label, platform, "missing helper marker")
+                assert (
+                    "@oren_llvm_runtime_helper" in ll
+                    or "@oren_llvm_helper_print" in ll
+                    or "@oren_llvm_helper_exit" in ll
+                ), (label, platform, "missing helper call surface")
             log.write(f"OK: {label} {platform} llvm_ir={llvm_ir}\n")
             checked += 1
 
