@@ -262,7 +262,14 @@ after it has round-trip/parity evidence. Until then:
     use `owner_kind=0`, heap strings use `owner_kind=1`, and `slice`/concat call
     generated `oren_llvm_runtime_alloc_string(len)` instead of embedding direct
     descriptor allocation logic in each helper.
-30. Replace the generated allocator's temporary libc backing with Oren
-    runtime-owned allocation/GC registration, then expand the same descriptor ABI
-    to non-constant program input and broader runtime helpers while keeping
-    x64/ARM64 as the oracle.
+30. Done: remove temporary libc allocation from lowered LLVM program objects.
+    `oren_llvm_runtime_alloc_string(len)` now calls external
+    `oren_llvm_runtime_alloc_bytes(bytes, kind)` and
+    `oren_llvm_runtime_register_string(desc, data, len)` hooks. Focused runtime
+    harnesses provide the current host implementation and validate that
+    registered heap descriptors have coherent `{ len, data, owner_kind=1 }`
+    metadata.
+31. Replace the harness-only allocation/register hooks with the real Oren
+    runtime allocation and GC registration surface, then expand the same
+    descriptor ABI to non-constant program input and broader runtime helpers
+    while keeping x64/ARM64 as the oracle.

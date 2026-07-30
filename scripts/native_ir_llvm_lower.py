@@ -46,6 +46,19 @@ def llvm_helper_symbol(name):
     return "oren_llvm_helper_" + llvm_symbol_suffix(name)
 
 
+GENERATED_HELPERS = {
+    "print",
+    "exit",
+    "oren_string_len",
+    "oren_string_eq",
+    "oren_string_slice",
+    "oren_string_byte_at",
+    "oren_string_byte_at_unchecked",
+    "oren_string_char_at",
+    "oren_string_char_at_unchecked",
+}
+
+
 def token_id(table, token):
     if token not in table:
         table[token] = len(table) + 1
@@ -93,22 +106,33 @@ def collect_slots(fn):
 
 def collect_generic_helpers(fn):
     helpers = set()
-    generated_helpers = {
-        "print",
-        "exit",
-        "oren_string_len",
-        "oren_string_eq",
-        "oren_string_slice",
-        "oren_string_byte_at",
-        "oren_string_byte_at_unchecked",
-        "oren_string_char_at",
-        "oren_string_char_at_unchecked",
-    }
     for block in fn["blocks"]:
         for op in block["ops"]:
-            if op["kind"] == "runtime_helper_call" and op["name"] not in generated_helpers:
+            if op["kind"] == "runtime_helper_call" and op["name"] not in GENERATED_HELPERS:
                 helpers.add(op["name"])
     return sorted(helpers)
+
+
+def collect_generated_helpers(fn):
+    helpers = set()
+    consts = collect_const_values(fn)
+    for block in fn["blocks"]:
+        for op in block["ops"]:
+            if op["kind"] == "runtime_helper_call" and op["name"] in GENERATED_HELPERS:
+                helpers.add(op["name"])
+            elif op["kind"] == "binary" and op["op"] == "+":
+                left_const = consts.get(op["left"])
+                right_const = consts.get(op["right"])
+                if (
+                    left_const is not None
+                    and right_const is not None
+                    and left_const[0] == "string"
+                    and right_const[0] == "string"
+                ):
+                    helpers.add("oren_string_concat")
+    if "oren_string_char_at" in helpers or "oren_string_char_at_unchecked" in helpers:
+        helpers.add("oren_string_slice")
+    return helpers
 
 
 def validate_ir(ir):
@@ -465,10 +489,10 @@ def emit_string_runtime_alloc(out):
     out.write("define i64 @oren_llvm_runtime_alloc_string(i64 %len) nounwind {\n")
     out.write("entry:\n")
     out.write("  %alloc_len = add i64 %len, 1\n")
-    out.write("  %bytes = call i8* @malloc(i64 %alloc_len)\n")
+    out.write("  %bytes = call i8* @oren_llvm_runtime_alloc_bytes(i64 %alloc_len, i64 1)\n")
     out.write("  %nul_p = getelementptr inbounds i8, i8* %bytes, i64 %len\n")
     out.write("  store i8 0, i8* %nul_p, align 1\n")
-    out.write("  %raw_desc = call i8* @malloc(i64 24)\n")
+    out.write("  %raw_desc = call i8* @oren_llvm_runtime_alloc_bytes(i64 24, i64 2)\n")
     out.write("  %desc = bitcast i8* %raw_desc to %oren_llvm_string*\n")
     out.write("  %lenp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %desc, i32 0, i32 0\n")
     out.write("  store i64 %len, i64* %lenp, align 8\n")
@@ -477,6 +501,7 @@ def emit_string_runtime_alloc(out):
     out.write("  %ownerp = getelementptr inbounds %oren_llvm_string, %oren_llvm_string* %desc, i32 0, i32 2\n")
     out.write("  store i64 1, i64* %ownerp, align 8\n")
     out.write("  %ret = ptrtoint %oren_llvm_string* %desc to i64\n")
+    out.write("  call void @oren_llvm_runtime_register_string(i64 %ret, i8* %bytes, i64 %len)\n")
     out.write("  ret i64 %ret\n")
     out.write("}\n")
 
@@ -667,6 +692,8 @@ def emit_module(ir_path, out_path, ir, main):
         chr(b) if 32 <= b < 127 and b not in (34, 92) else f"\\{b:02X}"
         for b in schema
     )
+    helpers_to_emit = collect_generated_helpers(main)
+    needs_string_alloc = bool({"oren_string_slice", "oren_string_concat"} & helpers_to_emit)
     with open(out_path, "w", encoding="utf-8") as out:
         out.write("; native_ir_llvm_lowered_subset_v0\n")
         out.write(f"source_filename = \"{ir_path}\"\n")
@@ -684,22 +711,37 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
         for helper in collect_generic_helpers(main):
             out.write(f"declare i64 @{llvm_helper_symbol(helper)}(i64, i64, i64, i64, i64)\n")
-        out.write("declare i32 @puts(i8*)\n\n")
-        out.write("declare i8* @malloc(i64)\n")
-        out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
-        out.write("declare i32 @memcmp(i8*, i8*, i64)\n\n")
-        out.write("declare void @exit(i32)\n\n")
+        if "print" in helpers_to_emit:
+            out.write("declare i32 @puts(i8*)\n")
+        if needs_string_alloc:
+            out.write("declare i8* @oren_llvm_runtime_alloc_bytes(i64, i64)\n")
+            out.write("declare void @oren_llvm_runtime_register_string(i64, i8*, i64)\n")
+            out.write("declare i8* @memcpy(i8*, i8*, i64)\n")
+        if "oren_string_eq" in helpers_to_emit:
+            out.write("declare i32 @memcmp(i8*, i8*, i64)\n")
+        if "exit" in helpers_to_emit:
+            out.write("declare void @exit(i32)\n")
+        out.write("\n")
         slots, values, token_table = lower_function(main, out)
         emit_string_globals(out, token_table)
-        emit_string_runtime_alloc(out)
-        emit_string_slice_helper(out)
-        emit_string_concat_helper(out)
-        emit_string_byte_at_helpers(out)
-        emit_string_char_at_helpers(out)
-        emit_print_helper(out)
-        emit_exit_helper(out)
-        emit_string_len_helper(out)
-        emit_string_eq_helper(out)
+        if needs_string_alloc:
+            emit_string_runtime_alloc(out)
+        if "oren_string_slice" in helpers_to_emit:
+            emit_string_slice_helper(out)
+        if "oren_string_concat" in helpers_to_emit:
+            emit_string_concat_helper(out)
+        if "oren_string_byte_at" in helpers_to_emit or "oren_string_byte_at_unchecked" in helpers_to_emit:
+            emit_string_byte_at_helpers(out)
+        if "oren_string_char_at" in helpers_to_emit or "oren_string_char_at_unchecked" in helpers_to_emit:
+            emit_string_char_at_helpers(out)
+        if "print" in helpers_to_emit:
+            emit_print_helper(out)
+        if "exit" in helpers_to_emit:
+            emit_exit_helper(out)
+        if "oren_string_len" in helpers_to_emit:
+            emit_string_len_helper(out)
+        if "oren_string_eq" in helpers_to_emit:
+            emit_string_eq_helper(out)
         return slots, values
 
 

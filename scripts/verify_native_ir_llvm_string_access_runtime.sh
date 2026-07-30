@@ -20,6 +20,7 @@ link_log="$log_dir/native_ir_llvm_string_access_runtime_link.log"
 llvm_run_log="$log_dir/native_ir_llvm_string_access_runtime_run.log"
 summary="$out_dir/summary.txt"
 harness="$out_dir/string_access_harness.c"
+runtime_hooks="tests/fixtures/native_ir_llvm_runtime_hooks.c"
 object="$out_dir/string_access_arm64_macos.o"
 native_bin="$out_dir/native_oracle"
 llvm_bin="$out_dir/llvm_string_access_probe"
@@ -56,9 +57,17 @@ grep -Fq "%oren_llvm_string = type { i64, i8*, i64 }" "$object.ll"
 grep -Fq "zext i8 %byte to i64" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_string_slice" "$object.ll"
 grep -Fq "define i64 @oren_llvm_runtime_alloc_string" "$object.ll"
+grep -Fq "declare i8* @oren_llvm_runtime_alloc_bytes(i64, i64)" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_register_string(i64, i8*, i64)" "$object.ll"
+grep -Fq "call i8* @oren_llvm_runtime_alloc_bytes" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_register_string" "$object.ll"
 grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 grep -Fq "c\"d\\00\"" "$object.ll"
 grep -Fq "c\"f\\00\"" "$object.ll"
+if grep -Fq "@malloc" "$object.ll"; then
+  echo "ERROR: LLVM string access runtime IR embedded libc malloc instead of runtime allocation hooks" >&2
+  exit 1
+fi
 if grep -Fq "@oren_llvm_runtime_helper" "$object.ll"; then
   echo "ERROR: stale generic LLVM runtime helper dispatcher appeared in string access runtime IR" >&2
   exit 1
@@ -69,6 +78,7 @@ cat >"$harness" <<'C'
 #include <stdio.h>
 
 extern int64_t oren_native_ir_main_probe(void);
+extern int64_t oren_llvm_runtime_registered_strings(void);
 
 int main(void) {
     int64_t rc = oren_native_ir_main_probe();
@@ -76,11 +86,15 @@ int main(void) {
         fprintf(stderr, "oren_native_ir_main_probe returned %lld\n", (long long)rc);
         return 1;
     }
+    if (oren_llvm_runtime_registered_strings() < 2) {
+        fprintf(stderr, "expected char access runtime string registrations\n");
+        return 1;
+    }
     return 0;
 }
 C
 
-"$clang_path" "$harness" "$object" -o "$llvm_bin" >"$link_log" 2>&1
+"$clang_path" "$harness" "$runtime_hooks" "$object" -o "$llvm_bin" >"$link_log" 2>&1
 "$llvm_bin" >"$llvm_run_log" 2>&1
 
 end="$(date +%s)"
@@ -92,7 +106,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,runtime-owned-char-access,string-owner-metadata,string-eq-compose\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-oren-string-byte-at-unchecked-helper,named-oren-string-char-at-helper,descriptor-byte-access,runtime-hook-backed-char-access,string-owner-metadata,string-runtime-registration,string-eq-compose\n'
 } >"$summary"
 
 echo "OK: native IR LLVM string access runtime parity passed; summary: $summary"

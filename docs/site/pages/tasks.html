@@ -861,9 +861,14 @@
 <p>     checks length plus <code>memcmp</code>; static descriptors carry <code>owner_kind=0</code>; and</p>
 <p>     <code>oren_string_slice</code> plus known-string <code>+</code> call generated</p>
 <p>     <code>oren_llvm_runtime_alloc_string(len)</code> to create heap descriptors with</p>
-<p>     <code>owner_kind=1</code>. The existing slice runtime gate compares a runtime-owned</p>
-<p>     slice against a runtime-owned concat result, so fast LLVM smoke covers true</p>
-<p>     runtime helper arguments without adding another broad test sweep.</p>
+<p>     <code>owner_kind=1</code>. That allocator no longer embeds libc <code>malloc</code> in the</p>
+<p>     lowered object: dynamic strings cross explicit</p>
+<p>     <code>oren_llvm_runtime_alloc_bytes</code> and <code>oren_llvm_runtime_register_string</code></p>
+<p>     hooks, and the focused runtime harness validates descriptor metadata at</p>
+<p>     registration time. The existing slice runtime gate compares a</p>
+<p>     runtime-hook-backed slice against a runtime-hook-backed concat result, so</p>
+<p>     fast LLVM smoke covers true runtime helper arguments without adding another</p>
+<p>     broad test sweep.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
