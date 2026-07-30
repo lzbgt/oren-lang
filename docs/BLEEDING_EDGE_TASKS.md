@@ -522,9 +522,10 @@ This file is the concise task view. Detailed implementation status lives in
      object-emission fixtures. `make verify-native-ir-llvm-runtime` now proves
      linked execution for a semantic-subset CFG/arithmetic fixture against the
      native backend oracle on host ARM64 macOS. Runtime-helper calls now forward
-     `argc` plus four argument slots, and
-     `make verify-native-ir-llvm-helper-runtime` proves linked helper invocation
-     and print output parity through a small helper shim.
+     `argc` plus four argument slots, and the `print` helper now lowers to a
+     generated `oren_llvm_helper_print` body with string-token globals plus libc
+     `puts`; `make verify-native-ir-llvm-helper-runtime` proves printed-output
+     parity through that generated LLVM IR instead of a test-only helper shim.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

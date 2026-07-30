@@ -6049,8 +6049,10 @@ make docs-site</code></pre>
 <p>  C harness, and executed on host ARM64 macOS. Runtime-helper calls now lower</p>
 <p>  with <code>argc</code> plus four argument slots, and</p>
 <p>  <code>make verify-native-ir-llvm-helper-runtime</code> links a helper-bearing print</p>
-<p>  fixture against a tiny helper shim to prove helper invocation and output</p>
-<p>  parity before replacing shims with real runtime helper bodies.</p>
+<p>  fixture against a tiny harness that only invokes <code>oren_native_ir_main_probe</code>;</p>
+<p>  the lowerer now emits <code>oren_llvm_helper_print</code>, string-token globals, and a</p>
+<p>  libc <code>puts</code> call, so printed-output parity for the constant-string print</p>
+<p>  subset comes from generated LLVM IR instead of a test-only helper shim.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

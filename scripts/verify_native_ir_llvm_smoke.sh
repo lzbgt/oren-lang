@@ -53,7 +53,7 @@ end="$(date +%s)"
   printf 'arith_object=%s\n' "$out_dir/div_mod_arm64_macos.o"
   printf 'runtime_summary=build/native_ir/llvm_runtime/summary.txt\n'
   printf 'helper_runtime_summary=build/native_ir/llvm_helper_runtime/summary.txt\n'
-  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,helper-link,helper-execute\n'
+  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,helper-execute\n'
 } >"$summary"
 
 echo "OK: native IR LLVM smoke passed; summary: $summary"

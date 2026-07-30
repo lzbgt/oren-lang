@@ -5087,8 +5087,10 @@ make docs-site
   C harness, and executed on host ARM64 macOS. Runtime-helper calls now lower
   with `argc` plus four argument slots, and
   `make verify-native-ir-llvm-helper-runtime` links a helper-bearing print
-  fixture against a tiny helper shim to prove helper invocation and output
-  parity before replacing shims with real runtime helper bodies.
+  fixture against a tiny harness that only invokes `oren_native_ir_main_probe`;
+  the lowerer now emits `oren_llvm_helper_print`, string-token globals, and a
+  libc `puts` call, so printed-output parity for the constant-string print
+  subset comes from generated LLVM IR instead of a test-only helper shim.
 
 ## Documentation Guardrail
 

@@ -39,6 +39,17 @@ def token_id(table, token):
     return table[token]
 
 
+def llvm_bytes_literal(raw):
+    data = raw.encode("utf-8") + b"\0"
+    out = []
+    for b in data:
+        if 32 <= b < 127 and b not in (34, 92):
+            out.append(chr(b))
+        else:
+            out.append(f"\\{b:02X}")
+    return len(data), "".join(out)
+
+
 def const_i64(op, token_table):
     kind = op.get("value_kind")
     value = op.get("value")
@@ -140,7 +151,7 @@ class FunctionLowerer:
                 self.lower_op(op)
             self.lower_term(block["terminator"], label_names, bidx)
         self.out.write("}\n")
-        return len(self.slots), len(self.value_vars)
+        return len(self.slots), len(self.value_vars), self.token_table
 
     def lower_op(self, op):
         kind = op["kind"]
@@ -171,6 +182,10 @@ class FunctionLowerer:
             while len(helper_args) < 4:
                 helper_args.append("0")
             dst = self.result_var(op["result"]) if op.get("result") is not None else self.scratch_var("helper")
+            if op["name"] == "print":
+                helper_call = f"{dst} = call i64 @oren_llvm_helper_print(i64 {helper_args[0]})"
+                self.write_inst(f"{helper_call} ; helper print safepoint={op['safepoint']}")
+                return
             helper_id = token_id(self.token_table, "helper:" + op["name"])
             helper_call = (
                 f"{dst} = call i64 @oren_llvm_runtime_helper(i64 {helper_id}, "
@@ -258,6 +273,44 @@ def lower_function(fn, out):
     return FunctionLowerer(fn, out).lower()
 
 
+def emit_print_helper(out, token_table):
+    string_tokens = []
+    for token, tid in token_table.items():
+        if token.startswith("string:"):
+            string_tokens.append((tid, token[len("string:") :]))
+    string_tokens.sort()
+    if not string_tokens:
+        return
+
+    out.write("\n")
+    for tid, value in string_tokens:
+        length, body = llvm_bytes_literal(value)
+        out.write(
+            f"@oren_llvm_string_token_{tid} = private unnamed_addr "
+            f"constant [{length} x i8] c\"{body}\", align 1\n"
+        )
+
+    out.write("\n")
+    out.write("define i64 @oren_llvm_helper_print(i64 %token) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  switch i64 %token, label %unknown [\n")
+    for tid, _value in string_tokens:
+        out.write(f"    i64 {tid}, label %tok_{tid}\n")
+    out.write("  ]\n")
+    for tid, value in string_tokens:
+        length = len(value.encode("utf-8")) + 1
+        out.write(f"tok_{tid}:\n")
+        out.write(
+            f"  %p_{tid} = getelementptr inbounds [{length} x i8], "
+            f"[{length} x i8]* @oren_llvm_string_token_{tid}, i64 0, i64 0\n"
+        )
+        out.write(f"  call i32 @puts(i8* %p_{tid})\n")
+        out.write("  ret i64 0\n")
+    out.write("unknown:\n")
+    out.write("  ret i64 0\n")
+    out.write("}\n")
+
+
 def emit_module(ir_path, out_path, ir, main):
     schema = ir["schema"].encode("utf-8")
     schema_literal = "".join(
@@ -278,8 +331,11 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare void @oren_llvm_opaque_index_set(i64, i64, i64)\n")
         out.write("declare void @oren_llvm_opaque_stmt(i64)\n")
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
-        out.write("declare i64 @oren_llvm_runtime_helper(i64, i64, i64, i64, i64, i64)\n\n")
-        return lower_function(main, out)
+        out.write("declare i64 @oren_llvm_runtime_helper(i64, i64, i64, i64, i64, i64)\n")
+        out.write("declare i32 @puts(i8*)\n\n")
+        slots, values, token_table = lower_function(main, out)
+        emit_print_helper(out, token_table)
+        return slots, values
 
 
 def main(argv):

@@ -208,6 +208,12 @@ after it has round-trip/parity evidence. Until then:
     builds `tests/fixtures/x64_print_main.oren` with the native backend as
     oracle, builds the LLVM object, links it against a tiny helper shim, and
     proves helper invocation plus printed output on host ARM64 macOS.
-20. Replace helper shims with real runtime-helper semantics and symbol mapping
-    for helper-bearing programs; keep x64/ARM64 as the oracle until LLVM can run
-    those parity programs without test-only helper bodies.
+20. Done: replace the print helper shim with generated LLVM helper semantics
+    for the constant-string print subset. The lowerer maps `print` helper calls
+    to `oren_llvm_helper_print`, emits string-token globals, and calls libc
+    `puts`; `make verify-native-ir-llvm-helper-runtime` now links only a tiny
+    harness that invokes `oren_native_ir_main_probe`, so printed-output parity
+    must come from generated LLVM IR.
+21. Replace remaining generic helper calls with real runtime-helper semantics
+    and symbol mapping, starting with `exit`; keep x64/ARM64 as the oracle until
+    LLVM can run those parity programs without test-only helper bodies.

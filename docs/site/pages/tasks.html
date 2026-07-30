@@ -844,9 +844,10 @@
 <p>     object-emission fixtures. <code>make verify-native-ir-llvm-runtime</code> now proves</p>
 <p>     linked execution for a semantic-subset CFG/arithmetic fixture against the</p>
 <p>     native backend oracle on host ARM64 macOS. Runtime-helper calls now forward</p>
-<p>     <code>argc</code> plus four argument slots, and</p>
-<p>     <code>make verify-native-ir-llvm-helper-runtime</code> proves linked helper invocation</p>
-<p>     and print output parity through a small helper shim.</p>
+<p>     <code>argc</code> plus four argument slots, and the <code>print</code> helper now lowers to a</p>
+<p>     generated <code>oren_llvm_helper_print</code> body with string-token globals plus libc</p>
+<p>     <code>puts</code>; <code>make verify-native-ir-llvm-helper-runtime</code> proves printed-output</p>
+<p>     parity through that generated LLVM IR instead of a test-only helper shim.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

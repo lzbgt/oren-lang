@@ -48,35 +48,21 @@ grep -Fq "x64 hello" "$native_log"
 test -s "$object"
 test -s "$object.ll"
 grep -Fq "; helper print" "$object.ll"
-grep -Fq "@oren_llvm_runtime_helper(i64" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_print" "$object.ll"
+grep -Fq "@oren_llvm_string_token_" "$object.ll"
+grep -Fq "call i32 @puts" "$object.ll"
+grep -Fq "x64 hello" "$object.ll"
 
 cat >"$harness" <<'C'
 #include <stdint.h>
 #include <stdio.h>
 
-static int64_t helper_calls = 0;
-static int64_t helper_argc = -1;
-static int64_t helper_arg0 = -1;
-
-int64_t oren_llvm_runtime_helper(int64_t helper_id, int64_t argc, int64_t arg0, int64_t arg1, int64_t arg2, int64_t arg3) {
-    (void)helper_id;
-    (void)arg1;
-    (void)arg2;
-    (void)arg3;
-    helper_calls += 1;
-    helper_argc = argc;
-    helper_arg0 = arg0;
-    puts("x64 hello");
-    return 0;
-}
-
 extern int64_t oren_native_ir_main_probe(void);
 
 int main(void) {
     int64_t rc = oren_native_ir_main_probe();
-    if (rc != 0 || helper_calls != 1 || helper_argc != 1 || helper_arg0 <= 0) {
-        fprintf(stderr, "rc=%lld helper_calls=%lld argc=%lld arg0=%lld\n",
-                (long long)rc, (long long)helper_calls, (long long)helper_argc, (long long)helper_arg0);
+    if (rc != 0) {
+        fprintf(stderr, "oren_native_ir_main_probe returned %lld\n", (long long)rc);
         return 1;
     }
     return 0;
@@ -96,7 +82,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,runtime-helper-symbol,helper-argc,helper-arg0,print-output\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,named-print-helper,string-token-global,puts-output\n'
 } >"$summary"
 
 echo "OK: native IR LLVM helper runtime parity passed; summary: $summary"
