@@ -63,6 +63,30 @@ fn runtime_helper_call(name, args, result, clobbers, safepoint, roots, call_dept
     }
 }
 
+fn op_const(result, value_kind, value) {
+    return {"kind": "const", "result": result, "value_kind": value_kind, "value": value}
+}
+
+fn op_local_get(result, name) { return {"kind": "local_get", "result": result, "name": name} }
+fn op_local_set(name, value) { return {"kind": "local_set", "name": name, "value": value} }
+fn op_binary(result, op, left, right) { return {"kind": "binary", "result": result, "op": op, "left": left, "right": right} }
+fn op_unary(result, op, value) { return {"kind": "unary", "result": result, "op": op, "value": value} }
+fn op_call(result, callee, args, callee_kind) {
+    return {"kind": "call", "result": result, "callee": callee, "callee_kind": callee_kind, "args": args}
+}
+fn op_index_get(result, container, index) {
+    return {"kind": "index_get", "result": result, "container": container, "index": index}
+}
+fn op_index_set(container, index, value) {
+    return {"kind": "index_set", "container": container, "index": index, "value": value}
+}
+fn op_expr_result(value) { return {"kind": "expr_result", "value": value} }
+fn op_array(result, elements) { return {"kind": "array", "result": result, "elements": elements} }
+fn op_opaque_stmt(stmt_type, inputs) { return {"kind": "opaque_stmt", "stmt_type": stmt_type, "inputs": inputs} }
+fn op_opaque_expr(result, expr_type, inputs) {
+    return {"kind": "opaque_expr", "result": result, "expr_type": expr_type, "inputs": inputs}
+}
+
 fn validate_module(ir) {
     var errors = []
     _validate_module_into(ir, errors)
@@ -192,6 +216,75 @@ fn _validate_op(op, fn_name, block_label, index, errors) {
     }
     if kind == "runtime_helper_call" {
         _validate_helper_call(op, owner, errors)
+        return nil
+    }
+    if kind == "const" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " const result must be non-empty string") }
+        if _is_nonempty_string(op["value_kind"]) != true { _add_error(errors, owner + " const value_kind must be non-empty string") }
+        return nil
+    }
+    if kind == "local_get" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " local_get result must be non-empty string") }
+        if _is_nonempty_string(op["name"]) != true { _add_error(errors, owner + " local_get name must be non-empty string") }
+        return nil
+    }
+    if kind == "local_set" {
+        if _is_nonempty_string(op["name"]) != true { _add_error(errors, owner + " local_set name must be non-empty string") }
+        if _is_nonempty_string(op["value"]) != true { _add_error(errors, owner + " local_set value must be non-empty string") }
+        return nil
+    }
+    if kind == "binary" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " binary result must be non-empty string") }
+        if _is_nonempty_string(op["op"]) != true { _add_error(errors, owner + " binary op must be non-empty string") }
+        if _is_nonempty_string(op["left"]) != true { _add_error(errors, owner + " binary left must be non-empty string") }
+        if _is_nonempty_string(op["right"]) != true { _add_error(errors, owner + " binary right must be non-empty string") }
+        return nil
+    }
+    if kind == "unary" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " unary result must be non-empty string") }
+        if _is_nonempty_string(op["op"]) != true { _add_error(errors, owner + " unary op must be non-empty string") }
+        if _is_nonempty_string(op["value"]) != true { _add_error(errors, owner + " unary value must be non-empty string") }
+        return nil
+    }
+    if kind == "call" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " call result must be non-empty string") }
+        if _is_nonempty_string(op["callee"]) != true { _add_error(errors, owner + " call callee must be non-empty string") }
+        _validate_name_list(op["args"], owner + " call args", errors)
+        if op["callee_kind"] != nil && _is_nonempty_string(op["callee_kind"]) != true {
+            _add_error(errors, owner + " call callee_kind must be non-empty string or nil")
+        }
+        return nil
+    }
+    if kind == "index_get" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " index_get result must be non-empty string") }
+        if _is_nonempty_string(op["container"]) != true { _add_error(errors, owner + " index_get container must be non-empty string") }
+        if _is_nonempty_string(op["index"]) != true { _add_error(errors, owner + " index_get index must be non-empty string") }
+        return nil
+    }
+    if kind == "index_set" {
+        if _is_nonempty_string(op["container"]) != true { _add_error(errors, owner + " index_set container must be non-empty string") }
+        if _is_nonempty_string(op["index"]) != true { _add_error(errors, owner + " index_set index must be non-empty string") }
+        if _is_nonempty_string(op["value"]) != true { _add_error(errors, owner + " index_set value must be non-empty string") }
+        return nil
+    }
+    if kind == "expr_result" {
+        if _is_nonempty_string(op["value"]) != true { _add_error(errors, owner + " expr_result value must be non-empty string") }
+        return nil
+    }
+    if kind == "array" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " array result must be non-empty string") }
+        _validate_name_list(op["elements"], owner + " array elements", errors)
+        return nil
+    }
+    if kind == "opaque_stmt" {
+        if _is_nonempty_string(op["stmt_type"]) != true { _add_error(errors, owner + " opaque_stmt stmt_type must be non-empty string") }
+        _validate_name_list(op["inputs"], owner + " opaque_stmt inputs", errors)
+        return nil
+    }
+    if kind == "opaque_expr" {
+        if _is_nonempty_string(op["result"]) != true { _add_error(errors, owner + " opaque_expr result must be non-empty string") }
+        if _is_nonempty_string(op["expr_type"]) != true { _add_error(errors, owner + " opaque_expr expr_type must be non-empty string") }
+        _validate_name_list(op["inputs"], owner + " opaque_expr inputs", errors)
         return nil
     }
     if op["safepoint"] == true { _validate_roots(op["roots"], owner, true, errors) }

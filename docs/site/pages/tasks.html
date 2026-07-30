@@ -822,10 +822,11 @@
 <p>     does not depend on implicit host assumptions. <code>lib/compiler/native_ir_v0.oren</code></p>
 <p>     and <code>make verify-native-ir-validator</code> now provide the first structural</p>
 <p>     schema gate without changing production x64/ARM64 emitters. `oren dump</p>
-<p>     native-ir<code> plus </code>make verify-native-ir-dump` now emit and validate a</p>
-<p>     linked-program skeleton for <code>examples/hello.oren</code>, and</p>
+<p>     native-ir<code> plus </code>make verify-native-ir-dump` now emit and validate</p>
+<p>     source-operation records for <code>examples/hello.oren</code>, and</p>
 <p>     <code>make verify-native-ir-parity</code> now checks linked function-surface parity</p>
-<p>     for the initial fixture set across x64 Linux, x64 Windows, and ARM64 macOS.</p>
+<p>     plus required operation kinds for the initial fixture set across x64 Linux,</p>
+<p>     x64 Windows, and ARM64 macOS.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

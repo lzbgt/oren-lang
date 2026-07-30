@@ -5048,11 +5048,12 @@ make docs-site
   `lib/compiler/native_ir_v0.oren` schema records for target ABI consistency,
   function/block/terminator closure, duplicate functions, unknown branch targets,
   and safepoint/helper root metadata without changing production native emitters.
-  `oren dump native-ir` plus `verify-native-ir-dump` now produce and verify a
-  validated linked-program skeleton for `examples/hello.oren`; `verify-native-ir-parity`
-  now checks linked function-surface parity for the initial fixture set across
-  x64 Linux, x64 Windows, and ARM64 macOS. Real operation lowering remains before
-  LLVM object emission.
+  `oren dump native-ir` plus `verify-native-ir-dump` now produce and verify
+  validated source-operation records for `examples/hello.oren`;
+  `verify-native-ir-parity` now checks linked function-surface parity plus
+  required operation kinds for the initial fixture set across x64 Linux, x64
+  Windows, and ARM64 macOS. CFG/control-flow lowering and runtime-helper ABI
+  records remain before LLVM object emission.
 
 ## Documentation Guardrail
 

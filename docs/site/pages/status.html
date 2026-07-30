@@ -6010,11 +6010,12 @@ make docs-site</code></pre>
 <p>  <code>lib/compiler/native_ir_v0.oren</code> schema records for target ABI consistency,</p>
 <p>  function/block/terminator closure, duplicate functions, unknown branch targets,</p>
 <p>  and safepoint/helper root metadata without changing production native emitters.</p>
-<p>  <code>oren dump native-ir</code> plus <code>verify-native-ir-dump</code> now produce and verify a</p>
-<p>  validated linked-program skeleton for <code>examples/hello.oren</code>; <code>verify-native-ir-parity</code></p>
-<p>  now checks linked function-surface parity for the initial fixture set across</p>
-<p>  x64 Linux, x64 Windows, and ARM64 macOS. Real operation lowering remains before</p>
-<p>  LLVM object emission.</p>
+<p>  <code>oren dump native-ir</code> plus <code>verify-native-ir-dump</code> now produce and verify</p>
+<p>  validated source-operation records for <code>examples/hello.oren</code>;</p>
+<p>  <code>verify-native-ir-parity</code> now checks linked function-surface parity plus</p>
+<p>  required operation kinds for the initial fixture set across x64 Linux, x64</p>
+<p>  Windows, and ARM64 macOS. CFG/control-flow lowering and runtime-helper ABI</p>
+<p>  records remain before LLVM object emission.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

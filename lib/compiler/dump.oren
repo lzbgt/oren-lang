@@ -46,6 +46,181 @@ fn _target_abi_for(arch, target_os) {
     return "unknown"
 }
 
+fn _native_ir_new_tmp(ctx) {
+    var n = ctx["next_tmp"]
+    ctx["next_tmp"] = n + 1
+    return "%t" + oren_int_to_string(n)
+}
+
+fn _native_ir_expr_name(expr) {
+    if expr == nil { return nil }
+    if expr["type"] == "Identifier" { return expr["value"] }
+    if expr["type"] == "Member" {
+        var left = _native_ir_expr_name(expr["left"])
+        var prop = expr["prop"]
+        if left != nil && prop != nil && prop["type"] == "Identifier" { return left + "." + prop["value"] }
+    }
+    return nil
+}
+
+fn _native_ir_lower_expr(ctx, ops, expr) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        var dst_i = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_const(dst_i, "int", expr["value"]))
+        return dst_i
+    }
+    if t == "Float" {
+        var dst_f = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_const(dst_f, "float", expr["value"]))
+        return dst_f
+    }
+    if t == "String" {
+        var dst_s = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_const(dst_s, "string", expr["value"]))
+        return dst_s
+    }
+    if t == "Boolean" {
+        var dst_b = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_const(dst_b, "bool", expr["value"]))
+        return dst_b
+    }
+    if t == "Nil" {
+        var dst_nil = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_const(dst_nil, "nil", nil))
+        return dst_nil
+    }
+    if t == "Identifier" {
+        var dst_id = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_local_get(dst_id, expr["value"]))
+        return dst_id
+    }
+    if t == "Infix" {
+        var left = _native_ir_lower_expr(ctx, ops, expr["left"])
+        var right = _native_ir_lower_expr(ctx, ops, expr["right"])
+        var dst_in = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_binary(dst_in, expr["op"], left, right))
+        return dst_in
+    }
+    if t == "Prefix" {
+        var val = _native_ir_lower_expr(ctx, ops, expr["right"])
+        var dst_pre = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_unary(dst_pre, expr["op"], val))
+        return dst_pre
+    }
+    if t == "Call" {
+        var args = []
+        var call_args = expr["args"]
+        var argc = 0
+        if call_args != nil { argc = oren_list_len(call_args) }
+        var i = 0
+        while i < argc {
+            oren_list_push(args, _native_ir_lower_expr(ctx, ops, call_args[i]))
+            i = i + 1
+        }
+        var callee = _native_ir_expr_name(expr["fn"])
+        var callee_kind = "direct"
+        if callee == nil {
+            callee = _native_ir_lower_expr(ctx, ops, expr["fn"])
+            callee_kind = "value"
+        }
+        var dst_call = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_call(dst_call, callee, args, callee_kind))
+        return dst_call
+    }
+    if t == "Index" {
+        var container = _native_ir_lower_expr(ctx, ops, expr["left"])
+        var idx = _native_ir_lower_expr(ctx, ops, expr["index"])
+        var dst_idx = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_index_get(dst_idx, container, idx))
+        return dst_idx
+    }
+    if t == "Array" {
+        var elements = []
+        var es = expr["elements"]
+        var es_len = 0
+        if es != nil { es_len = oren_list_len(es) }
+        var ei = 0
+        while ei < es_len {
+            oren_list_push(elements, _native_ir_lower_expr(ctx, ops, es[ei]))
+            ei = ei + 1
+        }
+        var dst_arr = _native_ir_new_tmp(ctx)
+        oren_list_push(ops, native_ir.op_array(dst_arr, elements))
+        return dst_arr
+    }
+    var opaque_inputs = []
+    var dst_opq = _native_ir_new_tmp(ctx)
+    oren_list_push(ops, native_ir.op_opaque_expr(dst_opq, t, opaque_inputs))
+    return dst_opq
+}
+
+fn _native_ir_stmt_name(stmt) {
+    var name = stmt["name"]
+    if name == nil { return nil }
+    if oren_is_string(name) == true { return name }
+    if name["type"] == "Identifier" { return name["value"] }
+    return nil
+}
+
+fn _native_ir_lower_stmt(ctx, ops, stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" {
+        var value = _native_ir_lower_expr(ctx, ops, stmt["value"])
+        var name = _native_ir_stmt_name(stmt)
+        if name != nil && value != nil { oren_list_push(ops, native_ir.op_local_set(name, value)) }
+        return nil
+    }
+    if t == "Assign" {
+        var value_a = _native_ir_lower_expr(ctx, ops, stmt["value"])
+        var name_a = _native_ir_stmt_name(stmt)
+        if name_a != nil && value_a != nil { oren_list_push(ops, native_ir.op_local_set(name_a, value_a)) }
+        return nil
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Index" {
+            var container = _native_ir_lower_expr(ctx, ops, left["left"])
+            var idx = _native_ir_lower_expr(ctx, ops, left["index"])
+            var value_s = _native_ir_lower_expr(ctx, ops, stmt["value"])
+            oren_list_push(ops, native_ir.op_index_set(container, idx, value_s))
+            return nil
+        }
+        oren_list_push(ops, native_ir.op_opaque_stmt(t, []))
+        return nil
+    }
+    if t == "Return" {
+        var value_r = _native_ir_lower_expr(ctx, ops, stmt["value"])
+        return native_ir.term_return(value_r)
+    }
+    if t == "ExprStmt" {
+        var value_e = _native_ir_lower_expr(ctx, ops, stmt["expr"])
+        if value_e != nil { oren_list_push(ops, native_ir.op_expr_result(value_e)) }
+        return nil
+    }
+    if t == "Block" || t == "StmtList" {
+        var stmts = stmt["stmts"]
+        var stmts_len = 0
+        if stmts != nil { stmts_len = oren_list_len(stmts) }
+        var bi = 0
+        while bi < stmts_len {
+            var term_b = _native_ir_lower_stmt(ctx, ops, stmts[bi])
+            if term_b != nil { return term_b }
+            bi = bi + 1
+        }
+        return nil
+    }
+    var inputs = []
+    if t == "If" || t == "While" {
+        var cond = stmt["cond"]
+        if cond != nil { oren_list_push(inputs, _native_ir_lower_expr(ctx, ops, cond)) }
+    }
+    oren_list_push(ops, native_ir.op_opaque_stmt(t, inputs))
+    return nil
+}
+
 fn _native_ir_function_from_entry(entry) {
     var name = entry["name"]
     var func = entry["func"]
@@ -53,7 +228,24 @@ fn _native_ir_function_from_entry(entry) {
     if func != nil { params = func["params"] }
     var arity = 0
     if params != nil { arity = oren_list_len(params) }
-    var blk = native_ir.block("entry", [], native_ir.term_return(nil))
+    var ops = []
+    var ctx = {"next_tmp": 0}
+    var term = native_ir.term_return(nil)
+    if func != nil {
+        var stmts = analysis.function_body_top_level_stmts(func)
+        var stmts_len = 0
+        if stmts != nil { stmts_len = oren_list_len(stmts) }
+        var si = 0
+        while si < stmts_len {
+            var term0 = _native_ir_lower_stmt(ctx, ops, stmts[si])
+            if term0 != nil {
+                term = term0
+                break
+            }
+            si = si + 1
+        }
+    }
+    var blk = native_ir.block("entry", ops, term)
     return native_ir.function(name, arity, arity, [blk])
 }
 
@@ -88,6 +280,15 @@ fn _json_string_array_plain(xs) {
         i = i + 1
     }
     return "[" + join_with(parts, ", ") + "]"
+}
+
+fn _json_value(v) {
+    if v == nil { return "null" }
+    if v == true { return "true" }
+    if v == false { return "false" }
+    if oren_is_string(v) == true { return json_string(v) }
+    if oren_type_tag(v) == 1 { return oren_int_to_string(v) }
+    return json_string("<opaque>")
 }
 
 fn _native_ir_target_json(t) {
@@ -152,12 +353,64 @@ fn _native_ir_ops_json(ops) {
     var n = oren_list_len(ops)
     var i = 0
     while i < n {
-        var op = ops[i]
-        if op != nil && op["kind"] == "runtime_helper_call" { oren_list_push(parts, _native_ir_helper_json(op)) }
-        else { oren_list_push(parts, "{}") }
+        oren_list_push(parts, _native_ir_op_json(ops[i]))
         i = i + 1
     }
     return "[" + join_with(parts, ", ") + "]"
+}
+
+fn _native_ir_op_json(op) {
+    if op == nil { return "null" }
+    if op["kind"] == "runtime_helper_call" { return _native_ir_helper_json(op) }
+    var kind = op["kind"]
+    var out = "{ " + json_kv_str("kind", kind)
+    if kind == "const" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("value_kind", op["value_kind"])
+        out = out + ", \"value\": " + _json_value(op["value"])
+    } else if kind == "local_get" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("name", op["name"])
+    } else if kind == "local_set" {
+        out = out + ", " + json_kv_str("name", op["name"])
+        out = out + ", " + json_kv_str("value", op["value"])
+    } else if kind == "binary" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("op", op["op"])
+        out = out + ", " + json_kv_str("left", op["left"])
+        out = out + ", " + json_kv_str("right", op["right"])
+    } else if kind == "unary" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("op", op["op"])
+        out = out + ", " + json_kv_str("value", op["value"])
+    } else if kind == "call" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("callee", op["callee"])
+        out = out + ", " + json_kv_str("callee_kind", op["callee_kind"])
+        out = out + ", \"args\": " + _json_string_array_plain(op["args"])
+    } else if kind == "index_get" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("container", op["container"])
+        out = out + ", " + json_kv_str("index", op["index"])
+    } else if kind == "index_set" {
+        out = out + ", " + json_kv_str("container", op["container"])
+        out = out + ", " + json_kv_str("index", op["index"])
+        out = out + ", " + json_kv_str("value", op["value"])
+    } else if kind == "expr_result" {
+        out = out + ", " + json_kv_str("value", op["value"])
+    } else if kind == "array" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", \"elements\": " + _json_string_array_plain(op["elements"])
+    } else if kind == "opaque_stmt" {
+        out = out + ", " + json_kv_str("stmt_type", op["stmt_type"])
+        out = out + ", \"inputs\": " + _json_string_array_plain(op["inputs"])
+    } else if kind == "opaque_expr" {
+        out = out + ", " + json_kv_str("result", op["result"])
+        out = out + ", " + json_kv_str("expr_type", op["expr_type"])
+        out = out + ", \"inputs\": " + _json_string_array_plain(op["inputs"])
+    }
+    out = out + " }"
+    return out
 }
 
 fn _native_ir_block_json(block) {

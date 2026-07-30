@@ -43,6 +43,11 @@ assert main["frame_slots"] == 0, main
 assert len(main["blocks"]) == 1, main["blocks"]
 entry = main["blocks"][0]
 assert entry["label"] == "entry", entry
+ops = entry["ops"]
+assert isinstance(ops, list) and len(ops) > 0, entry
+op_kinds = {op["kind"] for op in ops}
+for kind in ("array", "binary", "call", "const", "index_get", "local_set", "opaque_stmt"):
+    assert kind in op_kinds, (kind, ops)
 assert entry["terminator"]["kind"] == "return", entry
 
 print(f"OK: native IR dump functions={len(funcs)} path={path}")

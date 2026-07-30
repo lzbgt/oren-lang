@@ -26,13 +26,13 @@ compiler = sys.argv[1]
 log_path = sys.argv[2]
 
 fixtures = [
-    ("hello", "examples/hello.oren", ["main", "STD_list_push"]),
-    ("int_arith", "tests/fixtures/x64_div_mod_main.oren", ["main"]),
-    ("direct_call", "tests/fixtures/x64_nested_call_args_main.oren", ["main", "add2"]),
-    ("string_concat", "tests/fixtures/tier1_native_string_ops_main.oren", ["main", "_mk_hi"]),
-    ("list_ops", "tests/fixtures/x64_list_ops_main.oren", ["main"]),
-    ("panic_div0", "tests/fixtures/x64_div0_main.oren", ["main"]),
-    ("runtime_print", "tests/fixtures/x64_print_main.oren", ["main"]),
+    ("hello", "examples/hello.oren", ["main", "STD_list_push"], ["array", "binary", "call", "index_get", "local_set", "opaque_stmt"]),
+    ("int_arith", "tests/fixtures/x64_div_mod_main.oren", ["main"], ["binary", "const"]),
+    ("direct_call", "tests/fixtures/x64_nested_call_args_main.oren", ["main", "add2"], ["call"]),
+    ("string_concat", "tests/fixtures/tier1_native_string_ops_main.oren", ["main", "_mk_hi"], ["binary", "call"]),
+    ("list_ops", "tests/fixtures/x64_list_ops_main.oren", ["main"], ["call", "const", "local_set", "opaque_stmt"]),
+    ("panic_div0", "tests/fixtures/x64_div0_main.oren", ["main"], ["binary", "const"]),
+    ("runtime_print", "tests/fixtures/x64_print_main.oren", ["main"], ["call", "const", "expr_result"]),
 ]
 
 platforms = [
@@ -61,7 +61,7 @@ def load_json(path):
 
 with open(log_path, "a", encoding="utf-8") as log:
     checked = 0
-    for label, src, required_names in fixtures:
+    for label, src, required_names, required_main_op_kinds in fixtures:
         for platform, expected_target in platforms:
             stem = safe(label + "_" + platform)
             linked_path = os.path.join(out_dir, stem + ".linked.json")
@@ -94,8 +94,14 @@ with open(log_path, "a", encoding="utf-8") as log:
                 assert len(fn["blocks"]) == 1, (src, platform, fn)
                 block = fn["blocks"][0]
                 assert block["label"] == "entry", (src, platform, block)
-                assert block["ops"] == [], (src, platform, block)
-                assert block["terminator"] == {"kind": "return", "value": None}, (src, platform, block)
+                assert isinstance(block["ops"], list), (src, platform, block)
+                assert block["terminator"]["kind"] == "return", (src, platform, block)
+
+            main = next(fn for fn in ir_functions if fn["name"] == "main")
+            main_ops = main["blocks"][0]["ops"]
+            main_kinds = {op["kind"] for op in main_ops}
+            for kind in required_main_op_kinds:
+                assert kind in main_kinds, (src, platform, f"missing main op kind {kind}", main_ops)
 
             log.write(f"OK: {label} {platform} functions={len(ir_names)}\n")
             checked += 1

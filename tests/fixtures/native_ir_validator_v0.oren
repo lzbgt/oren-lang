@@ -22,7 +22,15 @@ fn valid_ir() {
 
     var roots = [nir.root("acc", "tagged")]
     var helper = nir.runtime_helper_call("oren_add", ["acc", "one"], "acc", ["rax", "rcx"], true, roots, "enter_exit")
-    var entry = nir.block("entry", [helper], nir.term_branch("cond0", "ret", "slow"))
+    var ops = [
+        nir.op_const("one", "int", "1"),
+        nir.op_local_get("acc0", "acc"),
+        nir.op_binary("cond0", "!=", "acc0", "one"),
+        nir.op_call("call0", "helper_fn", ["acc0"], "direct"),
+        nir.op_expr_result("call0"),
+        helper
+    ]
+    var entry = nir.block("entry", ops, nir.term_branch("cond0", "ret", "slow"))
     var ret = nir.block("ret", [], nir.term_return("acc"))
     var slow = nir.block("slow", [], nir.term_panic("slow path"))
     var fn0 = nir.function("main", 0, 2, [entry, ret, slow])
@@ -72,6 +80,22 @@ fn assert_duplicate_function() {
     assert_true(oren_list_len(res["errors"]) > 0, 51, "duplicate function missing error")
 }
 
+fn assert_bad_op_shape() {
+    var ir = valid_ir()
+    ir["functions"][0]["blocks"][0]["ops"][0] = nir.op_binary("bad", "+", "lhs", nil)
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 60, "bad binary op accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 61, "bad binary op missing error")
+}
+
+fn assert_bad_call_args() {
+    var ir = valid_ir()
+    ir["functions"][0]["blocks"][0]["ops"][3]["args"] = "not-list"
+    var res = nir.validate_module(ir)
+    assert_false(res["ok"], 70, "bad call args accepted")
+    assert_true(oren_list_len(res["errors"]) > 0, 71, "bad call args missing error")
+}
+
 fn main() {
     if nir.schema_version() != "native_ir_v0" { fail(1, "schema version") }
     assert_valid()
@@ -79,6 +103,8 @@ fn main() {
     assert_missing_safepoint_roots()
     assert_unknown_branch_target()
     assert_duplicate_function()
+    assert_bad_op_shape()
+    assert_bad_call_args()
     print("native_ir_validator_v0 OK")
     return 0
 }
