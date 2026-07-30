@@ -31,7 +31,7 @@ fn _x64_win_cp_prepare_tmp_slots(ctx, locals, base) {
     var tmp_env = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 3)
     if oren_type_tag(tmp_app) == 0 || oren_type_tag(tmp_cmd) == 0 || oren_type_tag(tmp_env) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"tmp_app": tmp_app, "tmp_cmd": tmp_cmd, "tmp_env": tmp_env, "tmp_to": tmp_to}
+    return [tmp_app, tmp_cmd, tmp_env, tmp_to]
 }
 
 fn _x64_win_cp_layout_offsets() {
@@ -46,15 +46,7 @@ fn _x64_win_cp_layout_offsets() {
     var EXIT_OFF = PROC_OFF + PROC_Q * 8
     var RET_OFF = EXIT_OFF + 8
     var NEED_CALL_AREA = RET_OFF + 8
-    return {
-        "startup_q": STARTUP_Q,
-        "proc_q": PROC_Q,
-        "startup_off": STARTUP_OFF,
-        "proc_off": PROC_OFF,
-        "exit_off": EXIT_OFF,
-        "ret_off": RET_OFF,
-        "need_call_area": NEED_CALL_AREA
-    }
+    return [STARTUP_Q, PROC_Q, STARTUP_OFF, PROC_OFF, EXIT_OFF, RET_OFF, NEED_CALL_AREA]
 }
 
 fn _x64_win_cp_check_call_area(ctx, base, need_call_area) {
@@ -74,16 +66,9 @@ fn _x64_win_cp_prepare_layout(ctx, base) {
     // scratch structs in the per-function outgoing call area so we don't rely on large
     // RBP-relative frames / stack probing behavior.
     var layout = _x64_win_cp_layout_offsets()
-    if _x64_win_cp_check_call_area(ctx, base, layout["need_call_area"]) != true { return nil }
+    if _x64_win_cp_check_call_area(ctx, base, layout[6]) != true { return nil }
 
-    return {
-        "startup_q": layout["startup_q"],
-        "proc_q": layout["proc_q"],
-        "startup_off": layout["startup_off"],
-        "proc_off": layout["proc_off"],
-        "exit_off": layout["exit_off"],
-        "ret_off": layout["ret_off"]
-    }
+    return [layout[0], layout[1], layout[2], layout[3], layout[4], layout[5]]
 }
 
 fn _x64_win_cp_prepare(ctx, locals) {
@@ -96,30 +81,18 @@ fn _x64_win_cp_prepare(ctx, locals) {
     var layout = _x64_win_cp_prepare_layout(ctx, base)
     if layout == nil { return nil }
 
-    return {
-        "base": base,
-        "tmp_app": slots["tmp_app"],
-        "tmp_cmd": slots["tmp_cmd"],
-        "tmp_env": slots["tmp_env"],
-        "tmp_to": slots["tmp_to"],
-        "startup_q": layout["startup_q"],
-        "proc_q": layout["proc_q"],
-        "startup_off": layout["startup_off"],
-        "proc_off": layout["proc_off"],
-        "exit_off": layout["exit_off"],
-        "ret_off": layout["ret_off"]
-    }
+    return [base, slots[0], slots[1], slots[2], slots[3], layout[0], layout[1], layout[2], layout[3], layout[4], layout[5]]
 }
 
 fn _x64_win_cp_spill_args_and_zero(ctx, locals, args, st) {
-    var base = st["base"]
-    var tmp_app = st["tmp_app"]
-    var tmp_cmd = st["tmp_cmd"]
-    var tmp_env = st["tmp_env"]
-    var tmp_to = st["tmp_to"]
-    var STARTUP_Q = st["startup_q"]
-    var PROC_Q = st["proc_q"]
-    var STARTUP_OFF = st["startup_off"]
+    var base = st[0]
+    var tmp_app = st[1]
+    var tmp_cmd = st[2]
+    var tmp_env = st[3]
+    var tmp_to = st[4]
+    var STARTUP_Q = st[5]
+    var PROC_Q = st[6]
+    var STARTUP_OFF = st[7]
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_app)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_cmd)
@@ -138,7 +111,7 @@ fn _x64_win_cp_spill_args_and_zero(ctx, locals, args, st) {
 }
 
 fn _x64_win_cp_emit_validate_cmd(ctx, st, labels, fixups, l_cleanup) {
-    var tmp_cmd = st["tmp_cmd"]
+    var tmp_cmd = st[2]
     // Validate cmdline != 0.
     var l_fail = _new_label(ctx, "win_cp_fail")
     var l_after_validate = _new_label(ctx, "win_cp_after_validate")
@@ -157,7 +130,7 @@ fn _x64_win_cp_emit_validate_cmd(ctx, st, labels, fixups, l_cleanup) {
 }
 
 fn _x64_win_cp_emit_startup_info(ctx, st) {
-    var STARTUP_OFF = st["startup_off"]
+    var STARTUP_OFF = st[7]
     // startup = rsp + STARTUP_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 4)) // r10 = rsp
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, STARTUP_OFF))
@@ -190,7 +163,7 @@ fn _x64_win_cp_emit_create_register_args(ctx, st) {
     // passing lpApplicationName=NULL to avoid any subtle expectations about the mutability
     // of the application-name pointer (only lpCommandLine is documented as mutable).
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(1, 1)) // rcx = NULL
-    _intr_load_x64(ctx, 2, st["tmp_cmd"])                  // rdx = cmdline
+    _intr_load_x64(ctx, 2, st[2])                  // rdx = cmdline
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(8, 8)) // r8=0
     bytes_extend(ctx["code"], core.insn_xor_r64_r64(9, 9)) // r9=0
     return nil
@@ -222,7 +195,7 @@ fn _x64_win_cp_emit_create_zero_stack_args(ctx) {
 
 fn _x64_win_cp_emit_create_env_arg(ctx, st) {
     // lpEnvironment = envblock (may be 0)
-    _intr_load_x64(ctx, 0, st["tmp_env"])
+    _intr_load_x64(ctx, 0, st[3])
     _emit_mov_mrsp_r64(ctx, 48, 0)
     return nil
 }
@@ -237,11 +210,11 @@ fn _x64_win_cp_emit_create_current_dir_arg(ctx) {
 fn _x64_win_cp_emit_create_output_args(ctx, st) {
     // lpStartupInfo = rsp + STARTUP_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(10, 4)) // r10 = rsp
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, st["startup_off"]))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(10, st[7]))
     _emit_mov_mrsp_r64(ctx, 64, 10)
     // lpProcessInformation = rsp + PROC_OFF
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(11, 4)) // r11 = rsp
-    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, st["proc_off"]))
+    bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, st[8]))
     _emit_mov_mrsp_r64(ctx, 72, 11)
     return nil
 }
@@ -278,7 +251,7 @@ fn _x64_win_cp_emit_wait_error(ctx, fixups, l_cleanup) {
 }
 
 fn _x64_win_cp_emit_wait_dispatch(ctx, st, fixups, l_poll) {
-    var tmp_to = st["tmp_to"]
+    var tmp_to = st[4]
     _intr_load_x64(ctx, 0, tmp_to)
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ge", l_poll)
@@ -286,7 +259,7 @@ fn _x64_win_cp_emit_wait_dispatch(ctx, st, fixups, l_poll) {
 }
 
 fn _x64_win_cp_emit_infinite_wait(ctx, st, fixups, l_wait_done, l_cleanup) {
-    var PROC_OFF = st["proc_off"]
+    var PROC_OFF = st[8]
     _emit_mov_r64_mrsp(ctx, 1, PROC_OFF)                            // rcx = hProcess
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 4294967295))     // edx = INFINITE
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
@@ -298,14 +271,14 @@ fn _x64_win_cp_emit_infinite_wait(ctx, st, fixups, l_wait_done, l_cleanup) {
 
 fn _x64_win_cp_emit_poll_budget_check(ctx, st, fixups, l_timeout) {
     // if timeout_budget <= 0 => timeout
-    _intr_load_x64(ctx, 0, st["tmp_to"])
+    _intr_load_x64(ctx, 0, st[4])
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "le", l_timeout)
     return nil
 }
 
 fn _x64_win_cp_emit_poll_wait_once(ctx, st, labels, fixups, l_wait_done, l_cleanup) {
-    _emit_mov_r64_mrsp(ctx, 1, st["proc_off"])                        // rcx = hProcess
+    _emit_mov_r64_mrsp(ctx, 1, st[8])                        // rcx = hProcess
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(2, 0))          // edx = 0 (no wait)
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
@@ -321,7 +294,7 @@ fn _x64_win_cp_emit_poll_wait_once(ctx, st, labels, fixups, l_wait_done, l_clean
 }
 
 fn _x64_win_cp_emit_poll_retry(ctx, st, fixups, l_poll) {
-    var tmp_to = st["tmp_to"]
+    var tmp_to = st[4]
     // Decrement budget and continue.
     _intr_load_x64(ctx, 0, tmp_to)
     bytes_extend(ctx["code"], core.insn_sub_r64_imm32(0, 1))
@@ -362,8 +335,8 @@ fn _x64_win_cp_emit_wait(ctx, st, labels, fixups, l_cleanup) {
 }
 
 fn _x64_win_cp_emit_exit_status(ctx, st, labels, fixups, l_cleanup) {
-    var PROC_OFF = st["proc_off"]
-    var EXIT_OFF = st["exit_off"]
+    var PROC_OFF = st[8]
+    var EXIT_OFF = st[9]
     // GetExitCodeProcess(hProcess, &exitcode)
     _emit_mov_r64_mrsp(ctx, 1, PROC_OFF)                        // rcx = hProcess
     bytes_extend(ctx["code"], core.insn_mov_r64_r64(2, 4))            // rdx = rsp
@@ -387,8 +360,8 @@ fn _x64_win_cp_emit_exit_status(ctx, st, labels, fixups, l_cleanup) {
 }
 
 fn _x64_win_cp_emit_cleanup(ctx, st, labels, fixups, l_cleanup) {
-    var PROC_OFF = st["proc_off"]
-    var RET_OFF = st["ret_off"]
+    var PROC_OFF = st[8]
+    var RET_OFF = st[10]
     // Common cleanup: close hThread and hProcess (best-effort), preserve rax.
     _emit_label(ctx, labels, l_cleanup)
     _emit_mov_mrsp_r64(ctx, RET_OFF, 0) // save rax
@@ -421,7 +394,7 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
 
     var st = _x64_win_cp_prepare(ctx, locals)
     if st == nil { return nil }
-    var base = st["base"]
+    var base = st[0]
 
     if _x64_win_cp_spill_args_and_zero(ctx, locals, args, st) != true { return nil }
 

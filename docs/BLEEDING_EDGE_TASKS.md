@@ -476,7 +476,7 @@ This file is the concise task view. Detailed implementation status lives in
      Windows thread syscall helper records,
      positional Windows core time/wait/open/RNG syscall records, positional
      Windows FS path/stat label records, and positional Windows filesystem,
-     network, and IOCP syscall spill/label/result records.
+     network, IOCP, and CreateProcess syscall spill/label/result records.
    - Current x64 tracking cleanup uses compact positional records for
      tracked-node local labels/fixups, ABI register bundles, and spill slots.
 

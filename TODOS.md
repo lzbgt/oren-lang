@@ -287,6 +287,8 @@ design evidence lives under `project-doc/`.
   Windows QPC frequency labels/body/finish into focused helpers.
 - Linux x64 epoll, socket/address, fd2, accept, sockopt, and sendto/recvfrom
   network syscall helper records now use compact positional spill state.
+- Windows x64 CreateProcess temp, call-area layout, and process helper records
+  now use compact positional state as well.
 - X64 program-entry context cleanup now separates Windows entry argv data
   reservation from label/fixup initialization and shares trace env-flag
   assignment while preserving per-flag trace behavior.
