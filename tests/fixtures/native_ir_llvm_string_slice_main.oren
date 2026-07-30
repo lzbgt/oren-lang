@@ -2,7 +2,10 @@
 // - proves generated oren_string_slice materialization composes with len and eq
 
 fn main() {
-    var s = oren_string_slice("abcdef", 1, 4)
+    var source = "abcdef"
+    var start = 1
+    var end = 4
+    var s = oren_string_slice(source, start, end)
     if oren_string_eq(s, "bcd") == false {
         return 1
     }

@@ -6075,7 +6075,10 @@ make docs-site</code></pre>
 <p>  verify-native-ir-llvm-string-access-runtime` adds generated unchecked byte</p>
 <p>  access plus checked/unchecked char access helpers for constant string tokens,</p>
 <p>  proving raw byte values and one-character token results against the native</p>
-<p>  backend oracle.</p>
+<p>  backend oracle. Generated string helper tables now use conservative</p>
+<p>  local-constant propagation, so the slice/access parity fixtures pass</p>
+<p>  source/index/range helper arguments through locals without treating reassigned</p>
+<p>  locals or branch-merged locals as constants.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

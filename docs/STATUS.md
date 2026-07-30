@@ -5113,7 +5113,10 @@ make docs-site
   verify-native-ir-llvm-string-access-runtime` adds generated unchecked byte
   access plus checked/unchecked char access helpers for constant string tokens,
   proving raw byte values and one-character token results against the native
-  backend oracle.
+  backend oracle. Generated string helper tables now use conservative
+  local-constant propagation, so the slice/access parity fixtures pass
+  source/index/range helper arguments through locals without treating reassigned
+  locals or branch-merged locals as constants.
 
 ## Documentation Guardrail
 

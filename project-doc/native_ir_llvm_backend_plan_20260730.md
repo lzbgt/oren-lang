@@ -247,7 +247,12 @@ after it has round-trip/parity evidence. Until then:
     `oren_llvm_helper_oren_string_char_at_unchecked` switch bodies; `make
     verify-native-ir-llvm-string-access-runtime` proves unchecked byte values and
     checked/unchecked char-token results compose with generated string equality.
-27. Extend string helper coverage beyond constant tokens, including
-    allocator-backed dynamic string materialization and non-constant helper
-    arguments; keep x64/ARM64 as the oracle until LLVM can run those parity
-    programs without unresolved or test-only helper bodies.
+27. Done: add conservative local-constant propagation for generated helper
+    tables. A local is constant only when it has a single constant-propagatable
+    assignment, so string slice/access helpers now support source/index/range
+    arguments that flow through locals without guessing across reassignment or
+    branch merges.
+28. Extend string helper coverage beyond constant tokens, including
+    allocator-backed dynamic string materialization and true runtime-varying
+    helper arguments; keep x64/ARM64 as the oracle until LLVM can run those
+    parity programs without unresolved or test-only helper bodies.

@@ -545,7 +545,10 @@ This file is the concise task view. Detailed implementation status lives in
      `make verify-native-ir-llvm-string-access-runtime` adds generated unchecked
      byte access plus checked/unchecked char access helpers for constant string
      tokens, proving raw byte values and one-character token results against the
-     native backend oracle.
+     native backend oracle. Generated string helper tables now use conservative
+     local-constant propagation, so the slice/access parity fixtures pass
+     source/index/range helper arguments through locals without treating
+     reassigned locals or branch-merged locals as constants.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

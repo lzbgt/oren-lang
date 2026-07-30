@@ -364,10 +364,39 @@ def collect_string_tokens(token_table):
 
 def collect_const_values(fn):
     consts = {}
+    local_assigns = {}
     for block in fn["blocks"]:
         for op in block["ops"]:
-            if op["kind"] == "const":
-                consts[op["result"]] = (op["value_kind"], op["value"])
+            if op["kind"] == "local_set":
+                local_assigns.setdefault(op["name"], []).append(op["value"])
+
+    local_consts = {}
+    changed = True
+    while changed:
+        changed = False
+        for block in fn["blocks"]:
+            for op in block["ops"]:
+                if op["kind"] == "const":
+                    new_value = (op["value_kind"], op["value"])
+                    old_value = consts.get(op["result"])
+                    if old_value != new_value:
+                        consts[op["result"]] = new_value
+                        changed = True
+                elif op["kind"] == "local_get":
+                    assignments = local_assigns.get(op["name"], [])
+                    if len(assignments) != 1:
+                        continue
+                    assigned_value = assignments[0]
+                    value = consts.get(assigned_value)
+                    if value is None:
+                        continue
+                    if local_consts.get(op["name"]) != value:
+                        local_consts[op["name"]] = value
+                        changed = True
+                    old_value = consts.get(op["result"])
+                    if old_value != value:
+                        consts[op["result"]] = value
+                        changed = True
     return consts
 
 
