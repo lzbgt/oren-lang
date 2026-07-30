@@ -818,9 +818,10 @@
 <p>     an opt-in backend after native-IR validator/dump and parity fixtures exist.</p>
 <p>     The durable design note is <code>project-doc/native_ir_llvm_backend_plan_20260730.md</code>.</p>
 <p>     <code>make verify-native-ir-toolchain</code> now writes <code>build/native_ir/toolchain.txt</code></p>
-<p>     with local <code>clang</code>, <code>llvm-config</code>, and <code>llc</code> availability so backend work</p>
-<p>     does not depend on implicit host assumptions. <code>lib/compiler/native_ir_v0.oren</code></p>
-<p>     and <code>make verify-native-ir-validator</code> now provide the first structural</p>
+<p>     with local <code>clang</code>, <code>llvm-config</code>, and <code>llc</code> availability, including</p>
+<p>     installed Homebrew LLVM tools outside <code>PATH</code>, so backend work does not</p>
+<p>     depend on implicit host assumptions. <code>lib/compiler/native_ir_v0.oren</code> and</p>
+<p>     <code>make verify-native-ir-validator</code> now provide the first structural</p>
 <p>     schema gate without changing production x64/ARM64 emitters. `oren dump</p>
 <p>     native-ir<code> plus </code>make verify-native-ir-dump` now emit and validate</p>
 <p>     source-operation records for <code>examples/hello.oren</code>, and</p>
@@ -832,7 +833,8 @@
 <p>     through reusable <code>scripts/native_ir_llvm_lower.py</code> and writes</p>
 <p>     <code>build/native_ir/llvm_object/manifest.txt</code>, skipping clearly when the full</p>
 <p>     LLVM toolchain is absent and failing fast when</p>
-<p>     <code>NATIVE_IR_REQUIRE_LLVM=1</code>.</p>
+<p>     <code>NATIVE_IR_REQUIRE_LLVM=1</code>; on this host that strict mode now emits</p>
+<p>     <code>build/native_ir/llvm_object/probe.o</code> through Homebrew <code>llc</code>.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

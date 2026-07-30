@@ -5043,8 +5043,10 @@ make docs-site
   current x64/ARM64 emitters as correctness oracles. The
   `verify-native-ir-toolchain` make target now writes
   `build/native_ir/toolchain.txt` with local `clang`, `llvm-config`, and `llc`
-  availability; this host currently has Apple `clang` but no full LLVM tools on
-  `PATH`. The first implementation gate, `verify-native-ir-validator`, validates
+  availability; this host currently has Apple `clang` on `PATH` plus Homebrew
+  LLVM 19.1.6 under `/opt/homebrew/opt/llvm`, and the detector finds
+  `llvm-config`/`llc` there even when Homebrew LLVM is not on `PATH`. The first
+  implementation gate, `verify-native-ir-validator`, validates
   `lib/compiler/native_ir_v0.oren` schema records for target ABI consistency,
   function/block/terminator closure, duplicate functions, unknown branch targets,
   and safepoint/helper root metadata without changing production native emitters.
@@ -5061,13 +5063,14 @@ make docs-site
   textual LLVM IR with real blocks, branches, local slots, constants,
   arithmetic/comparison ops, opaque call/container shims, and runtime-helper
   call markers, and writes `build/native_ir/llvm_object/manifest.txt`, skipping
-  object emission clearly when the full LLVM toolchain is absent and failing
-  fast when `NATIVE_IR_REQUIRE_LLVM=1`. `verify-native-ir-llvm-lowering` now
+  object emission clearly when the full LLVM toolchain is absent. With the
+  installed Homebrew LLVM toolchain, strict `verify-native-ir-llvm-object`
+  emits `build/native_ir/llvm_object/probe.o`.
+  `verify-native-ir-llvm-lowering` now
   proves textual LLVM lowering over the same seven-fixture,
   three-platform parity matrix used by `verify-native-ir-parity`, while
   preserving the current x64/ARM64 production emitters. Executable LLVM backend
-  work remains gated on explicit full LLVM toolchain availability and an opt-in
-  backend path.
+  work now needs the explicit opt-in backend path plus runtime parity fixtures.
 
 ## Documentation Guardrail
 

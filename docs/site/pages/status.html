@@ -6005,8 +6005,10 @@ make docs-site</code></pre>
 <p>  current x64/ARM64 emitters as correctness oracles. The</p>
 <p>  <code>verify-native-ir-toolchain</code> make target now writes</p>
 <p>  <code>build/native_ir/toolchain.txt</code> with local <code>clang</code>, <code>llvm-config</code>, and <code>llc</code></p>
-<p>  availability; this host currently has Apple <code>clang</code> but no full LLVM tools on</p>
-<p>  <code>PATH</code>. The first implementation gate, <code>verify-native-ir-validator</code>, validates</p>
+<p>  availability; this host currently has Apple <code>clang</code> on <code>PATH</code> plus Homebrew</p>
+<p>  LLVM 19.1.6 under <code>/opt/homebrew/opt/llvm</code>, and the detector finds</p>
+<p>  <code>llvm-config</code>/<code>llc</code> there even when Homebrew LLVM is not on <code>PATH</code>. The first</p>
+<p>  implementation gate, <code>verify-native-ir-validator</code>, validates</p>
 <p>  <code>lib/compiler/native_ir_v0.oren</code> schema records for target ABI consistency,</p>
 <p>  function/block/terminator closure, duplicate functions, unknown branch targets,</p>
 <p>  and safepoint/helper root metadata without changing production native emitters.</p>
@@ -6023,13 +6025,14 @@ make docs-site</code></pre>
 <p>  textual LLVM IR with real blocks, branches, local slots, constants,</p>
 <p>  arithmetic/comparison ops, opaque call/container shims, and runtime-helper</p>
 <p>  call markers, and writes <code>build/native_ir/llvm_object/manifest.txt</code>, skipping</p>
-<p>  object emission clearly when the full LLVM toolchain is absent and failing</p>
-<p>  fast when <code>NATIVE_IR_REQUIRE_LLVM=1</code>. <code>verify-native-ir-llvm-lowering</code> now</p>
+<p>  object emission clearly when the full LLVM toolchain is absent. With the</p>
+<p>  installed Homebrew LLVM toolchain, strict <code>verify-native-ir-llvm-object</code></p>
+<p>  emits <code>build/native_ir/llvm_object/probe.o</code>.</p>
+<p>  <code>verify-native-ir-llvm-lowering</code> now</p>
 <p>  proves textual LLVM lowering over the same seven-fixture,</p>
 <p>  three-platform parity matrix used by <code>verify-native-ir-parity</code>, while</p>
 <p>  preserving the current x64/ARM64 production emitters. Executable LLVM backend</p>
-<p>  work remains gated on explicit full LLVM toolchain availability and an opt-in</p>
-<p>  backend path.</p>
+<p>  work now needs the explicit opt-in backend path plus runtime parity fixtures.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

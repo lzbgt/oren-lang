@@ -11,7 +11,32 @@ require_llvm="${NATIVE_IR_REQUIRE_LLVM:-0}"
 mkdir -p "$out_dir"
 
 tool_path() {
-  command -v "$1" 2>/dev/null || true
+  local name="$1"
+  local env_name="$2"
+  local override="${!env_name:-}"
+  if [ -n "$override" ]; then
+    if [ -x "$override" ]; then
+      printf '%s\n' "$override"
+    fi
+    return 0
+  fi
+  command -v "$name" 2>/dev/null && return 0
+  local candidate
+  for candidate in \
+    "/opt/homebrew/opt/llvm/bin/$name" \
+    "/usr/local/opt/llvm/bin/$name"; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  if command -v brew >/dev/null 2>&1; then
+    local brew_prefix
+    brew_prefix="$(brew --prefix llvm 2>/dev/null || true)"
+    if [ -n "$brew_prefix" ] && [ -x "$brew_prefix/bin/$name" ]; then
+      printf '%s\n' "$brew_prefix/bin/$name"
+    fi
+  fi
 }
 
 tool_version_first_line() {
@@ -23,9 +48,9 @@ tool_version_first_line() {
   "$path" --version 2>/dev/null | sed -n '1p' || printf 'unknown'
 }
 
-clang_path="$(tool_path clang)"
-llvm_config_path="$(tool_path llvm-config)"
-llc_path="$(tool_path llc)"
+clang_path="$(tool_path clang NATIVE_IR_CLANG)"
+llvm_config_path="$(tool_path llvm-config NATIVE_IR_LLVM_CONFIG)"
+llc_path="$(tool_path llc NATIVE_IR_LLC)"
 
 clang_status="missing"
 llvm_config_status="missing"

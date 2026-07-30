@@ -27,9 +27,10 @@ future optimization, portability, and debug tooling easier.
   safepoints, call-depth hooks, panic/error routing, runtime-object caching,
   debug sidecars, and per-platform syscall/ABI behavior.
 - Local toolchain evidence on this host: `/usr/bin/clang` is present
-  (`Apple clang version 21.0.0`), while `llvm-config` and `llc` are not on
-  `PATH`. LLVM enablement must therefore use explicit toolchain detection and
-  skip/fail clearly when the full LLVM toolchain is absent.
+  (`Apple clang version 21.0.0`), and Homebrew LLVM 19.1.6 is installed under
+  `/opt/homebrew/opt/llvm`. The detector now finds
+  `/opt/homebrew/opt/llvm/bin/llvm-config` and `/opt/homebrew/opt/llvm/bin/llc`
+  even when Homebrew LLVM is not exported into `PATH`.
 
 ## Native IR v0 Contract
 
@@ -100,9 +101,10 @@ Initial gates:
   ABI-specific clobbers, call-depth mode, and tagged safepoint root records for
   that fixture set across `x64-linux`, `x64-windows`, and `arm64-macos`.
 - `make verify-native-ir-toolchain` reports `clang`, `llvm-config`, and `llc`
-  availability without assuming they exist. It writes
-  `build/native_ir/toolchain.txt` and only requires a complete LLVM toolchain
-  when `NATIVE_IR_REQUIRE_LLVM=1`.
+  availability without assuming they exist on `PATH`. It honors
+  `NATIVE_IR_CLANG`, `NATIVE_IR_LLVM_CONFIG`, and `NATIVE_IR_LLC`, probes common
+  Homebrew LLVM prefixes, writes `build/native_ir/toolchain.txt`, and only
+  requires a complete LLVM toolchain when `NATIVE_IR_REQUIRE_LLVM=1`.
 - `make verify-native-ir-llvm-object` validates the native-IR input and records
   a deterministic object-emission manifest under
   `build/native_ir/llvm_object/`. On hosts without full LLVM it reports
@@ -171,6 +173,9 @@ after it has round-trip/parity evidence. Until then:
     `scripts/native_ir_llvm_lower.py` so the object gate and future opt-in
     backend path consume the same validated native-IR lowering implementation
     instead of verifier-local heredoc code.
-14. Add an opt-in `llvm-native` backend command path and object/parity fixture
-    once a full LLVM toolchain is available; keep x64/ARM64 as the oracle until
-    the LLVM path can execute parity fixtures, not just compile probe objects.
+14. Done: detect the installed Homebrew LLVM toolchain even when it is not on
+    `PATH`; `NATIVE_IR_REQUIRE_LLVM=1 make verify-native-ir-llvm-object` now
+    emits `build/native_ir/llvm_object/probe.o` on this host.
+15. Add an opt-in `llvm-native` backend command path and object/parity fixture;
+    keep x64/ARM64 as the oracle until the LLVM path can execute parity
+    fixtures, not just compile probe objects.

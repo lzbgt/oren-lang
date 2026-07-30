@@ -496,9 +496,10 @@ This file is the concise task view. Detailed implementation status lives in
      an opt-in backend after native-IR validator/dump and parity fixtures exist.
      The durable design note is `project-doc/native_ir_llvm_backend_plan_20260730.md`.
      `make verify-native-ir-toolchain` now writes `build/native_ir/toolchain.txt`
-     with local `clang`, `llvm-config`, and `llc` availability so backend work
-     does not depend on implicit host assumptions. `lib/compiler/native_ir_v0.oren`
-     and `make verify-native-ir-validator` now provide the first structural
+     with local `clang`, `llvm-config`, and `llc` availability, including
+     installed Homebrew LLVM tools outside `PATH`, so backend work does not
+     depend on implicit host assumptions. `lib/compiler/native_ir_v0.oren` and
+     `make verify-native-ir-validator` now provide the first structural
      schema gate without changing production x64/ARM64 emitters. `oren dump
      native-ir` plus `make verify-native-ir-dump` now emit and validate
      source-operation records for `examples/hello.oren`, and
@@ -510,7 +511,8 @@ This file is the concise task view. Detailed implementation status lives in
      through reusable `scripts/native_ir_llvm_lower.py` and writes
      `build/native_ir/llvm_object/manifest.txt`, skipping clearly when the full
      LLVM toolchain is absent and failing fast when
-     `NATIVE_IR_REQUIRE_LLVM=1`.
+     `NATIVE_IR_REQUIRE_LLVM=1`; on this host that strict mode now emits
+     `build/native_ir/llvm_object/probe.o` through Homebrew `llc`.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop
