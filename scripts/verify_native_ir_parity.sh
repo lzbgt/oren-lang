@@ -26,11 +26,11 @@ compiler = sys.argv[1]
 log_path = sys.argv[2]
 
 fixtures = [
-    ("hello", "examples/hello.oren", ["main", "STD_list_push"], ["array", "binary", "call", "index_get", "local_set", "opaque_stmt"]),
+    ("hello", "examples/hello.oren", ["main", "STD_list_push"], ["array", "binary", "call", "index_get", "local_set"]),
     ("int_arith", "tests/fixtures/x64_div_mod_main.oren", ["main"], ["binary", "const"]),
     ("direct_call", "tests/fixtures/x64_nested_call_args_main.oren", ["main", "add2"], ["call"]),
     ("string_concat", "tests/fixtures/tier1_native_string_ops_main.oren", ["main", "_mk_hi"], ["binary", "call"]),
-    ("list_ops", "tests/fixtures/x64_list_ops_main.oren", ["main"], ["call", "const", "local_set", "opaque_stmt"]),
+    ("list_ops", "tests/fixtures/x64_list_ops_main.oren", ["main"], ["call", "const", "local_set"]),
     ("panic_div0", "tests/fixtures/x64_div0_main.oren", ["main"], ["binary", "const"]),
     ("runtime_print", "tests/fixtures/x64_print_main.oren", ["main"], ["call", "const", "expr_result"]),
 ]
@@ -57,6 +57,24 @@ def run_dump(kind, src, platform, out_path, log):
 def load_json(path):
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def assert_cfg_closed(src, platform, fn):
+    labels = [block["label"] for block in fn["blocks"]]
+    assert len(labels) == len(set(labels)), (src, platform, fn["name"], "duplicate block label", labels)
+    label_set = set(labels)
+    assert labels and labels[0] == "entry", (src, platform, fn["name"], labels)
+    for block in fn["blocks"]:
+        term = block["terminator"]
+        kind = term["kind"]
+        if kind == "jump":
+            assert term["target"] in label_set, (src, platform, fn["name"], block)
+        elif kind == "branch":
+            assert term["true"] in label_set, (src, platform, fn["name"], block)
+            assert term["false"] in label_set, (src, platform, fn["name"], block)
+            assert isinstance(term["cond"], str) and term["cond"], (src, platform, fn["name"], block)
+        else:
+            assert kind in {"return", "panic", "unreachable"}, (src, platform, fn["name"], block)
 
 
 with open(log_path, "a", encoding="utf-8") as log:
@@ -91,17 +109,24 @@ with open(log_path, "a", encoding="utf-8") as log:
             for fn in ir_functions:
                 assert isinstance(fn["arity"], int) and fn["arity"] >= 0, (src, platform, fn)
                 assert fn["frame_slots"] == fn["arity"], (src, platform, fn)
-                assert len(fn["blocks"]) == 1, (src, platform, fn)
-                block = fn["blocks"][0]
-                assert block["label"] == "entry", (src, platform, block)
-                assert isinstance(block["ops"], list), (src, platform, block)
-                assert block["terminator"]["kind"] == "return", (src, platform, block)
+                assert len(fn["blocks"]) >= 1, (src, platform, fn)
+                assert_cfg_closed(src, platform, fn)
+                for block in fn["blocks"]:
+                    assert isinstance(block["ops"], list), (src, platform, block)
 
             main = next(fn for fn in ir_functions if fn["name"] == "main")
-            main_ops = main["blocks"][0]["ops"]
+            main_ops = [op for block in main["blocks"] for op in block["ops"]]
             main_kinds = {op["kind"] for op in main_ops}
             for kind in required_main_op_kinds:
                 assert kind in main_kinds, (src, platform, f"missing main op kind {kind}", main_ops)
+            for op in main_ops:
+                if op["kind"] == "opaque_stmt":
+                    assert op["stmt_type"] not in {"If", "While"}, (src, platform, op)
+                if op["kind"] == "opaque_expr":
+                    assert op["expr_type"] not in {"If", "While"}, (src, platform, op)
+            main_terms = {block["terminator"]["kind"] for block in main["blocks"]}
+            if label in {"hello", "list_ops"}:
+                assert "branch" in main_terms and "jump" in main_terms, (src, platform, main["blocks"])
 
             log.write(f"OK: {label} {platform} functions={len(ir_names)}\n")
             checked += 1

@@ -40,15 +40,29 @@ assert len(names) == len(set(names)), "duplicate function names in native IR dum
 main = next(fn for fn in funcs if fn["name"] == "main")
 assert main["arity"] == 0, main
 assert main["frame_slots"] == 0, main
-assert len(main["blocks"]) == 1, main["blocks"]
+assert len(main["blocks"]) > 1, main["blocks"]
 entry = main["blocks"][0]
 assert entry["label"] == "entry", entry
-ops = entry["ops"]
+labels = {block["label"] for block in main["blocks"]}
+assert len(labels) == len(main["blocks"]), main["blocks"]
+for block in main["blocks"]:
+    term = block["terminator"]
+    if term["kind"] == "jump":
+        assert term["target"] in labels, block
+    elif term["kind"] == "branch":
+        assert term["true"] in labels and term["false"] in labels, block
+ops = [op for block in main["blocks"] for op in block["ops"]]
 assert isinstance(ops, list) and len(ops) > 0, entry
 op_kinds = {op["kind"] for op in ops}
-for kind in ("array", "binary", "call", "const", "index_get", "local_set", "opaque_stmt"):
+for kind in ("array", "binary", "call", "const", "index_get", "local_set"):
     assert kind in op_kinds, (kind, ops)
-assert entry["terminator"]["kind"] == "return", entry
+for op in ops:
+    if op["kind"] == "opaque_stmt":
+        assert op["stmt_type"] not in {"If", "While"}, op
+    if op["kind"] == "opaque_expr":
+        assert op["expr_type"] not in {"If", "While"}, op
+term_kinds = {block["terminator"]["kind"] for block in main["blocks"]}
+assert "branch" in term_kinds and "jump" in term_kinds and "return" in term_kinds, main["blocks"]
 
 print(f"OK: native IR dump functions={len(funcs)} path={path}")
 PY

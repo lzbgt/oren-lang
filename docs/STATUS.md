@@ -5049,11 +5049,12 @@ make docs-site
   function/block/terminator closure, duplicate functions, unknown branch targets,
   and safepoint/helper root metadata without changing production native emitters.
   `oren dump native-ir` plus `verify-native-ir-dump` now produce and verify
-  validated source-operation records for `examples/hello.oren`;
+  validated source-operation and CFG records for `examples/hello.oren`;
   `verify-native-ir-parity` now checks linked function-surface parity plus
-  required operation kinds for the initial fixture set across x64 Linux, x64
-  Windows, and ARM64 macOS. CFG/control-flow lowering and runtime-helper ABI
-  records remain before LLVM object emission.
+  required operation kinds and closed branch/jump targets for the initial
+  fixture set across x64 Linux, x64 Windows, and ARM64 macOS. Explicit
+  runtime-helper ABI plus safepoint/root records remain before LLVM object
+  emission.
 
 ## Documentation Guardrail
 

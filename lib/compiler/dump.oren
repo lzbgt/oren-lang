@@ -52,6 +52,16 @@ fn _native_ir_new_tmp(ctx) {
     return "%t" + oren_int_to_string(n)
 }
 
+fn _native_ir_new_label(ctx, prefix) {
+    var n = ctx["next_label"]
+    ctx["next_label"] = n + 1
+    return prefix + "_" + oren_int_to_string(n)
+}
+
+fn _native_ir_emit_block(ctx, label, ops, term) {
+    oren_list_push(ctx["blocks"], native_ir.block(label, ops, term))
+}
+
 fn _native_ir_expr_name(expr) {
     if expr == nil { return nil }
     if expr["type"] == "Identifier" { return expr["value"] }
@@ -164,6 +174,98 @@ fn _native_ir_stmt_name(stmt) {
     return nil
 }
 
+fn _native_ir_body_stmts(body) {
+    if body == nil { return [] }
+    if body["type"] == "Block" || body["type"] == "StmtList" {
+        if body["stmts"] == nil { return [] }
+        return body["stmts"]
+    }
+    return [body]
+}
+
+fn _native_ir_lower_if_expr_as_stmt(ctx, label, ops, expr) {
+    var cond = _native_ir_lower_expr(ctx, ops, expr["cond"])
+    var then_label = _native_ir_new_label(ctx, "if_then")
+    var else_label = _native_ir_new_label(ctx, "if_else")
+    var cont_label = _native_ir_new_label(ctx, "if_cont")
+    _native_ir_emit_block(ctx, label, ops, native_ir.term_branch(cond, then_label, else_label))
+    _native_ir_lower_sequence(ctx, then_label, _native_ir_body_stmts(expr["consq"]), cont_label)
+    if expr["alt"] != nil {
+        _native_ir_lower_sequence(ctx, else_label, _native_ir_body_stmts(expr["alt"]), cont_label)
+    } else {
+        _native_ir_emit_block(ctx, else_label, [], native_ir.term_jump(cont_label))
+    }
+    return cont_label
+}
+
+fn _native_ir_lower_while_stmt(ctx, label, ops, stmt) {
+    var cond_label = _native_ir_new_label(ctx, "while_cond")
+    var body_label = _native_ir_new_label(ctx, "while_body")
+    var after_label = _native_ir_new_label(ctx, "while_after")
+    _native_ir_emit_block(ctx, label, ops, native_ir.term_jump(cond_label))
+
+    var cond_ops = []
+    var cond = _native_ir_lower_expr(ctx, cond_ops, stmt["cond"])
+    _native_ir_emit_block(ctx, cond_label, cond_ops, native_ir.term_branch(cond, body_label, after_label))
+
+    _native_ir_lower_sequence(ctx, body_label, _native_ir_body_stmts(stmt["body"]), cond_label)
+    return after_label
+}
+
+fn _native_ir_lower_sequence(ctx, label, stmts, fallthrough_label) {
+    var ops = []
+    var stmts_len = 0
+    if stmts != nil { stmts_len = oren_list_len(stmts) }
+    var i = 0
+    while i < stmts_len {
+        var stmt = stmts[i]
+        var st = nil
+        if stmt != nil { st = stmt["type"] }
+        if st == "If" {
+            label = _native_ir_lower_if_expr_as_stmt(ctx, label, ops, stmt)
+            ops = []
+            i = i + 1
+            continue
+        }
+        if st == "ExprStmt" {
+            var expr0 = stmt["expr"]
+            if expr0 != nil && expr0["type"] == "If" {
+                label = _native_ir_lower_if_expr_as_stmt(ctx, label, ops, expr0)
+                ops = []
+                i = i + 1
+                continue
+            }
+        }
+        if st == "While" {
+            label = _native_ir_lower_while_stmt(ctx, label, ops, stmt)
+            ops = []
+            i = i + 1
+            continue
+        }
+        if st == "Block" || st == "StmtList" {
+            var block_label = _native_ir_new_label(ctx, "block")
+            var cont_label = _native_ir_new_label(ctx, "block_cont")
+            _native_ir_emit_block(ctx, label, ops, native_ir.term_jump(block_label))
+            _native_ir_lower_sequence(ctx, block_label, _native_ir_body_stmts(stmt), cont_label)
+            label = cont_label
+            ops = []
+            i = i + 1
+            continue
+        }
+        var term = _native_ir_lower_stmt(ctx, ops, stmt)
+        if term != nil {
+            _native_ir_emit_block(ctx, label, ops, term)
+            return nil
+        }
+        i = i + 1
+    }
+    if fallthrough_label != nil {
+        _native_ir_emit_block(ctx, label, ops, native_ir.term_jump(fallthrough_label))
+    } else {
+        _native_ir_emit_block(ctx, label, ops, native_ir.term_return(nil))
+    }
+}
+
 fn _native_ir_lower_stmt(ctx, ops, stmt) {
     if stmt == nil { return nil }
     var t = stmt["type"]
@@ -212,12 +314,7 @@ fn _native_ir_lower_stmt(ctx, ops, stmt) {
         }
         return nil
     }
-    var inputs = []
-    if t == "If" || t == "While" {
-        var cond = stmt["cond"]
-        if cond != nil { oren_list_push(inputs, _native_ir_lower_expr(ctx, ops, cond)) }
-    }
-    oren_list_push(ops, native_ir.op_opaque_stmt(t, inputs))
+    oren_list_push(ops, native_ir.op_opaque_stmt(t, []))
     return nil
 }
 
@@ -228,25 +325,14 @@ fn _native_ir_function_from_entry(entry) {
     if func != nil { params = func["params"] }
     var arity = 0
     if params != nil { arity = oren_list_len(params) }
-    var ops = []
-    var ctx = {"next_tmp": 0}
-    var term = native_ir.term_return(nil)
+    var ctx = {"next_tmp": 0, "next_label": 0, "blocks": []}
     if func != nil {
         var stmts = analysis.function_body_top_level_stmts(func)
-        var stmts_len = 0
-        if stmts != nil { stmts_len = oren_list_len(stmts) }
-        var si = 0
-        while si < stmts_len {
-            var term0 = _native_ir_lower_stmt(ctx, ops, stmts[si])
-            if term0 != nil {
-                term = term0
-                break
-            }
-            si = si + 1
-        }
+        _native_ir_lower_sequence(ctx, "entry", stmts, nil)
+    } else {
+        _native_ir_emit_block(ctx, "entry", [], native_ir.term_return(nil))
     }
-    var blk = native_ir.block("entry", ops, term)
-    return native_ir.function(name, arity, arity, [blk])
+    return native_ir.function(name, arity, arity, ctx["blocks"])
 }
 
 fn native_ir_from_linked(linked, entry_path, arch, target_os) {

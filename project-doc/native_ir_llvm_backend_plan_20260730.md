@@ -96,8 +96,8 @@ Initial gates:
   direct function calls, string concat, list length/get, panic path, and one
   runtime helper call. `make verify-native-ir-parity` now checks that the
   native-IR dump preserves the exact linked function surface and emits required
-  source-operation kinds for that fixture set across `x64-linux`,
-  `x64-windows`, and `arm64-macos`.
+  source-operation kinds plus closed CFG branch/jump targets for that fixture
+  set across `x64-linux`, `x64-windows`, and `arm64-macos`.
 - `make verify-native-ir-toolchain` reports `clang`, `llvm-config`, and `llc`
   availability without assuming they exist. It writes
   `build/native_ir/toolchain.txt` and only requires a complete LLVM toolchain
@@ -137,5 +137,7 @@ after it has round-trip/parity evidence. Until then:
 6. Done: add first source-operation lowering for the parity fixture set:
    constants, local get/set, binary/unary ops, calls, arrays, index get/set,
    expression results, and explicit opaque statement/expression placeholders.
-7. Replace opaque control-flow placeholders with native-IR CFG blocks, branches,
-   and runtime-helper ABI records before emitting LLVM object code.
+7. Done: replace `If`/`While` opaque control-flow placeholders with native-IR
+   CFG blocks, branches, jumps, and fallthrough continuations.
+8. Add explicit runtime-helper ABI and safepoint/root records before emitting
+   LLVM object code.
