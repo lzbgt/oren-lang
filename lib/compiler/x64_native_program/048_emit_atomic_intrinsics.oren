@@ -29,7 +29,7 @@ fn _x64_atomic_ptr_state(ctx, locals) {
     if oren_type_tag(base) == 0 { return nil }
     var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
     if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_ptr": tmp_ptr}
+    return [base, tmp_ptr]
 }
 
 fn _x64_atomic_cas_state(ctx, locals) {
@@ -38,7 +38,7 @@ fn _x64_atomic_cas_state(ctx, locals) {
     var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_exp = _intr_tmp_off(ctx, locals, base + 1)
     if oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_exp) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "tmp_ptr": tmp_ptr, "tmp_exp": tmp_exp}
+    return [base, tmp_ptr, tmp_exp]
 }
 
 fn _emit_intrinsic_atomic_add_x64(ctx, expr, locals) {
@@ -49,8 +49,8 @@ fn _emit_intrinsic_atomic_add_x64(ctx, expr, locals) {
     // Must not keep `ptr` only in a register across nested expression evaluation.
     var state = _x64_atomic_ptr_state(ctx, locals)
     if state == nil { return nil }
-    var base = state["base"]
-    var tmp_ptr = state["tmp_ptr"]
+    var base = state[0]
+    var tmp_ptr = state[1]
 
     if _x64_atomic_eval_spill_arg(ctx, locals, args[0], tmp_ptr) == nil { _intr_tmp_pop(ctx, base); return nil }
 
@@ -73,9 +73,9 @@ fn _emit_intrinsic_atomic_cas_x64(ctx, expr, locals) {
     // We need to preserve ptr and expected across evaluation of `new`.
     var state = _x64_atomic_cas_state(ctx, locals)
     if state == nil { return nil }
-    var base = state["base"]
-    var tmp_ptr = state["tmp_ptr"]
-    var tmp_exp = state["tmp_exp"]
+    var base = state[0]
+    var tmp_ptr = state[1]
+    var tmp_exp = state[2]
 
     if _x64_atomic_eval_spill_arg(ctx, locals, args[0], tmp_ptr) == nil { _intr_tmp_pop(ctx, base); return nil }
     if _x64_atomic_eval_spill_arg(ctx, locals, args[1], tmp_exp) == nil { _intr_tmp_pop(ctx, base); return nil }

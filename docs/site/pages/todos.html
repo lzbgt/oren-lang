@@ -432,6 +432,10 @@
 <p>  state, LIST/LIST_INT push spill/label state, and LIST_INT unchecked</p>
 <p>  negative/upper-bound guards into focused helpers.</p>
 <ul>
+<li>X64 atomic add/CAS intrinsic scratch records now use compact positional state</li>
+</ul>
+<p>  instead of transient keyed maps for fixed-shape temp slots.</p>
+<ul>
 <li>X64 function epilogue emission now separates call-depth exit patch points,</li>
 </ul>
 <p>  callee-save restores, frame teardown/return, and local-fixup finalization into</p>

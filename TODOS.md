@@ -279,6 +279,8 @@ design evidence lives under `project-doc/`.
   index get paths, index-set nil/tracked prechecks, LIST/LIST_INT dot prep/label
   state, LIST/LIST_INT push spill/label state, and LIST_INT unchecked
   negative/upper-bound guards into focused helpers.
+- X64 atomic add/CAS intrinsic scratch records now use compact positional state
+  instead of transient keyed maps for fixed-shape temp slots.
 - X64 function epilogue emission now separates call-depth exit patch points,
   callee-save restores, frame teardown/return, and local-fixup finalization into
   focused helpers while preserving return-order emission.

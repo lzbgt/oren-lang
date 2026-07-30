@@ -467,7 +467,8 @@ This file is the concise task view. Detailed implementation status lives in
      LIST/LIST_INT push spill/label records, fast list-dot prep/label/slot
      records, fast LIST get-sum prep/validation/label records, print
      `sys_write` temp-state records, list-int reduce/dot unchecked helper
-     records, and late synthesized fnwrap compilation.
+     records, atomic add/CAS scratch records, and late synthesized fnwrap
+     compilation.
    - Current x64 system/data helper cleanup separates GC-root sorted insertion,
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
