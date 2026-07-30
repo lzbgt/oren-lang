@@ -854,7 +854,11 @@
 <p>     <code>oren_*</code> helper calls now lower to deterministic named symbols such as</p>
 <p>     <code>oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)</code> instead of the</p>
 <p>     previous token-id dispatcher, giving future runtime linking a stable</p>
-<p>     per-helper symbol surface.</p>
+<p>     per-helper symbol surface. <code>make verify-native-ir-llvm-string-runtime</code></p>
+<p>     now proves the first generated named <code>oren_*</code> helper body:</p>
+<p>     <code>oren_llvm_helper_oren_string_len</code> switches over string-token constants,</p>
+<p>     returns UTF-8 byte lengths, links, and executes against the native backend</p>
+<p>     oracle.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

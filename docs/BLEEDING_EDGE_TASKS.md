@@ -532,7 +532,11 @@ This file is the concise task view. Detailed implementation status lives in
      `oren_*` helper calls now lower to deterministic named symbols such as
      `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)` instead of the
      previous token-id dispatcher, giving future runtime linking a stable
-     per-helper symbol surface.
+     per-helper symbol surface. `make verify-native-ir-llvm-string-runtime`
+     now proves the first generated named `oren_*` helper body:
+     `oren_llvm_helper_oren_string_len` switches over string-token constants,
+     returns UTF-8 byte lengths, links, and executes against the native backend
+     oracle.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

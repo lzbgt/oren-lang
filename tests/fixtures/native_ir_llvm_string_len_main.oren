@@ -1,0 +1,10 @@
+// Native IR LLVM string length smoke:
+// - proves generated named oren_string_len helper over string-token constants
+
+fn main() {
+    var n = oren_string_len("abcdef")
+    if n != 6 {
+        return 1
+    }
+    return 0
+}

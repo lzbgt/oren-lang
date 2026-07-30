@@ -225,6 +225,11 @@ after it has round-trip/parity evidence. Until then:
     `oren_llvm_helper_oren_string_eq(argc,arg0,arg1,arg2,arg3)`, preserving the
     explicit native-IR argument count while giving future runtime linking a
     stable per-helper symbol surface.
-23. Implement real runtime bodies for named `oren_*` helper symbols; keep
-    x64/ARM64 as the oracle until LLVM can run those parity programs without
-    unresolved or test-only helper bodies.
+23. Done: implement the first real named `oren_*` helper body. The lowerer maps
+    `oren_string_len` to generated `oren_llvm_helper_oren_string_len`, switches
+    over native-IR string-token IDs, returns UTF-8 byte lengths for constant
+    strings, and `make verify-native-ir-llvm-string-runtime` proves linked
+    execution parity against the native backend oracle.
+24. Implement more named `oren_*` helper bodies, starting with string
+    equality/slice-style helpers; keep x64/ARM64 as the oracle until LLVM can run
+    those parity programs without unresolved or test-only helper bodies.
