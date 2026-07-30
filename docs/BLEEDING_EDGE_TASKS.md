@@ -576,9 +576,11 @@ This file is the concise task view. Detailed implementation status lives in
 	     roots as strings. LLVM-native now also lowers bytes into
 	     `%oren_llvm_bytes { len, data, owner_kind }` descriptors with
 	     runtime-owned raw backing storage, bytes registration/root hooks, and
-	     generated `oren_bytes_from_hex`, `oren_bytes_len`, and
-	     `oren_bytes_get_u8` helpers. `make verify-native-ir-llvm-bytes-runtime`
-	     proves linked execution parity under forced GC-at-safepoint.
+	     generated `oren_bytes_from_hex`, `oren_bytes_len`,
+	     `oren_bytes_get_u8`, `oren_bytes_to_hex`, `oren_bytes_pack`, and
+	     `oren_bytes_unpack` helpers. `make verify-native-ir-llvm-bytes-runtime`
+	     proves linked hex -> bytes -> list -> mutated bytes -> hex execution
+	     parity under forced GC-at-safepoint.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

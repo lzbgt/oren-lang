@@ -345,6 +345,12 @@ after it has round-trip/parity evidence. Until then:
     `oren_bytes_get_u8`. `make verify-native-ir-llvm-bytes-runtime` proves
     linked execution parity against the native backend oracle while forcing GC at
     helper safepoints.
-43. Expand bytes descriptor helpers to materialization/interop operations such as
-    `oren_bytes_to_hex`, `oren_bytes_pack`, and `oren_bytes_unpack`, then extend
-    non-string descriptor coverage to maps and runtime-shaped records.
+43. Done: expand bytes descriptor materialization and interop helpers.
+    `oren_bytes_to_hex` now returns a descriptor-backed string,
+    `oren_bytes_unpack` returns a descriptor-backed list, and
+    `oren_bytes_pack` validates list elements before allocating a runtime-owned
+    bytes descriptor. The focused bytes runtime gate proves hex -> bytes ->
+    list -> mutated bytes -> hex roundtrip under forced GC-at-safepoint.
+44. Extend bytes descriptors to endian read/write helpers, byte slices/copy, and
+    runtime-varying inputs, then extend non-string descriptor coverage to maps
+    and runtime-shaped records.

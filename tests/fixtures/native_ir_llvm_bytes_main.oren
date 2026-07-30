@@ -1,6 +1,7 @@
 // Native IR LLVM bytes descriptor smoke:
 // - proves hex strings lower into runtime-owned bytes descriptors
 // - proves descriptor-backed length and byte access helpers
+// - proves bytes-to-hex, bytes-unpack, and bytes-pack materialization
 // - proves bytes roots survive helper safepoints and forced GC
 
 fn main() {
@@ -12,5 +13,13 @@ fn main() {
     if oren_bytes_get_u8(alias, 2) != 16 { return 4 }
     if oren_bytes_get_u8(alias, 3) != 32 { return 5 }
     if oren_bytes_len(oren_bytes_from_hex("ABcd")) != 2 { return 6 }
+    if oren_string_eq(oren_bytes_to_hex(alias), "00ff1020") != true { return 7 }
+
+    var unpacked = oren_bytes_unpack(alias)
+    if unpacked[1] != 255 { return 8 }
+    unpacked[2] = 171
+    var packed = oren_bytes_pack(unpacked)
+    if oren_bytes_get_u8(packed, 2) != 171 { return 9 }
+    if oren_string_eq(oren_bytes_to_hex(packed), "00ffab20") != true { return 10 }
     return 0
 }

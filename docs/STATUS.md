@@ -5165,12 +5165,15 @@ make docs-site
 					  roots are now routed by proven descriptor kind, avoiding string-root
 					  pushes for integer immediates or list handles. LLVM-native now also
 					  has `%oren_llvm_bytes { len, data, owner_kind }` descriptor handles
-					  backed by runtime-owned `OREN_ALLOC_RAW` storage. Generated
-					  `oren_bytes_from_hex`, `oren_bytes_len`, and `oren_bytes_get_u8`
-					  helpers allocate/register bytes descriptors, route proven bytes
-					  locals through `oren_llvm_runtime_roots_push_bytes`, and pass `make
-					  verify-native-ir-llvm-bytes-runtime` under forced
-					  GC-at-safepoint.
+						  backed by runtime-owned `OREN_ALLOC_RAW` storage. Generated
+						  `oren_bytes_from_hex`, `oren_bytes_len`, `oren_bytes_get_u8`,
+						  `oren_bytes_to_hex`, `oren_bytes_pack`, and `oren_bytes_unpack`
+						  helpers allocate/register bytes, string, and list descriptors,
+						  route proven bytes locals through
+						  `oren_llvm_runtime_roots_push_bytes`, and pass `make
+						  verify-native-ir-llvm-bytes-runtime` with a hex -> bytes ->
+						  list -> mutated bytes -> hex roundtrip under forced
+						  GC-at-safepoint.
 
 ## Documentation Guardrail
 

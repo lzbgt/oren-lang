@@ -52,14 +52,25 @@ grep -Fq "define i64 @oren_llvm_helper_hex_nibble" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_from_hex" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_len" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_bytes_get_u8" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_to_hex" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_pack" "$object.ll"
+grep -Fq "define i64 @oren_llvm_helper_oren_bytes_unpack" "$object.ll"
+grep -Fq "define i8 @oren_llvm_helper_hex_digit" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_register_bytes(i64, i8*, i64)" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_register_string(i64, i8*, i64)" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_register_list(i64, i64*, i64)" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_roots_push_bytes(i64)" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_register_bytes" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_register_string" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_register_list" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_roots_push_bytes" "$object.ll"
 grep -Fq "call i8* @oren_llvm_runtime_alloc_bytes(i64 %len, i64 5)" "$object.ll"
 grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 if grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_len(i64, i64, i64, i64, i64)" "$object.ll" ||
-   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_get_u8(i64, i64, i64, i64, i64)" "$object.ll"; then
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_get_u8(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_to_hex(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_pack(i64, i64, i64, i64, i64)" "$object.ll" ||
+   grep -Fq "declare i64 @oren_llvm_helper_oren_bytes_unpack(i64, i64, i64, i64, i64)" "$object.ll"; then
   echo "ERROR: descriptor-backed bytes helpers fell back to generic runtime declarations" >&2
   exit 1
 fi
@@ -69,6 +80,8 @@ cat >"$harness" <<'C'
 #include <stdio.h>
 
 extern int64_t oren_native_ir_main_probe(void);
+extern int64_t oren_llvm_runtime_registered_strings(void);
+extern int64_t oren_llvm_runtime_registered_lists(void);
 extern int64_t oren_llvm_runtime_registered_bytes(void);
 extern int64_t oren_llvm_runtime_root_depth(void);
 extern int64_t oren_llvm_runtime_root_pushes(void);
@@ -82,6 +95,14 @@ int main(void) {
     }
     if (oren_llvm_runtime_registered_bytes() < 2) {
         fprintf(stderr, "expected registered LLVM bytes descriptors\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_registered_strings() < 2) {
+        fprintf(stderr, "expected registered LLVM string descriptors from bytes_to_hex\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_registered_lists() < 1) {
+        fprintf(stderr, "expected registered LLVM list descriptors from bytes_unpack\n");
         return 1;
     }
     if (oren_llvm_runtime_root_pushes() < 1) {
@@ -112,7 +133,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-runtime-registration,bytes-safepoint-roots,forced-gc-at-bytes-safepoint\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-to-hex-helper,bytes-pack-helper,bytes-unpack-helper,bytes-runtime-registration,bytes-safepoint-roots,forced-gc-at-bytes-safepoint,bytes-list-string-roundtrip\n'
 } >"$summary"
 
 echo "OK: native IR LLVM bytes runtime parity passed; summary: $summary"

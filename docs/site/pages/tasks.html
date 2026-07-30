@@ -898,9 +898,11 @@
 <p>	     roots as strings. LLVM-native now also lowers bytes into</p>
 <p>	     <code>%oren_llvm_bytes { len, data, owner_kind }</code> descriptors with</p>
 <p>	     runtime-owned raw backing storage, bytes registration/root hooks, and</p>
-<p>	     generated <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>, and</p>
-<p>	     <code>oren_bytes_get_u8</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
-<p>	     proves linked execution parity under forced GC-at-safepoint.</p>
+<p>	     generated <code>oren_bytes_from_hex</code>, <code>oren_bytes_len</code>,</p>
+<p>	     <code>oren_bytes_get_u8</code>, <code>oren_bytes_to_hex</code>, <code>oren_bytes_pack</code>, and</p>
+<p>	     <code>oren_bytes_unpack</code> helpers. <code>make verify-native-ir-llvm-bytes-runtime</code></p>
+<p>	     proves linked hex -&gt; bytes -&gt; list -&gt; mutated bytes -&gt; hex execution</p>
+<p>	     parity under forced GC-at-safepoint.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

@@ -61,6 +61,7 @@ grep -Fq "nested-list-index-provenance" build/native_ir/llvm_list_runtime/summar
 grep -Fq "descriptor-root-kind-routing" build/native_ir/llvm_list_runtime/summary.txt
 grep -Fq "llvm-bytes-descriptor-layout" build/native_ir/llvm_bytes_runtime/summary.txt
 grep -Fq "bytes-safepoint-roots" build/native_ir/llvm_bytes_runtime/summary.txt
+grep -Fq "bytes-list-string-roundtrip" build/native_ir/llvm_bytes_runtime/summary.txt
 
 end="$(date +%s)"
 {
@@ -78,7 +79,7 @@ end="$(date +%s)"
   printf 'string_access_runtime_summary=build/native_ir/llvm_string_access_runtime/summary.txt\n'
   printf 'list_runtime_summary=build/native_ir/llvm_list_runtime/summary.txt\n'
   printf 'bytes_runtime_summary=build/native_ir/llvm_bytes_runtime/summary.txt\n'
-  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,named-exit-helper,named-oren-string-len-helper,named-oren-string-eq-helper,named-oren-string-slice-helper,named-oren-string-access-helpers,llvm-list-descriptor-layout,llvm-list-index-set-helper,llvm-list-push-growth-helper,llvm-list-len-helper,llvm-list-safepoint-roots,nested-list-index-provenance,descriptor-root-kind-routing,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-safepoint-roots,helper-execute,exit-status,string-helper-execute,string-eq-helper-execute,string-slice-helper-execute,string-access-helper-execute,list-helper-execute,bytes-helper-execute,forced-gc-at-generated-helper-safepoint\n'
+  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,named-exit-helper,named-oren-string-len-helper,named-oren-string-eq-helper,named-oren-string-slice-helper,named-oren-string-access-helpers,llvm-list-descriptor-layout,llvm-list-index-set-helper,llvm-list-push-growth-helper,llvm-list-len-helper,llvm-list-safepoint-roots,nested-list-index-provenance,descriptor-root-kind-routing,llvm-bytes-descriptor-layout,bytes-from-hex-helper,bytes-len-helper,bytes-get-u8-helper,bytes-to-hex-helper,bytes-pack-helper,bytes-unpack-helper,bytes-list-string-roundtrip,bytes-safepoint-roots,helper-execute,exit-status,string-helper-execute,string-eq-helper-execute,string-slice-helper-execute,string-access-helper-execute,list-helper-execute,bytes-helper-execute,forced-gc-at-generated-helper-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM smoke passed; summary: $summary"

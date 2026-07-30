@@ -76,8 +76,9 @@
 <li>LLVM-native now has a typed <code>%oren_llvm_bytes { len, data, owner_kind }</code></li>
 </ul>
 <p>  descriptor ABI backed by runtime-owned raw byte storage, generated</p>
-<p>  <code>oren_bytes_from_hex</code>/<code>oren_bytes_len</code>/<code>oren_bytes_get_u8</code> helpers,</p>
-<p>  type-specific bytes roots, and a forced-GC linked runtime proof via</p>
+<p>  <code>oren_bytes_from_hex</code>/<code>oren_bytes_len</code>/<code>oren_bytes_get_u8</code> plus</p>
+<p>  <code>oren_bytes_to_hex</code>/<code>oren_bytes_pack</code>/<code>oren_bytes_unpack</code> helpers,</p>
+<p>  type-specific bytes roots, and a forced-GC linked roundtrip proof via</p>
 <p>  <code>make verify-native-ir-llvm-bytes-runtime</code>.</p>
 <ul>
 <li><code>std:math</code> now includes deterministic scalar <code>lgamma</code> and <code>tgamma</code> helpers in</li>
