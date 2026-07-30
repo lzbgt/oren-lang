@@ -21,12 +21,7 @@ fn _emit_string_len_from_ptr_x64(ctx, ptr_reg, dst_reg) {
 }
 
 fn _x64_strlen_ptr_labels(ctx) {
-    return {
-        "labels": {},
-        "local_fixups": [],
-        "done": _new_label(ctx, "str_len_done"),
-        "loop": _new_label(ctx, "str_len_loop")
-    }
+    return [{}, [], _new_label(ctx, "str_len_done"), _new_label(ctx, "str_len_loop")]
 }
 
 fn _x64_strlen_ptr_prepare(ctx, ptr_reg, dst_reg, state) {
@@ -35,25 +30,25 @@ fn _x64_strlen_ptr_prepare(ctx, ptr_reg, dst_reg, state) {
     // dst = 0  (must happen after capturing ptr, because ptr_reg may alias dst_reg)
     bytes_extend(ctx["code"], core.insn_mov_r32_imm32(dst_reg, 0))
     bytes_extend(ctx["code"], core.insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, state["local_fixups"], "e", state["done"])
+    _emit_jcc_to_label(ctx, state[1], "e", state[2])
     return nil
 }
 
 fn _x64_strlen_ptr_emit_loop(ctx, dst_reg, state) {
-    _emit_label(ctx, state["labels"], state["loop"])
+    _emit_label(ctx, state[0], state[3])
     // Use EAX/AL as the loaded-byte temp to avoid clobbering common ABI arg regs.
     bytes_extend(ctx["code"], core.insn_movzx_r32_mr8(0, 11))
     bytes_extend(ctx["code"], core.insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, state["local_fixups"], "e", state["done"])
+    _emit_jcc_to_label(ctx, state[1], "e", state[2])
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(dst_reg, 1))
     bytes_extend(ctx["code"], core.insn_add_r64_imm32(11, 1))
-    _emit_jmp_to_label(ctx, state["local_fixups"], state["loop"])
+    _emit_jmp_to_label(ctx, state[1], state[3])
     return nil
 }
 
 fn _x64_strlen_ptr_finish(ctx, state) {
-    _emit_label(ctx, state["labels"], state["done"])
-    _patch_local_fixups(ctx, state["labels"], state["local_fixups"])
+    _emit_label(ctx, state[0], state[2])
+    _patch_local_fixups(ctx, state[0], state[1])
     return nil
 }
 
@@ -86,17 +81,17 @@ fn _x64_runtime_oren_add_state(ctx, locals) {
     var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
     if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
-    return {"base": base, "a": tmp_a, "b": tmp_b}
+    return [base, tmp_a, tmp_b]
 }
 
 fn _x64_runtime_oren_add_spill_operands(ctx, expr, locals, st) {
     _emit_eval_int_to_rax(ctx, expr["left"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["a"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[1], 0)
 
     _emit_eval_int_to_rax(ctx, expr["right"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return false }
-    _emit_mov_mrbp_r64(ctx, 0 - st["b"], 0)
+    _emit_mov_mrbp_r64(ctx, 0 - st[2], 0)
     return true
 }
 
@@ -111,8 +106,8 @@ fn _x64_runtime_oren_add_arg_regs(ctx) {
 }
 
 fn _x64_runtime_oren_add_emit_call(ctx, regs, st) {
-    _emit_mov_r64_mrbp(ctx, regs["a0"], 0 - st["a"])
-    _emit_mov_r64_mrbp(ctx, regs["a1"], 0 - st["b"])
+    _emit_mov_r64_mrbp(ctx, regs["a0"], 0 - st[1])
+    _emit_mov_r64_mrbp(ctx, regs["a1"], 0 - st[2])
     var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], core.insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_add"})
@@ -125,17 +120,17 @@ fn _x64_emit_runtime_oren_add_x64(ctx, expr, locals) {
     var st = _x64_runtime_oren_add_state(ctx, locals)
     if st == nil { return nil }
     if _x64_runtime_oren_add_spill_operands(ctx, expr, locals, st) != true {
-        _intr_tmp_pop(ctx, st["base"])
+        _intr_tmp_pop(ctx, st[0])
         return nil
     }
     var regs = _x64_runtime_oren_add_arg_regs(ctx)
     if regs == nil {
-        _intr_tmp_pop(ctx, st["base"])
+        _intr_tmp_pop(ctx, st[0])
         return nil
     }
     _x64_runtime_oren_add_emit_call(ctx, regs, st)
 
-    _intr_tmp_pop(ctx, st["base"])
+    _intr_tmp_pop(ctx, st[0])
     return 1
 }
 

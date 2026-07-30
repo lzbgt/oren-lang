@@ -4863,6 +4863,9 @@ make docs-site
   dispatcher without changing operator lowering order. The capped profile now
   shows `x64_native_program.oren` at about 47.9s total / 34.4s parse, with
   `_x64_gqcsx_normalize_result` exposed at about 41ms as the next parser body.
+- X64 string helper lowering now uses compact positional records for pointer
+  string-length labels/fixups and runtime `oren_add` operand spill slots,
+  removing transient keyed maps from fixed-shape string helper state.
 - Windows x64 `GetQueuedCompletionStatusEx` result normalization now separates
   result-label state, BOOL dispatch, timeout-aware `GetLastError` mapping,
   success emission, and final fixup patching while reusing the shared IOCP

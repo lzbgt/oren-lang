@@ -468,7 +468,8 @@ This file is the concise task view. Detailed implementation status lives in
      records, fast LIST get-sum prep/validation/label records, print
      `sys_write` temp-state records, list-int reduce/dot unchecked helper
      records, atomic add/CAS scratch records, logical infix label/fixup
-     records, modulo runtime spill records, and late synthesized fnwrap compilation.
+     records, modulo runtime spill records, string-helper label/spill records,
+     and late synthesized fnwrap compilation.
    - Current x64 system/data helper cleanup separates GC-root sorted insertion,
      C-string sentinel normalization, debug-info entry field emission, Linux
      `fcntl_getfl` flag translation, Windows read-handle selection, Windows
