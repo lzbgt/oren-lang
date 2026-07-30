@@ -5996,6 +5996,14 @@ make docs-site</code></pre>
 <p>  SysV hash construction, dynamic table blob placement, and stable DT_DYNAMIC</p>
 <p>  tags while leaving import validation, export error prefixes, and RELA</p>
 <p>  relocation selection/generation in the arch emitters.</p>
+<ul>
+<li>Native LLVM enablement is now tracked as a native-IR-first migration instead</li>
+</ul>
+<p>  of a direct backend replacement. <code>project-doc/native_ir_llvm_backend_plan_20260730.md</code></p>
+<p>  defines the v0 native IR boundary, required safepoint/GC-root/runtime-helper</p>
+<p>  ABI records, opt-in LLVM backend path, toolchain-detection requirement, and</p>
+<p>  parity gates while keeping the current x64/ARM64 emitters as correctness</p>
+<p>  oracles.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

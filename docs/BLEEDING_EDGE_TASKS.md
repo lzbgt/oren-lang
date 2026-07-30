@@ -489,7 +489,14 @@ This file is the concise task view. Detailed implementation status lives in
 
 ## P1 / W4
 
-1. **AVM iOS embeddability and compiler-in-AVM release gate**
+1. **Native IR / LLVM enablement**
+   - Current verdict: do not replace the hand x64/ARM64 native emitters with
+     LLVM in one refactor. Formalize a backend-neutral native IR first, keep the
+     current native emitters as correctness oracles, and introduce LLVM only as
+     an opt-in backend after native-IR validator/dump and parity fixtures exist.
+     The durable design note is `project-doc/native_ir_llvm_backend_plan_20260730.md`.
+
+2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop
      `LibAVM.xcframework` packaging, Linux x64 static `LibAVM` packaging, Windows
      x64 static `LibAVM` packaging, and a C embedder API now exist. The public API includes argv, VFS input/output,

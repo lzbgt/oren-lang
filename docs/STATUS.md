@@ -5036,6 +5036,12 @@ make docs-site
   SysV hash construction, dynamic table blob placement, and stable DT_DYNAMIC
   tags while leaving import validation, export error prefixes, and RELA
   relocation selection/generation in the arch emitters.
+- Native LLVM enablement is now tracked as a native-IR-first migration instead
+  of a direct backend replacement. `project-doc/native_ir_llvm_backend_plan_20260730.md`
+  defines the v0 native IR boundary, required safepoint/GC-root/runtime-helper
+  ABI records, opt-in LLVM backend path, toolchain-detection requirement, and
+  parity gates while keeping the current x64/ARM64 emitters as correctness
+  oracles.
 
 ## Documentation Guardrail
 

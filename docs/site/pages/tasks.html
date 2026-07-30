@@ -808,6 +808,16 @@
 </ul>
 <h2 id="p1-w4">P1 / W4</h2>
 <ol>
+<li><strong>Native IR / LLVM enablement</strong></li>
+</ol>
+<ul>
+<li>Current verdict: do not replace the hand x64/ARM64 native emitters with</li>
+</ul>
+<p>     LLVM in one refactor. Formalize a backend-neutral native IR first, keep the</p>
+<p>     current native emitters as correctness oracles, and introduce LLVM only as</p>
+<p>     an opt-in backend after native-IR validator/dump and parity fixtures exist.</p>
+<p>     The durable design note is <code>project-doc/native_ir_llvm_backend_plan_20260730.md</code>.</p>
+<ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
 <ul>
