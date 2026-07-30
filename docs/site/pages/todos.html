@@ -81,6 +81,11 @@
 <p>  type-specific bytes roots, and a forced-GC linked roundtrip proof via</p>
 <p>  <code>make verify-native-ir-llvm-bytes-runtime</code>.</p>
 <ul>
+<li>The public LLVM lowerer script is now a small stable wrapper around</li>
+</ul>
+<p>  <code>scripts/native_ir_llvm_lower_impl.py</code>, keeping the active implementation below</p>
+<p>  the source-line cap before adding endian/slice bytes helpers.</p>
+<ul>
 <li><code>std:math</code> now includes deterministic scalar <code>lgamma</code> and <code>tgamma</code> helpers in</li>
 </ul>
 <p>  a focused gamma include shard plus component-wise <code>vec2</code>/<code>vec3</code>/<code>vec4</code></p>

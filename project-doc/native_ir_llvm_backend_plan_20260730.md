@@ -351,6 +351,10 @@ after it has round-trip/parity evidence. Until then:
     `oren_bytes_pack` validates list elements before allocating a runtime-owned
     bytes descriptor. The focused bytes runtime gate proves hex -> bytes ->
     list -> mutated bytes -> hex roundtrip under forced GC-at-safepoint.
-44. Extend bytes descriptors to endian read/write helpers, byte slices/copy, and
+44. Done: split the public LLVM lowerer entrypoint from its implementation before
+    adding more helper families. `scripts/native_ir_llvm_lower.py` is now a
+    stable CLI wrapper, while `scripts/native_ir_llvm_lower_impl.py` carries the
+    current implementation below the source-line cap.
+45. Extend bytes descriptors to endian read/write helpers, byte slices/copy, and
     runtime-varying inputs, then extend non-string descriptor coverage to maps
     and runtime-shaped records.

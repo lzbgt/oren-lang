@@ -44,6 +44,9 @@ design evidence lives under `project-doc/`.
   `oren_bytes_to_hex`/`oren_bytes_pack`/`oren_bytes_unpack` helpers,
   type-specific bytes roots, and a forced-GC linked roundtrip proof via
   `make verify-native-ir-llvm-bytes-runtime`.
+- The public LLVM lowerer script is now a small stable wrapper around
+  `scripts/native_ir_llvm_lower_impl.py`, keeping the active implementation below
+  the source-line cap before adding endian/slice bytes helpers.
 - `std:math` now includes deterministic scalar `lgamma` and `tgamma` helpers in
   a focused gamma include shard plus component-wise `vec2`/`vec3`/`vec4`
   wrappers that propagate scalar domain errors, with Lanczos/reflection coverage
