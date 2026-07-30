@@ -49,16 +49,21 @@ test -s "$object.ll"
 grep -Fq "%oren_llvm_list = type { i64, i64*, i64 }" "$object.ll"
 grep -Fq "define i64 @oren_llvm_runtime_alloc_list" "$object.ll"
 grep -Fq "define i64 @oren_llvm_helper_oren_list_get" "$object.ll"
+grep -Fq "define void @oren_llvm_helper_oren_list_set" "$object.ll"
+grep -Fq "declare void @oren_llvm_runtime_roots_push_list(i64)" "$object.ll"
 grep -Fq "declare void @oren_llvm_runtime_register_list(i64, i64*, i64)" "$object.ll"
 grep -Fq "call void @oren_llvm_runtime_register_list" "$object.ll"
+grep -Fq "call void @oren_llvm_runtime_roots_push_list" "$object.ll"
 grep -Fq "store i64 1, i64* %ownerp, align 8" "$object.ll"
 list_get_count="$(grep -F "call i64 @oren_llvm_helper_oren_list_get" "$object.ll" | wc -l | tr -d ' ')"
 if [ "$list_get_count" -lt 4 ]; then
   echo "ERROR: expected descriptor-backed list get calls" >&2
   exit 1
 fi
+grep -Fq "call void @oren_llvm_helper_oren_list_set" "$object.ll"
 if grep -Fq "call i64 @oren_llvm_opaque_array" "$object.ll" ||
-   grep -Fq "call i64 @oren_llvm_opaque_index_get" "$object.ll"; then
+   grep -Fq "call i64 @oren_llvm_opaque_index_get" "$object.ll" ||
+   grep -Fq "call void @oren_llvm_opaque_index_set" "$object.ll"; then
   echo "ERROR: list runtime IR fell back to opaque array/index calls" >&2
   exit 1
 fi
@@ -68,7 +73,11 @@ cat >"$harness" <<'C'
 #include <stdio.h>
 
 extern int64_t oren_native_ir_main_probe(void);
+extern int64_t oren_llvm_runtime_registered_strings(void);
 extern int64_t oren_llvm_runtime_registered_lists(void);
+extern int64_t oren_llvm_runtime_root_depth(void);
+extern int64_t oren_llvm_runtime_root_pushes(void);
+extern int64_t oren_llvm_runtime_safepoint_collections(void);
 
 int main(void) {
     int64_t rc = oren_native_ir_main_probe();
@@ -80,12 +89,28 @@ int main(void) {
         fprintf(stderr, "expected at least one registered LLVM list descriptor\n");
         return 1;
     }
+    if (oren_llvm_runtime_registered_strings() < 1) {
+        fprintf(stderr, "expected at least one registered LLVM string descriptor\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_root_pushes() < 1) {
+        fprintf(stderr, "expected LLVM descriptor roots across helper safepoint\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_safepoint_collections() < 1) {
+        fprintf(stderr, "expected forced LLVM helper safepoint collection\n");
+        return 1;
+    }
+    if (oren_llvm_runtime_root_depth() != 0) {
+        fprintf(stderr, "expected LLVM descriptor roots to reset after helper calls\n");
+        return 1;
+    }
     return 0;
 }
 C
 
 "$clang_path" "$harness" "$object" lib/runtime.c lib/runtime_buf.c -Ilib -pthread -o "$llvm_bin" >"$link_log" 2>&1
-"$llvm_bin" >"$llvm_run_log" 2>&1
+OREN_LLVM_FORCE_GC_AT_SAFEPOINT=1 "$llvm_bin" >"$llvm_run_log" 2>&1
 
 end="$(date +%s)"
 {
@@ -96,7 +121,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-list-descriptor-layout,array-literal-allocation,list-index-get-helper,list-local-descriptor-propagation,list-runtime-registration\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-list-descriptor-layout,array-literal-allocation,list-index-get-helper,list-index-set-helper,list-local-descriptor-propagation,list-runtime-registration,list-safepoint-roots,forced-gc-at-list-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM list runtime parity passed; summary: $summary"

@@ -1,6 +1,7 @@
 // Native IR LLVM list layout smoke:
 // - proves array literals lower to descriptor-backed lists
 // - proves indexed reads use the generated list get helper
+// - proves descriptor-backed mutation and list roots survive helper safepoints
 
 fn main() {
     var xs = [3, 4, 5]
@@ -10,5 +11,13 @@ fn main() {
 
     var picked = xs
     if picked[1] != 4 { return 4 }
+    xs[1] = 9
+    if picked[1] != 9 { return 5 }
+
+    var dyn = "ab" + "cd"
+    var words = [dyn]
+    dyn = "released"
+    if oren_string_len("trigger") != 7 { return 6 }
+    if oren_string_eq(words[0], "abcd") != true { return 7 }
     return 0
 }

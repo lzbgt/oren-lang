@@ -308,6 +308,14 @@ after it has round-trip/parity evidence. Until then:
     and the real C runtime validates registered list descriptor metadata. `make
     verify-native-ir-llvm-list-runtime` proves linked execution parity against
     the native backend oracle without falling back to opaque array/index calls.
-38. Extend LLVM list descriptors to mutation/push plus GC root marking for list
-    descriptors that contain tracked Oren values, then expand runtime-varying
-    non-string helpers beyond list reads.
+38. Done: extend LLVM list descriptors to mutation plus GC root marking for
+    list descriptors. Proven list `index_set` now lowers to
+    `oren_llvm_helper_oren_list_set`, helper safepoints push proven list locals
+    through `oren_llvm_runtime_roots_push_list`, and the real C runtime marks
+    rooted LLVM list descriptors plus backing storage during forced GC. `make
+    verify-native-ir-llvm-list-runtime` now forces GC between list allocation
+    and later reads, verifies mutation through an alias, and rejects opaque
+    array/index get/set fallbacks for this subset.
+39. Extend list descriptors to push/growth and broader runtime-varying helper
+    arguments, then expand descriptor ABI support to additional non-string
+    helpers.

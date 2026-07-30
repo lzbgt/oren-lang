@@ -5147,7 +5147,12 @@ make docs-site
 			  `oren_llvm_helper_oren_list_get`, and the C runtime validates registered
 			  list descriptor metadata. `make verify-native-ir-llvm-list-runtime`
 			  proves linked execution parity against the native backend oracle and
-			  rejects opaque array/index call fallbacks for this subset.
+			  rejects opaque array/index call fallbacks for this subset. The same
+			  focused gate now also proves descriptor-backed `index_set` through
+			  `oren_llvm_helper_oren_list_set`, pushes proven list locals as helper
+			  safepoint roots via `oren_llvm_runtime_roots_push_list`, forces GC
+			  between list allocation and later reads, and verifies root-stack reset
+			  after helper calls.
 
 ## Documentation Guardrail
 

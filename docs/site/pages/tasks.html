@@ -882,7 +882,10 @@
 <p>     data, owner_kind }`, descriptor-backed index reads use</p>
 <p>     <code>oren_llvm_helper_oren_list_get</code>, and `make</p>
 <p>     verify-native-ir-llvm-list-runtime` proves linked execution parity without</p>
-<p>     opaque array/index call fallbacks.</p>
+<p>     opaque array/index call fallbacks. The same gate now covers descriptor-backed</p>
+<p>     index mutation through <code>oren_llvm_helper_oren_list_set</code>, forced-GC</p>
+<p>     safepoints with proven list locals rooted via</p>
+<p>     <code>oren_llvm_runtime_roots_push_list</code>, and root reset after helper calls.</p>
 <ol>
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>

@@ -6109,7 +6109,12 @@ make docs-site</code></pre>
 <p>			  <code>oren_llvm_helper_oren_list_get</code>, and the C runtime validates registered</p>
 <p>			  list descriptor metadata. <code>make verify-native-ir-llvm-list-runtime</code></p>
 <p>			  proves linked execution parity against the native backend oracle and</p>
-<p>			  rejects opaque array/index call fallbacks for this subset.</p>
+<p>			  rejects opaque array/index call fallbacks for this subset. The same</p>
+<p>			  focused gate now also proves descriptor-backed <code>index_set</code> through</p>
+<p>			  <code>oren_llvm_helper_oren_list_set</code>, pushes proven list locals as helper</p>
+<p>			  safepoint roots via <code>oren_llvm_runtime_roots_push_list</code>, forces GC</p>
+<p>			  between list allocation and later reads, and verifies root-stack reset</p>
+<p>			  after helper calls.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

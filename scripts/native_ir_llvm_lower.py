@@ -124,9 +124,12 @@ def collect_generic_helpers(fn):
 
 def function_needs_root_hooks(fn):
     descriptors = collect_descriptor_values(fn)
+    list_values = collect_list_descriptor_values(fn)
     for block in fn["blocks"]:
         for op in block["ops"]:
             if op["kind"] == "runtime_helper_call" and op.get("safepoint") and op.get("roots"):
+                return True
+            if op["kind"] == "runtime_helper_call" and op.get("safepoint") and list_values:
                 return True
             if op["kind"] == "binary" and op["op"] == "+":
                 if op["left"] in descriptors and op["right"] in descriptors:
@@ -189,8 +192,9 @@ class FunctionLowerer:
         self.token_table = {}
         self.const_values = collect_const_values(fn)
         self.descriptor_values, self.descriptor_block_in = collect_descriptor_analysis(fn)
-        self.list_values = collect_list_descriptor_values(fn)
+        self.list_values, self.list_block_in = collect_list_descriptor_analysis(fn)
         self.current_descriptor_locals = set()
+        self.current_list_locals = set()
         self.scratch_seq = 0
         self.slots = collect_slots(fn)
         self.slot_vars = {name: f"%slot{idx}" for idx, name in enumerate(self.slots)}
@@ -232,13 +236,19 @@ class FunctionLowerer:
             if local_name not in seen_roots:
                 roots.append(local_name)
                 seen_roots.add(local_name)
-        if op.get("safepoint") and roots:
+        list_roots = sorted(self.current_list_locals)
+        if op.get("safepoint") and (roots or list_roots):
             mark = self.scratch_var("root_mark")
             self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
             for root_value in roots:
                 root_ref = self.value_ref(root_value)
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_string(i64 {root_ref}) ; safepoint root {root_value}"
+                )
+            for root_value in list_roots:
+                root_ref = self.value_ref(root_value)
+                self.write_inst(
+                    f"call void @oren_llvm_runtime_roots_push_list(i64 {root_ref}) ; safepoint root list {root_value}"
                 )
             self.write_inst("call void @oren_llvm_runtime_safepoint_poll() ; forced GC safepoint poll")
         self.write_inst(f"{helper_call} ; helper {helper_name} safepoint={op.get('safepoint', False)}")
@@ -254,6 +264,7 @@ class FunctionLowerer:
         for bidx, block in enumerate(self.fn["blocks"]):
             self.out.write(f"{label_names[block['label']]}:\n")
             self.current_descriptor_locals = set(self.descriptor_block_in.get(block["label"], set()))
+            self.current_list_locals = set(self.list_block_in.get(block["label"], set()))
             if bidx == 0:
                 for name in self.slots:
                     self.write_inst(f"{self.slot_vars[name]} = alloca i64, align 8 ; local {name}")
@@ -286,6 +297,10 @@ class FunctionLowerer:
                 self.current_descriptor_locals.add(name)
             else:
                 self.current_descriptor_locals.discard(name)
+            if op["value"] in self.list_values:
+                self.current_list_locals.add(name)
+            else:
+                self.current_list_locals.discard(name)
         elif kind == "binary":
             self.lower_binary(op)
         elif kind == "unary":
@@ -391,7 +406,10 @@ class FunctionLowerer:
             container = self.value_ref(op["container"])
             index = self.value_ref(op["index"])
             value = self.value_ref(op["value"])
-            self.write_inst(f"call void @oren_llvm_opaque_index_set(i64 {container}, i64 {index}, i64 {value})")
+            if op["container"] in self.list_values:
+                self.write_inst(f"call void @oren_llvm_helper_oren_list_set(i64 {container}, i64 {index}, i64 {value})")
+            else:
+                self.write_inst(f"call void @oren_llvm_opaque_index_set(i64 {container}, i64 {index}, i64 {value})")
         elif kind == "expr_result":
             self.value_ref(op["value"])
         elif kind == "opaque_stmt":
@@ -962,6 +980,31 @@ def emit_list_get_helper(out):
     out.write("}\n")
 
 
+def emit_list_set_helper(out):
+    out.write("\n")
+    out.write("define void @oren_llvm_helper_oren_list_set(i64 %list_handle, i64 %idx, i64 %value) nounwind {\n")
+    out.write("entry:\n")
+    out.write("  %is_null = icmp eq i64 %list_handle, 0\n")
+    out.write("  br i1 %is_null, label %done, label %load\n")
+    out.write("load:\n")
+    out.write("  %list = inttoptr i64 %list_handle to %oren_llvm_list*\n")
+    out.write("  %lenp = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 0\n")
+    out.write("  %len = load i64, i64* %lenp, align 8\n")
+    out.write("  %idx_nonneg = icmp sge i64 %idx, 0\n")
+    out.write("  %idx_lt_len = icmp slt i64 %idx, %len\n")
+    out.write("  %ok = and i1 %idx_nonneg, %idx_lt_len\n")
+    out.write("  br i1 %ok, label %write, label %done\n")
+    out.write("write:\n")
+    out.write("  %datap = getelementptr inbounds %oren_llvm_list, %oren_llvm_list* %list, i32 0, i32 1\n")
+    out.write("  %data = load i64*, i64** %datap, align 8\n")
+    out.write("  %elem = getelementptr inbounds i64, i64* %data, i64 %idx\n")
+    out.write("  store i64 %value, i64* %elem, align 8\n")
+    out.write("  ret void\n")
+    out.write("done:\n")
+    out.write("  ret void\n")
+    out.write("}\n")
+
+
 def emit_module(ir_path, out_path, ir, main):
     schema = ir["schema"].encode("utf-8")
     schema_literal = "".join(
@@ -993,6 +1036,7 @@ def emit_module(ir_path, out_path, ir, main):
         if function_needs_root_hooks(main):
             out.write("declare i64 @oren_llvm_runtime_roots_mark()\n")
             out.write("declare void @oren_llvm_runtime_roots_push_string(i64)\n")
+            out.write("declare void @oren_llvm_runtime_roots_push_list(i64)\n")
             out.write("declare void @oren_llvm_runtime_safepoint_poll()\n")
             out.write("declare void @oren_llvm_runtime_roots_reset(i64)\n")
         if "print" in helpers_to_emit:
@@ -1016,6 +1060,7 @@ def emit_module(ir_path, out_path, ir, main):
         if needs_list_alloc:
             emit_list_runtime_alloc(out)
             emit_list_get_helper(out)
+            emit_list_set_helper(out)
         if "oren_string_slice" in helpers_to_emit:
             emit_string_slice_helper(out)
         if "oren_string_slice_unchecked" in helpers_to_emit:

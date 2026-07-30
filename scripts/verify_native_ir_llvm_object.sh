@@ -9,7 +9,7 @@ src="${NATIVE_IR_LLVM_SOURCE:-examples/hello.oren}"
 platform="${NATIVE_IR_LLVM_PLATFORM:-x64-linux}"
 out_dir="${NATIVE_IR_LLVM_OUT_DIR:-build/native_ir/llvm_object}"
 log_dir="build/logs"
-toolchain_dir="${NATIVE_IR_TOOLCHAIN_OUT_DIR:-build/native_ir}"
+toolchain_dir="${NATIVE_IR_TOOLCHAIN_OUT_DIR:-$out_dir/toolchain}"
 toolchain_report="$toolchain_dir/toolchain.txt"
 
 mkdir -p "$out_dir" "$log_dir"
@@ -22,7 +22,7 @@ native_ir_json="$out_dir/input.native_ir.json"
 llvm_ir="$out_dir/probe.ll"
 object_out="$out_dir/probe.o"
 
-if ! ./scripts/verify_native_ir_toolchain.sh >"$toolchain_log" 2>&1; then
+if ! NATIVE_IR_TOOLCHAIN_OUT_DIR="$toolchain_dir" ./scripts/verify_native_ir_toolchain.sh >"$toolchain_log" 2>&1; then
   cat "$toolchain_log"
   exit 1
 fi
