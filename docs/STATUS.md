@@ -5056,7 +5056,8 @@ make docs-site
   backend-neutral `tagged`/`void` type layouts, function return/value types, and
   runtime-helper arg/result types for the initial fixture set across x64 Linux,
   x64 Windows, and ARM64 macOS. The `verify-native-ir-llvm-object` gate now
-  validates native IR plus type metadata, lowers the typed `main` CFG subset to
+  validates native IR plus type metadata, calls reusable
+  `scripts/native_ir_llvm_lower.py`, lowers the typed `main` CFG subset to
   textual LLVM IR with real blocks, branches, local slots, constants,
   arithmetic/comparison ops, opaque call/container shims, and runtime-helper
   call markers, and writes `build/native_ir/llvm_object/manifest.txt`, skipping

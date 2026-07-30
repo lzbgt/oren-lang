@@ -167,6 +167,10 @@ after it has round-trip/parity evidence. Until then:
     over the same seven native-IR fixtures and three target platforms as the
     linked-surface parity gate. This proves the current LLVM textual lowering
     remains target-triple aware and fixture-broad even on hosts without `llc`.
-13. Add an opt-in `llvm-native` backend command path and object/parity fixture
+13. Done: extract textual LLVM lowering into reusable
+    `scripts/native_ir_llvm_lower.py` so the object gate and future opt-in
+    backend path consume the same validated native-IR lowering implementation
+    instead of verifier-local heredoc code.
+14. Add an opt-in `llvm-native` backend command path and object/parity fixture
     once a full LLVM toolchain is available; keep x64/ARM64 as the oracle until
     the LLVM path can execute parity fixtures, not just compile probe objects.

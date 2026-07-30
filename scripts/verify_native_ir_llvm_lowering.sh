@@ -80,6 +80,7 @@ with open(log_path, "a", encoding="utf-8") as log:
             assert "ret i64" in ll or "unreachable" in ll, (label, platform, llvm_ir)
             assert "llvm_ir=" + llvm_ir in mf, (label, platform, manifest, mf)
             assert "type_layout=tagged:64:8,void:0:1" in mf, (label, platform, mf)
+            assert "lowerer=scripts/native_ir_llvm_lower.py" in mf, (label, platform, mf)
             if expect_branch:
                 assert "br i1" in ll, (label, platform, "missing branch")
             if expect_helper:

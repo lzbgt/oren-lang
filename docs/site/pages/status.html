@@ -6018,7 +6018,8 @@ make docs-site</code></pre>
 <p>  backend-neutral <code>tagged</code>/<code>void</code> type layouts, function return/value types, and</p>
 <p>  runtime-helper arg/result types for the initial fixture set across x64 Linux,</p>
 <p>  x64 Windows, and ARM64 macOS. The <code>verify-native-ir-llvm-object</code> gate now</p>
-<p>  validates native IR plus type metadata, lowers the typed <code>main</code> CFG subset to</p>
+<p>  validates native IR plus type metadata, calls reusable</p>
+<p>  <code>scripts/native_ir_llvm_lower.py</code>, lowers the typed <code>main</code> CFG subset to</p>
 <p>  textual LLVM IR with real blocks, branches, local slots, constants,</p>
 <p>  arithmetic/comparison ops, opaque call/container shims, and runtime-helper</p>
 <p>  call markers, and writes <code>build/native_ir/llvm_object/manifest.txt</code>, skipping</p>
