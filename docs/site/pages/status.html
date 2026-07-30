@@ -6031,8 +6031,19 @@ make docs-site</code></pre>
 <p>  <code>verify-native-ir-llvm-lowering</code> now</p>
 <p>  proves textual LLVM lowering over the same seven-fixture,</p>
 <p>  three-platform parity matrix used by <code>verify-native-ir-parity</code>, while</p>
-<p>  preserving the current x64/ARM64 production emitters. Executable LLVM backend</p>
-<p>  work now needs the explicit opt-in backend path plus runtime parity fixtures.</p>
+<p>  preserving the current x64/ARM64 production emitters. `oren build --backend</p>
+<p>  llvm-native` is now an opt-in compile-only path that emits relocatable objects</p>
+<p>  through validated native IR, reusable textual LLVM lowering, and <code>llc</code>; `make</p>
+<p>  verify-native-ir-llvm-backend` proves helper-bearing hello object emission,</p>
+<p>  helper-free arithmetic object emission, and explicit rejection of</p>
+<p>  <code>oren test --backend llvm-native</code> until object linking/runtime parity exists.</p>
+<p>  <code>make verify-native-ir-llvm-workflow</code> now provides a timed aggregate local</p>
+<p>  workflow for native-IR/LLVM changes and avoids the known redundant trailing</p>
+<p>  <code>make test</code> run because <code>make test</code> currently aliases <code>test-native-quick</code>.</p>
+<p>  <code>make verify-native-ir-llvm-smoke</code> is the preferred fast iteration gate for</p>
+<p>  this area: two integration programs cover helper-heavy and helper-free object</p>
+<p>  emission, target triples, and compile-only <code>test</code> rejection without replaying</p>
+<p>  broad runtime suites.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

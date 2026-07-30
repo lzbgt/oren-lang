@@ -176,6 +176,24 @@ after it has round-trip/parity evidence. Until then:
 14. Done: detect the installed Homebrew LLVM toolchain even when it is not on
     `PATH`; `NATIVE_IR_REQUIRE_LLVM=1 make verify-native-ir-llvm-object` now
     emits `build/native_ir/llvm_object/probe.o` on this host.
-15. Add an opt-in `llvm-native` backend command path and object/parity fixture;
-    keep x64/ARM64 as the oracle until the LLVM path can execute parity
-    fixtures, not just compile probe objects.
+15. Done: add an opt-in compile-only `llvm-native` backend command path.
+    `oren build --backend llvm-native` now delegates through the validated native
+    IR dump, reusable textual LLVM lowerer, and full-toolchain `llc` emission to
+    produce relocatable objects plus adjacent native-IR/LLVM/manifest sidecars.
+    `make verify-native-ir-llvm-backend` proves helper-bearing hello object
+    emission, helper-free arithmetic object emission, and explicit rejection of
+    `oren test --backend llvm-native` until object linking/runtime parity exists.
+16. Done: add `make verify-native-ir-llvm-workflow`, a timed aggregate local
+    verification path for native-IR/LLVM work. It runs the focused native-IR
+    gates, stage2, native quick, x64 compile, AVM, and iOS SDK gates while
+    intentionally omitting a trailing `make test` duplicate because `make test`
+    currently aliases `test-native-quick`.
+17. Done: add `make verify-native-ir-llvm-smoke`, the default fast iteration
+    gate for native-IR/LLVM command-path work. It uses two integration programs
+    (`examples/hello.oren` and `tests/fixtures/x64_div_mod_main.oren`) to cover
+    toolchain discovery, build dispatch, native-IR dump, LLVM lowering, `llc`
+    object emission, helper calls, helper-free arithmetic, target triples, and
+    compile-only `test` rejection without replaying broad runtime suites.
+18. Add LLVM runtime linking/execution parity fixtures; keep x64/ARM64 as the
+    oracle until the LLVM path can run parity programs, not just compile
+    relocatable objects.

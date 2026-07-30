@@ -512,7 +512,14 @@ This file is the concise task view. Detailed implementation status lives in
      `build/native_ir/llvm_object/manifest.txt`, skipping clearly when the full
      LLVM toolchain is absent and failing fast when
      `NATIVE_IR_REQUIRE_LLVM=1`; on this host that strict mode now emits
-     `build/native_ir/llvm_object/probe.o` through Homebrew `llc`.
+     `build/native_ir/llvm_object/probe.o` through Homebrew `llc`. `oren build
+     --backend llvm-native` now provides an opt-in compile-only object backend,
+     and `make verify-native-ir-llvm-backend` proves object emission plus
+     compile-only `test` rejection while preserving x64/ARM64 as the execution
+     oracle. `make verify-native-ir-llvm-workflow` records per-gate timings and
+     skips the redundant `make test` replay of `test-native-quick`; `make
+     verify-native-ir-llvm-smoke` is the fast iteration gate with two integrated
+     object-emission fixtures.
 
 2. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging, macOS desktop

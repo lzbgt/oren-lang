@@ -369,6 +369,12 @@ fn compiler_main() {
             print("oren test: --obc-lib is not supported")
             oren_exit(2)
         }
+        if backend == "llvm-native" {
+            var emsg_test_llvm = "oren test: --backend llvm-native is compile-only until LLVM objects are linked into runnable artifacts"
+            emit_diag("compile", 2, emsg_test_llvm)
+            print(emsg_test_llvm)
+            oren_exit(2)
+        }
     }
 
     // macOS codesign policy (rolling):
@@ -458,39 +464,46 @@ fn compiler_main() {
         var stem = basename(default_output_path(path))
         if backend == "bytecode" {
             out_path = "build/targets/avm/bytecode/" + stem + ".obc"
-	        } else {
-	            var dir = "build/targets/" + arch + "-" + target + "/" + backend
-	            out_path = dir + "/" + stem
-		            // Default output extensions (native backend; rolling UX).
-		            //
-		            // Notes:
-		            // - Windows: cmd.exe does not treat extensionless PE files as runnable commands via relative paths.
-		            // - Shared libs should use conventional extensions per target so users don't need to remember them.
-		            if target == "windows" {
-		                var want_ext = ".exe"
-		                if backend == "native" && is_shared_lib { want_ext = ".dll" }
-		                var n2 = oren_string_len(out_path)
-		                if n2 < oren_string_len(want_ext) || oren_string_slice(out_path, n2 - oren_string_len(want_ext), n2) != want_ext {
-		                    out_path = out_path + want_ext
-		                }
-		            } else if backend == "native" && is_shared_lib {
-		                if target == "linux" {
-		                    var want_ext2 = ".so"
-		                    var n3 = oren_string_len(out_path)
-		                    if n3 < oren_string_len(want_ext2) || oren_string_slice(out_path, n3 - oren_string_len(want_ext2), n3) != want_ext2 {
-		                        out_path = out_path + want_ext2
-		                    }
-		                } else if target == "macos" {
-		                    var want_ext3 = ".dylib"
-		                    var n4 = oren_string_len(out_path)
-		                    if n4 < oren_string_len(want_ext3) || oren_string_slice(out_path, n4 - oren_string_len(want_ext3), n4) != want_ext3 {
-		                        out_path = out_path + want_ext3
-		                    }
-		                }
-		            }
-		        }
-			    }
-			    if trace_build { print("[build] out_path=" + out_path) }
+        } else {
+            var dir = "build/targets/" + arch + "-" + target + "/" + backend
+            out_path = dir + "/" + stem
+            // Default output extensions (native backend; rolling UX).
+            //
+            // Notes:
+            // - Windows: cmd.exe does not treat extensionless PE files as runnable commands via relative paths.
+            // - Shared libs should use conventional extensions per target so users don't need to remember them.
+            if target == "windows" && backend != "llvm-native" {
+                var want_ext = ".exe"
+                if backend == "native" && is_shared_lib { want_ext = ".dll" }
+                var n2 = oren_string_len(out_path)
+                if n2 < oren_string_len(want_ext) || oren_string_slice(out_path, n2 - oren_string_len(want_ext), n2) != want_ext {
+                    out_path = out_path + want_ext
+                }
+            } else if backend == "native" && is_shared_lib {
+                if target == "linux" {
+                    var want_ext2 = ".so"
+                    var n3 = oren_string_len(out_path)
+                    if n3 < oren_string_len(want_ext2) || oren_string_slice(out_path, n3 - oren_string_len(want_ext2), n3) != want_ext2 {
+                        out_path = out_path + want_ext2
+                    }
+                } else if target == "macos" {
+                    var want_ext3 = ".dylib"
+                    var n4 = oren_string_len(out_path)
+                    if n4 < oren_string_len(want_ext3) || oren_string_slice(out_path, n4 - oren_string_len(want_ext3), n4) != want_ext3 {
+                        out_path = out_path + want_ext3
+                    }
+                }
+            }
+            if backend == "llvm-native" {
+                var want_ext4 = ".o"
+                var n5 = oren_string_len(out_path)
+                if n5 < oren_string_len(want_ext4) || oren_string_slice(out_path, n5 - oren_string_len(want_ext4), n5) != want_ext4 {
+                    out_path = out_path + want_ext4
+                }
+            }
+        }
+    }
+    if trace_build { print("[build] out_path=" + out_path) }
 
     // Cross-OS robustness:
     // - Treat '\' as a path separator for outputs too, even when running on POSIX.
@@ -527,6 +540,7 @@ fn compiler_main() {
     // that we don't cache yet.
     if emit_c { cache_enabled = false }
     if emit_meta { cache_enabled = false }
+    if backend == "llvm-native" { cache_enabled = false }
     if is_shared_lib { cache_enabled = false }
     if notarize { cache_enabled = false }
     if emit_manifest { cache_enabled = false }
@@ -632,7 +646,7 @@ fn compiler_main() {
 
     // `call_depth_max` already normalized above (see `--call-depth-max` parsing).
 
-    if backend != "c" && backend != "native" && backend != "bytecode" {
+    if backend != "c" && backend != "native" && backend != "llvm-native" && backend != "bytecode" {
         emit_diag("compile", 2, "Unknown backend: " + backend)
         print("Unknown backend: " + backend)
         oren_exit(2)
@@ -651,6 +665,49 @@ fn compiler_main() {
     // Ensure the output directory exists before any backend attempts to write.
     ensure_dir(dirname(out_path))
     if trace_build { print("[build] ensure_dir done") }
+
+    if backend == "llvm-native" {
+        if host_win {
+            var emsg_llvm_host = "oren build: --backend llvm-native currently requires a POSIX host shell"
+            emit_diag("compile", 2, emsg_llvm_host)
+            print(emsg_llvm_host)
+            oren_exit(2)
+        }
+        if emit_c {
+            var emsg_llvm_emit_c = "oren build: --backend llvm-native cannot be combined with --emit-c"
+            emit_diag("compile", 2, emsg_llvm_emit_c)
+            print(emsg_llvm_emit_c)
+            oren_exit(2)
+        }
+        if is_shared_lib {
+            var emsg_llvm_shared = "oren build: --backend llvm-native emits relocatable objects only; --lib/--shared is not supported yet"
+            emit_diag("compile", 2, emsg_llvm_shared)
+            print(emsg_llvm_shared)
+            oren_exit(2)
+        }
+        if arch == "avm64" || target == "avm" {
+            var emsg_llvm_avm = "oren build: --backend llvm-native targets native platforms only"
+            emit_diag("compile", 2, emsg_llvm_avm)
+            print(emsg_llvm_avm)
+            oren_exit(2)
+        }
+        if !file_exists("scripts/build_native_ir_llvm_backend.sh") {
+            var emsg_llvm_script = "oren build: --backend llvm-native requires scripts/build_native_ir_llvm_backend.sh from the repo root"
+            emit_diag("compile", 2, emsg_llvm_script)
+            print(emsg_llvm_script)
+            oren_exit(2)
+        }
+        var compiler_exe = raw_args[0]
+        var platform_spec_llvm = arch + "-" + target
+        var cmd_llvm = "NATIVE_IR_REQUIRE_LLVM=1 " + shell_quote("scripts/build_native_ir_llvm_backend.sh") + " " + shell_quote(compiler_exe) + " " + shell_quote(path) + " " + shell_quote(platform_spec_llvm) + " " + shell_quote(out_path)
+        var rc_llvm = normalize_rc(oren_system(cmd_llvm))
+        if rc_llvm != 0 {
+            emit_diag("compile", 2, "LLVM native build failed")
+            print("LLVM native build failed")
+            oren_exit(rc_llvm)
+        }
+        return nil
+    }
 
     var rr = expand_includes_file_result(path, [])
     if rr["ok"] != true {

@@ -2,7 +2,7 @@
 var OREN_VERSION = "0.0.0-rolling"
 
 fn cli_add_build_opts(cmd, allow_emit_c, default_backend) {
-    argparse.cmd_option(cmd, "--backend", nil, "string", default_backend, "Backend: c|native|bytecode")
+    argparse.cmd_option(cmd, "--backend", nil, "string", default_backend, "Backend: c|native|llvm-native|bytecode")
     argparse.cmd_option(cmd, "--out", "-o", "string", "", "Output path (default: build/targets/<arch>-<os>/<backend>/<file> or build/targets/avm/bytecode/<file>.obc)")
     argparse.cmd_flag_env(cmd, "--no-cache", nil, "Disable build cache", "OREN_NO_CACHE")
     argparse.cmd_option_env(cmd, "--cache-dir", nil, "string", "", "Build cache directory", "OREN_CACHE_DIR")

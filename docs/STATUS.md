@@ -5069,8 +5069,19 @@ make docs-site
   `verify-native-ir-llvm-lowering` now
   proves textual LLVM lowering over the same seven-fixture,
   three-platform parity matrix used by `verify-native-ir-parity`, while
-  preserving the current x64/ARM64 production emitters. Executable LLVM backend
-  work now needs the explicit opt-in backend path plus runtime parity fixtures.
+  preserving the current x64/ARM64 production emitters. `oren build --backend
+  llvm-native` is now an opt-in compile-only path that emits relocatable objects
+  through validated native IR, reusable textual LLVM lowering, and `llc`; `make
+  verify-native-ir-llvm-backend` proves helper-bearing hello object emission,
+  helper-free arithmetic object emission, and explicit rejection of
+  `oren test --backend llvm-native` until object linking/runtime parity exists.
+  `make verify-native-ir-llvm-workflow` now provides a timed aggregate local
+  workflow for native-IR/LLVM changes and avoids the known redundant trailing
+  `make test` run because `make test` currently aliases `test-native-quick`.
+  `make verify-native-ir-llvm-smoke` is the preferred fast iteration gate for
+  this area: two integration programs cover helper-heavy and helper-free object
+  emission, target triples, and compile-only `test` rejection without replaying
+  broad runtime suites.
 
 ## Documentation Guardrail
 
