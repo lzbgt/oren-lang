@@ -31,6 +31,25 @@ static int oren_llvm_runtime_force_gc_cached(void) {
     return cached;
 }
 
+static OrenAllocNode* oren_llvm_runtime_find_any_node_locked(void* ptr) {
+    OrenThreadState* st = oren_thread_state();
+    if (st) {
+        OrenAllocNode* cur = st->local_allocs;
+        while (cur) {
+            if (cur->ptr == ptr) return cur;
+            cur = cur->next;
+        }
+    }
+    return oren_find_node(ptr);
+}
+
+static int oren_llvm_runtime_node_is_live_kind_locked(void* ptr, OrenAllocKind kind, int allow_marked) {
+    OrenAllocNode* n = oren_llvm_runtime_find_any_node_locked(ptr);
+    if (!n || n->kind != kind) return 0;
+    if (n->freed == 0) return 1;
+    return allow_marked && n->freed == -1;
+}
+
 static OrenAllocNode* oren_llvm_runtime_find_string_desc_locked(int64_t desc_handle) {
     if (desc_handle == 0) return NULL;
     OrenThreadState* st = oren_thread_state();
@@ -41,7 +60,10 @@ static OrenAllocNode* oren_llvm_runtime_find_string_desc_locked(int64_t desc_han
                 cur->freed == 0 &&
                 cur->kind == OREN_ALLOC_STRUCT) {
                 OrenLlvmString* desc = (OrenLlvmString*)(uintptr_t)desc_handle;
-                if (desc->owner_kind == 1 && desc->data != NULL && desc->len >= 0) {
+                if (desc->owner_kind == 1 &&
+                    desc->data != NULL &&
+                    desc->len >= 0 &&
+                    oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_STRING, 0)) {
                     return cur;
                 }
                 return NULL;
@@ -52,7 +74,10 @@ static OrenAllocNode* oren_llvm_runtime_find_string_desc_locked(int64_t desc_han
     OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
     if (!n || n->freed != 0 || n->kind != OREN_ALLOC_STRUCT) return NULL;
     OrenLlvmString* desc = (OrenLlvmString*)(uintptr_t)desc_handle;
-    if (desc->owner_kind != 1 || desc->data == NULL || desc->len < 0) return NULL;
+    if (desc->owner_kind != 1 ||
+        desc->data == NULL ||
+        desc->len < 0 ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_STRING, 0)) return NULL;
     return n;
 }
 
@@ -66,7 +91,11 @@ static OrenAllocNode* oren_llvm_runtime_find_list_desc_locked(int64_t desc_handl
                 cur->freed == 0 &&
                 cur->kind == OREN_ALLOC_STRUCT) {
                 OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
-                if (desc->owner_kind == 1 && desc->data != NULL && desc->len >= 0 && desc->capacity >= desc->len) {
+                if (desc->owner_kind == 1 &&
+                    desc->data != NULL &&
+                    desc->len >= 0 &&
+                    desc->capacity >= desc->len &&
+                    oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_STRUCT, 0)) {
                     return cur;
                 }
                 return NULL;
@@ -77,14 +106,44 @@ static OrenAllocNode* oren_llvm_runtime_find_list_desc_locked(int64_t desc_handl
     OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
     if (!n || n->freed != 0 || n->kind != OREN_ALLOC_STRUCT) return NULL;
     OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
-    if (desc->owner_kind != 1 || desc->data == NULL || desc->len < 0 || desc->capacity < desc->len) return NULL;
+    if (desc->owner_kind != 1 ||
+        desc->data == NULL ||
+        desc->len < 0 ||
+        desc->capacity < desc->len ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_STRUCT, 0)) return NULL;
+    return n;
+}
+
+static OrenAllocNode* oren_llvm_runtime_find_string_desc_for_mark_locked(int64_t desc_handle) {
+    if (desc_handle == 0) return NULL;
+    OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
+    if (!n || (n->freed != 0 && n->freed != -1) || n->kind != OREN_ALLOC_STRUCT) return NULL;
+    OrenLlvmString* desc = (OrenLlvmString*)(uintptr_t)desc_handle;
+    if (desc->owner_kind != 1 ||
+        desc->data == NULL ||
+        desc->len < 0 ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_STRING, 1)) return NULL;
+    return n;
+}
+
+static OrenAllocNode* oren_llvm_runtime_find_list_desc_for_mark_locked(int64_t desc_handle) {
+    if (desc_handle == 0) return NULL;
+    OrenAllocNode* n = oren_find_node((void*)(uintptr_t)desc_handle);
+    if (!n || (n->freed != 0 && n->freed != -1) || n->kind != OREN_ALLOC_STRUCT) return NULL;
+    OrenLlvmList* desc = (OrenLlvmList*)(uintptr_t)desc_handle;
+    if (desc->owner_kind != 1 ||
+        desc->data == NULL ||
+        desc->len < 0 ||
+        desc->capacity < desc->len ||
+        !oren_llvm_runtime_node_is_live_kind_locked(desc->data, OREN_ALLOC_STRUCT, 1)) return NULL;
     return n;
 }
 
 static void oren_llvm_runtime_mark_string_desc_locked(OrenLlvmString* desc) {
     if (!desc) return;
-    OrenAllocNode* dn = oren_find_node(desc);
-    if (dn && dn->freed == 0 && dn->kind == OREN_ALLOC_STRUCT) {
+    OrenAllocNode* dn = oren_llvm_runtime_find_string_desc_for_mark_locked((int64_t)(uintptr_t)desc);
+    if (!dn) return;
+    if (dn->freed == 0) {
         dn->freed = -1;
     }
     if (desc->data) {
@@ -97,8 +156,9 @@ static void oren_llvm_runtime_mark_string_desc_locked(OrenLlvmString* desc) {
 
 static void oren_llvm_runtime_mark_list_desc_rec_locked(OrenLlvmList* desc, int depth) {
     if (!desc || depth <= 0) return;
-    OrenAllocNode* dn = oren_find_node(desc);
-    if (dn && dn->freed == 0 && dn->kind == OREN_ALLOC_STRUCT) {
+    OrenAllocNode* dn = oren_llvm_runtime_find_list_desc_for_mark_locked((int64_t)(uintptr_t)desc);
+    if (!dn) return;
+    if (dn->freed == 0) {
         dn->freed = -1;
     }
     if (!desc->data) return;
@@ -108,12 +168,12 @@ static void oren_llvm_runtime_mark_list_desc_rec_locked(OrenLlvmList* desc, int 
     }
     for (int64_t j = 0; j < desc->len; j++) {
         int64_t item = desc->data[j];
-        OrenAllocNode* sn = oren_llvm_runtime_find_string_desc_locked(item);
+        OrenAllocNode* sn = oren_llvm_runtime_find_string_desc_for_mark_locked(item);
         if (sn) {
             oren_llvm_runtime_mark_string_desc_locked((OrenLlvmString*)sn->ptr);
             continue;
         }
-        OrenAllocNode* ln = oren_llvm_runtime_find_list_desc_locked(item);
+        OrenAllocNode* ln = oren_llvm_runtime_find_list_desc_for_mark_locked(item);
         if (ln) {
             oren_llvm_runtime_mark_list_desc_rec_locked((OrenLlvmList*)ln->ptr, depth - 1);
         }

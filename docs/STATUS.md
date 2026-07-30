@@ -5158,7 +5158,12 @@ make docs-site
 				  contents from a parent list root, and the list runtime gate builds a
 				  parent-list -> child-list -> dynamic-string graph to prove a forced
 				  safepoint GC keeps nested descriptors live when only the parent list
-				  is explicitly rooted.
+				  is explicitly rooted. The LLVM lowerer now carries list element
+				  descriptor provenance through list origins, local aliases, and
+				  constant-index nested reads, so `parent[0][0] + "ed"` lowers through
+				  descriptor list gets plus descriptor string concat. Explicit helper
+				  roots are now routed by proven descriptor kind, avoiding string-root
+				  pushes for integer immediates or list handles.
 
 ## Documentation Guardrail
 

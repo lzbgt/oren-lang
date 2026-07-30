@@ -262,21 +262,29 @@ class FunctionLowerer:
 
     def emit_helper_call(self, op, helper_call, helper_name, root_values):
         mark = None
-        roots = []
-        seen_roots = set()
+        string_roots = []
+        list_roots = []
+        seen_string_roots = set()
+        seen_list_roots = set()
         for root_value in root_values:
-            if root_value not in seen_roots:
-                roots.append(root_value)
-                seen_roots.add(root_value)
+            if root_value in self.descriptor_values and root_value not in seen_string_roots:
+                string_roots.append(root_value)
+                seen_string_roots.add(root_value)
+            elif root_value in self.list_values and root_value not in seen_list_roots:
+                list_roots.append(root_value)
+                seen_list_roots.add(root_value)
         for local_name in sorted(self.current_descriptor_locals):
-            if local_name not in seen_roots:
-                roots.append(local_name)
-                seen_roots.add(local_name)
-        list_roots = sorted(self.current_list_locals)
-        if op.get("safepoint") and (roots or list_roots):
+            if local_name not in seen_string_roots:
+                string_roots.append(local_name)
+                seen_string_roots.add(local_name)
+        for local_name in sorted(self.current_list_locals):
+            if local_name not in seen_list_roots:
+                list_roots.append(local_name)
+                seen_list_roots.add(local_name)
+        if op.get("safepoint") and (string_roots or list_roots):
             mark = self.scratch_var("root_mark")
             self.write_inst(f"{mark} = call i64 @oren_llvm_runtime_roots_mark() ; safepoint roots mark")
-            for root_value in roots:
+            for root_value in string_roots:
                 root_ref = self.value_ref(root_value)
                 self.write_inst(
                     f"call void @oren_llvm_runtime_roots_push_string(i64 {root_ref}) ; safepoint root {root_value}"
@@ -599,122 +607,226 @@ def collect_list_descriptor_values(fn):
 
 
 def collect_descriptor_analysis(fn):
+    string_values, string_in, _, _ = collect_descriptor_facts(fn)
+    return string_values, string_in
+
+
+def collect_list_descriptor_analysis(fn):
+    _, _, list_values, list_in = collect_descriptor_facts(fn)
+    return list_values, list_in
+
+
+def const_int_value(consts, value):
+    item = consts.get(value)
+    if not item or item[0] != "int":
+        return None
+    try:
+        return int(item[1])
+    except Exception:
+        return None
+
+
+def intersect_origin_envs(envs):
+    if not envs:
+        return {}
+    keys = set(envs[0])
+    for env in envs[1:]:
+        keys &= set(env)
+    out = {}
+    for key in keys:
+        value = envs[0][key]
+        if all(env.get(key) == value for env in envs[1:]):
+            out[key] = value
+    return out
+
+
+def collect_descriptor_facts(fn):
     blocks = fn["blocks"]
     labels = [block["label"] for block in blocks]
     all_slots = set(collect_slots(fn))
+    consts = collect_const_values(fn)
     preds = {label: [] for label in labels}
     for block in blocks:
         for target in term_successors(block["terminator"]):
             if target in preds:
                 preds[target].append(block["label"])
 
-    out_env = {label: set(all_slots) for label in labels}
-    in_env = {label: set() for label in labels}
-    final_descriptors = set()
+    out_string_env = {label: set(all_slots) for label in labels}
+    out_list_env = {label: set(all_slots) for label in labels}
+    out_origin_env = {label: {} for label in labels}
+    string_in_env = {label: set() for label in labels}
+    list_in_env = {label: set() for label in labels}
+    final_strings = set()
+    final_lists = set()
     changed = True
     while changed:
         changed = False
-        descriptors = set()
-        next_out = {}
-        next_in = {}
+        strings = set()
+        lists = set()
+        value_list_origin = {}
+        origin_elements = {}
+        mutated_origins = set()
+        next_string_out = {}
+        next_list_out = {}
+        next_origin_out = {}
+        next_string_in = {}
+        next_list_in = {}
         for idx, block in enumerate(blocks):
             label = block["label"]
             if idx == 0 or not preds[label]:
-                local_desc = set()
+                local_strings = set()
+                local_lists = set()
+                local_origins = {}
             else:
-                incoming = [out_env[pred] for pred in preds[label]]
-                local_desc = set.intersection(*incoming) if incoming else set()
-            next_in[label] = set(local_desc)
+                incoming_strings = [out_string_env[pred] for pred in preds[label]]
+                incoming_lists = [out_list_env[pred] for pred in preds[label]]
+                incoming_origins = [out_origin_env[pred] for pred in preds[label]]
+                local_strings = set.intersection(*incoming_strings) if incoming_strings else set()
+                local_lists = set.intersection(*incoming_lists) if incoming_lists else set()
+                local_origins = intersect_origin_envs(incoming_origins)
+            next_string_in[label] = set(local_strings)
+            next_list_in[label] = set(local_lists)
 
             for op in block["ops"]:
                 result = op.get("result")
                 kind = op["kind"]
                 if kind == "const" and op.get("value_kind") == "string":
-                    descriptors.add(result)
+                    strings.add(result)
                 elif kind == "runtime_helper_call" and op.get("name") in STRING_DESCRIPTOR_HELPERS:
                     if result is not None:
-                        descriptors.add(result)
-                elif kind == "binary" and op.get("op") == "+":
-                    if op["left"] in descriptors and op["right"] in descriptors:
-                        descriptors.add(result)
-                elif kind == "local_get":
-                    if op["name"] in local_desc:
-                        descriptors.add(result)
-                elif kind == "local_set":
-                    if op["value"] in descriptors:
-                        local_desc.add(op["name"])
-                    else:
-                        local_desc.discard(op["name"])
-            next_out[label] = local_desc
-
-        if next_out != out_env:
-            out_env = next_out
-            changed = True
-        if next_in != in_env:
-            in_env = next_in
-            changed = True
-        if descriptors != final_descriptors:
-            final_descriptors = descriptors
-            changed = True
-    return final_descriptors, in_env
-
-
-def collect_list_descriptor_analysis(fn):
-    blocks = fn["blocks"]
-    labels = [block["label"] for block in blocks]
-    all_slots = set(collect_slots(fn))
-    preds = {label: [] for label in labels}
-    for block in blocks:
-        for target in term_successors(block["terminator"]):
-            if target in preds:
-                preds[target].append(block["label"])
-
-    out_env = {label: set(all_slots) for label in labels}
-    in_env = {label: set() for label in labels}
-    final_values = set()
-    changed = True
-    while changed:
-        changed = False
-        values = set()
-        next_out = {}
-        next_in = {}
-        for idx, block in enumerate(blocks):
-            label = block["label"]
-            if idx == 0 or not preds[label]:
-                local_desc = set()
-            else:
-                incoming = [out_env[pred] for pred in preds[label]]
-                local_desc = set.intersection(*incoming) if incoming else set()
-            next_in[label] = set(local_desc)
-
-            for op in block["ops"]:
-                result = op.get("result")
-                kind = op["kind"]
-                if kind == "array":
-                    values.add(result)
+                        strings.add(result)
                 elif kind == "runtime_helper_call" and op.get("name") in LIST_NEW_HELPERS:
                     if result is not None:
-                        values.add(result)
+                        lists.add(result)
+                        value_list_origin[result] = result
+                        origin_elements[result] = {}
+                elif kind == "runtime_helper_call" and op.get("name") in LIST_PUSH_HELPERS:
+                    if op.get("args"):
+                        origin = value_list_origin.get(op["args"][0])
+                        if origin is not None:
+                            mutated_origins.add(origin)
+                            origin_elements.pop(origin, None)
+                            if result is not None:
+                                lists.add(result)
+                                value_list_origin[result] = origin
+                elif kind == "runtime_helper_call" and op.get("name") in LIST_GET_HELPERS:
+                    if result is not None and len(op.get("args", [])) > 1:
+                        apply_list_element_fact(
+                            op["args"][0],
+                            op["args"][1],
+                            result,
+                            consts,
+                            strings,
+                            lists,
+                            value_list_origin,
+                            origin_elements,
+                            mutated_origins,
+                        )
+                elif kind == "binary" and op.get("op") == "+":
+                    if op["left"] in strings and op["right"] in strings:
+                        strings.add(result)
+                elif kind == "array":
+                    lists.add(result)
+                    value_list_origin[result] = result
+                    elems = {}
+                    for elem_idx, elem in enumerate(op.get("elements", [])):
+                        if elem in strings or elem in lists:
+                            elems[elem_idx] = elem
+                    origin_elements[result] = elems
+                elif kind == "index_get":
+                    apply_list_element_fact(
+                        op["container"],
+                        op["index"],
+                        result,
+                        consts,
+                        strings,
+                        lists,
+                        value_list_origin,
+                        origin_elements,
+                        mutated_origins,
+                    )
+                elif kind == "index_set":
+                    origin = value_list_origin.get(op["container"])
+                    if origin is not None:
+                        mutated_origins.add(origin)
+                        origin_elements.pop(origin, None)
                 elif kind == "local_get":
-                    if op["name"] in local_desc:
-                        values.add(result)
+                    if op["name"] in local_strings:
+                        strings.add(result)
+                    if op["name"] in local_lists:
+                        lists.add(result)
+                        origin = local_origins.get(op["name"])
+                        if origin is not None:
+                            value_list_origin[result] = origin
                 elif kind == "local_set":
-                    if op["value"] in values:
-                        local_desc.add(op["name"])
+                    if op["value"] in strings:
+                        local_strings.add(op["name"])
                     else:
-                        local_desc.discard(op["name"])
-            next_out[label] = local_desc
+                        local_strings.discard(op["name"])
+                    if op["value"] in lists:
+                        local_lists.add(op["name"])
+                        origin = value_list_origin.get(op["value"])
+                        if origin is not None:
+                            local_origins[op["name"]] = origin
+                        else:
+                            local_origins.pop(op["name"], None)
+                    else:
+                        local_lists.discard(op["name"])
+                        local_origins.pop(op["name"], None)
+            next_string_out[label] = local_strings
+            next_list_out[label] = local_lists
+            next_origin_out[label] = local_origins
 
-        if next_out != out_env:
-            out_env = next_out
+        if next_string_out != out_string_env:
+            out_string_env = next_string_out
             changed = True
-        if next_in != in_env:
-            in_env = next_in
+        if next_list_out != out_list_env:
+            out_list_env = next_list_out
             changed = True
-        if values != final_values:
-            final_values = values
+        if next_origin_out != out_origin_env:
+            out_origin_env = next_origin_out
             changed = True
-    return final_values, in_env
+        if next_string_in != string_in_env:
+            string_in_env = next_string_in
+            changed = True
+        if next_list_in != list_in_env:
+            list_in_env = next_list_in
+            changed = True
+        if strings != final_strings:
+            final_strings = strings
+            changed = True
+        if lists != final_lists:
+            final_lists = lists
+            changed = True
+    return final_strings, string_in_env, final_lists, list_in_env
+
+
+def apply_list_element_fact(
+    container,
+    index,
+    result,
+    consts,
+    strings,
+    lists,
+    value_list_origin,
+    origin_elements,
+    mutated_origins,
+):
+    elem_idx = const_int_value(consts, index)
+    origin = value_list_origin.get(container)
+    if elem_idx is None or origin is None or origin in mutated_origins:
+        return
+    source = origin_elements.get(origin, {}).get(elem_idx)
+    if source is None:
+        return
+    if source in strings:
+        strings.add(result)
+        return
+    if source in lists:
+        lists.add(result)
+        source_origin = value_list_origin.get(source)
+        if source_origin is not None:
+            value_list_origin[result] = source_origin
 
 
 def term_successors(term):

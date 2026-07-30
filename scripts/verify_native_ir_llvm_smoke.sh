@@ -55,6 +55,8 @@ grep -Fq "compile-only" "$reject_log"
 ./scripts/verify_native_ir_llvm_string_slice_runtime.sh "$compiler" >"$string_slice_runtime_log" 2>&1
 ./scripts/verify_native_ir_llvm_string_access_runtime.sh "$compiler" >"$string_access_runtime_log" 2>&1
 ./scripts/verify_native_ir_llvm_list_runtime.sh "$compiler" >"$list_runtime_log" 2>&1
+grep -Fq "nested-list-index-provenance" build/native_ir/llvm_list_runtime/summary.txt
+grep -Fq "descriptor-root-kind-routing" build/native_ir/llvm_list_runtime/summary.txt
 
 end="$(date +%s)"
 {
@@ -71,7 +73,7 @@ end="$(date +%s)"
   printf 'string_slice_runtime_summary=build/native_ir/llvm_string_slice_runtime/summary.txt\n'
   printf 'string_access_runtime_summary=build/native_ir/llvm_string_access_runtime/summary.txt\n'
   printf 'list_runtime_summary=build/native_ir/llvm_list_runtime/summary.txt\n'
-  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,named-exit-helper,named-oren-string-len-helper,named-oren-string-eq-helper,named-oren-string-slice-helper,named-oren-string-access-helpers,llvm-list-descriptor-layout,llvm-list-index-set-helper,llvm-list-push-growth-helper,llvm-list-len-helper,llvm-list-safepoint-roots,helper-execute,exit-status,string-helper-execute,string-eq-helper-execute,string-slice-helper-execute,string-access-helper-execute,list-helper-execute,forced-gc-at-generated-helper-safepoint\n'
+  printf 'coverage=toolchain,llvm-native-build-dispatch,native-ir-dump,llvm-lower,llc-object,helper-call,helper-free-arith,test-reject,llvm-link,llvm-execute,named-print-helper,named-exit-helper,named-oren-string-len-helper,named-oren-string-eq-helper,named-oren-string-slice-helper,named-oren-string-access-helpers,llvm-list-descriptor-layout,llvm-list-index-set-helper,llvm-list-push-growth-helper,llvm-list-len-helper,llvm-list-safepoint-roots,nested-list-index-provenance,descriptor-root-kind-routing,helper-execute,exit-status,string-helper-execute,string-eq-helper-execute,string-slice-helper-execute,string-access-helper-execute,list-helper-execute,forced-gc-at-generated-helper-safepoint\n'
 } >"$summary"
 
 echo "OK: native IR LLVM smoke passed; summary: $summary"

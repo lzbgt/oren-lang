@@ -6120,7 +6120,12 @@ make docs-site</code></pre>
 <p>				  contents from a parent list root, and the list runtime gate builds a</p>
 <p>				  parent-list -&gt; child-list -&gt; dynamic-string graph to prove a forced</p>
 <p>				  safepoint GC keeps nested descriptors live when only the parent list</p>
-<p>				  is explicitly rooted.</p>
+<p>				  is explicitly rooted. The LLVM lowerer now carries list element</p>
+<p>				  descriptor provenance through list origins, local aliases, and</p>
+<p>				  constant-index nested reads, so <code>parent[0][0] + &quot;ed&quot;</code> lowers through</p>
+<p>				  descriptor list gets plus descriptor string concat. Explicit helper</p>
+<p>				  roots are now routed by proven descriptor kind, avoiding string-root</p>
+<p>				  pushes for integer immediates or list handles.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

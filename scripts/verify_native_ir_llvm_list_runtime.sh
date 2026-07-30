@@ -63,8 +63,13 @@ grep -Fq "call i64 @oren_llvm_runtime_alloc_list_with_capacity(i64 0" "$object.l
 grep -Fq "call i64 @oren_llvm_helper_oren_list_len" "$object.ll"
 grep -Fq "call i64 @oren_llvm_helper_oren_list_push" "$object.ll"
 list_get_count="$(grep -F "call i64 @oren_llvm_helper_oren_list_get" "$object.ll" | wc -l | tr -d ' ')"
-if [ "$list_get_count" -lt 4 ]; then
+if [ "$list_get_count" -lt 6 ]; then
   echo "ERROR: expected descriptor-backed list get calls" >&2
+  exit 1
+fi
+concat_count="$(grep -F "call i64 @oren_llvm_helper_oren_string_concat" "$object.ll" | wc -l | tr -d ' ')"
+if [ "$concat_count" -lt 3 ]; then
+  echo "ERROR: expected nested list element descriptor concat" >&2
   exit 1
 fi
 grep -Fq "call void @oren_llvm_helper_oren_list_set" "$object.ll"
@@ -199,7 +204,7 @@ end="$(date +%s)"
   printf 'native_oracle=%s\n' "$native_bin"
   printf 'llvm_object=%s\n' "$object"
   printf 'llvm_executable=%s\n' "$llvm_bin"
-  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-list-descriptor-layout,array-literal-allocation,list-index-get-helper,list-index-set-helper,list-push-growth-helper,list-len-helper,list-local-descriptor-propagation,list-runtime-registration,list-safepoint-roots,forced-gc-at-list-safepoint,nested-list-descriptor-roots\n'
+  printf 'coverage=host-arm64-macos,native-oracle,llvm-link,llvm-execute,real-c-runtime-hooks,llvm-list-descriptor-layout,array-literal-allocation,list-index-get-helper,list-index-set-helper,list-push-growth-helper,list-len-helper,list-local-descriptor-propagation,nested-list-index-provenance,descriptor-root-kind-routing,list-runtime-registration,list-safepoint-roots,forced-gc-at-list-safepoint,nested-list-descriptor-roots\n'
 } >"$summary"
 
 echo "OK: native IR LLVM list runtime parity passed; summary: $summary"

@@ -3,6 +3,7 @@
 // - proves indexed reads use the generated list get helper
 // - proves descriptor-backed mutation and list roots survive helper safepoints
 // - proves descriptor-backed push growth and list length helpers
+// - proves nested list element provenance feeds descriptor string helpers
 
 fn main() {
     var xs = [3, 4, 5]
@@ -28,5 +29,13 @@ fn main() {
     oren_list_push(grown, 14)
     if oren_list_len(grown) != 5 { return 8 }
     if grown[4] != 14 { return 9 }
+
+    var nested_dyn = "ne" + "st"
+    var child = [nested_dyn]
+    var parent = [child]
+    nested_dyn = "released-nested"
+    child = [0]
+    if oren_string_len("nested-trigger") != 14 { return 10 }
+    if oren_string_eq(parent[0][0] + "ed", "nested") != true { return 11 }
     return 0
 }

@@ -331,5 +331,12 @@ after it has round-trip/parity evidence. Until then:
     verify-native-ir-llvm-list-runtime` builds a parent-list -> child-list ->
     dynamic-string graph, pushes only the parent list root, forces a safepoint
     GC, and proves the nested descriptors remain live.
-41. Add lowerer-side element descriptor provenance for nested list indexing and
-    broaden non-string helper lowering beyond the current string/list subset.
+41. Done: add lowerer-side element descriptor provenance for nested list
+    indexing. The LLVM lowerer now carries string/list descriptor facts through
+    list origins, local aliases, constant-index list reads, and list-helper get
+    calls; explicit helper roots are routed by proven descriptor kind instead of
+    treating every tagged root as a string. The list runtime fixture now proves
+    `parent[0][0] + "ed"` lowers to descriptor list gets plus descriptor string
+    concat after forced GC.
+42. Broaden descriptor ABI lowering to additional non-string helper families
+    beyond strings and lists.
