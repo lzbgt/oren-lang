@@ -34,6 +34,8 @@ typedef struct OrenLlvmRootMark {
     size_t value_depth;
 } OrenLlvmRootMark;
 
+void* oren_llvm_runtime_alloc_bytes(int64_t byte_count, int64_t alloc_kind);
+
 static int64_t g_llvm_runtime_alloc_calls = 0;
 static int64_t g_llvm_runtime_registered_strings = 0;
 static int64_t g_llvm_runtime_registered_lists = 0;
@@ -652,6 +654,89 @@ int64_t oren_llvm_runtime_dynamic_index_get_string(int64_t container_handle, int
     }
     pthread_mutex_unlock(&g_alloc_mutex);
     return 0;
+}
+
+static int64_t oren_llvm_runtime_next_map_capacity(int64_t cap) {
+    if (cap < 4) return 4;
+    if (cap > INT64_MAX / 2) {
+        oren_panic("llvm runtime map grow: capacity overflow");
+        return cap;
+    }
+    return cap * 2;
+}
+
+static int oren_llvm_runtime_map_set_trusted_string_locked(
+    OrenLlvmMap* map,
+    int64_t key,
+    int64_t value
+) {
+    int64_t idx = oren_llvm_runtime_map_find_trusted_string_locked(map, key);
+    if (idx >= 0 && map->values) {
+        map->values[idx] = value;
+        return 1;
+    }
+    if (!map->keys || !map->values || !map->key_kinds || map->len >= map->capacity) {
+        return 0;
+    }
+    int64_t slot = map->len++;
+    map->keys[slot] = key;
+    map->values[slot] = value;
+    map->key_kinds[slot] = 1;
+    return 1;
+}
+
+void oren_llvm_runtime_dynamic_index_set_string(int64_t container_handle, int64_t index, int64_t value) {
+    int64_t* new_keys = NULL;
+    int64_t* new_values = NULL;
+    int64_t* new_kinds = NULL;
+    while (1) {
+        pthread_mutex_lock(&g_alloc_mutex);
+        OrenAllocNode* map_node = oren_llvm_runtime_find_map_desc_locked(container_handle);
+        if (!map_node) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            return;
+        }
+        OrenLlvmMap* map = (OrenLlvmMap*)map_node->ptr;
+        if (oren_llvm_runtime_map_set_trusted_string_locked(map, index, value)) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            return;
+        }
+        int64_t next_cap = oren_llvm_runtime_next_map_capacity(map->capacity);
+        pthread_mutex_unlock(&g_alloc_mutex);
+
+        int64_t bytes = next_cap * 8;
+        new_keys = (int64_t*)oren_llvm_runtime_alloc_bytes(bytes, 3);
+        new_values = (int64_t*)oren_llvm_runtime_alloc_bytes(bytes, 3);
+        new_kinds = (int64_t*)oren_llvm_runtime_alloc_bytes(bytes, 3);
+
+        pthread_mutex_lock(&g_alloc_mutex);
+        map_node = oren_llvm_runtime_find_map_desc_locked(container_handle);
+        if (!map_node) {
+            pthread_mutex_unlock(&g_alloc_mutex);
+            return;
+        }
+        map = (OrenLlvmMap*)map_node->ptr;
+        if (map->len < map->capacity ||
+            oren_llvm_runtime_map_find_trusted_string_locked(map, index) >= 0) {
+            int done = oren_llvm_runtime_map_set_trusted_string_locked(map, index, value);
+            pthread_mutex_unlock(&g_alloc_mutex);
+            if (done) return;
+            continue;
+        }
+        size_t copy_bytes = (size_t)map->len * sizeof(int64_t);
+        if (copy_bytes > 0) {
+            memcpy(new_keys, map->keys, copy_bytes);
+            memcpy(new_values, map->values, copy_bytes);
+            memcpy(new_kinds, map->key_kinds, copy_bytes);
+        }
+        map->keys = new_keys;
+        map->values = new_values;
+        map->key_kinds = new_kinds;
+        map->capacity = next_cap;
+        (void)oren_llvm_runtime_map_set_trusted_string_locked(map, index, value);
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
 }
 
 void oren_llvm_runtime_roots_reset(int64_t mark) {

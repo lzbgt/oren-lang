@@ -5205,10 +5205,12 @@ make docs-site
 							  map descriptors stored in lists or maps can be read after
 									  forced GC without opaque fallback. Unknown descriptor inputs are
 									  now rooted generically before helper calls, and string-key
-									  `index_get` on an unknown descriptor container dispatches through
-									  the C runtime after validating the container as a registered map.
-									  Remaining work is dynamic container mutation/growth when the value
-									  kind is only known at runtime.
+									  `index_get`/`index_set` on an unknown descriptor container dispatch
+									  through the C runtime after validating the container as a registered
+									  map; dynamic string-key writes replace semantic keys and grow
+									  runtime-owned key/value/key-kind arrays when needed. Remaining work
+									  is dynamic exact-key/list mutation dispatch and broader
+									  runtime-shaped descriptor inputs.
 
 ## Documentation Guardrail
 

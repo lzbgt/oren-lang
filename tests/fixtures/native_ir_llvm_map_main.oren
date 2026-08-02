@@ -3,6 +3,7 @@
 // - proves semantic descriptor-backed string-key set/get and map length
 // - proves nested map descriptors survive helper safepoints and forced GC
 // - proves struct records lower through map-shaped constructor/member semantics
+// - proves dynamic string-key writes mutate/grow unknown map descriptor inputs
 
 struct RecordBox { name, payload }
 
@@ -68,5 +69,13 @@ fn main() {
     var runtime_child = holder[runtime_key]
     if oren_map_len(runtime_child) != 1 { return 15 }
     if runtime_child["nested"] != 23 { return 16 }
+    runtime_child["nested"] = 24
+    if runtime_child["nested"] != 24 { return 17 }
+    runtime_child["grow1"] = 31
+    runtime_child["grow2"] = 32
+    runtime_child["grow3"] = 33
+    runtime_child["grow4"] = 34
+    if oren_map_len(runtime_child) != 5 { return 18 }
+    if runtime_child["grow4"] != 34 { return 19 }
     return 0
 }

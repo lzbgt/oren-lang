@@ -438,4 +438,12 @@ after it has round-trip/parity evidence. Until then:
     The map fixture proves a branch-merged key can retrieve a map with unknown
     static provenance and then read `runtime_child["nested"]` without opaque
     fallback under linked execution.
-58. Add dynamic container mutation/growth for unknown descriptor values.
+58. Done: add dynamic string-key `index_set` dispatch and growth for unknown
+    descriptor containers. The lowerer routes unproven-container string-key
+    writes to `oren_llvm_runtime_dynamic_index_set_string`, and the C runtime
+    validates the container as a registered map, replaces semantic string keys,
+    and grows runtime-owned key/value/key-kind arrays when capacity is exhausted.
+    The map fixture proves mutation and growth on a map retrieved through an
+    unknown branch-merged descriptor path under forced-GC linked execution.
+59. Add dynamic exact-key/list mutation dispatch and broader runtime-shaped
+    descriptor inputs.
