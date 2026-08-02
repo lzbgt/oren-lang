@@ -6165,10 +6165,12 @@ make docs-site</code></pre>
 <p>								  lowerer now carries map descriptor provenance through</p>
 <p>								  constant-index list reads and known or constant-derived-key map reads, so nested</p>
 <p>							  map descriptors stored in lists or maps can be read after</p>
-<p>								  forced GC without opaque fallback. Unknown descriptor inputs are</p>
-<p>								  now rooted generically before helper calls; remaining work is</p>
-<p>								  dynamic container operation dispatch when the value kind is only</p>
-<p>								  known at runtime.</p>
+<p>									  forced GC without opaque fallback. Unknown descriptor inputs are</p>
+<p>									  now rooted generically before helper calls, and string-key</p>
+<p>									  <code>index_get</code> on an unknown descriptor container dispatches through</p>
+<p>									  the C runtime after validating the container as a registered map.</p>
+<p>									  Remaining work is dynamic container mutation/growth when the value</p>
+<p>									  kind is only known at runtime.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

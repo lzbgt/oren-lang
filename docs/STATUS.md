@@ -5203,10 +5203,12 @@ make docs-site
 								  lowerer now carries map descriptor provenance through
 								  constant-index list reads and known or constant-derived-key map reads, so nested
 							  map descriptors stored in lists or maps can be read after
-								  forced GC without opaque fallback. Unknown descriptor inputs are
-								  now rooted generically before helper calls; remaining work is
-								  dynamic container operation dispatch when the value kind is only
-								  known at runtime.
+									  forced GC without opaque fallback. Unknown descriptor inputs are
+									  now rooted generically before helper calls, and string-key
+									  `index_get` on an unknown descriptor container dispatches through
+									  the C runtime after validating the container as a registered map.
+									  Remaining work is dynamic container mutation/growth when the value
+									  kind is only known at runtime.
 
 ## Documentation Guardrail
 

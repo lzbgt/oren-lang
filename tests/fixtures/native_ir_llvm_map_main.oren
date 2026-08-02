@@ -67,5 +67,6 @@ fn main() {
     }
     var runtime_child = holder[runtime_key]
     if oren_map_len(runtime_child) != 1 { return 15 }
+    if runtime_child["nested"] != 23 { return 16 }
     return 0
 }

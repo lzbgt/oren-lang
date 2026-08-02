@@ -573,6 +573,87 @@ void oren_llvm_runtime_roots_push_value(int64_t desc_handle) {
     pthread_mutex_unlock(&g_alloc_mutex);
 }
 
+static int64_t oren_llvm_runtime_map_find_exact_locked(OrenLlvmMap* map, int64_t key) {
+    if (!map || !map->keys || !map->key_kinds) return -1;
+    for (int64_t i = 0; i < map->len; i++) {
+        if (map->key_kinds[i] == 0 && map->keys[i] == key) return i;
+    }
+    return -1;
+}
+
+static int64_t oren_llvm_runtime_map_find_string_locked(OrenLlvmMap* map, int64_t key) {
+    if (!map || !map->keys || !map->key_kinds) return -1;
+    OrenAllocNode* want_node = oren_llvm_runtime_find_string_desc_locked(key);
+    if (!want_node) return -1;
+    OrenLlvmString* want = (OrenLlvmString*)want_node->ptr;
+    for (int64_t i = 0; i < map->len; i++) {
+        if (map->key_kinds[i] != 1) continue;
+        OrenAllocNode* cur_node = oren_llvm_runtime_find_string_desc_locked(map->keys[i]);
+        if (!cur_node) continue;
+        OrenLlvmString* cur = (OrenLlvmString*)cur_node->ptr;
+        if (cur->len == want->len && memcmp(cur->data, want->data, (size_t)want->len) == 0) return i;
+    }
+    return -1;
+}
+
+static int64_t oren_llvm_runtime_map_find_trusted_string_locked(OrenLlvmMap* map, int64_t key) {
+    if (!map || !map->keys || !map->key_kinds || key == 0) return -1;
+    OrenLlvmString* want = (OrenLlvmString*)(uintptr_t)key;
+    if (want->len < 0 || want->data == NULL) return -1;
+    for (int64_t i = 0; i < map->len; i++) {
+        if (map->key_kinds[i] != 1 || map->keys[i] == 0) continue;
+        OrenLlvmString* cur = (OrenLlvmString*)(uintptr_t)map->keys[i];
+        if (cur->len < 0 || cur->data == NULL) continue;
+        if (cur->len == want->len && memcmp(cur->data, want->data, (size_t)want->len) == 0) return i;
+    }
+    return -1;
+}
+
+int64_t oren_llvm_runtime_dynamic_index_get(int64_t container_handle, int64_t index) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* list_node = oren_llvm_runtime_find_list_desc_locked(container_handle);
+    if (list_node) {
+        OrenLlvmList* list = (OrenLlvmList*)list_node->ptr;
+        if (index >= 0 && index < list->len && list->data) {
+            int64_t value = list->data[index];
+            pthread_mutex_unlock(&g_alloc_mutex);
+            return value;
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return 0;
+    }
+    OrenAllocNode* map_node = oren_llvm_runtime_find_map_desc_locked(container_handle);
+    if (map_node) {
+        OrenLlvmMap* map = (OrenLlvmMap*)map_node->ptr;
+        int64_t idx = oren_llvm_runtime_find_string_desc_locked(index)
+            ? oren_llvm_runtime_map_find_string_locked(map, index)
+            : oren_llvm_runtime_map_find_exact_locked(map, index);
+        if (idx >= 0 && map->values) {
+            int64_t value = map->values[idx];
+            pthread_mutex_unlock(&g_alloc_mutex);
+            return value;
+        }
+    }
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return 0;
+}
+
+int64_t oren_llvm_runtime_dynamic_index_get_string(int64_t container_handle, int64_t index) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* map_node = oren_llvm_runtime_find_map_desc_locked(container_handle);
+    if (map_node) {
+        OrenLlvmMap* map = (OrenLlvmMap*)map_node->ptr;
+        int64_t idx = oren_llvm_runtime_map_find_trusted_string_locked(map, index);
+        if (idx >= 0 && map->values) {
+            int64_t value = map->values[idx];
+            pthread_mutex_unlock(&g_alloc_mutex);
+            return value;
+        }
+    }
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return 0;
+}
+
 void oren_llvm_runtime_roots_reset(int64_t mark) {
     pthread_mutex_lock(&g_alloc_mutex);
     if (mark <= 0 || (size_t)mark > g_llvm_runtime_root_marks_len) {

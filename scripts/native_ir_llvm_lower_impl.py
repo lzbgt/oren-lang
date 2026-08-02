@@ -856,7 +856,14 @@ class FunctionLowerer:
                 else:
                     self.write_inst(f"{dst} = call i64 @oren_llvm_helper_oren_map_get(i64 {container}, i64 {index})")
             else:
-                self.write_inst(f"{dst} = call i64 @oren_llvm_opaque_index_get(i64 {container}, i64 {index})")
+                if op["index"] in self.descriptor_values:
+                    self.write_inst(
+                        f"{dst} = call i64 @oren_llvm_runtime_dynamic_index_get_string(i64 {container}, i64 {index})"
+                    )
+                else:
+                    self.write_inst(
+                        f"{dst} = call i64 @oren_llvm_runtime_dynamic_index_get(i64 {container}, i64 {index})"
+                    )
         elif kind == "index_set":
             container = self.value_ref(op["container"])
             index = self.value_ref(op["index"])
@@ -1788,6 +1795,8 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare i64 @oren_llvm_opaque_array(i64)\n")
         out.write("declare i64 @oren_llvm_opaque_index_get(i64, i64)\n")
         out.write("declare void @oren_llvm_opaque_index_set(i64, i64, i64)\n")
+        out.write("declare i64 @oren_llvm_runtime_dynamic_index_get(i64, i64)\n")
+        out.write("declare i64 @oren_llvm_runtime_dynamic_index_get_string(i64, i64)\n")
         out.write("declare void @oren_llvm_opaque_stmt(i64)\n")
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")
         for helper in collect_generic_helpers(main):
