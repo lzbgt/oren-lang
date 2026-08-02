@@ -685,7 +685,53 @@ static int oren_llvm_runtime_map_set_trusted_string_locked(
     return 1;
 }
 
-void oren_llvm_runtime_dynamic_index_set_string(int64_t container_handle, int64_t index, int64_t value) {
+static int oren_llvm_runtime_map_set_exact_locked(
+    OrenLlvmMap* map,
+    int64_t key,
+    int64_t value
+) {
+    int64_t idx = oren_llvm_runtime_map_find_exact_locked(map, key);
+    if (idx >= 0 && map->values) {
+        map->values[idx] = value;
+        return 1;
+    }
+    if (!map->keys || !map->values || !map->key_kinds || map->len >= map->capacity) {
+        return 0;
+    }
+    int64_t slot = map->len++;
+    map->keys[slot] = key;
+    map->values[slot] = value;
+    map->key_kinds[slot] = 0;
+    return 1;
+}
+
+static int64_t oren_llvm_runtime_map_find_dynamic_key_locked(
+    OrenLlvmMap* map,
+    int64_t key,
+    int64_t key_kind
+) {
+    return key_kind == 1
+        ? oren_llvm_runtime_map_find_trusted_string_locked(map, key)
+        : oren_llvm_runtime_map_find_exact_locked(map, key);
+}
+
+static int oren_llvm_runtime_map_set_dynamic_key_locked(
+    OrenLlvmMap* map,
+    int64_t key,
+    int64_t key_kind,
+    int64_t value
+) {
+    return key_kind == 1
+        ? oren_llvm_runtime_map_set_trusted_string_locked(map, key, value)
+        : oren_llvm_runtime_map_set_exact_locked(map, key, value);
+}
+
+static void oren_llvm_runtime_dynamic_map_set_key(
+    int64_t container_handle,
+    int64_t index,
+    int64_t value,
+    int64_t key_kind
+) {
     int64_t* new_keys = NULL;
     int64_t* new_values = NULL;
     int64_t* new_kinds = NULL;
@@ -697,7 +743,7 @@ void oren_llvm_runtime_dynamic_index_set_string(int64_t container_handle, int64_
             return;
         }
         OrenLlvmMap* map = (OrenLlvmMap*)map_node->ptr;
-        if (oren_llvm_runtime_map_set_trusted_string_locked(map, index, value)) {
+        if (oren_llvm_runtime_map_set_dynamic_key_locked(map, index, key_kind, value)) {
             pthread_mutex_unlock(&g_alloc_mutex);
             return;
         }
@@ -717,8 +763,8 @@ void oren_llvm_runtime_dynamic_index_set_string(int64_t container_handle, int64_
         }
         map = (OrenLlvmMap*)map_node->ptr;
         if (map->len < map->capacity ||
-            oren_llvm_runtime_map_find_trusted_string_locked(map, index) >= 0) {
-            int done = oren_llvm_runtime_map_set_trusted_string_locked(map, index, value);
+            oren_llvm_runtime_map_find_dynamic_key_locked(map, index, key_kind) >= 0) {
+            int done = oren_llvm_runtime_map_set_dynamic_key_locked(map, index, key_kind, value);
             pthread_mutex_unlock(&g_alloc_mutex);
             if (done) return;
             continue;
@@ -733,10 +779,35 @@ void oren_llvm_runtime_dynamic_index_set_string(int64_t container_handle, int64_
         map->values = new_values;
         map->key_kinds = new_kinds;
         map->capacity = next_cap;
-        (void)oren_llvm_runtime_map_set_trusted_string_locked(map, index, value);
+        (void)oren_llvm_runtime_map_set_dynamic_key_locked(map, index, key_kind, value);
         pthread_mutex_unlock(&g_alloc_mutex);
         return;
     }
+}
+
+void oren_llvm_runtime_dynamic_index_set(int64_t container_handle, int64_t index, int64_t value) {
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* list_node = oren_llvm_runtime_find_list_desc_locked(container_handle);
+    if (list_node) {
+        OrenLlvmList* list = (OrenLlvmList*)list_node->ptr;
+        if (index >= 0 && index < list->len && list->data) {
+            list->data[index] = value;
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    OrenAllocNode* map_node = oren_llvm_runtime_find_map_desc_locked(container_handle);
+    if (!map_node) {
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    int64_t key_kind = oren_llvm_runtime_find_string_desc_locked(index) ? 1 : 0;
+    pthread_mutex_unlock(&g_alloc_mutex);
+    oren_llvm_runtime_dynamic_map_set_key(container_handle, index, value, key_kind);
+}
+
+void oren_llvm_runtime_dynamic_index_set_string(int64_t container_handle, int64_t index, int64_t value) {
+    oren_llvm_runtime_dynamic_map_set_key(container_handle, index, value, 1);
 }
 
 void oren_llvm_runtime_roots_reset(int64_t mark) {

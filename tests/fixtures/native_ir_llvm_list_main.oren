@@ -4,6 +4,7 @@
 // - proves descriptor-backed mutation and list roots survive helper safepoints
 // - proves descriptor-backed push growth and list length helpers
 // - proves nested list element provenance feeds descriptor string helpers
+// - proves dynamic integer index writes on unknown list descriptor inputs
 
 fn main() {
     var xs = [3, 4, 5]
@@ -37,5 +38,17 @@ fn main() {
     child = [0]
     if oren_string_len("nested-trigger") != 14 { return 10 }
     if oren_string_eq(parent[0][0] + "ed", "nested") != true { return 11 }
+
+    var list_holder = {}
+    list_holder["xs"] = [41, 42, 43]
+    var list_key = "xs"
+    if oren_string_len("list") == 4 {
+        list_key = oren_string_slice("zxsq", 1, 3)
+    } else {
+        list_key = "xs"
+    }
+    var unknown_list = list_holder[list_key]
+    unknown_list[1] = 77
+    if unknown_list[1] != 77 { return 12 }
     return 0
 }

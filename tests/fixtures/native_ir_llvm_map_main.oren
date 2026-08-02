@@ -77,5 +77,11 @@ fn main() {
     runtime_child["grow4"] = 34
     if oren_map_len(runtime_child) != 5 { return 18 }
     if runtime_child["grow4"] != 34 { return 19 }
+
+    runtime_child[101] = 5
+    runtime_child[202] = 66
+    runtime_child[101] = 55
+    if runtime_child[202] != 66 { return 33 }
+    if runtime_child[101] != 55 { return 34 }
     return 0
 }

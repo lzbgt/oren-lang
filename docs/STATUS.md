@@ -5207,10 +5207,12 @@ make docs-site
 									  now rooted generically before helper calls, and string-key
 									  `index_get`/`index_set` on an unknown descriptor container dispatch
 									  through the C runtime after validating the container as a registered
-									  map; dynamic string-key writes replace semantic keys and grow
-									  runtime-owned key/value/key-kind arrays when needed. Remaining work
-									  is dynamic exact-key/list mutation dispatch and broader
-									  runtime-shaped descriptor inputs.
+									  map or list; dynamic string-key writes replace semantic keys,
+									  dynamic exact-key map writes and integer list writes avoid opaque
+									  fallback, and map writes grow runtime-owned key/value/key-kind
+									  arrays when needed. Remaining work is broader runtime-shaped
+									  descriptor inputs and dynamic container helper calls beyond direct
+									  index ops.
 
 ## Documentation Guardrail
 

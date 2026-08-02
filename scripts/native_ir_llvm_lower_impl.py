@@ -881,7 +881,7 @@ class FunctionLowerer:
                         f"call void @oren_llvm_runtime_dynamic_index_set_string(i64 {container}, i64 {index}, i64 {value})"
                     )
                 else:
-                    self.write_inst(f"call void @oren_llvm_opaque_index_set(i64 {container}, i64 {index}, i64 {value})")
+                    self.write_inst(f"call void @oren_llvm_runtime_dynamic_index_set(i64 {container}, i64 {index}, i64 {value})")
         elif kind == "expr_result":
             self.value_ref(op["value"])
         elif kind == "opaque_stmt":
@@ -1802,6 +1802,7 @@ def emit_module(ir_path, out_path, ir, main):
         out.write("declare void @oren_llvm_opaque_index_set(i64, i64, i64)\n")
         out.write("declare i64 @oren_llvm_runtime_dynamic_index_get(i64, i64)\n")
         out.write("declare i64 @oren_llvm_runtime_dynamic_index_get_string(i64, i64)\n")
+        out.write("declare void @oren_llvm_runtime_dynamic_index_set(i64, i64, i64)\n")
         out.write("declare void @oren_llvm_runtime_dynamic_index_set_string(i64, i64, i64)\n")
         out.write("declare void @oren_llvm_opaque_stmt(i64)\n")
         out.write("declare i64 @oren_llvm_opaque_expr(i64)\n")

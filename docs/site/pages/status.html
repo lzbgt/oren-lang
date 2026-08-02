@@ -6169,10 +6169,12 @@ make docs-site</code></pre>
 <p>									  now rooted generically before helper calls, and string-key</p>
 <p>									  <code>index_get</code>/<code>index_set</code> on an unknown descriptor container dispatch</p>
 <p>									  through the C runtime after validating the container as a registered</p>
-<p>									  map; dynamic string-key writes replace semantic keys and grow</p>
-<p>									  runtime-owned key/value/key-kind arrays when needed. Remaining work</p>
-<p>									  is dynamic exact-key/list mutation dispatch and broader</p>
-<p>									  runtime-shaped descriptor inputs.</p>
+<p>									  map or list; dynamic string-key writes replace semantic keys,</p>
+<p>									  dynamic exact-key map writes and integer list writes avoid opaque</p>
+<p>									  fallback, and map writes grow runtime-owned key/value/key-kind</p>
+<p>									  arrays when needed. Remaining work is broader runtime-shaped</p>
+<p>									  descriptor inputs and dynamic container helper calls beyond direct</p>
+<p>									  index ops.</p>
 <h2 id="documentation-guardrail">Documentation Guardrail</h2>
 <p>Canonical docs should describe current implementation and live blockers only. Do not</p>
 <p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>

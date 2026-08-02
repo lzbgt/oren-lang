@@ -445,5 +445,12 @@ after it has round-trip/parity evidence. Until then:
     and grows runtime-owned key/value/key-kind arrays when capacity is exhausted.
     The map fixture proves mutation and growth on a map retrieved through an
     unknown branch-merged descriptor path under forced-GC linked execution.
-59. Add dynamic exact-key/list mutation dispatch and broader runtime-shaped
-    descriptor inputs.
+59. Done: add dynamic exact-key map mutation and dynamic list integer mutation
+    dispatch for unknown descriptor containers. `oren_llvm_runtime_dynamic_index_set`
+    now validates the container as either a registered list or map, performs
+    bounded list stores for integer indexes, and mutates or grows exact-key map
+    entries through the same runtime-owned array growth path as semantic string
+    keys. The list and map runtime fixtures prove linked execution without
+    opaque index-set fallback.
+60. Add broader runtime-shaped descriptor inputs and dynamic container helper
+    calls beyond direct index ops.
